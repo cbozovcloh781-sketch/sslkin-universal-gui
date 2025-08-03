@@ -1124,20 +1124,18 @@ screenGui.ResetOnSpawn = false
 local frame = Instance.new("Frame", screenGui)
 frame.Name = "MainFrame"
 frame.Position = UDim2.new(0, 20, 0.5, -200)
-frame.Size = UDim2.new(0, 250, 0, 0)
+frame.Size = UDim2.new(0, 300, 0, 0)
 frame.AutomaticSize = Enum.AutomaticSize.Y
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
-frame.ZIndex = 10
 
 local titleBar = Instance.new("Frame", frame)
 titleBar.Name = "TitleBar"
 titleBar.Size = UDim2.new(1, 0, 0, 36)
 titleBar.Position = UDim2.new(0, 0, 0, 0)
 titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-titleBar.ZIndex = 11
 
 local titleText = Instance.new("TextLabel", titleBar)
 titleText.Name = "TitleText"
@@ -1149,7 +1147,6 @@ titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 14
 titleText.TextColor3 = Color3.new(1, 1, 1)
 titleText.TextXAlignment = Enum.TextXAlignment.Left
-titleText.ZIndex = 12
 
 local collapseBtn = Instance.new("TextButton", titleBar)
 collapseBtn.Name = "Collapse"
@@ -1160,7 +1157,6 @@ collapseBtn.Font = Enum.Font.GothamBold
 collapseBtn.TextSize = 18
 collapseBtn.TextColor3 = Color3.new(1, 1, 1)
 collapseBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-collapseBtn.ZIndex = 12
 Instance.new("UICorner", collapseBtn).CornerRadius = UDim.new(0, 6)
 
 local scroll = Instance.new("ScrollingFrame", frame)
@@ -1171,7 +1167,6 @@ scroll.ScrollBarThickness = 6
 scroll.BackgroundTransparency = 1
 scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 scroll.ClipsDescendants = true
-scroll.ZIndex = 9
 
 local innerContainer = Instance.new("Frame", scroll)
 innerContainer.Name = "InnerContainer"
@@ -1180,12 +1175,11 @@ innerContainer.Size = UDim2.new(1, -20, 0, 0)
 innerContainer.Position = UDim2.new(0, 10, 0, 0)
 innerContainer.AutomaticSize = Enum.AutomaticSize.Y
 innerContainer.ClipsDescendants = false
-innerContainer.ZIndex = 8
 
 local function toggleMenu()
     Config.MenuCollapsed = not Config.MenuCollapsed
     local collapsed = Config.MenuCollapsed
-    local size = collapsed and UDim2.new(0, 230, 0, 40) or UDim2.new(0, 230, 0, 800)
+    local size = collapsed and UDim2.new(0, 280, 0, 40) or UDim2.new(0, 280, 0, 800)
     local text = collapsed and "+" or "−"
     local color = collapsed and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
 
@@ -1683,10 +1677,15 @@ divider5.BorderSizePixel = 0
 -- 🟩 Teleport System Integration
 sectionHeader("🟩 Teleport Settings")
 
--- Пустое пространство для разделения
-local teleportSpacer = Instance.new("Frame", innerContainer)
-teleportSpacer.Size = UDim2.new(1, -10, 0, 10)
-teleportSpacer.BackgroundTransparency = 1
+-- Фиксированные настройки телепортации
+local teleportInfoLabel = Instance.new("TextLabel", innerContainer)
+teleportInfoLabel.Size = UDim2.new(1, -10, 0, 20)
+teleportInfoLabel.Text = "Teleport Speed: 1800 | Distance: 1.8m"
+teleportInfoLabel.Font = Enum.Font.Gotham
+teleportInfoLabel.TextSize = 12
+teleportInfoLabel.TextColor3 = Color3.fromRGB(200,200,200)
+teleportInfoLabel.BackgroundTransparency = 1
+teleportInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local selectedPlayerLabel = Instance.new("TextLabel", innerContainer)
 selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
