@@ -115,16 +115,16 @@ local YBAConfig = {
     ItemESP = {
         Enabled = false,
         ToggleKey = nil,
-        MaxDistance = 200, -- Уменьшена дистанция для снижения нагрузки
+        MaxDistance = 150, -- Еще больше уменьшена дистанция
         ShowOutline = true,
         ShowText = true,
         FillColor = Color3.fromRGB(255, 215, 0), -- Золотой цвет для предметов
         OutlineColor = Color3.fromRGB(255, 255, 0),
         TextColor = Color3.fromRGB(255, 255, 255),
-        FillTransparency = 0.3,
-        OutlineTransparency = 0,
-        TextSize = 14,
-        Font = Enum.Font.GothamBold,
+        FillTransparency = 0.5, -- Увеличена прозрачность
+        OutlineTransparency = 0.2,
+        TextSize = 12, -- Уменьшен размер текста
+        Font = Enum.Font.Gotham,
     }
 }
 
@@ -2072,116 +2072,126 @@ UserInputService.InputBegan:Connect(function(inp, gp)
     end
 end)
 
--- YBA Item ESP Functions
-local function findItems()
-    local items = {}
+-- YBA Item ESP Functions (Переписанная версия)
+local itemCache = {}
+local lastCacheUpdate = 0
+local cacheUpdateInterval = 2 -- Обновляем кэш каждые 2 секунды
+
+local function isItemObject(obj)
+    if not obj or not obj.Name then return false, nil end
+    
+    -- Основные предметы YBA
+    local itemNames = {
+        "Arrow", "Rokakaka", "Rib Cage", "Heart", "Pelvis", "Requiem Arrow", 
+        "Dio's Diary", "Mysterious Arrow", "Steel Ball", "Corpse Part", 
+        "Corpse", "Dio's Bone", "Stand Arrow"
+    }
+    
+    local objName = obj.Name:lower()
+    for _, name in ipairs(itemNames) do
+        if objName:find(name:lower()) then
+            return true, name
+        end
+    end
+    
+    -- Проверяем родительский объект (только один уровень)
+    if obj.Parent and obj.Parent.Name then
+        local parentName = obj.Parent.Name:lower()
+        for _, name in ipairs(itemNames) do
+            if parentName:find(name:lower()) then
+                return true, name
+            end
+        end
+    end
+    
+    return false, nil
+end
+
+local function updateItemCache()
+    local currentTime = tick()
+    if currentTime - lastCacheUpdate < cacheUpdateInterval then
+        return itemCache
+    end
+    lastCacheUpdate = currentTime
+    
     local player = Players.LocalPlayer
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
     if not playerRoot then 
-        return items 
+        itemCache = {}
+        return itemCache 
     end
     
-    -- Список названий предметов в YBA
-    local itemNames = {
-        "Arrow", "Rokakaka", "Rib Cage", "Heart", "Pelvis", "Requiem Arrow", "Dio's Diary",
-        "Mysterious Arrow", "Steel Ball", "Corpse Part", "Corpse", "Dio's Bone", "Dio's Diary",
-        "Diamond", "Emerald", "Ruby", "Sapphire", "Gold", "Silver", "Bronze", "Iron",
-        "Stand Arrow", "Rokakaka Fruit", "Rokakaka", "Rokakaka Fruit", "Rokakaka", "Rokakaka",
-        "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow",
-        "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka",
-        "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage",
-        "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart",
-        "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis",
-        "Requiem Arrow", "Requiem Arrow", "Requiem Arrow", "Requiem Arrow", "Requiem Arrow",
-        "Dio's Diary", "Dio's Diary", "Dio's Diary", "Dio's Diary", "Dio's Diary",
-        "Mysterious Arrow", "Mysterious Arrow", "Mysterious Arrow", "Mysterious Arrow",
-        "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball",
-        "Corpse Part", "Corpse Part", "Corpse Part", "Corpse Part", "Corpse Part",
-        "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse",
-        "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone",
-        -- Дополнительные предметы
-        "Item", "Pickup", "Collectible", "Treasure", "Loot", "Drop", "Reward",
-        "Fragment", "Piece", "Part", "Component", "Material", "Resource",
-        "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow",
-        "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka",
-        "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage",
-        "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart",
-        "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis",
-        "Requiem Arrow", "Requiem Arrow", "Requiem Arrow", "Requiem Arrow",
-        "Dio's Diary", "Dio's Diary", "Dio's Diary", "Dio's Diary", "Dio's Diary",
-        "Mysterious Arrow", "Mysterious Arrow", "Mysterious Arrow", "Mysterious Arrow",
-        "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball",
-        "Corpse Part", "Corpse Part", "Corpse Part", "Corpse Part", "Corpse Part",
-        "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse",
-        "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone"
-    }
-    
+    local newCache = {}
     local processedCount = 0
-    local maxProcessed = 1000 -- Ограничиваем количество обрабатываемых объектов
+    local maxProcessed = 500 -- Ограничиваем количество проверяемых объектов
     
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if processedCount >= maxProcessed then break end
-        processedCount = processedCount + 1
-        
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            local isItem = false
-            local itemName = "Unknown Item"
+    -- Ищем только в основных папках workspace и игровых папках
+    local searchFolders = {workspace}
+    
+    -- Добавляем игровые папки, если они существуют
+    local gameFolders = {"Items", "Drops", "Pickups", "Loot", "Treasure", "Collectibles"}
+    for _, folderName in ipairs(gameFolders) do
+        local folder = workspace:FindFirstChild(folderName)
+        if folder then
+            table.insert(searchFolders, folder)
+        end
+    end
+    
+    for _, folder in ipairs(searchFolders) do
+        for _, obj in ipairs(folder:GetChildren()) do
+            if processedCount >= maxProcessed then break end
+            processedCount = processedCount + 1
             
-            -- Проверяем название объекта (только основные предметы)
-            local mainItemNames = {"Arrow", "Rokakaka", "Rib Cage", "Heart", "Pelvis", "Requiem Arrow", "Dio's Diary", "Mysterious Arrow", "Steel Ball", "Corpse Part", "Corpse", "Dio's Bone"}
-            
-            for _, name in ipairs(mainItemNames) do
-                if obj.Name:find(name) or obj.Name:lower():find(name:lower()) then
-                    isItem = true
-                    itemName = name
-                    break
-                end
-            end
-            
-            -- Проверяем родительские объекты только для основных предметов
-            if not isItem then
-                local parent = obj.Parent
-                local depth = 0
-                while parent and parent ~= workspace and depth < 3 do -- Ограничиваем глубину поиска
-                    for _, name in ipairs(mainItemNames) do
-                        if parent.Name:find(name) or parent.Name:lower():find(name:lower()) then
-                            isItem = true
-                            itemName = name
-                            break
-                        end
-                    end
-                    if isItem then break end
-                    parent = parent.Parent
-                    depth = depth + 1
-                end
-            end
-            
-            if isItem then
-                local itemRoot = obj
-                if obj:IsA("Model") then
-                    itemRoot = obj:FindFirstChild("PrimaryPart") or obj:FindFirstChild("RootPart") or obj:FindFirstChild("HumanoidRootPart")
-                end
+            -- Проверяем только BasePart и Model
+            if obj:IsA("BasePart") or obj:IsA("Model") then
+                local isItem, itemName = isItemObject(obj)
                 
-                if itemRoot then
-                    local distance = (itemRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.ItemESP.MaxDistance then
-                        table.insert(items, {
-                            Object = obj,
-                            Root = itemRoot,
-                            Distance = distance,
-                            Name = itemName
-                        })
+                if isItem then
+                    local itemRoot = obj
+                    if obj:IsA("Model") then
+                        itemRoot = obj:FindFirstChild("PrimaryPart") or obj:FindFirstChild("RootPart") or obj:FindFirstChild("HumanoidRootPart")
+                    end
+                    
+                    if itemRoot then
+                        local distance = (itemRoot.Position - playerRoot.Position).Magnitude
+                        if distance <= YBAConfig.ItemESP.MaxDistance then
+                            table.insert(newCache, {
+                                Object = obj,
+                                Root = itemRoot,
+                                Distance = distance,
+                                Name = itemName
+                            })
+                        end
                     end
                 end
             end
         end
     end
     
-    -- Сортируем по расстоянию
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    return items
+    -- Сортируем по расстоянию и ограничиваем количество
+    table.sort(newCache, function(a, b) return a.Distance < b.Distance end)
+    
+    -- Ограничиваем количество предметов в кэше
+    local maxItems = 20
+    if #newCache > maxItems then
+        for i = maxItems + 1, #newCache do
+            newCache[i] = nil
+        end
+    end
+    
+    -- Отладочная информация (только при первом запуске)
+    if #newCache > 0 and not itemESPEnabled then
+        print("YBA: Найдено предметов:", #newCache)
+        for i = 1, math.min(5, #newCache) do
+            local item = newCache[i]
+            print("YBA: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+        end
+    end
+    
+    itemCache = newCache
+    return itemCache
 end
 
 local function createItemESP(item)
@@ -2189,14 +2199,13 @@ local function createItemESP(item)
         return itemESPElements[item.Object]
     end
     
-    -- Проверяем, что объект все еще существует
     if not item.Object or not item.Object.Parent then
         return nil
     end
     
     local esp = {}
     
-    -- Создаем Highlight для обводки
+    -- Создаем Highlight только если включен
     if YBAConfig.ItemESP.ShowOutline then
         local success, highlight = pcall(function()
             local hl = Instance.new("Highlight")
@@ -2215,12 +2224,12 @@ local function createItemESP(item)
         end
     end
     
-    -- Создаем BillboardGui для текста
+    -- Создаем BillboardGui только если включен
     if YBAConfig.ItemESP.ShowText then
         local success, billboard = pcall(function()
             local bg = Instance.new("BillboardGui")
             bg.AlwaysOnTop = true
-            bg.Size = UDim2.new(0, 200, 0, 50)
+            bg.Size = UDim2.new(0, 150, 0, 40)
             bg.StudsOffset = Vector3.new(0, 2, 0)
             bg.Parent = item.Object
             
@@ -2250,19 +2259,14 @@ local function updateItemESP(item)
     local esp = itemESPElements[item.Object]
     if not esp then return end
     
-    -- Проверяем, что объект все еще существует
     if not item.Object or not item.Object.Parent then
         return
     end
     
     if esp.text and esp.text.Parent then
-        local success = pcall(function()
+        pcall(function()
             esp.text.Text = string.format("%s\n%dm", item.Name, math.floor(item.Distance))
         end)
-        if not success then
-            -- Если текст не обновился, удаляем ESP
-            pcall(removeItemESP, {Object = item.Object})
-        end
     end
 end
 
@@ -2290,9 +2294,12 @@ local function startItemESP()
     itemESPEnabled = true
     
     print("YBA: Item ESP активирован!")
+    print("YBA: Максимальная дистанция:", YBAConfig.ItemESP.MaxDistance)
+    print("YBA: Показывать обводку:", YBAConfig.ItemESP.ShowOutline)
+    print("YBA: Показывать текст:", YBAConfig.ItemESP.ShowText)
     
     local lastUpdate = 0
-    local updateInterval = 0.1 -- Обновляем каждые 0.1 секунды вместо каждого кадра
+    local updateInterval = 0.5 -- Обновляем каждые 0.5 секунды
     
     -- Основной цикл обновления Item ESP
     local itemESPLoop = RunService.Heartbeat:Connect(function()
@@ -2308,56 +2315,30 @@ local function startItemESP()
         end
         lastUpdate = currentTime
         
-        -- Добавляем таймаут для защиты от зависаний
-        local startTime = tick()
-        local maxExecutionTime = 0.05 -- Максимум 50мс на выполнение
-        
-        local success, items = pcall(findItems)
-        if not success then
-            print("YBA: Ошибка при поиске предметов:", items)
-            return
-        end
-        
-        -- Ограничиваем количество предметов для обработки
-        local maxItems = 30 -- Уменьшено с 50 до 30
+        -- Получаем предметы из кэша
+        local items = updateItemCache()
         local currentItems = {}
-        local processedCount = 0
         
-        for _, item in ipairs(items) do
-            -- Проверяем таймаут
-            if tick() - startTime > maxExecutionTime then
-                print("YBA: Item ESP превысил время выполнения, прерываем")
-                break
-            end
-            
-            if processedCount >= maxItems then break end
-            
+        -- Обрабатываем только первые 15 предметов
+        for i = 1, math.min(15, #items) do
+            local item = items[i]
             if item and item.Object and item.Object.Parent then
                 currentItems[item.Object] = true
-                processedCount = processedCount + 1
                 
                 -- Создаем ESP только если его еще нет
                 if not itemESPElements[item.Object] then
-                    local success1 = pcall(createItemESP, item)
-                    if not success1 then
-                        print("YBA: Ошибка при создании ESP для предмета:", item.Name)
-                    end
+                    pcall(createItemESP, item)
                 else
                     -- Обновляем только текст
-                    local success2 = pcall(updateItemESP, item)
-                    if not success2 then
-                        print("YBA: Ошибка при обновлении ESP для предмета:", item.Name)
-                    end
+                    pcall(updateItemESP, item)
                 end
             end
         end
         
-        -- Удаляем ESP для предметов, которые больше не видны
-        local removedCount = 0
+        -- Удаляем ESP для предметов, которых больше нет в кэше
         for obj, esp in pairs(itemESPElements) do
-            if not currentItems[obj] and removedCount < 5 then -- Уменьшено с 10 до 5
+            if not currentItems[obj] then
                 pcall(removeItemESP, {Object = obj})
-                removedCount = removedCount + 1
             end
         end
     end)
@@ -2370,6 +2351,9 @@ local function stopItemESP()
     itemESPEnabled = false
     
     print("YBA: Item ESP деактивирован!")
+    
+    -- Очищаем кэш
+    itemCache = {}
     
     -- Удаляем все ESP элементы
     for obj, esp in pairs(itemESPElements) do
@@ -3411,7 +3395,7 @@ toggle("Show Text", YBAConfig.ItemESP.ShowText, function(v)
     YBAConfig.ItemESP.ShowText = v 
 end)
 
-slider("Max Distance", 50, 500, YBAConfig.ItemESP.MaxDistance, function(v)
+slider("Max Distance", 50, 300, YBAConfig.ItemESP.MaxDistance, function(v)
     YBAConfig.ItemESP.MaxDistance = v
 end)
 
@@ -3423,7 +3407,7 @@ slider("Outline Transparency", 0, 1, YBAConfig.ItemESP.OutlineTransparency, func
     YBAConfig.ItemESP.OutlineTransparency = v
 end)
 
-slider("Text Size", 8, 20, YBAConfig.ItemESP.TextSize, function(v)
+slider("Text Size", 8, 16, YBAConfig.ItemESP.TextSize, function(v)
     YBAConfig.ItemESP.TextSize = v
 end)
 
