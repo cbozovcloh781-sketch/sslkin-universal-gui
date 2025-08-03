@@ -1012,7 +1012,12 @@ local function findStands()
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
-    if not playerRoot then return stands end
+    if not playerRoot then 
+        print("YBA: Не найден HumanoidRootPart игрока")
+        return stands 
+    end
+    
+    print("YBA: Поиск стендов в радиусе " .. YBAConfig.MaxStandDistance)
     
     -- Поиск стендов в YBA (различные варианты названий)
     local standNames = {
@@ -1025,6 +1030,7 @@ local function findStands()
         "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth"
     }
     
+    local foundCount = 0
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") then
             local isStand = false
@@ -1040,6 +1046,8 @@ local function findStands()
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
                     if distance <= YBAConfig.MaxStandDistance then
+                        foundCount = foundCount + 1
+                        print("YBA: Найден стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1052,14 +1060,18 @@ local function findStands()
         end
     end
     
+    print("YBA: Найдено стендов по названию: " .. foundCount)
+    
     -- Если стенды не найдены, ищем по другим критериям
     if #stands == 0 then
+        print("YBA: Поиск альтернативных стендов...")
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
                     if distance <= YBAConfig.MaxStandDistance and distance > 5 then -- Исключаем самого игрока
+                        print("YBA: Найден альтернативный стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1074,6 +1086,7 @@ local function findStands()
     
     -- Сортируем по расстоянию
     table.sort(stands, function(a, b) return a.Distance < b.Distance end)
+    print("YBA: Всего найдено подходящих стендов: " .. #stands)
     return stands
 end
 
@@ -1149,11 +1162,18 @@ local function unfreezePlayer()
 end
 
 local function switchCameraToStand(stand)
-    if not stand or not stand.Root then return end
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден для камеры")
+        return 
+    end
     
     local camera = workspace.CurrentCamera
-    if not camera then return end
+    if not camera then 
+        print("YBA: Ошибка - камера не найдена")
+        return 
+    end
     
+    print("YBA: Переключаем камеру на стенд: " .. stand.Name)
     originalCameraCFrame = camera.CFrame
     
     -- Полностью отвязываем камеру от персонажа и привязываем к стенду
@@ -1165,6 +1185,7 @@ local function switchCameraToStand(stand)
     
     -- Инициализируем позицию камеры
     camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+    print("YBA: Камера переключена на стенд")
 end
 
 local function restoreCamera()
@@ -1179,8 +1200,12 @@ local function restoreCamera()
 end
 
 local function controlStand(stand)
-    if not stand or not stand.Root then return end
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return 
+    end
     
+    print("YBA: Начинаем управление стендом: " .. stand.Name)
     controlledStand = stand
     
     -- Переменные для свободной камеры
@@ -1192,11 +1217,23 @@ local function controlStand(stand)
     -- Создаем соединение для управления стендом и камерой
     local controlConnection = RunService.Heartbeat:Connect(function()
         if not isYBAEnabled or not controlledStand or not controlledStand.Root or not controlledStand.Root.Parent then
+            if not isYBAEnabled then
+                print("YBA: YBA отключен")
+            elseif not controlledStand then
+                print("YBA: Стенд не найден")
+            elseif not controlledStand.Root then
+                print("YBA: Root стенда не найден")
+            elseif not controlledStand.Root.Parent then
+                print("YBA: Родитель стенда не найден")
+            end
             return
         end
         
         local camera = workspace.CurrentCamera
-        if not camera then return end
+        if not camera then 
+            print("YBA: Камера не найдена в цикле управления")
+            return 
+        end
         
         -- Обработка мыши для поворота камеры (всегда активна)
         local currentMousePos = UserInputService:GetMouseLocation()
@@ -1355,13 +1392,18 @@ end
 local function startYBA()
     if isYBAEnabled then return end
     
+    print("YBA: Запуск Stand Range Hack...")
+    
     isYBAEnabled = true
     YBAConfig.Enabled = true
     
     -- Находим ближайший стенд
     local stands = findStands()
+    print("YBA: Найдено стендов: " .. #stands)
+    
     if #stands == 0 then
         print("YBA: Стенды не найдены в радиусе " .. YBAConfig.MaxStandDistance)
+        print("YBA: Попробуйте увеличить Stand Range в настройках")
         return
     end
     
@@ -1370,16 +1412,19 @@ local function startYBA()
     
     -- Замораживаем игрока
     if YBAConfig.FreezePlayer then
+        print("YBA: Замораживаем игрока...")
         freezePlayer()
     end
     
     -- Переключаем камеру
     if YBAConfig.SwitchCamera then
+        print("YBA: Переключаем камеру на стенд...")
         switchCameraToStand(targetStand)
     end
     
     -- Передаем управление стенду
     if YBAConfig.TransferControl then
+        print("YBA: Передаем управление стенду...")
         controlStand(targetStand)
     end
     
