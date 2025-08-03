@@ -226,15 +226,24 @@ local function stopFly()
     flyConnections = {}
 end
 
--- NoClip из Infinite Yield
+-- Улучшенный NoClip для надежной работы
 local function startNoClip()
     local char = Players.LocalPlayer.Character
     if not char then return end
     
     isNoClipping = true
     
-    -- Infinite Yield NoClip метод
+    -- Принудительно отключаем коллизии сразу
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.CanCollide then
+            part.CanCollide = false
+        end
+    end
+    
+    -- Infinite Yield NoClip метод с улучшениями
     local function noclip()
+        if not char or not char.Parent then return end
+        
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") and part.CanCollide then
                 part.CanCollide = false
@@ -261,6 +270,14 @@ local function startNoClip()
     
     local descendantAdded = char.DescendantAdded:Connect(setupNoClipForPart)
     table.insert(noClipConnections, descendantAdded)
+    
+    -- Дополнительная проверка через 0.5 секунды
+    task.spawn(function()
+        task.wait(0.5)
+        if isNoClipping and char and char.Parent then
+            noclip()
+        end
+    end)
 end
 
 local function stopNoClip()
@@ -392,14 +409,41 @@ local function createStealthTeleport()
         TeleportConfig.OriginalPosition = root.Position
     end
     
-    -- Автоматически включаем NoClip при телепортации
+    -- Принудительно включаем NoClip при телепортации
     if not isNoClipping then
         startNoClip()
     end
     
+    -- Дополнительная проверка и принудительное включение NoClip
+    task.spawn(function()
+        task.wait(0.1) -- Небольшая задержка
+        if not isNoClipping then
+            startNoClip()
+        end
+        
+        -- Принудительно отключаем коллизии для всех частей персонажа
+        local char = Players.LocalPlayer.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+    
     local stealthTeleportLoop = RunService.Heartbeat:Connect(function()
         if not isTeleporting or not targetChar or not targetChar.Parent then
             return
+        end
+        
+        -- Дополнительная проверка NoClip во время телепортации
+        if isNoClipping and char and char.Parent then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
         end
         
         local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
@@ -507,10 +551,28 @@ local function startTeleport()
     -- Всегда сохраняем новую исходную позицию при запуске телепортации
     TeleportConfig.OriginalPosition = root.Position
     
-    -- Автоматически включаем NoClip при телепортации
+    -- Принудительно включаем NoClip при телепортации
     if not isNoClipping then
         startNoClip()
     end
+    
+    -- Дополнительная проверка и принудительное включение NoClip
+    task.spawn(function()
+        task.wait(0.1) -- Небольшая задержка
+        if not isNoClipping then
+            startNoClip()
+        end
+        
+        -- Принудительно отключаем коллизии для всех частей персонажа
+        local char = Players.LocalPlayer.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
     
     if startTeleportBtn then
         startTeleportBtn.Text = "TELEPORT ACTIVE"
@@ -522,6 +584,24 @@ local function startTeleport()
     end
     
     createStealthTeleport()
+    
+    -- Принудительное включение NoClip через небольшую задержку
+    task.spawn(function()
+        task.wait(0.2)
+        if not isNoClipping then
+            startNoClip()
+        end
+        
+        -- Дополнительная проверка коллизий
+        local char = Players.LocalPlayer.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
 end
 
 local function stopTeleport()
