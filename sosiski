@@ -106,6 +106,11 @@ local YBAConfig = {
     StandControlSpeed = 1.0,
     StandControlSmoothing = 0.1,
     MouseSensitivity = 0.01,
+    CameraSmoothing = 0.08,
+    CameraFollowDistance = 20.2,
+    CameraFollowHeight = 6.1,
+    MouseLookSensitivity = 0.003,
+    StandRotationSpeed = 0.05,
 }
 
 local isFlying = false
@@ -1091,6 +1096,14 @@ local function freezePlayer()
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
         bv.Velocity = Vector3.new(0, 0, 0)
+        
+        -- Дополнительно отключаем все движения персонажа
+        local gyro = root:FindFirstChild("BodyGyro")
+        if not gyro then
+            gyro = Instance.new("BodyGyro", root)
+            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        end
+        gyro.CFrame = root.CFrame
     end
     
     if humanoid then
@@ -1098,6 +1111,10 @@ local function freezePlayer()
         originalJumpPower = humanoid.JumpPower
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
+        
+        -- Отключаем все действия персонажа
+        humanoid.AutoRotate = false
+        humanoid.AutoJumpEnabled = false
     end
 end
 
@@ -1114,11 +1131,20 @@ local function unfreezePlayer()
         if bv then
             bv:Destroy()
         end
+        
+        local gyro = root:FindFirstChild("BodyGyro")
+        if gyro then
+            gyro:Destroy()
+        end
     end
     
     if humanoid then
         humanoid.WalkSpeed = originalWalkSpeed
         humanoid.JumpPower = originalJumpPower
+        
+        -- Восстанавливаем стандартные настройки персонажа
+        humanoid.AutoRotate = true
+        humanoid.AutoJumpEnabled = true
     end
 end
 
@@ -1130,19 +1156,25 @@ local function switchCameraToStand(stand)
     
     originalCameraCFrame = camera.CFrame
     
-    -- Переключаем камеру на стенд, но сохраняем возможность поворота
+    -- Полностью отвязываем камеру от персонажа и привязываем к стенду
     local standPos = stand.Root.Position
     local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
     
-    -- Сохраняем текущий поворот камеры
-    local currentLookVector = camera.CFrame.LookVector
-    camera.CFrame = CFrame.new(cameraPos, cameraPos + currentLookVector)
+    -- Отключаем стандартную камеру Roblox
+    camera.CameraType = Enum.CameraType.Scriptable
+    
+    -- Устанавливаем камеру на позицию стенда
+    camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
 end
 
 local function restoreCamera()
     local camera = workspace.CurrentCamera
-    if camera and originalCameraCFrame then
-        camera.CFrame = originalCameraCFrame
+    if camera then
+        -- Восстанавливаем стандартную камеру Roblox
+        camera.CameraType = Enum.CameraType.Custom
+        if originalCameraCFrame then
+            camera.CFrame = originalCameraCFrame
+        end
     end
 end
 
@@ -1233,6 +1265,15 @@ local function controlStand(stand)
             else
                 bv.Velocity = moveVector
             end
+            
+            -- Плавный поворот стенда в направлении движения
+            local moveDirection = moveVector.Unit
+            local currentCFrame = standRoot.CFrame
+            local targetCFrame = CFrame.lookAt(standRoot.Position, standRoot.Position + moveDirection)
+            
+            -- Плавно поворачиваем стенд
+            local newCFrame = currentCFrame:Lerp(targetCFrame, YBAConfig.StandRotationSpeed)
+            standRoot.CFrame = CFrame.new(newCFrame.Position, newCFrame.Position + newCFrame.LookVector)
         else
             -- Плавная остановка
             local standRoot = controlledStand.Root
@@ -1249,25 +1290,28 @@ local function controlStand(stand)
         if YBAConfig.SwitchCamera and controlledStand.Root then
             local standPos = controlledStand.Root.Position
             
-            -- Обработка поворота камеры мышью
-            if isMouseDown then
-                local currentMousePos = UserInputService:GetMouseLocation()
-                local mouseDelta = currentMousePos - lastMousePos
-                
-                -- Обновляем поворот камеры
-                cameraRotation = cameraRotation + Vector2.new(mouseDelta.X * YBAConfig.MouseSensitivity, mouseDelta.Y * YBAConfig.MouseSensitivity)
+            -- Обработка поворота камеры мышью (всегда активна, не только при зажатой кнопке)
+            local currentMousePos = UserInputService:GetMouseLocation()
+            local mouseDelta = currentMousePos - lastMousePos
+            
+            if mouseDelta.Magnitude > 0 then
+                -- Обновляем поворот камеры с улучшенной чувствительностью
+                cameraRotation = cameraRotation + Vector2.new(
+                    mouseDelta.X * YBAConfig.MouseLookSensitivity, 
+                    mouseDelta.Y * YBAConfig.MouseLookSensitivity
+                )
                 
                 -- Ограничиваем вертикальный поворот
                 cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
-                
-                lastMousePos = currentMousePos
             end
+            
+            lastMousePos = currentMousePos
             
             -- Вычисляем позицию камеры с учетом поворота
             local cameraOffset = Vector3.new(
-                math.sin(cameraRotation.X) * YBAConfig.CameraDistance,
-                YBAConfig.CameraHeight + math.sin(cameraRotation.Y) * 10,
-                math.cos(cameraRotation.X) * YBAConfig.CameraDistance
+                math.sin(cameraRotation.X) * YBAConfig.CameraFollowDistance,
+                YBAConfig.CameraFollowHeight + math.sin(cameraRotation.Y) * 10,
+                math.cos(cameraRotation.X) * YBAConfig.CameraFollowDistance
             )
             
             local cameraPos = standPos + cameraOffset
@@ -1279,7 +1323,7 @@ local function controlStand(stand)
             
             if cameraMoveDirection.Magnitude > 1 then
                 -- Плавное перемещение камеры
-                local smoothedCameraPos = currentCameraPos:Lerp(cameraPos, 0.1)
+                local smoothedCameraPos = currentCameraPos:Lerp(cameraPos, YBAConfig.CameraSmoothing or 0.08)
                 camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
             else
                 -- Если камера уже близко к цели, просто обновляем позицию
@@ -2509,6 +2553,26 @@ end)
 
 slider("Mouse Sensitivity", 0.001, 0.05, YBAConfig.MouseSensitivity, function(v)
     YBAConfig.MouseSensitivity = v
+end)
+
+slider("Camera Follow Distance", 10, 50, YBAConfig.CameraFollowDistance, function(v)
+    YBAConfig.CameraFollowDistance = v
+end)
+
+slider("Camera Follow Height", 1, 20, YBAConfig.CameraFollowHeight, function(v)
+    YBAConfig.CameraFollowHeight = v
+end)
+
+slider("Camera Smoothing", 0.01, 0.2, YBAConfig.CameraSmoothing, function(v)
+    YBAConfig.CameraSmoothing = v
+end)
+
+slider("Mouse Look Sensitivity", 0.001, 0.01, YBAConfig.MouseLookSensitivity, function(v)
+    YBAConfig.MouseLookSensitivity = v
+end)
+
+slider("Stand Rotation Speed", 0.01, 0.2, YBAConfig.StandRotationSpeed, function(v)
+    YBAConfig.StandRotationSpeed = v
 end)
 
 
