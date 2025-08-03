@@ -2058,7 +2058,7 @@ local function createPlayerListInMenu()
             
             local letterHeader = Instance.new("TextLabel", innerContainer)
             letterHeader.Size = UDim2.new(1, -10, 0, 20)
-            letterHeader.Text = "-
+            letterHeader.Text = "--- " .. currentLetter .. " ---"
             letterHeader.Font = Enum.Font.GothamBold
             letterHeader.TextSize = 12
             letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
@@ -2146,7 +2146,7 @@ local function updatePlayerList()
             
             local letterHeader = Instance.new("TextLabel", tempContainer)
             letterHeader.Size = UDim2.new(1, -10, 0, 20)
-            letterHeader.Text = "-
+            letterHeader.Text = "--- " .. currentLetter .. " ---"
             letterHeader.Font = Enum.Font.GothamBold
             letterHeader.TextSize = 12
             letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
