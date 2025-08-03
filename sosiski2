@@ -198,7 +198,7 @@ local YBAFreeCamera = {} do
     -- Ввод
     local input = {
         W = 0, A = 0, S = 0, D = 0,
-        Q = 0, E = 0,
+        Space = 0, LeftControl = 0,
         Up = 0, Down = 0,
         MouseDelta = Vector2.new(),
         MouseWheel = 0
@@ -226,7 +226,7 @@ local YBAFreeCamera = {} do
 
     -- Захват ввода
     local function startInput()
-        for _, key in pairs({"W", "A", "S", "D", "Q", "E", "Up", "Down"}) do
+        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
             ContextActionService:BindActionAtPriority("FreecamKey_"..key, onKey, false, INPUT_PRIORITY, Enum.KeyCode[key])
         end
         ContextActionService:BindActionAtPriority("FreecamMouse", onMouse, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
@@ -242,7 +242,7 @@ local YBAFreeCamera = {} do
         input.MouseWheel = 0
         ContextActionService:UnbindAction("FreecamMouse")
         ContextActionService:UnbindAction("FreecamMouseWheel")
-        for _, key in pairs({"W", "A", "S", "D", "Q", "E", "Up", "Down"}) do
+        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
             ContextActionService:UnbindAction("FreecamKey_"..key)
         end
     end
@@ -255,55 +255,55 @@ local YBAFreeCamera = {} do
 
         local standHead = targetStand.Root.Position + Vector3.new(0, 2, 0) -- Голова стенда
         
-        -- Управление движением стенда
-        local move = Vector3.new(
-            input.D - input.A,
-            input.E - input.Q,
-            input.S - input.W
-        ) * NAV_SPEED
+        -- Управление движением стенда (исправлено)
+        local moveX = input.D - input.A
+        local moveZ = input.S - input.W
+        local moveY = input.Space - input.LeftControl
+        
+        local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
 
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
             move = move * SHIFT_MUL
         end
 
-        -- Применяем движение к стенду
+        -- Применяем движение к стенду (улучшено)
+        local standRoot = targetStand.Root
+        local bv = standRoot:FindFirstChild("BodyVelocity")
+        if not bv then
+            bv = Instance.new("BodyVelocity", standRoot)
+            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        end
+        
         if move.Magnitude > 0 then
-            local standRoot = targetStand.Root
-            local bv = standRoot:FindFirstChild("BodyVelocity")
-            if not bv then
-                bv = Instance.new("BodyVelocity", standRoot)
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-            end
-            bv.Velocity = move * 50
+            -- Создаем направление движения относительно камеры
+            local cameraCFrame = CFrame.new(standHead) * CFrame.Angles(0, cameraRot.Y, 0)
+            local worldMove = cameraCFrame:VectorToWorldSpace(move)
+            bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
         else
-            -- Останавливаем стенд
-            local standRoot = targetStand.Root
-            local bv = standRoot:FindFirstChild("BodyVelocity")
-            if bv then
-                bv.Velocity = Vector3.new(0, 0, 0)
-            end
+            bv.Velocity = Vector3.new(0, 0, 0)
         end
 
-        -- Управление камерой от третьего лица
-        local pan = input.MouseDelta * math.rad(1.5)
+        -- Управление камерой от третьего лица (улучшено)
+        local pan = input.MouseDelta * math.rad(0.8) -- Уменьшена чувствительность для плавности
         input.MouseDelta = Vector2.new()
 
         -- Обработка зума колесиком мыши
         if input.MouseWheel ~= 0 then
-            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 2, 3, 20)
+            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 20)
             input.MouseWheel = 0
         end
 
-        -- Изменение высоты камеры клавишами Q/E
-        if input.Q > 0 then
-            cameraHeight = math.max(1, cameraHeight - 0.5)
+        -- Изменение высоты камеры клавишами Ctrl/Space
+        if input.LeftControl > 0 then
+            cameraHeight = math.max(1, cameraHeight - 0.3)
         end
-        if input.E > 0 then
-            cameraHeight = math.min(15, cameraHeight + 0.5)
+        if input.Space > 0 then
+            cameraHeight = math.min(15, cameraHeight + 0.3)
         end
 
+        -- Плавное вращение камеры
         cameraRot = cameraRot + pan
-        cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(90), math.rad(90)), cameraRot.Y % (2 * math.pi))
+        cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
 
         -- Позиция камеры от третьего лица за стендом
         local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
@@ -2795,7 +2795,7 @@ end)
 -- Информация об управлении
 local controlsInfo = Instance.new("TextLabel", innerContainer)
 controlsInfo.Size = UDim2.new(1, -10, 0, 100)
-controlsInfo.Text = "Управление стендом от 3-го лица:\nWASD - Движение стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nQ/E - Высота камеры\nShift - Медленное движение\nКамера следует за стендом"
+controlsInfo.Text = "Управление стендом от 3-го лица:\nWASD - Движение стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nCtrl/Space - Высота камеры\nShift - Медленное движение\nКамера следует за стендом"
 controlsInfo.Font = Enum.Font.Gotham
 controlsInfo.TextSize = 10
 controlsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
