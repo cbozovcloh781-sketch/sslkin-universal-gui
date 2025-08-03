@@ -1183,7 +1183,7 @@ local function unfreezePlayer()
     end
 end
 
--- Функция активации свободной камеры с переходом от персонажа к стенду
+-- Функция активации свободной камеры как в YBA
 local function activateFreeCamera(stand)
     if not stand or not stand.Root then 
         print("YBA: Ошибка - стенд или его Root не найден")
@@ -1196,12 +1196,12 @@ local function activateFreeCamera(stand)
         return false
     end
     
-    print("YBA: Активируем свободную камеру с переходом к стенду: " .. stand.Name)
+    print("YBA: Активируем свободную камеру как в YBA для стенда: " .. stand.Name)
     
     -- Сохраняем текущую камеру
     originalStandCameraCFrame = camera.CFrame
     
-    -- Отключаем стандартную камеру Roblox
+    -- Полностью отвязываем камеру от персонажа
     camera.CameraType = Enum.CameraType.Scriptable
     
     -- Инициализируем свободную камеру
@@ -1212,48 +1212,35 @@ local function activateFreeCamera(stand)
     freeCameraHeight = 5
     freeCameraLastMousePos = UserInputService:GetMouseLocation()
     
-    -- Отключаем управление персонажем
+    -- Полностью отключаем управление персонажем
     local player = Players.LocalPlayer
     if player and player.Character then
         local humanoid = player.Character:FindFirstChild("Humanoid")
         if humanoid then
             humanoid.AutoRotate = false
+            humanoid.WalkSpeed = 0
+            humanoid.JumpPower = 0
         end
-    end
-    
-    -- Создаем переход камеры от персонажа к стенду
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local playerRoot = player.Character:FindFirstChild("HumanoidRootPart")
-        if playerRoot then
-            print("YBA: Начинаем переход камеры от персонажа к стенду")
-            
-            -- Сначала устанавливаем камеру за спиной персонажа
-            local playerPos = playerRoot.Position
-            local cameraPos = playerPos + Vector3.new(0, 5, 10)
-            camera.CFrame = CFrame.new(cameraPos, playerPos + Vector3.new(0, 2, 0))
-            
-            -- Ждем 5 секунд за спиной персонажа
-            wait(5)
-            
-            -- Плавно переходим к стенду
-            local standPos = stand.Root.Position
-            local standHead = standPos + Vector3.new(0, 2, 0)
-            
-            -- Плавный переход к стенду
-            for i = 1, 60 do -- 1 секунда плавного перехода
-                local progress = i / 60
-                local currentPos = playerPos:Lerp(standPos, progress)
-                local cameraPos = currentPos + Vector3.new(0, 5, 10)
-                camera.CFrame = CFrame.new(cameraPos, currentPos + Vector3.new(0, 2, 0))
-                wait(0.016) -- ~60 FPS
+        
+        -- Замораживаем персонажа
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local bv = root:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", root)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
             end
-            
-            print("YBA: Переход к стенду завершен")
+            bv.Velocity = Vector3.new(0, 0, 0)
         end
     end
     
-    print("YBA: Свободная камера активирована")
+    -- Сразу устанавливаем камеру за стендом
+    local standPos = stand.Root.Position
+    local standHead = standPos + Vector3.new(0, 2, 0)
+    local cameraPos = standHead + Vector3.new(0, 5, 10)
+    camera.CFrame = CFrame.new(cameraPos, standHead)
+    
+    print("YBA: Свободная камера активирована и привязана к стенду")
     return true
 end
 
@@ -1384,6 +1371,25 @@ local function disableFreeCamera()
     freeCameraConnections = {}
     
     print("YBA: Свободная камера отключена")
+    
+    -- Дополнительно восстанавливаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = originalYBAWalkSpeed
+            humanoid.JumpPower = originalYBAJumpPower
+        end
+        
+        -- Убираем заморозку персонажа
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+        end
+    end
 end
 
 -- Функция для отключения управления стендом
@@ -1467,6 +1473,17 @@ local function controlFreeCamera(stand)
         -- Принудительно устанавливаем правильный тип камеры
         camera.CameraType = Enum.CameraType.Scriptable
         
+        -- Дополнительно отключаем управление персонажем каждый кадр
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = false
+                humanoid.WalkSpeed = 0
+                humanoid.JumpPower = 0
+            end
+        end
+        
         -- Обработка мыши для поворота камеры (как в Infinite Yield)
         local currentMousePos = UserInputService:GetMouseLocation()
         local mouseDelta = currentMousePos - freeCameraLastMousePos
@@ -1526,7 +1543,7 @@ local function controlFreeCamera(stand)
             end
         end
         
-        -- Автоматически перемещаем камеру за голову стенда
+        -- Принудительно обновляем камеру за головой стенда каждый кадр
         local standPos = freeCameraTarget.Root.Position
         local standHead = freeCameraTarget.Root.Position + Vector3.new(0, 2, 0) -- Голова стенда
         
@@ -1540,13 +1557,8 @@ local function controlFreeCamera(stand)
         local cameraPos = standHead + cameraOffset -- Камера относительно головы стенда
         local lookAtPos = standHead -- Смотрим на голову стенда
         
-        -- Плавно перемещаем камеру к цели
-        local currentCameraPos = camera.CFrame.Position
-        local targetCameraPos = cameraPos
-        
-        -- Плавное перемещение камеры с большей скоростью
-        local smoothedCameraPos = currentCameraPos:Lerp(targetCameraPos, 0.15)
-        camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
+        -- Принудительно обновляем камеру каждый кадр
+        camera.CFrame = CFrame.new(cameraPos, lookAtPos)
         
         -- Отладочная информация
         if not debugCameraFrame then
