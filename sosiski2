@@ -253,7 +253,8 @@ local YBAFreeCamera = {} do
             return
         end
 
-        local standHead = targetStand.Root.Position + Vector3.new(0, 2, 0) -- Голова стенда
+        local standRoot = targetStand.Root
+        local standPosition = standRoot.Position
         
         -- Управление движением стенда (исправлено)
         local moveX = input.D - input.A
@@ -267,7 +268,6 @@ local YBAFreeCamera = {} do
         end
 
         -- Применяем движение к стенду (улучшено)
-        local standRoot = targetStand.Root
         local bv = standRoot:FindFirstChild("BodyVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", standRoot)
@@ -276,7 +276,7 @@ local YBAFreeCamera = {} do
         
         if move.Magnitude > 0 then
             -- Создаем направление движения относительно камеры
-            local cameraCFrame = CFrame.new(standHead) * CFrame.Angles(0, cameraRot.Y, 0)
+            local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
             bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
         else
@@ -305,10 +305,10 @@ local YBAFreeCamera = {} do
         cameraRot = cameraRot + pan
         cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
 
-        -- Позиция камеры от третьего лица за стендом
+        -- Позиция камеры от третьего лица за стендом (фиксированная)
         local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
-        local cameraOffset = Vector3.new(0, cameraHeight, cameraDistance)
-        local cf = CFrame.new(standHead) * rot * CFrame.new(cameraOffset)
+        local cameraOffset = Vector3.new(0, cameraHeight - 2, cameraDistance) -- Фиксированная позиция чуть ниже
+        local cf = CFrame.new(standPosition) * rot * CFrame.new(cameraOffset)
 
         cameraPos = cf.Position
         Camera.CFrame = cf
@@ -328,8 +328,8 @@ local YBAFreeCamera = {} do
         targetStand = stand
         originalCameraCFrame = Camera.CFrame
         
-        local standHead = stand.Root.Position + Vector3.new(0, 2, 0)
-        cameraPos = standHead + Vector3.new(0, cameraHeight, cameraDistance) -- Начальная позиция камеры
+        local standPosition = stand.Root.Position
+        cameraPos = standPosition + Vector3.new(0, cameraHeight - 2, cameraDistance) -- Начальная позиция камеры (фиксированная)
         cameraRot = Vector2.new()
         cameraFov = Camera.FieldOfView
         
