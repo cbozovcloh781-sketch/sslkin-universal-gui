@@ -106,6 +106,11 @@ local YBAConfig = {
     StandControlSpeed = 1.0,
     StandControlSmoothing = 0.1,
     MouseSensitivity = 0.01,
+    CameraSmoothing = 0.08,
+    CameraFollowDistance = 20.2,
+    CameraFollowHeight = 6.1,
+    MouseLookSensitivity = 0.003,
+    StandRotationSpeed = 0.05,
 }
 
 local isFlying = false
@@ -147,8 +152,25 @@ local originalCameraCFrame = nil
 local controlledStand = nil
 local standControlConnections = {}
 local originalGravity = workspace.Gravity
-local originalWalkSpeed = 16
-local originalJumpPower = 50
+local originalYBAWalkSpeed = 16
+local originalYBAJumpPower = 50
+
+-- Новая система управления стендами
+local isStandControlActive = false
+local currentControlledStand = nil
+local standCameraConnections = {}
+local originalStandCameraCFrame = nil
+local standControlActive = false
+
+-- Система свободной камеры как в Infinite Yield
+local freeCameraActive = false
+local freeCameraConnections = {}
+local freeCameraRotation = Vector2.new(0, 0)
+local freeCameraDistance = 10
+local freeCameraHeight = 5
+local freeCameraTarget = nil
+local freeCameraLastMousePos = Vector2.new(0, 0)
+local lastCameraUpdate = nil
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -160,10 +182,10 @@ local function startFly()
     
     isFlying = true
     
-    local originalJumpPower = hum.JumpPower
-    local originalJumpHeight = hum.JumpHeight
-    local originalGravity = workspace.Gravity
-    local originalHipHeight = hum.HipHeight
+    local flyOriginalJumpPower = hum.JumpPower
+    local flyOriginalJumpHeight = hum.JumpHeight
+    local flyOriginalGravity = workspace.Gravity
+    local flyOriginalHipHeight = hum.HipHeight
     
     hum.JumpPower = 0
     hum.JumpHeight = 0
@@ -195,12 +217,12 @@ local function startFly()
     local renderConnection = RunService.RenderStepped:Connect(function()
         if not isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
             if hum then
-                hum.JumpPower = originalJumpPower
-                hum.JumpHeight = originalJumpHeight
-                hum.HipHeight = originalHipHeight
+                hum.JumpPower = flyOriginalJumpPower
+                hum.JumpHeight = flyOriginalJumpHeight
+                hum.HipHeight = flyOriginalHipHeight
             end
             if not isNoClipping then
-                workspace.Gravity = originalGravity
+                workspace.Gravity = flyOriginalGravity
             end
             
             inputDown:Disconnect()
@@ -1007,7 +1029,12 @@ local function findStands()
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
-    if not playerRoot then return stands end
+    if not playerRoot then 
+        print("YBA: Не найден HumanoidRootPart игрока")
+        return stands 
+    end
+    
+    print("YBA: Поиск стендов в радиусе " .. YBAConfig.MaxStandDistance)
     
     -- Поиск стендов в YBA (различные варианты названий)
     local standNames = {
@@ -1020,6 +1047,7 @@ local function findStands()
         "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth"
     }
     
+    local foundCount = 0
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") then
             local isStand = false
@@ -1035,6 +1063,8 @@ local function findStands()
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
                     if distance <= YBAConfig.MaxStandDistance then
+                        foundCount = foundCount + 1
+                        print("YBA: Найден стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1047,14 +1077,18 @@ local function findStands()
         end
     end
     
+    print("YBA: Найдено стендов по названию: " .. foundCount)
+    
     -- Если стенды не найдены, ищем по другим критериям
     if #stands == 0 then
+        print("YBA: Поиск альтернативных стендов...")
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
                     if distance <= YBAConfig.MaxStandDistance and distance > 5 then -- Исключаем самого игрока
+                        print("YBA: Найден альтернативный стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1069,6 +1103,7 @@ local function findStands()
     
     -- Сортируем по расстоянию
     table.sort(stands, function(a, b) return a.Distance < b.Distance end)
+    print("YBA: Всего найдено подходящих стендов: " .. #stands)
     return stands
 end
 
@@ -1091,13 +1126,31 @@ local function freezePlayer()
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
         bv.Velocity = Vector3.new(0, 0, 0)
+        
+        -- Дополнительно отключаем все движения персонажа
+        local gyro = root:FindFirstChild("BodyGyro")
+        if not gyro then
+            gyro = Instance.new("BodyGyro", root)
+            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        end
+        gyro.CFrame = root.CFrame
+        
+        -- Принудительно отключаем камеру от персонажа
+        local camera = workspace.CurrentCamera
+        if camera then
+            camera.CameraType = Enum.CameraType.Scriptable
+        end
     end
     
     if humanoid then
-        originalWalkSpeed = humanoid.WalkSpeed
-        originalJumpPower = humanoid.JumpPower
+        originalYBAWalkSpeed = humanoid.WalkSpeed
+        originalYBAJumpPower = humanoid.JumpPower
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
+        
+        -- Отключаем все действия персонажа
+        humanoid.AutoRotate = false
+        humanoid.AutoJumpEnabled = false
     end
 end
 
@@ -1114,95 +1167,706 @@ local function unfreezePlayer()
         if bv then
             bv:Destroy()
         end
+        
+        local gyro = root:FindFirstChild("BodyGyro")
+        if gyro then
+            gyro:Destroy()
+        end
     end
     
     if humanoid then
-        humanoid.WalkSpeed = originalWalkSpeed
-        humanoid.JumpPower = originalJumpPower
+        humanoid.WalkSpeed = originalYBAWalkSpeed
+        humanoid.JumpPower = originalYBAJumpPower
+        
+        -- Восстанавливаем стандартные настройки персонажа
+        humanoid.AutoRotate = true
+        humanoid.AutoJumpEnabled = true
     end
 end
 
-local function switchCameraToStand(stand)
-    if not stand or not stand.Root then return end
+-- Функция активации свободной камеры, обходя проверки YBA
+local function activateFreeCamera(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return false
+    end
     
     local camera = workspace.CurrentCamera
-    if not camera then return end
+    if not camera then 
+        print("YBA: Ошибка - камера не найдена")
+        return false
+    end
     
+    print("YBA: Активируем свободную камеру, обходя проверки YBA для стенда: " .. stand.Name)
+    
+    -- Сохраняем текущую камеру
+    originalStandCameraCFrame = camera.CFrame
+    
+    -- Полностью отвязываем камеру от персонажа
+    camera.CameraType = Enum.CameraType.Scriptable
+    
+    -- Инициализируем свободную камеру
+    freeCameraActive = true
+    freeCameraTarget = stand
+    freeCameraRotation = Vector2.new(0, 0)
+    freeCameraDistance = 10
+    freeCameraHeight = 5
+    freeCameraLastMousePos = UserInputService:GetMouseLocation()
+    
+    -- Полностью отключаем управление персонажем и замораживаем его
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = false
+            humanoid.WalkSpeed = 0
+            humanoid.JumpPower = 0
+        end
+        
+        -- Замораживаем персонажа на месте
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            -- Удаляем старые BodyVelocity если есть
+            local oldBv = root:FindFirstChild("BodyVelocity")
+            if oldBv then
+                oldBv:Destroy()
+            end
+            
+            -- Создаем новый BodyVelocity для заморозки
+            local bv = Instance.new("BodyVelocity", root)
+            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            bv.Velocity = Vector3.new(0, 0, 0)
+            
+            -- Создаем BodyGyro для фиксации поворота
+            local oldGyro = root:FindFirstChild("BodyGyro")
+            if oldGyro then
+                oldGyro:Destroy()
+            end
+            
+            local gyro = Instance.new("BodyGyro", root)
+            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            gyro.CFrame = root.CFrame
+        end
+    end
+    
+    -- Сразу устанавливаем камеру за стендом
+    local standPos = stand.Root.Position
+    local standHead = standPos + Vector3.new(0, 2, 0)
+    local cameraPos = standHead + Vector3.new(0, 5, 10)
+    camera.CFrame = CFrame.new(cameraPos, standHead)
+    
+    print("YBA: Свободная камера активирована и привязана к стенду")
+    return true
+end
+
+-- Функция для переключения камеры на любой стенд (как в YBA)
+local function switchToStandControl(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return false
+    end
+    
+    local camera = workspace.CurrentCamera
+    if not camera then 
+        print("YBA: Ошибка - камера не найдена")
+        return false
+    end
+    
+    print("YBA: Переключаем управление на стенд: " .. stand.Name)
+    
+    -- Сохраняем текущую камеру
+    originalStandCameraCFrame = camera.CFrame
+    
+    -- Полностью отвязываем камеру от персонажа
+    camera.CameraType = Enum.CameraType.Scriptable
+    
+    -- Устанавливаем камеру за стендом
+    local standPos = stand.Root.Position
+    local cameraPos = standPos + Vector3.new(0, 5, 10) -- Камера за стендом
+    
+    camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+    
+    -- Отключаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = false
+        end
+    end
+    
+    currentControlledStand = stand
+    isStandControlActive = true
+    standControlActive = true
+    
+    print("YBA: Управление переключено на стенд: " .. stand.Name)
+    return true
+end
+
+local function switchCameraToStand(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден для камеры")
+        return 
+    end
+    
+    local camera = workspace.CurrentCamera
+    if not camera then 
+        print("YBA: Ошибка - камера не найдена")
+        return 
+    end
+    
+    print("YBA: Переключаем камеру на стенд: " .. stand.Name)
     originalCameraCFrame = camera.CFrame
     
-    -- Переключаем камеру на стенд, но сохраняем возможность поворота
+    -- Полностью отвязываем камеру от персонажа и привязываем к стенду
     local standPos = stand.Root.Position
     local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
     
-    -- Сохраняем текущий поворот камеры
-    local currentLookVector = camera.CFrame.LookVector
-    camera.CFrame = CFrame.new(cameraPos, cameraPos + currentLookVector)
+    -- Отключаем стандартную камеру Roblox и создаем свободную камеру
+    print("YBA: Текущий тип камеры: " .. tostring(camera.CameraType))
+    camera.CameraType = Enum.CameraType.Scriptable
+    print("YBA: Новый тип камеры: " .. tostring(camera.CameraType))
+    
+    -- Инициализируем позицию камеры
+    camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+    print("YBA: Камера переключена на стенд")
+    print("YBA: Позиция камеры: " .. tostring(cameraPos))
+    print("YBA: Позиция стенда: " .. tostring(standPos))
+    
+    -- Принудительно перемещаем камеру к стенду
+    for i = 1, 10 do
+        camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+        wait(0.01)
+    end
+    print("YBA: Камера принудительно перемещена к стенду")
+    
+    -- Дополнительно отключаем камеру от персонажа
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = false
+        end
+    end
+end
+
+-- Функция для отключения свободной камеры
+local function disableFreeCamera()
+    if not freeCameraActive then return end
+    
+    print("YBA: Отключаем свободную камеру")
+    
+    freeCameraActive = false
+    freeCameraTarget = nil
+    
+    -- Восстанавливаем камеру
+    local camera = workspace.CurrentCamera
+    if camera then
+        camera.CameraType = Enum.CameraType.Custom
+        if originalStandCameraCFrame then
+            camera.CFrame = originalStandCameraCFrame
+        end
+    end
+    
+    -- Восстанавливаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = true
+        end
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(freeCameraConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    freeCameraConnections = {}
+    
+    print("YBA: Свободная камера отключена")
+    
+    -- Дополнительно восстанавливаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = originalYBAWalkSpeed
+            humanoid.JumpPower = originalYBAJumpPower
+        end
+        
+        -- Убираем заморозку персонажа
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+            
+            local gyro = root:FindFirstChild("BodyGyro")
+            if gyro then
+                gyro:Destroy()
+            end
+        end
+    end
+end
+
+-- Функция для отключения управления стендом
+local function disableStandControl()
+    if not isStandControlActive then return end
+    
+    print("YBA: Отключаем управление стендом")
+    
+    isStandControlActive = false
+    standControlActive = false
+    currentControlledStand = nil
+    
+    -- Восстанавливаем камеру
+    local camera = workspace.CurrentCamera
+    if camera then
+        camera.CameraType = Enum.CameraType.Custom
+        if originalStandCameraCFrame then
+            camera.CFrame = originalStandCameraCFrame
+        end
+    end
+    
+    -- Восстанавливаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = true
+        end
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(standCameraConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    standCameraConnections = {}
+    
+    print("YBA: Управление стендом отключено")
 end
 
 local function restoreCamera()
     local camera = workspace.CurrentCamera
-    if camera and originalCameraCFrame then
-        camera.CFrame = originalCameraCFrame
+    if camera then
+        -- Восстанавливаем стандартную камеру Roblox
+        camera.CameraType = Enum.CameraType.Custom
+        if originalCameraCFrame then
+            camera.CFrame = originalCameraCFrame
+        end
+        
+        -- Восстанавливаем управление персонажем
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = true
+            end
+        end
     end
 end
 
-local function controlStand(stand)
-    if not stand or not stand.Root then return end
+-- Функция управления свободной камерой как в Infinite Yield
+local function controlFreeCamera(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return 
+    end
     
-    controlledStand = stand
+    print("YBA: Начинаем управление свободной камерой для стенда: " .. stand.Name)
+    currentControlledStand = stand
     
-    -- Переменные для управления камерой
-    local cameraRotation = Vector2.new(0, 0)
-    local lastMousePos = Vector2.new(0, 0)
-    local isMouseDown = false
-    
-    -- Обработка мыши для поворота камеры
-    local mouseConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isMouseDown = true
-            lastMousePos = UserInputService:GetMouseLocation()
-        end
-    end)
-    
-    local mouseEndConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isMouseDown = false
-        end
-    end)
-    
-    -- Создаем соединение для управления стендом
-    local controlConnection = RunService.Heartbeat:Connect(function()
-        if not isYBAEnabled or not controlledStand or not controlledStand.Root or not controlledStand.Root.Parent then
+    -- Создаем соединение для управления свободной камерой
+    local freeCameraConnection = RunService.Heartbeat:Connect(function()
+        if not freeCameraActive or not freeCameraTarget or not freeCameraTarget.Root or not freeCameraTarget.Root.Parent then
             return
         end
         
         local camera = workspace.CurrentCamera
         if not camera then return end
         
-        -- Получаем ввод пользователя
+        -- Принудительно устанавливаем правильный тип камеры
+        camera.CameraType = Enum.CameraType.Scriptable
+        
+        -- Дополнительно отключаем управление персонажем каждый кадр
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = false
+                humanoid.WalkSpeed = 0
+                humanoid.JumpPower = 0
+            end
+            
+            -- Дополнительно замораживаем персонажа каждый кадр
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                local bv = root:FindFirstChild("BodyVelocity")
+                if bv then
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                end
+                
+                local gyro = root:FindFirstChild("BodyGyro")
+                if gyro then
+                    gyro.CFrame = root.CFrame
+                end
+            end
+        end
+        
+        -- Обработка мыши для поворота камеры (как в Infinite Yield)
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local mouseDelta = currentMousePos - freeCameraLastMousePos
+        
+        if mouseDelta.Magnitude > 0 then
+            local newRotationX = freeCameraRotation.X + mouseDelta.X * 0.003
+            local newRotationY = freeCameraRotation.Y + mouseDelta.Y * 0.003
+            newRotationY = math.clamp(newRotationY, -1.5, 1.5)
+            freeCameraRotation = Vector2.new(newRotationX, newRotationY)
+        end
+        
+        freeCameraLastMousePos = currentMousePos
+        
+        -- Получаем ввод пользователя для движения стенда
         local moveVector = Vector3.new(0, 0, 0)
         
+        -- Создаем базовое направление движения относительно камеры
+        local forward = Vector3.new(math.sin(freeCameraRotation.X), 0, math.cos(freeCameraRotation.X))
+        local right = Vector3.new(math.cos(freeCameraRotation.X), 0, -math.sin(freeCameraRotation.X))
+        
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveVector = moveVector + camera.CFrame.LookVector
+            moveVector = moveVector + forward
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveVector = moveVector - camera.CFrame.LookVector
+            moveVector = moveVector - forward
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveVector = moveVector - camera.CFrame.RightVector
+            moveVector = moveVector - right
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveVector = moveVector + camera.CFrame.RightVector
+            moveVector = moveVector + right
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
             moveVector = moveVector + Vector3.new(0, 1, 0)
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        -- Применяем движение к стенду (обходя проверки YBA)
+        if moveVector.Magnitude > 0 then
+            moveVector = moveVector.Unit * 50
+            
+            local standRoot = freeCameraTarget.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", standRoot)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            end
+            bv.Velocity = moveVector
+            
+            -- Дополнительно создаем BodyGyro для поворота стенда
+            local gyro = standRoot:FindFirstChild("BodyGyro")
+            if not gyro then
+                gyro = Instance.new("BodyGyro", standRoot)
+                gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            end
+            
+            -- Поворачиваем стенд в направлении движения
+            local moveDirection = moveVector.Unit
+            local targetCFrame = CFrame.lookAt(standRoot.Position, standRoot.Position + moveDirection)
+            gyro.CFrame = targetCFrame
+        else
+            -- Останавливаем стенд
+            local standRoot = freeCameraTarget.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+        
+        -- Принудительно обновляем камеру за головой стенда каждый кадр
+        local standPos = freeCameraTarget.Root.Position
+        local standHead = freeCameraTarget.Root.Position + Vector3.new(0, 2, 0) -- Голова стенда
+        
+        -- Принудительно отвязываем камеру от персонажа каждый кадр
+        camera.CameraType = Enum.CameraType.Scriptable
+        
+        -- Вычисляем позицию камеры за головой стенда (как в YBA)
+        local cameraOffset = Vector3.new(
+            math.sin(freeCameraRotation.X) * freeCameraDistance,
+            freeCameraHeight + math.sin(freeCameraRotation.Y) * 5,
+            math.cos(freeCameraRotation.X) * freeCameraDistance
+        )
+        
+        local cameraPos = standHead + cameraOffset -- Камера относительно головы стенда
+        local lookAtPos = standHead -- Смотрим на голову стенда
+        
+        -- Принудительно обновляем камеру каждый кадр (обходя проверки YBA)
+        camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+        
+        -- Дополнительно принудительно обновляем камеру каждую секунду
+        if not lastCameraUpdate then
+            lastCameraUpdate = tick()
+        end
+        
+        if tick() - lastCameraUpdate > 1 then
+            camera.CameraType = Enum.CameraType.Scriptable
+            camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+            lastCameraUpdate = tick()
+        end
+        
+        -- Отладочная информация
+        if not debugCameraFrame then
+            debugCameraFrame = 0
+        end
+        debugCameraFrame = debugCameraFrame + 1
+        if debugCameraFrame <= 10 then
+            print("YBA: Камера следует за головой стенда - Позиция: " .. tostring(cameraPos) .. ", Голова: " .. tostring(standHead))
+        end
+        
+        -- Дополнительные клавиши управления камерой
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+            freeCameraHeight = math.max(1, freeCameraHeight - 0.5)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+            freeCameraHeight = math.min(20, freeCameraHeight + 0.5)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.R) then
+            freeCameraRotation = Vector2.new(0, 0)
+            freeCameraDistance = 10
+            freeCameraHeight = 5
+        end
+    end)
+    
+    -- Обработка колесика мыши для изменения расстояния камеры (относительно стенда)
+    local mouseWheelConnection = UserInputService.InputChanged:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            local zoomSpeed = 2
+            if input.Position.Z > 0 then
+                freeCameraDistance = math.max(5, freeCameraDistance - zoomSpeed)
+            else
+                freeCameraDistance = math.min(30, freeCameraDistance + zoomSpeed)
+            end
+            
+            -- Принудительно обновляем камеру после изменения зума
+            if freeCameraTarget and freeCameraTarget.Root then
+                local standHead = freeCameraTarget.Root.Position + Vector3.new(0, 2, 0)
+                local cameraOffset = Vector3.new(
+                    math.sin(freeCameraRotation.X) * freeCameraDistance,
+                    freeCameraHeight + math.sin(freeCameraRotation.Y) * 5,
+                    math.cos(freeCameraRotation.X) * freeCameraDistance
+                )
+                local cameraPos = standHead + cameraOffset
+                camera.CFrame = CFrame.new(cameraPos, standHead)
+            end
+        end
+    end)
+    
+    table.insert(freeCameraConnections, freeCameraConnection)
+    table.insert(freeCameraConnections, mouseWheelConnection)
+end
+
+-- Функция для управления стендом как персонажем
+local function controlStandAsCharacter(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return 
+    end
+    
+    print("YBA: Начинаем управление стендом как персонажем: " .. stand.Name)
+    currentControlledStand = stand
+    
+    -- Переменные для управления
+    local cameraRotation = Vector2.new(0, 0)
+    local lastMousePos = UserInputService:GetMouseLocation()
+    local cameraDistance = 10
+    local cameraHeight = 5
+    
+    -- Создаем соединение для управления стендом
+    local standControlConnection = RunService.Heartbeat:Connect(function()
+        if not isStandControlActive or not currentControlledStand or not currentControlledStand.Root or not currentControlledStand.Root.Parent then
+            return
+        end
+        
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+        
+        -- Принудительно устанавливаем правильный тип камеры
+        camera.CameraType = Enum.CameraType.Scriptable
+        
+        -- Обработка мыши для поворота камеры
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local mouseDelta = currentMousePos - lastMousePos
+        
+        if mouseDelta.Magnitude > 0 then
+            local newRotationX = cameraRotation.X + mouseDelta.X * 0.003
+            local newRotationY = cameraRotation.Y + mouseDelta.Y * 0.003
+            newRotationY = math.clamp(newRotationY, -1.5, 1.5)
+            cameraRotation = Vector2.new(newRotationX, newRotationY)
+        end
+        
+        lastMousePos = currentMousePos
+        
+        -- Получаем ввод пользователя для движения стенда
+        local moveVector = Vector3.new(0, 0, 0)
+        
+        -- Создаем базовое направление движения относительно камеры
+        local forward = Vector3.new(math.sin(cameraRotation.X), 0, math.cos(cameraRotation.X))
+        local right = Vector3.new(math.cos(cameraRotation.X), 0, -math.sin(cameraRotation.X))
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        -- Применяем движение к стенду
+        if moveVector.Magnitude > 0 then
+            moveVector = moveVector.Unit * 50
+            
+            local standRoot = currentControlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", standRoot)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            end
+            bv.Velocity = moveVector
+        else
+            -- Останавливаем стенд
+            local standRoot = currentControlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+        
+        -- Обновляем камеру за стендом
+        local standPos = currentControlledStand.Root.Position
+        local cameraOffset = Vector3.new(
+            math.sin(cameraRotation.X) * cameraDistance,
+            cameraHeight + math.sin(cameraRotation.Y) * 5,
+            math.cos(cameraRotation.X) * cameraDistance
+        )
+        
+        local cameraPos = standPos + cameraOffset
+        local lookAtPos = standPos + Vector3.new(0, 2, 0)
+        
+        camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+    end)
+    
+    table.insert(standCameraConnections, standControlConnection)
+end
+
+local function controlStand(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return 
+    end
+    
+    print("YBA: Начинаем управление стендом: " .. stand.Name)
+    controlledStand = stand
+    
+    -- Переменные для свободной камеры
+    local cameraRotation = Vector2.new(0, 0)
+    local lastMousePos = UserInputService:GetMouseLocation()
+    local cameraDistance = YBAConfig.CameraFollowDistance
+    local cameraHeight = YBAConfig.CameraFollowHeight
+    local debugCameraFrame = 0
+    local lastStandPos = controlledStand.Root.Position
+    
+    -- Создаем соединение для управления стендом и камерой
+    local controlConnection = RunService.Heartbeat:Connect(function()
+        if not isYBAEnabled or not controlledStand or not controlledStand.Root or not controlledStand.Root.Parent then
+            return
+        end
+        
+        local camera = workspace.CurrentCamera
+        if not camera then 
+            return 
+        end
+        
+        -- Принудительно устанавливаем правильный тип камеры
+        if camera.CameraType ~= Enum.CameraType.Scriptable then
+            camera.CameraType = Enum.CameraType.Scriptable
+        end
+        
+        -- Обработка мыши для поворота камеры (всегда активна)
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local mouseDelta = currentMousePos - lastMousePos
+        
+        if mouseDelta.Magnitude > 0 then
+            -- Обновляем поворот камеры
+            local newRotationX = cameraRotation.X + mouseDelta.X * YBAConfig.MouseLookSensitivity
+            local newRotationY = cameraRotation.Y + mouseDelta.Y * YBAConfig.MouseLookSensitivity
+            
+            -- Ограничиваем вертикальный поворот
+            newRotationY = math.clamp(newRotationY, -1.5, 1.5)
+            
+            -- Создаем новый Vector2
+            cameraRotation = Vector2.new(newRotationX, newRotationY)
+        end
+        
+        lastMousePos = currentMousePos
+        
+        -- Получаем ввод пользователя для движения стенда
+        local moveVector = Vector3.new(0, 0, 0)
+        
+        -- Создаем базовое направление движения относительно камеры
+        local forward = Vector3.new(math.sin(cameraRotation.X), 0, math.cos(cameraRotation.X))
+        local right = Vector3.new(math.cos(cameraRotation.X), 0, -math.sin(cameraRotation.X))
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        -- Изменение высоты камеры клавишами Q и E
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+            cameraHeight = math.max(1, cameraHeight - 0.5)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+            cameraHeight = math.min(20, cameraHeight + 0.5)
+        end
+        
+        -- Сброс камеры клавишей R
+        if UserInputService:IsKeyDown(Enum.KeyCode.R) then
+            cameraRotation = Vector2.new(0, 0)
+            cameraDistance = YBAConfig.CameraFollowDistance
+            cameraHeight = YBAConfig.CameraFollowHeight
         end
         
         if moveVector.Magnitude > 0 then
@@ -1233,6 +1897,15 @@ local function controlStand(stand)
             else
                 bv.Velocity = moveVector
             end
+            
+            -- Плавный поворот стенда в направлении движения
+            local moveDirection = moveVector.Unit
+            local currentCFrame = standRoot.CFrame
+            local targetCFrame = CFrame.lookAt(standRoot.Position, standRoot.Position + moveDirection)
+            
+            -- Плавно поворачиваем стенд
+            local newCFrame = currentCFrame:Lerp(targetCFrame, YBAConfig.StandRotationSpeed)
+            standRoot.CFrame = CFrame.new(newCFrame.Position, newCFrame.Position + newCFrame.LookVector)
         else
             -- Плавная остановка
             local standRoot = controlledStand.Root
@@ -1245,64 +1918,104 @@ local function controlStand(stand)
             end
         end
         
-        -- Обновляем позицию камеры для следования за стендом с возможностью поворота
+        -- Принудительное перемещение камеры за стендом
         if YBAConfig.SwitchCamera and controlledStand.Root then
             local standPos = controlledStand.Root.Position
             
-            -- Обработка поворота камеры мышью
-            if isMouseDown then
-                local currentMousePos = UserInputService:GetMouseLocation()
-                local mouseDelta = currentMousePos - lastMousePos
-                
-                -- Обновляем поворот камеры
-                cameraRotation = cameraRotation + Vector2.new(mouseDelta.X * YBAConfig.MouseSensitivity, mouseDelta.Y * YBAConfig.MouseSensitivity)
-                
-                -- Ограничиваем вертикальный поворот
-                cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
-                
-                lastMousePos = currentMousePos
-            end
-            
             -- Вычисляем позицию камеры с учетом поворота
             local cameraOffset = Vector3.new(
-                math.sin(cameraRotation.X) * YBAConfig.CameraDistance,
-                YBAConfig.CameraHeight + math.sin(cameraRotation.Y) * 10,
-                math.cos(cameraRotation.X) * YBAConfig.CameraDistance
+                math.sin(cameraRotation.X) * cameraDistance,
+                cameraHeight + math.sin(cameraRotation.Y) * 10,
+                math.cos(cameraRotation.X) * cameraDistance
             )
             
             local cameraPos = standPos + cameraOffset
             local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
             
-            -- Плавно перемещаем камеру
-            local currentCameraPos = camera.CFrame.Position
-            local cameraMoveDirection = (cameraPos - currentCameraPos)
+            -- Принудительно перемещаем камеру каждый кадр
+            camera.CameraType = Enum.CameraType.Scriptable
             
-            if cameraMoveDirection.Magnitude > 1 then
-                -- Плавное перемещение камеры
-                local smoothedCameraPos = currentCameraPos:Lerp(cameraPos, 0.1)
-                camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
+            -- Создаем плавное перемещение камеры
+            local currentCameraPos = camera.CFrame.Position
+            local targetCameraPos = cameraPos
+            
+            -- Определяем скорость перемещения камеры в зависимости от движения стенда
+            local standMovement = (standPos - lastStandPos).Magnitude
+            local cameraSpeed = math.min(0.2, 0.05 + standMovement * 0.1)
+            
+            -- Плавно перемещаем камеру к цели
+            local smoothedCameraPos = currentCameraPos:Lerp(targetCameraPos, cameraSpeed)
+            camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
+            
+            -- Обновляем позицию стенда
+            lastStandPos = standPos
+            
+            -- Отладочная информация (только первые несколько кадров)
+            debugCameraFrame = debugCameraFrame + 1
+            if debugCameraFrame <= 5 then
+                print("YBA: Камера перемещена - Текущая: " .. tostring(currentCameraPos) .. ", Цель: " .. tostring(targetCameraPos) .. ", Стенд: " .. tostring(standPos) .. ", Скорость: " .. cameraSpeed)
+            end
+        end
+    end)
+    
+    -- Обработка колесика мыши для изменения расстояния камеры
+    local mouseWheelConnection = UserInputService.InputChanged:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            local zoomSpeed = 2
+            if input.Position.Z > 0 then
+                cameraDistance = math.max(5, cameraDistance - zoomSpeed)
             else
-                -- Если камера уже близко к цели, просто обновляем позицию
-                camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+                cameraDistance = math.min(50, cameraDistance + zoomSpeed)
             end
         end
     end)
     
     table.insert(standControlConnections, controlConnection)
-    table.insert(standControlConnections, mouseConnection)
-    table.insert(standControlConnections, mouseEndConnection)
+    table.insert(standControlConnections, mouseWheelConnection)
+    
+    -- Обработка клавиши для быстрого переключения на стенд
+    local quickSwitchConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        -- Клавиша F для быстрого переключения на ближайший стенд
+        if input.KeyCode == Enum.KeyCode.F then
+            if freeCameraActive then
+                disableFreeCamera()
+            else
+                local stands = findStands()
+                if #stands > 0 then
+                    local targetStand = stands[1]
+                    if activateFreeCamera(targetStand) then
+                        controlFreeCamera(targetStand)
+                        print("YBA: Быстрое переключение на стенд: " .. targetStand.Name)
+                    end
+                else
+                    print("YBA: Стенды не найдены для быстрого переключения")
+                end
+            end
+        end
+    end)
+    
+    table.insert(standControlConnections, quickSwitchConnection)
 end
 
 local function startYBA()
     if isYBAEnabled then return end
+    
+    print("YBA: Запуск Stand Range Hack...")
     
     isYBAEnabled = true
     YBAConfig.Enabled = true
     
     -- Находим ближайший стенд
     local stands = findStands()
+    print("YBA: Найдено стендов: " .. #stands)
+    
     if #stands == 0 then
         print("YBA: Стенды не найдены в радиусе " .. YBAConfig.MaxStandDistance)
+        print("YBA: Попробуйте увеличить Stand Range в настройках")
         return
     end
     
@@ -1311,17 +2024,40 @@ local function startYBA()
     
     -- Замораживаем игрока
     if YBAConfig.FreezePlayer then
+        print("YBA: Замораживаем игрока...")
         freezePlayer()
     end
     
     -- Переключаем камеру
     if YBAConfig.SwitchCamera then
+        print("YBA: Переключаем камеру на стенд...")
         switchCameraToStand(targetStand)
     end
     
-    -- Передаем управление стенду
+    -- Активируем свободную камеру для стенда (обходя проверки YBA)
     if YBAConfig.TransferControl then
-        controlStand(targetStand)
+        print("YBA: Активируем свободную камеру для стенда, обходя проверки...")
+        
+        -- Используем систему свободной камеры как в Infinite Yield
+        if activateFreeCamera(targetStand) then
+            controlFreeCamera(targetStand)
+            print("YBA: Свободная камера активирована для стенда")
+            
+            -- Дополнительно принудительно обновляем камеру через 1 секунду
+            wait(1)
+            local camera = workspace.CurrentCamera
+            if camera and targetStand.Root then
+                local standHead = targetStand.Root.Position + Vector3.new(0, 2, 0)
+                local cameraPos = standHead + Vector3.new(0, 5, 10)
+                camera.CameraType = Enum.CameraType.Scriptable
+                camera.CFrame = CFrame.new(cameraPos, standHead)
+                print("YBA: Камера принудительно обновлена")
+            end
+        else
+            print("YBA: Не удалось активировать свободную камеру")
+        end
+    else
+        print("YBA: TransferControl отключен")
     end
     
     print("YBA: Stand Range Hack активирован!")
@@ -1332,6 +2068,12 @@ local function stopYBA()
     
     isYBAEnabled = false
     YBAConfig.Enabled = false
+    
+    -- Отключаем свободную камеру
+    disableFreeCamera()
+    
+    -- Отключаем управление стендом
+    disableStandControl()
     
     -- Восстанавливаем управление игроком
     unfreezePlayer()
@@ -2510,6 +3252,40 @@ end)
 slider("Mouse Sensitivity", 0.001, 0.05, YBAConfig.MouseSensitivity, function(v)
     YBAConfig.MouseSensitivity = v
 end)
+
+slider("Camera Follow Distance", 10, 50, YBAConfig.CameraFollowDistance, function(v)
+    YBAConfig.CameraFollowDistance = v
+end)
+
+slider("Camera Follow Height", 1, 20, YBAConfig.CameraFollowHeight, function(v)
+    YBAConfig.CameraFollowHeight = v
+end)
+
+slider("Camera Smoothing", 0.01, 0.2, YBAConfig.CameraSmoothing, function(v)
+    YBAConfig.CameraSmoothing = v
+end)
+
+slider("Mouse Look Sensitivity", 0.001, 0.01, YBAConfig.MouseLookSensitivity, function(v)
+    YBAConfig.MouseLookSensitivity = v
+end)
+
+slider("Stand Rotation Speed", 0.01, 0.2, YBAConfig.StandRotationSpeed, function(v)
+    YBAConfig.StandRotationSpeed = v
+end)
+
+-- Информация об управлении
+local controlsInfo = Instance.new("TextLabel", innerContainer)
+controlsInfo.Size = UDim2.new(1, -10, 0, 60)
+controlsInfo.Text = "Управление:\nWASD - Движение стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nQ/E - Высота камеры\nR - Сброс камеры"
+controlsInfo.Font = Enum.Font.Gotham
+controlsInfo.TextSize = 10
+controlsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+controlsInfo.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+controlsInfo.BorderSizePixel = 1
+controlsInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
+controlsInfo.TextXAlignment = Enum.TextXAlignment.Left
+controlsInfo.TextYAlignment = Enum.TextYAlignment.Top
+Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4)
 
 
 local function createPlayerListInMenu()
