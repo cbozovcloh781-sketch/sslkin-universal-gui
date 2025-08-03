@@ -2077,7 +2077,49 @@ local itemESPEnabled = false
 local itemESPConnections = {}
 local itemESPElements = {}
 
--- Простая функция для поиска всех объектов в workspace
+-- Функция для проверки, является ли объект предметом YBA
+local function isYBAItem(obj)
+    if not obj or not obj.Name then return false end
+    
+    -- Список предметов YBA
+    local ybaItems = {
+        "Arrow", "Rokakaka", "Rib Cage", "Heart", "Pelvis", "Requiem Arrow", 
+        "Dio's Diary", "Mysterious Arrow", "Steel Ball", "Corpse Part", 
+        "Corpse", "Dio's Bone", "Stand Arrow", "YBA_Arrow", "YBA_Rokakaka", 
+        "YBA_Heart", "YBA_Pelvis", "YBA_Rib", "YBA_Corpse", "YBA_Diary", 
+        "YBA_Bone", "YBA_Item", "YBAItem", "YBA_Stand_Arrow"
+    }
+    
+    local objName = obj.Name:lower()
+    
+    -- Проверяем точное совпадение
+    for _, item in ipairs(ybaItems) do
+        if objName == item:lower() then
+            return true, item
+        end
+    end
+    
+    -- Проверяем частичное совпадение
+    for _, item in ipairs(ybaItems) do
+        if objName:find(item:lower()) then
+            return true, item
+        end
+    end
+    
+    -- Проверяем родительский объект
+    if obj.Parent and obj.Parent.Name then
+        local parentName = obj.Parent.Name:lower()
+        for _, item in ipairs(ybaItems) do
+            if parentName:find(item:lower()) then
+                return true, item
+            end
+        end
+    end
+    
+    return false, nil
+end
+
+-- Функция для поиска предметов YBA в workspace
 local function getAllObjects()
     local objects = {}
     local player = Players.LocalPlayer
@@ -2088,13 +2130,107 @@ local function getAllObjects()
         return objects 
     end
     
-    print("YBA: Ищем все объекты в workspace...")
+    print("YBA: Ищем предметы YBA в workspace...")
+    
+    -- Сначала ищем в специальных папках YBA
+    local ybaFolders = {"YBA", "YBAItems", "Items", "Drops", "Pickups", "Loot", "Treasure", "Collectibles", "GameItems"}
+    for _, folderName in ipairs(ybaFolders) do
+        local folder = workspace:FindFirstChild(folderName)
+        if folder then
+            print("YBA: Найдена папка:", folderName)
+            for _, obj in pairs(folder:GetDescendants()) do
+                if obj:IsA("BasePart") or obj:IsA("Model") then
+                    local isItem, itemName = isYBAItem(obj)
+                    
+                    if isItem then
+                        local itemRoot = obj
+                        if obj:IsA("Model") then
+                            itemRoot = obj:FindFirstChild("PrimaryPart") or 
+                                       obj:FindFirstChild("RootPart") or 
+                                       obj:FindFirstChild("Main") or
+                                       obj:FindFirstChild("Part")
+                        end
+                        
+                        if not itemRoot then
+                            itemRoot = obj
+                        end
+                        
+                        local distance = (itemRoot.Position - playerRoot.Position).Magnitude
+                        if distance <= YBAConfig.ItemESP.MaxDistance then
+                            table.insert(objects, {
+                                Object = obj,
+                                Root = itemRoot,
+                                Distance = distance,
+                                Name = itemName or obj.Name
+                            })
+                            print("YBA: Найден предмет в папке", folderName, ":", itemName or obj.Name, "на расстоянии", math.floor(distance), "м")
+                        end
+                    end
+                end
+            end
+        end
+    end
     
     -- Ищем все BasePart и Model в workspace
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") or obj:IsA("Model") then
-            -- Исключаем игроков и их части
-            if not obj:FindFirstChild("Humanoid") and not obj:FindFirstChild("HumanoidRootPart") and obj.Name ~= "HumanoidRootPart" then
+            -- Исключаем части тела игроков
+            if not obj:FindFirstChild("Humanoid") and 
+               not obj:FindFirstChild("HumanoidRootPart") and 
+               obj.Name ~= "HumanoidRootPart" and
+               obj.Name ~= "Head" and
+               obj.Name ~= "Torso" and
+               obj.Name ~= "Left Arm" and
+               obj.Name ~= "Right Arm" and
+               obj.Name ~= "Left Leg" and
+               obj.Name ~= "Right Leg" and
+               obj.Name ~= "UpperTorso" and
+               obj.Name ~= "LowerTorso" and
+               obj.Name ~= "LeftUpperArm" and
+               obj.Name ~= "RightUpperArm" and
+               obj.Name ~= "LeftLowerArm" and
+               obj.Name ~= "RightLowerArm" and
+               obj.Name ~= "LeftUpperLeg" and
+               obj.Name ~= "RightUpperLeg" and
+               obj.Name ~= "LeftLowerLeg" and
+               obj.Name ~= "RightLowerLeg" and
+               obj.Name ~= "LeftFoot" and
+               obj.Name ~= "RightFoot" and
+                               obj.Name ~= "LeftHand" and
+                obj.Name ~= "RightHand" and
+                -- Исключаем стенды
+                not obj.Name:find("Stand") and
+                not obj.Name:find("Star Platinum") and
+                not obj.Name:find("The World") and
+                not obj.Name:find("Hierophant Green") and
+                not obj.Name:find("Magician's Red") and
+                not obj.Name:find("Hermit Purple") and
+                not obj.Name:find("Silver Chariot") and
+                not obj.Name:find("Tower of Gray") and
+                not obj.Name:find("Dark Blue Moon") and
+                not obj.Name:find("Strength") and
+                not obj.Name:find("Wheel of Fortune") and
+                not obj.Name:find("Hanged Man") and
+                not obj.Name:find("Emperor") and
+                not obj.Name:find("Empress") and
+                not obj.Name:find("Judgment") and
+                not obj.Name:find("High Priestess") and
+                not obj.Name:find("Death Thirteen") and
+                not obj.Name:find("Lovers") and
+                not obj.Name:find("Sun") and
+                not obj.Name:find("Bastet") and
+                not obj.Name:find("Thunder McQueen") and
+                not obj.Name:find("Anubis") and
+                not obj.Name:find("Khnum") and
+                not obj.Name:find("Tohth") and
+                not obj.Name:find("Horus") and
+                not obj.Name:find("Atum") and
+                not obj.Name:find("Osiris") then
+                
+                -- Проверяем, является ли объект предметом YBA
+                local isItem, itemName = isYBAItem(obj)
+                
+                if isItem then
                 local itemRoot = obj
                 local success = true
                 
@@ -2103,8 +2239,7 @@ local function getAllObjects()
                     itemRoot = obj:FindFirstChild("PrimaryPart") or 
                                obj:FindFirstChild("RootPart") or 
                                obj:FindFirstChild("Main") or
-                               obj:FindFirstChild("Part") or
-                               obj:FindFirstChild("HumanoidRootPart")
+                               obj:FindFirstChild("Part")
                     
                     -- Если не нашли корневую часть, пропускаем этот Model
                     if not itemRoot then
@@ -2119,26 +2254,19 @@ local function getAllObjects()
                             Object = obj,
                             Root = itemRoot,
                             Distance = distance,
-                            Name = obj.Name
+                            Name = itemName or obj.Name
                         })
+                        print("YBA: Найден предмет:", itemName or obj.Name, "на расстоянии", math.floor(distance), "м")
                     end
                 end
             end
         end
     end
     
-    -- Сортируем по расстоянию и берем только ближайшие
+    -- Сортируем по расстоянию
     table.sort(objects, function(a, b) return a.Distance < b.Distance end)
     
-    -- Ограничиваем количество объектов
-    local maxObjects = 20
-    if #objects > maxObjects then
-        for i = maxObjects + 1, #objects do
-            objects[i] = nil
-        end
-    end
-    
-    print("YBA: Найдено объектов для ESP:", #objects)
+    print("YBA: Найдено предметов YBA:", #objects)
     return objects
 end
 
@@ -3402,7 +3530,7 @@ end)
 -- Кнопка для принудительного поиска предметов
 local forceSearchItemsBtn = Instance.new("TextButton", innerContainer)
 forceSearchItemsBtn.Size = UDim2.new(1, -10, 0, 28)
-forceSearchItemsBtn.Text = "FORCE SEARCH ITEMS"
+forceSearchItemsBtn.Text = "FORCE SEARCH YBA ITEMS"
 forceSearchItemsBtn.Font = Enum.Font.GothamBold
 forceSearchItemsBtn.TextSize = 12
 forceSearchItemsBtn.TextColor3 = Color3.new(1,1,1)
@@ -3411,23 +3539,23 @@ forceSearchItemsBtn.AutoButtonColor = false
 Instance.new("UICorner", forceSearchItemsBtn).CornerRadius = UDim.new(0,6)
 
 forceSearchItemsBtn.MouseButton1Click:Connect(function()
-    print("YBA: Принудительный поиск объектов...")
+    print("YBA: Принудительный поиск предметов YBA...")
     local success, objects = pcall(getAllObjects)
     if success and objects then
-        print("YBA: Найдено объектов:", #objects)
+        print("YBA: Найдено предметов YBA:", #objects)
         for i = 1, math.min(10, #objects) do
             local item = objects[i]
-            print("YBA: Объект", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+            print("YBA: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
         end
     else
-        print("YBA: Ошибка при поиске объектов")
+        print("YBA: Ошибка при поиске предметов YBA")
     end
 end)
 
 -- Кнопка для тестирования ESP на ближайшем объекте
 local testESPBtn = Instance.new("TextButton", innerContainer)
 testESPBtn.Size = UDim2.new(1, -10, 0, 28)
-testESPBtn.Text = "TEST ESP ON NEAREST OBJECT"
+testESPBtn.Text = "TEST ESP ON NEAREST YBA ITEM"
 testESPBtn.Font = Enum.Font.GothamBold
 testESPBtn.TextSize = 12
 testESPBtn.TextColor3 = Color3.new(1,1,1)
@@ -3436,13 +3564,13 @@ testESPBtn.AutoButtonColor = false
 Instance.new("UICorner", testESPBtn).CornerRadius = UDim.new(0,6)
 
 testESPBtn.MouseButton1Click:Connect(function()
-    print("YBA: Тестируем ESP на ближайшем объекте...")
+    print("YBA: Тестируем ESP на ближайшем предмете YBA...")
     local success, objects = pcall(getAllObjects)
     if success and objects and #objects > 0 then
         local nearestObject = objects[1]
-        print("YBA: Ближайший объект:", nearestObject.Name, "на расстоянии", math.floor(nearestObject.Distance), "м")
+        print("YBA: Ближайший предмет YBA:", nearestObject.Name, "на расстоянии", math.floor(nearestObject.Distance), "м")
         
-        -- Создаем ESP для этого объекта
+        -- Создаем ESP для этого предмета
         local esp = createItemESP(nearestObject)
         if esp then
             print("YBA: ESP успешно создан для:", nearestObject.Name)
@@ -3450,6 +3578,6 @@ testESPBtn.MouseButton1Click:Connect(function()
             print("YBA: Ошибка при создании ESP для:", nearestObject.Name)
         end
     else
-        print("YBA: Объекты не найдены или произошла ошибка")
+        print("YBA: Предметы YBA не найдены или произошла ошибка")
     end
 end) 
