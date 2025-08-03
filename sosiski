@@ -1197,10 +1197,12 @@ local function switchCameraToStand(stand)
     print("YBA: Позиция камеры: " .. tostring(cameraPos))
     print("YBA: Позиция стенда: " .. tostring(standPos))
     
-    -- Принудительно обновляем камеру еще раз
-    wait(0.1)
-    camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
-    print("YBA: Камера принудительно обновлена")
+    -- Принудительно перемещаем камеру к стенду
+    for i = 1, 10 do
+        camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+        wait(0.01)
+    end
+    print("YBA: Камера принудительно перемещена к стенду")
     
     -- Дополнительно отключаем камеру от персонажа
     local player = Players.LocalPlayer
@@ -1247,6 +1249,7 @@ local function controlStand(stand)
     local cameraDistance = YBAConfig.CameraFollowDistance
     local cameraHeight = YBAConfig.CameraFollowHeight
     local debugCameraFrame = 0
+    local lastStandPos = controlledStand.Root.Position
     
     -- Создаем соединение для управления стендом и камерой
     local controlConnection = RunService.Heartbeat:Connect(function()
@@ -1372,7 +1375,7 @@ local function controlStand(stand)
             end
         end
         
-        -- Свободная камера, следующая за стендом
+        -- Принудительное перемещение камеры за стендом
         if YBAConfig.SwitchCamera and controlledStand.Root then
             local standPos = controlledStand.Root.Position
             
@@ -1386,14 +1389,28 @@ local function controlStand(stand)
             local cameraPos = standPos + cameraOffset
             local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
             
-            -- Принудительно обновляем камеру каждый кадр
+            -- Принудительно перемещаем камеру каждый кадр
             camera.CameraType = Enum.CameraType.Scriptable
-            camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+            
+            -- Создаем плавное перемещение камеры
+            local currentCameraPos = camera.CFrame.Position
+            local targetCameraPos = cameraPos
+            
+            -- Определяем скорость перемещения камеры в зависимости от движения стенда
+            local standMovement = (standPos - lastStandPos).Magnitude
+            local cameraSpeed = math.min(0.2, 0.05 + standMovement * 0.1)
+            
+            -- Плавно перемещаем камеру к цели
+            local smoothedCameraPos = currentCameraPos:Lerp(targetCameraPos, cameraSpeed)
+            camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
+            
+            -- Обновляем позицию стенда
+            lastStandPos = standPos
             
             -- Отладочная информация (только первые несколько кадров)
             debugCameraFrame = debugCameraFrame + 1
             if debugCameraFrame <= 5 then
-                print("YBA: Камера обновлена - Позиция: " .. tostring(cameraPos) .. ", Стенд: " .. tostring(standPos))
+                print("YBA: Камера перемещена - Текущая: " .. tostring(currentCameraPos) .. ", Цель: " .. tostring(targetCameraPos) .. ", Стенд: " .. tostring(standPos) .. ", Скорость: " .. cameraSpeed)
             end
         end
     end)
@@ -1454,6 +1471,16 @@ local function startYBA()
         print("YBA: Передаем управление стенду...")
         controlStand(targetStand)
         print("YBA: Управление стендом передано")
+        
+        -- Принудительно перемещаем камеру к стенду сразу после активации
+        local camera = workspace.CurrentCamera
+        if camera and targetStand.Root then
+            local standPos = targetStand.Root.Position
+            local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
+            camera.CameraType = Enum.CameraType.Scriptable
+            camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+            print("YBA: Камера принудительно перемещена к стенду после активации")
+        end
     else
         print("YBA: TransferControl отключен")
     end
