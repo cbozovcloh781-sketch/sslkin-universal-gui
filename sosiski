@@ -106,6 +106,18 @@ local YBAConfig = {
     StandControlSpeed = 1.0,
     StandControlSmoothing = 0.1,
     MouseSensitivity = 0.01,
+    -- Новые настройки для улучшенного управления
+    CameraSmoothing = 0.08,
+    CameraRotationSpeed = 0.02,
+    StandMovementSpeed = 25,
+    StandRotationSpeed = 0.05,
+    EnableStandRotation = true,
+    CameraFollowDistance = 12,
+    CameraFollowHeight = 3,
+    EnableMouseLook = true,
+    MouseLookSensitivity = 0.003,
+    StandJumpPower = 50,
+    StandGravity = 196.2,
 }
 
 local isFlying = false
@@ -1001,6 +1013,7 @@ local function stopTeleport()
 end
 
 -- YBA Stand Control Functions
+-- Функция для поиска стендов в игре YBA
 local function findStands()
     local stands = {}
     local player = Players.LocalPlayer
@@ -1146,15 +1159,23 @@ local function restoreCamera()
     end
 end
 
+-- Основная функция управления стендом
+-- Позволяет управлять стендом через WASD и поворачивать камеру мышью
 local function controlStand(stand)
     if not stand or not stand.Root then return end
     
     controlledStand = stand
     
-    -- Переменные для управления камерой
+    -- Переменные для управления камерой и стендом
     local cameraRotation = Vector2.new(0, 0)
+    local standRotation = 0
     local lastMousePos = Vector2.new(0, 0)
     local isMouseDown = false
+    local isRightMouseDown = false
+    
+    -- Сохраняем оригинальные настройки стенда
+    local originalGravity = workspace.Gravity
+    workspace.Gravity = YBAConfig.StandGravity
     
     -- Обработка мыши для поворота камеры
     local mouseConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -1162,6 +1183,9 @@ local function controlStand(stand)
         
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             isMouseDown = true
+            lastMousePos = UserInputService:GetMouseLocation()
+        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+            isRightMouseDown = true
             lastMousePos = UserInputService:GetMouseLocation()
         end
     end)
@@ -1171,6 +1195,8 @@ local function controlStand(stand)
         
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             isMouseDown = false
+        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+            isRightMouseDown = false
         end
     end)
     
@@ -1183,59 +1209,67 @@ local function controlStand(stand)
         local camera = workspace.CurrentCamera
         if not camera then return end
         
-        -- Получаем ввод пользователя
+        local standRoot = controlledStand.Root
+        
+        -- Получаем ввод пользователя для движения
         local moveVector = Vector3.new(0, 0, 0)
+        local isMoving = false
         
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveVector = moveVector + camera.CFrame.LookVector
+            moveVector = moveVector + Vector3.new(0, 0, -1)
+            isMoving = true
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveVector = moveVector - camera.CFrame.LookVector
+            moveVector = moveVector + Vector3.new(0, 0, 1)
+            isMoving = true
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveVector = moveVector - camera.CFrame.RightVector
+            moveVector = moveVector + Vector3.new(-1, 0, 0)
+            isMoving = true
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveVector = moveVector + camera.CFrame.RightVector
+            moveVector = moveVector + Vector3.new(1, 0, 0)
+            isMoving = true
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
             moveVector = moveVector + Vector3.new(0, 1, 0)
+            isMoving = true
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            moveVector = moveVector - Vector3.new(0, 1, 0)
+            moveVector = moveVector + Vector3.new(0, -1, 0)
+            isMoving = true
         end
         
+        -- Нормализуем вектор движения
         if moveVector.Magnitude > 0 then
-            moveVector = moveVector.Unit * (YBAConfig.StandControlSpeed * 50)
-            
-            -- Применяем движение к стенду
-            local standRoot = controlledStand.Root
+            moveVector = moveVector.Unit
+        end
+        
+        -- Применяем движение к стенду
+        if isMoving then
             local bv = standRoot:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", standRoot)
                 bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
             end
             
-            -- Плавное движение с предотвращением рывков
+            -- Вычисляем целевую скорость с учетом поворота камеры
+            local targetVelocity = Vector3.new(
+                moveVector.X * math.cos(cameraRotation.X) - moveVector.Z * math.sin(cameraRotation.X),
+                moveVector.Y,
+                moveVector.X * math.sin(cameraRotation.X) + moveVector.Z * math.cos(cameraRotation.X)
+            ) * YBAConfig.StandMovementSpeed
+            
+            -- Плавное изменение скорости
             if bv.Velocity.Magnitude > 0 then
                 local currentVel = bv.Velocity
-                local targetVel = moveVector
-                local smoothedVel = currentVel:Lerp(targetVel, YBAConfig.StandControlSmoothing)
-                
-                -- Ограничиваем максимальное изменение скорости
-                local maxSpeedChange = YBAConfig.StandControlSpeed * 10
-                local speedDiff = (smoothedVel - currentVel).Magnitude
-                if speedDiff > maxSpeedChange then
-                    smoothedVel = currentVel + (smoothedVel - currentVel).Unit * maxSpeedChange
-                end
-                
+                local smoothedVel = currentVel:Lerp(targetVelocity, YBAConfig.StandControlSmoothing)
                 bv.Velocity = smoothedVel
             else
-                bv.Velocity = moveVector
+                bv.Velocity = targetVelocity
             end
         else
             -- Плавная остановка
-            local standRoot = controlledStand.Root
             local bv = standRoot:FindFirstChild("BodyVelocity")
             if bv and bv.Velocity.Magnitude > 0 then
                 bv.Velocity = bv.Velocity * (1 - YBAConfig.StandControlSmoothing)
@@ -1245,46 +1279,62 @@ local function controlStand(stand)
             end
         end
         
-        -- Обновляем позицию камеры для следования за стендом с возможностью поворота
-        if YBAConfig.SwitchCamera and controlledStand.Root then
-            local standPos = controlledStand.Root.Position
-            
-            -- Обработка поворота камеры мышью
-            if isMouseDown then
+        -- Обработка поворота камеры мышью
+        if YBAConfig.EnableMouseLook then
+            if isMouseDown or isRightMouseDown then
                 local currentMousePos = UserInputService:GetMouseLocation()
                 local mouseDelta = currentMousePos - lastMousePos
                 
                 -- Обновляем поворот камеры
-                cameraRotation = cameraRotation + Vector2.new(mouseDelta.X * YBAConfig.MouseSensitivity, mouseDelta.Y * YBAConfig.MouseSensitivity)
+                cameraRotation = cameraRotation + Vector2.new(
+                    mouseDelta.X * YBAConfig.MouseLookSensitivity,
+                    mouseDelta.Y * YBAConfig.MouseLookSensitivity
+                )
                 
                 -- Ограничиваем вертикальный поворот
-                cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
+                cameraRotation.Y = math.clamp(cameraRotation.Y, -1.2, 1.2)
                 
                 lastMousePos = currentMousePos
             end
+        end
+        
+        -- Обновляем позицию камеры для следования за стендом
+        if YBAConfig.SwitchCamera and standRoot then
+            local standPos = standRoot.Position
             
             -- Вычисляем позицию камеры с учетом поворота
             local cameraOffset = Vector3.new(
-                math.sin(cameraRotation.X) * YBAConfig.CameraDistance,
-                YBAConfig.CameraHeight + math.sin(cameraRotation.Y) * 10,
-                math.cos(cameraRotation.X) * YBAConfig.CameraDistance
+                math.sin(cameraRotation.X) * YBAConfig.CameraFollowDistance,
+                YBAConfig.CameraFollowHeight + math.sin(cameraRotation.Y) * 5,
+                math.cos(cameraRotation.X) * YBAConfig.CameraFollowDistance
             )
             
-            local cameraPos = standPos + cameraOffset
+            local targetCameraPos = standPos + cameraOffset
             local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
             
             -- Плавно перемещаем камеру
             local currentCameraPos = camera.CFrame.Position
-            local cameraMoveDirection = (cameraPos - currentCameraPos)
+            local cameraMoveDirection = (targetCameraPos - currentCameraPos)
             
-            if cameraMoveDirection.Magnitude > 1 then
+            if cameraMoveDirection.Magnitude > 0.5 then
                 -- Плавное перемещение камеры
-                local smoothedCameraPos = currentCameraPos:Lerp(cameraPos, 0.1)
+                local smoothedCameraPos = currentCameraPos:Lerp(targetCameraPos, YBAConfig.CameraSmoothing)
                 camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
             else
                 -- Если камера уже близко к цели, просто обновляем позицию
-                camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+                camera.CFrame = CFrame.new(targetCameraPos, lookAtPos)
             end
+        end
+        
+        -- Поворот стенда в направлении движения (опционально)
+        if YBAConfig.EnableStandRotation and isMoving and moveVector.Magnitude > 0.1 then
+            local targetRotation = math.atan2(moveVector.X, moveVector.Z) + cameraRotation.X
+            standRotation = standRotation + (targetRotation - standRotation) * YBAConfig.StandRotationSpeed
+            
+            -- Применяем поворот к стенду
+            local standCFrame = standRoot.CFrame
+            local newCFrame = CFrame.new(standCFrame.Position) * CFrame.Angles(0, standRotation, 0)
+            standRoot.CFrame = newCFrame
         end
     end)
     
@@ -1346,6 +1396,18 @@ local function stopYBA()
         end
     end
     standControlConnections = {}
+    
+    -- Восстанавливаем настройки стенда
+    if controlledStand and controlledStand.Root then
+        local bv = controlledStand.Root:FindFirstChild("BodyVelocity")
+        if bv then
+            bv:Destroy()
+        end
+    end
+    
+    -- Восстанавливаем гравитацию
+    workspace.Gravity = originalGravity
+    
     controlledStand = nil
     
     print("YBA: Stand Range Hack деактивирован!")
@@ -2509,6 +2571,31 @@ end)
 
 slider("Mouse Sensitivity", 0.001, 0.05, YBAConfig.MouseSensitivity, function(v)
     YBAConfig.MouseSensitivity = v
+end)
+
+-- Дополнительные настройки для улучшенного управления
+slider("Stand Movement Speed", 10, 50, YBAConfig.StandMovementSpeed, function(v)
+    YBAConfig.StandMovementSpeed = v
+end)
+
+slider("Camera Follow Distance", 5, 30, YBAConfig.CameraFollowDistance, function(v)
+    YBAConfig.CameraFollowDistance = v
+end)
+
+slider("Camera Follow Height", 1, 10, YBAConfig.CameraFollowHeight, function(v)
+    YBAConfig.CameraFollowHeight = v
+end)
+
+slider("Camera Smoothing", 0.01, 0.2, YBAConfig.CameraSmoothing, function(v)
+    YBAConfig.CameraSmoothing = v
+end)
+
+slider("Mouse Look Sensitivity", 0.001, 0.01, YBAConfig.MouseLookSensitivity, function(v)
+    YBAConfig.MouseLookSensitivity = v
+end)
+
+slider("Stand Rotation Speed", 0.01, 0.2, YBAConfig.StandRotationSpeed, function(v)
+    YBAConfig.StandRotationSpeed = v
 end)
 
 
