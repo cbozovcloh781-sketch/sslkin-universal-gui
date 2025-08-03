@@ -95,7 +95,7 @@ local TeleportConfig = {
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
-    StandRange = 50,
+    StandRange = 100000, -- Увеличена дистанция ударов стенда
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
@@ -2809,8 +2809,6 @@ local function createPlayerListInMenu()
             
             playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
             playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
-            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
             
             TeleportConfig.TargetPlayer = player
             TeleportConfig.SelectedPlayerName = player.Name
@@ -2935,6 +2933,7 @@ local function updatePlayerList()
                not child.Text:find("START TELEPORT") and 
                not child.Text:find("STOP TELEPORT") and 
                not child.Text:find("Hotkey:") and 
+               not child.Text:find("YBA Stand Range") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
             end
@@ -2999,6 +2998,9 @@ local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
     end
 end)
 guiCallbacks.yba = ybaToggleBtn
+
+-- Отключаем навигацию для кнопки YBA Stand Range
+ybaToggleBtn.AutoButtonColor = false
 
 -- Информация об управлении
 local controlsInfo = Instance.new("TextLabel", innerContainer)
