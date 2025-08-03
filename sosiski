@@ -67,6 +67,9 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil, -- Сохраняем ник выбранного игрока
     UseStealthMode = true, -- Использовать скрытый режим телепортации
+    TeleportSpeed = 3000, -- Увеличенная скорость телепортации
+    ReturnSpeed = 2500, -- Скорость возврата в исходную точку
+    BehindPlayerDistance = 5, -- Расстояние за спиной игрока
 }
 
 -- Переменные для полета
@@ -363,7 +366,7 @@ local function stopSpeedHack()
     speedHackConnections = {}
 end
 
--- Новая система телепортации к игрокам
+-- Новая улучшенная система телепортации к игрокам
 local function createStealthTeleport()
     if not TeleportConfig.TargetPlayer then 
         return 
@@ -383,8 +386,12 @@ local function createStealthTeleport()
     
     isTeleporting = true
     
-    TeleportConfig.OriginalPosition = root.Position
+    -- Сохраняем исходную позицию только при первом запуске
+    if not TeleportConfig.OriginalPosition then
+        TeleportConfig.OriginalPosition = root.Position
+    end
     
+    -- Автоматически включаем NoClip при телепортации
     if not isNoClipping then
         startNoClip()
     end
@@ -400,15 +407,33 @@ local function createStealthTeleport()
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
             
+            -- Вычисляем позицию за спиной игрока
+            local targetCFrame = currentTargetRoot.CFrame
+            local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+            
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
                 bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
             end
             
-            local direction = (targetPos - currentPos).Unit
-            local moveSpeed = 2000
-            bv.Velocity = direction * moveSpeed
+            -- Если мы близко к игроку, позиционируемся точно за его спиной
+            if distance < 10 then
+                -- Плавно перемещаемся за спину игрока
+                local direction = (behindPosition.Position - currentPos).Unit
+                local moveSpeed = TeleportConfig.TeleportSpeed * 0.5 -- Уменьшаем скорость для точности
+                bv.Velocity = direction * moveSpeed
+                
+                -- Если мы очень близко, устанавливаем точную позицию
+                if distance < 2 then
+                    root.CFrame = behindPosition
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                end
+            else
+                -- Быстрое перемещение к игроку
+                local direction = (targetPos - currentPos).Unit
+                bv.Velocity = direction * TeleportConfig.TeleportSpeed
+            end
         end
     end)
     
@@ -434,8 +459,12 @@ local function startTeleport()
     
     isTeleporting = true
     
-    TeleportConfig.OriginalPosition = root.Position
+    -- Сохраняем исходную позицию только при первом запуске
+    if not TeleportConfig.OriginalPosition then
+        TeleportConfig.OriginalPosition = root.Position
+    end
     
+    -- Автоматически включаем NoClip при телепортации
     if not isNoClipping then
         startNoClip()
     end
@@ -463,6 +492,7 @@ local function stopTeleport()
     
     local root = char:FindFirstChild("HumanoidRootPart")
     
+    -- Отключаем все соединения телепортации
     for _, connection in ipairs(teleportConnections) do
         if connection then
             if typeof(connection) == "RBXScriptConnection" then
@@ -472,12 +502,15 @@ local function stopTeleport()
     end
     teleportConnections = {}
     
+    -- Удаляем BodyVelocity телепортации
     local bv = root and root:FindFirstChild("BodyVelocity")
     if bv then
         bv:Destroy()
     end
     
+    -- Возвращаемся в исходную точку
     if root and TeleportConfig.OriginalPosition then
+        -- Автоматически включаем NoClip для возврата
         if not isNoClipping then
             startNoClip()
         end
@@ -499,20 +532,23 @@ local function stopTeleport()
                 end
                 
                 local returnDirection = (returnPos - currentPos).Unit
-                local returnSpeed = 3000
+                local returnSpeed = TeleportConfig.ReturnSpeed
                 
                 returnBv.Velocity = returnDirection * returnSpeed
             else
+                -- Достигли исходной точки
                 local returnBv = root:FindFirstChild("BodyVelocity")
                 if returnBv then
                     returnBv.Velocity = Vector3.new(0, 0, 0)
-                    task.wait(1)
+                    task.wait(0.5) -- Небольшая пауза для стабилизации
                     returnBv:Destroy()
                 end
                 
+                -- Точная телепортация в исходную точку
                 root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
                 TeleportConfig.OriginalPosition = nil
                 
+                -- Отключаем NoClip через 5 секунд после возврата
                 task.spawn(function()
                     task.wait(5)
                     if isNoClipping then
@@ -529,29 +565,12 @@ local function stopTeleport()
         table.insert(teleportConnections, returnLoop)
     end
     
-    -- Отключаем все соединения
-    for _, connection in ipairs(teleportConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            end
-        end
-    end
-    teleportConnections = {}
-    
     -- Восстанавливаем нормальные настройки движения
     local humanoid = char and char:FindFirstChild("Humanoid")
     if humanoid then
         humanoid.WalkSpeed = 16
         humanoid.JumpPower = 50
     end
-    
-    task.spawn(function()
-        task.wait(10)
-        if isNoClipping then
-            stopNoClip()
-        end
-    end)
     
     if startTeleportBtn then
         startTeleportBtn.Text = "START TELEPORT"
@@ -560,196 +579,6 @@ local function stopTeleport()
     if stopTeleportBtn then
         stopTeleportBtn.Text = "STOP TELEPORT"
         stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-    end
-    
-    if root and TeleportConfig.OriginalPosition then
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        local returnStartTime = tick()
-        local returnAttempts = 0
-        local maxAttempts = 300
-        
-        local returnLoop = RunService.Heartbeat:Connect(function()
-            returnAttempts = returnAttempts + 1
-            
-            if returnAttempts > maxAttempts then
-                root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
-                TeleportConfig.OriginalPosition = nil
-                if isNoClipping then
-                    stopNoClip()
-                end
-                if returnLoop then
-                    returnLoop:Disconnect()
-                end
-                
-                if TeleportConfig.OriginalPosition then
-                    local finalCheckLoop = RunService.Heartbeat:Connect(function()
-                        if not root or not root.Parent then
-                            return
-                        end
-                        
-                        local currentPos = root.Position
-                        local targetPos = TeleportConfig.OriginalPosition
-                        local distance = (targetPos - currentPos).Magnitude
-                        
-                        if distance > 10 then
-                            local finalBv = root:FindFirstChild("BodyVelocity")
-                            if not finalBv then
-                                finalBv = Instance.new("BodyVelocity", root)
-                                finalBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                            end
-                            
-                            local direction = (targetPos - currentPos).Unit
-                            local speed = 800
-                            finalBv.Velocity = direction * speed
-                        else
-                            local finalBv = root:FindFirstChild("BodyVelocity")
-                            if finalBv then
-                                finalBv:Destroy()
-                            end
-                            
-                            root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
-                            TeleportConfig.OriginalPosition = nil
-                            
-                            if finalCheckLoop then
-                                finalCheckLoop:Disconnect()
-                            end
-                        end
-                    end)
-                    
-                    table.insert(teleportConnections, finalCheckLoop)
-                end
-                return
-            end
-            
-            if not root or not root.Parent then
-                if returnLoop then
-                    returnLoop:Disconnect()
-                end
-                return
-            end
-            
-            local currentPos = root.Position
-            local returnPos = TeleportConfig.OriginalPosition
-            local distance = (returnPos - currentPos).Magnitude
-            
-            if distance > 3 then
-                -- Продолжаем движение к начальной координате
-                local returnBv = root:FindFirstChild("BodyVelocity")
-                if not returnBv then
-                    returnBv = Instance.new("BodyVelocity", root)
-                    returnBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                end
-                
-                local returnDirection = (returnPos - currentPos).Unit
-                local returnSpeed = 1500 -- Увеличиваем скорость для более быстрого возврата
-                
-                returnBv.Velocity = returnDirection * returnSpeed
-                print("Быстрое движение к начальной координате: " .. distance .. " единиц осталось")
-            else
-                -- Достигли начальной координаты (в пределах 3 единиц)
-                local returnBv = root:FindFirstChild("BodyVelocity")
-                if returnBv then
-                    -- Останавливаем движение и застываем в воздухе на 2 секунды
-                    returnBv.Velocity = Vector3.new(0, 0, 0)
-                    print("ДОСТИГНУТА НАЧАЛЬНАЯ КООРДИНАТА! Застываем в воздухе на 2 секунды для сброса скорости...")
-                    task.wait(2) -- Ждем 2 секунды для полного сброса скорости
-                    returnBv:Destroy()
-                end
-                
-                -- Финальная телепортация на точную начальную координату
-                root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
-                TeleportConfig.OriginalPosition = nil
-                
-                -- Откладываем отключение NoClip на 10 секунд после возврата
-                print("NoClip будет отключен через 10 секунд...")
-                task.spawn(function()
-                    task.wait(10)
-                    if isNoClipping then
-                        stopNoClip()
-                        print("NoClip отключен через 10 секунд после возврата")
-                    else
-                        print("NoClip уже отключен")
-                    end
-                end)
-                
-                -- Отключаем цикл возврата
-                if returnLoop then
-                    returnLoop:Disconnect()
-                end
-                
-                print("ВОЗВРАТ НА НАЧАЛЬНУЮ КООРДИНАТУ ЗАВЕРШЕН!")
-                
-                -- Дополнительная проверка: если не в радиусе 10 studs, продолжаем перемещение
-                if TeleportConfig.OriginalPosition then
-                    print("ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Запускаем постоянное перемещение к исходной точке...")
-                    
-                    local finalCheckLoop = RunService.Heartbeat:Connect(function()
-                        if not root or not root.Parent then
-                            return
-                        end
-                        
-                        local currentPos = root.Position
-                        local targetPos = TeleportConfig.OriginalPosition
-                        local distance = (targetPos - currentPos).Magnitude
-                        
-                        if distance > 10 then
-                            -- Продолжаем перемещение к исходной точке
-                            local finalBv = root:FindFirstChild("BodyVelocity")
-                            if not finalBv then
-                                finalBv = Instance.new("BodyVelocity", root)
-                                finalBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                            end
-                            
-                            local direction = (targetPos - currentPos).Unit
-                            local speed = 800
-                            finalBv.Velocity = direction * speed
-                            
-                            print("ДОПОЛНИТЕЛЬНОЕ ПЕРЕМЕЩЕНИЕ: " .. distance .. " studs до исходной точки")
-                        else
-                            -- Достигли радиуса 10 studs, останавливаемся
-                            local finalBv = root:FindFirstChild("BodyVelocity")
-                            if finalBv then
-                                finalBv:Destroy()
-                            end
-                            
-                            -- Финальная телепортация на точную позицию
-                            root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
-                            TeleportConfig.OriginalPosition = nil
-                            
-                            -- Отключаем дополнительную проверку
-                            if finalCheckLoop then
-                                finalCheckLoop:Disconnect()
-                            end
-                            
-                            print("ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА ЗАВЕРШЕНА: Достигнута исходная точка!")
-                        end
-                    end)
-                    
-                    -- Добавляем соединение в список для очистки
-                    table.insert(teleportConnections, finalCheckLoop)
-                end
-            end
-        end)
-        
-        -- Добавляем соединение в список для очистки
-        table.insert(teleportConnections, returnLoop)
-    else
-        print("ОШИБКА: Нет сохраненной начальной координаты или персонаж не найден!")
-        print("Попытка принудительного возврата...")
-        
-        -- Принудительный возврат если что-то пошло не так
-        if root and TeleportConfig.OriginalPosition then
-            root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
-            TeleportConfig.OriginalPosition = nil
-            if isNoClipping then
-                stopNoClip()
-                print("NoClip отключен после принудительного возврата")
-            end
-            print("ПРИНУДИТЕЛЬНЫЙ ВОЗВРАТ ВЫПОЛНЕН!")
-        end
     end
 end
 
@@ -1649,6 +1478,19 @@ divider5.BorderSizePixel = 0
 -- 🟩 Teleport System Integration
 sectionHeader("🟩 Teleport Settings")
 
+-- Настройки скорости телепортации
+slider("Teleport Speed", 1000, 5000, TeleportConfig.TeleportSpeed, function(v)
+    TeleportConfig.TeleportSpeed = v
+end)
+
+slider("Return Speed", 1000, 5000, TeleportConfig.ReturnSpeed, function(v)
+    TeleportConfig.ReturnSpeed = v
+end)
+
+slider("Behind Player Distance", 1, 10, TeleportConfig.BehindPlayerDistance, function(v)
+    TeleportConfig.BehindPlayerDistance = v
+end)
+
 local selectedPlayerLabel = Instance.new("TextLabel", innerContainer)
 selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
 selectedPlayerLabel.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
@@ -1798,6 +1640,7 @@ local function createPlayerListInMenu()
             
             TeleportConfig.TargetPlayer = player
             TeleportConfig.SelectedPlayerName = player.Name
+            TeleportConfig.OriginalPosition = nil -- Сбрасываем исходную позицию при выборе нового игрока
             selectedPlayerLabel.Text = "Selected Player: " .. player.Name
         end)
     end
@@ -1883,6 +1726,7 @@ local function updatePlayerList()
             
             TeleportConfig.TargetPlayer = player
             TeleportConfig.SelectedPlayerName = player.Name
+            TeleportConfig.OriginalPosition = nil -- Сбрасываем исходную позицию при выборе нового игрока
             selectedPlayerLabel.Text = "Selected Player: " .. player.Name
         end)
     end
