@@ -1556,6 +1556,19 @@ local function controlFreeCamera(stand)
         if debugCameraFrame <= 10 then
             print("YBA: Камера следует за головой стенда - Позиция: " .. tostring(cameraPos) .. ", Голова: " .. tostring(standHead))
         end
+        
+        -- Дополнительные клавиши управления камерой
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+            freeCameraHeight = math.max(1, freeCameraHeight - 0.5)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+            freeCameraHeight = math.min(20, freeCameraHeight + 0.5)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.R) then
+            freeCameraRotation = Vector2.new(0, 0)
+            freeCameraDistance = 10
+            freeCameraHeight = 5
+        end
     end)
     
     -- Обработка колесика мыши для изменения расстояния камеры
