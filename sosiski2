@@ -100,7 +100,7 @@ local YBAConfig = {
     SwitchCamera = true,
     TransferControl = true,
     AutoFindStands = true,
-    MaxStandDistance = 100,
+    MaxStandDistance = 10000, -- Увеличена дистанция захвата стенда
     CameraDistance = 15,
     CameraHeight = 5,
     StandControlSpeed = 1.0,
@@ -198,6 +198,7 @@ local YBAFreeCamera = {} do
     -- Ввод
     local input = {
         W = 0, A = 0, S = 0, D = 0,
+        Space = 0, LeftControl = 0,
         Up = 0, Down = 0,
         MouseDelta = Vector2.new(),
         MouseWheel = 0
@@ -225,7 +226,7 @@ local YBAFreeCamera = {} do
 
     -- Захват ввода
     local function startInput()
-        for _, key in pairs({"W", "A", "S", "D", "Up", "Down"}) do
+        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
             ContextActionService:BindActionAtPriority("FreecamKey_"..key, onKey, false, INPUT_PRIORITY, Enum.KeyCode[key])
         end
         ContextActionService:BindActionAtPriority("FreecamMouse", onMouse, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
@@ -241,7 +242,7 @@ local YBAFreeCamera = {} do
         input.MouseWheel = 0
         ContextActionService:UnbindAction("FreecamMouse")
         ContextActionService:UnbindAction("FreecamMouseWheel")
-        for _, key in pairs({"W", "A", "S", "D", "Up", "Down"}) do
+        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
             ContextActionService:UnbindAction("FreecamKey_"..key)
         end
     end
@@ -255,10 +256,24 @@ local YBAFreeCamera = {} do
         local standRoot = targetStand.Root
         local standPosition = standRoot.Position
         
+        -- Проверяем, не слишком ли далеко стенд от игрока (для стабильности)
+        local player = Players.LocalPlayer
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local playerPos = player.Character.HumanoidRootPart.Position
+            local distance = (standPosition - playerPos).Magnitude
+            
+            -- Если стенд слишком далеко, телепортируем его ближе к игроку
+            if distance > 1000 then
+                local newPos = playerPos + Vector3.new(0, 10, 0) -- На 10 единиц выше игрока
+                standRoot.CFrame = CFrame.new(newPos)
+                print("YBA: Стенд телепортирован ближе к игроку (дистанция: " .. math.floor(distance) .. ")")
+            end
+        end
+        
         -- Управление движением стенда (исправлено)
         local moveX = input.D - input.A
         local moveZ = input.S - input.W
-        local moveY = 0 -- Отключено управление высотой камеры через Space/Ctrl
+        local moveY = input.Space - input.LeftControl -- Включено управление высотой стенда
         
         local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
 
@@ -278,6 +293,11 @@ local YBAFreeCamera = {} do
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
             bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
+            
+            -- Логируем движение стенда для отладки
+            if moveY ~= 0 then
+                print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
+            end
         else
             bv.Velocity = Vector3.new(0, 0, 0)
         end
@@ -1234,7 +1254,7 @@ local function findStands()
         return stands 
     end
     
-    print("YBA: Поиск стендов в радиусе " .. YBAConfig.MaxStandDistance)
+    print("YBA: Поиск стендов в радиусе " .. YBAConfig.MaxStandDistance .. " (без ограничений дистанции)")
     
     -- Поиск стендов в YBA (различные варианты названий)
     local standNames = {
@@ -1262,7 +1282,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance then
+                    if distance <= YBAConfig.MaxStandDistance and distance > 0 then -- Убрано ограничение минимальной дистанции
                         foundCount = foundCount + 1
                         print("YBA: Найден стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
@@ -1287,7 +1307,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance and distance > 5 then -- Исключаем самого игрока
+                    if distance <= YBAConfig.MaxStandDistance and distance > 0 then -- Убрано ограничение минимальной дистанции
                         print("YBA: Найден альтернативный стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
                             Model = obj,
@@ -2961,7 +2981,7 @@ guiCallbacks.yba = ybaToggleBtn
 -- Информация об управлении
 local controlsInfo = Instance.new("TextLabel", innerContainer)
 controlsInfo.Size = UDim2.new(1, -10, 0, 80)
-controlsInfo.Text = "Управление стендом от 3-го лица:\nWASD - Движение стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nShift - Медленное движение\nКамера зафиксирована за стендом"
+controlsInfo.Text = "Управление стендом от 3-го лица:\nWASD - Движение стенда\nSpace/Ctrl - Подъем/спуск стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nShift - Медленное движение\nКамера зафиксирована за стендом"
 controlsInfo.Font = Enum.Font.Gotham
 controlsInfo.TextSize = 10
 controlsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
