@@ -188,6 +188,8 @@ local YBAFreeCamera = {} do
     local cameraFov = 70
     local targetStand = nil
     local originalCameraCFrame = nil
+    local cameraDistance = 10 -- Расстояние от камеры до стенда
+    local cameraHeight = 5   -- Высота камеры над стендом
 
     -- Настройка скорости
     local NAV_SPEED = 1
@@ -198,7 +200,8 @@ local YBAFreeCamera = {} do
         W = 0, A = 0, S = 0, D = 0,
         Q = 0, E = 0,
         Up = 0, Down = 0,
-        MouseDelta = Vector2.new()
+        MouseDelta = Vector2.new(),
+        MouseWheel = 0
     }
 
     -- Обработка клавиш
@@ -213,12 +216,21 @@ local YBAFreeCamera = {} do
         return Enum.ContextActionResult.Sink
     end
 
+    -- Обработка колесика мыши
+    local function onMouseWheel(actionName, inputState, inputObj)
+        if inputObj.UserInputType == Enum.UserInputType.MouseWheel then
+            input.MouseWheel = -inputObj.Position.Z
+        end
+        return Enum.ContextActionResult.Sink
+    end
+
     -- Захват ввода
     local function startInput()
         for _, key in pairs({"W", "A", "S", "D", "Q", "E", "Up", "Down"}) do
             ContextActionService:BindActionAtPriority("FreecamKey_"..key, onKey, false, INPUT_PRIORITY, Enum.KeyCode[key])
         end
         ContextActionService:BindActionAtPriority("FreecamMouse", onMouse, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
+        ContextActionService:BindActionAtPriority("FreecamMouseWheel", onMouseWheel, false, INPUT_PRIORITY, Enum.UserInputType.MouseWheel)
     end
 
     -- Освобождение ввода
@@ -227,13 +239,15 @@ local YBAFreeCamera = {} do
             if typeof(input[k]) == "number" then input[k] = 0 end
         end
         input.MouseDelta = Vector2.new()
+        input.MouseWheel = 0
         ContextActionService:UnbindAction("FreecamMouse")
+        ContextActionService:UnbindAction("FreecamMouseWheel")
         for _, key in pairs({"W", "A", "S", "D", "Q", "E", "Up", "Down"}) do
             ContextActionService:UnbindAction("FreecamKey_"..key)
         end
     end
 
-    -- Обновление камеры следование за стендом
+    -- Обновление камеры следование за стендом от третьего лица
     local function stepFreecam(dt)
         if not targetStand or not targetStand.Root or not targetStand.Root.Parent then
             return
@@ -241,6 +255,7 @@ local YBAFreeCamera = {} do
 
         local standHead = targetStand.Root.Position + Vector3.new(0, 2, 0) -- Голова стенда
         
+        -- Управление движением стенда
         local move = Vector3.new(
             input.D - input.A,
             input.E - input.Q,
@@ -251,20 +266,55 @@ local YBAFreeCamera = {} do
             move = move * SHIFT_MUL
         end
 
+        -- Применяем движение к стенду
+        if move.Magnitude > 0 then
+            local standRoot = targetStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", standRoot)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            end
+            bv.Velocity = move * 50
+        else
+            -- Останавливаем стенд
+            local standRoot = targetStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+
+        -- Управление камерой от третьего лица
         local pan = input.MouseDelta * math.rad(1.5)
         input.MouseDelta = Vector2.new()
+
+        -- Обработка зума колесиком мыши
+        if input.MouseWheel ~= 0 then
+            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 2, 3, 20)
+            input.MouseWheel = 0
+        end
+
+        -- Изменение высоты камеры клавишами Q/E
+        if input.Q > 0 then
+            cameraHeight = math.max(1, cameraHeight - 0.5)
+        end
+        if input.E > 0 then
+            cameraHeight = math.min(15, cameraHeight + 0.5)
+        end
 
         cameraRot = cameraRot + pan
         cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(90), math.rad(90)), cameraRot.Y % (2 * math.pi))
 
+        -- Позиция камеры от третьего лица за стендом
         local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
-        local cf = CFrame.new(standHead) * rot * CFrame.new(move * dt * 50)
+        local cameraOffset = Vector3.new(0, cameraHeight, cameraDistance)
+        local cf = CFrame.new(standHead) * rot * CFrame.new(cameraOffset)
 
         cameraPos = cf.Position
         Camera.CFrame = cf
     end
 
-    -- Включение свободной камеры для стенда
+    -- Включение управления стендом от третьего лица
     function YBAFreeCamera.Start(stand)
         if fcRunning then 
             YBAFreeCamera.Stop() 
@@ -279,7 +329,7 @@ local YBAFreeCamera = {} do
         originalCameraCFrame = Camera.CFrame
         
         local standHead = stand.Root.Position + Vector3.new(0, 2, 0)
-        cameraPos = standHead + Vector3.new(0, 5, 10) -- Начальная позиция камеры
+        cameraPos = standHead + Vector3.new(0, cameraHeight, cameraDistance) -- Начальная позиция камеры
         cameraRot = Vector2.new()
         cameraFov = Camera.FieldOfView
         
@@ -288,16 +338,24 @@ local YBAFreeCamera = {} do
         startInput()
         fcRunning = true
         
-        print("YBA: Свободная камера активирована для стенда: " .. stand.Name)
+        print("YBA: Управление стендом активировано: " .. stand.Name)
         return true
     end
 
-    -- Выключение свободной камеры
+    -- Выключение управления стендом
     function YBAFreeCamera.Stop()
         if not fcRunning then return end
         stopInput()
         RunService:UnbindFromRenderStep("YBAFreecam")
         Camera.CameraType = Enum.CameraType.Custom
+        
+        -- Останавливаем движение стенда
+        if targetStand and targetStand.Root then
+            local bv = targetStand.Root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+        end
         
         if originalCameraCFrame then
             Camera.CFrame = originalCameraCFrame
@@ -307,10 +365,10 @@ local YBAFreeCamera = {} do
         originalCameraCFrame = nil
         fcRunning = false
         
-        print("YBA: Свободная камера отключена")
+        print("YBA: Управление стендом отключено")
     end
 
-    -- Переключение свободной камеры
+    -- Переключение управления стендом
     function YBAFreeCamera.Toggle(stand)
         if fcRunning then
             YBAFreeCamera.Stop()
@@ -1333,14 +1391,14 @@ local function unfreezePlayer()
     end
 end
 
--- Функция активации свободной камеры для стенда
+-- Функция активации управления стендом
 local function activateFreeCamera(stand)
     if not stand or not stand.Root then 
         print("YBA: Ошибка - стенд или его Root не найден")
         return false
     end
     
-    print("YBA: Активируем свободную камеру для стенда: " .. stand.Name)
+    print("YBA: Активируем управление стендом: " .. stand.Name)
     
     -- Замораживаем игрока на месте
     if YBAConfig.FreezePlayer then
@@ -1348,16 +1406,16 @@ local function activateFreeCamera(stand)
         freezePlayer()
     end
     
-    -- Активируем новую систему свободной камеры
+    -- Активируем новую систему управления стендом
     freeCameraActive = true
     freeCameraTarget = stand
     
-    -- Запускаем новую систему свободной камеры
+    -- Запускаем новую систему управления стендом
     if YBAFreeCamera.Start(stand) then
-        print("YBA: Свободная камера активирована и следует за головой стенда")
+        print("YBA: Управление стендом активировано от третьего лица")
         return true
     else
-        print("YBA: Не удалось активировать свободную камеру")
+        print("YBA: Не удалось активировать управление стендом")
         return false
     end
 end
@@ -1366,16 +1424,16 @@ end
 
 -- Удалена старая функция switchCameraToStand - заменена на новую систему YBAFreeCamera
 
--- Функция для отключения свободной камеры
+-- Функция для отключения управления стендом
 local function disableFreeCamera()
     if not freeCameraActive then return end
     
-    print("YBA: Отключаем свободную камеру")
+    print("YBA: Отключаем управление стендом")
     
     freeCameraActive = false
     freeCameraTarget = nil
     
-    -- Останавливаем новую систему свободной камеры
+    -- Останавливаем новую систему управления стендом
     YBAFreeCamera.Stop()
     
     -- Восстанавливаем управление персонажем
@@ -1395,7 +1453,7 @@ local function disableFreeCamera()
     end
     freeCameraConnections = {}
     
-    print("YBA: Свободная камера отключена")
+    print("YBA: Управление стендом отключено")
     
     -- Дополнительно восстанавливаем управление персонажем
     local player = Players.LocalPlayer
@@ -1479,15 +1537,15 @@ local function startYBA()
         -- Камера будет переключена в activateFreeCamera
     end
     
-    -- Активируем свободную камеру для стенда
+    -- Активируем управление стендом
     if YBAConfig.TransferControl then
-        print("YBA: Активируем свободную камеру для стенда...")
+        print("YBA: Активируем управление стендом...")
         
-        -- Используем новую систему свободной камеры
+        -- Используем новую систему управления стендом
         if activateFreeCamera(targetStand) then
-            print("YBA: Свободная камера активирована для стенда")
+            print("YBA: Управление стендом активировано")
         else
-            print("YBA: Не удалось активировать свободную камеру")
+            print("YBA: Не удалось активировать управление стендом")
         end
     else
         print("YBA: TransferControl отключен")
@@ -1502,7 +1560,7 @@ local function stopYBA()
     isYBAEnabled = false
     YBAConfig.Enabled = false
     
-    -- Отключаем свободную камеру
+    -- Отключаем управление стендом
     disableFreeCamera()
     
     -- Восстанавливаем управление игроком
@@ -2700,10 +2758,10 @@ slider("Stand Rotation Speed", 0.01, 0.2, YBAConfig.StandRotationSpeed, function
     YBAConfig.StandRotationSpeed = v
 end)
 
--- Кнопка активации свободной камеры
+-- Кнопка активации управления стендом
 local freeCameraBtn = Instance.new("TextButton", innerContainer)
 freeCameraBtn.Size = UDim2.new(1, -10, 0, 28)
-freeCameraBtn.Text = "АКТИВИРОВАТЬ СВОБОДНУЮ КАМЕРУ"
+freeCameraBtn.Text = "АКТИВИРОВАТЬ УПРАВЛЕНИЕ СТЕНДОМ"
 freeCameraBtn.Font = Enum.Font.GothamBold
 freeCameraBtn.TextSize = 14
 freeCameraBtn.TextColor3 = Color3.new(1,1,1)
@@ -2717,27 +2775,27 @@ freeCameraBtn.MouseButton1Click:Connect(function()
         if #stands > 0 then
             local targetStand = stands[1]
             if activateFreeCamera(targetStand) then
-                freeCameraBtn.Text = "ОТКЛЮЧИТЬ СВОБОДНУЮ КАМЕРУ"
+                freeCameraBtn.Text = "ОТКЛЮЧИТЬ УПРАВЛЕНИЕ СТЕНДОМ"
                 freeCameraBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-                print("YBA: Свободная камера активирована")
+                print("YBA: Управление стендом активировано")
             end
         else
             freeCameraBtn.Text = "СТЕНДЫ НЕ НАЙДЕНЫ"
             task.wait(2)
-            freeCameraBtn.Text = "АКТИВИРОВАТЬ СВОБОДНУЮ КАМЕРУ"
+            freeCameraBtn.Text = "АКТИВИРОВАТЬ УПРАВЛЕНИЕ СТЕНДОМ"
         end
     else
         disableFreeCamera()
-        freeCameraBtn.Text = "АКТИВИРОВАТЬ СВОБОДНУЮ КАМЕРУ"
+        freeCameraBtn.Text = "АКТИВИРОВАТЬ УПРАВЛЕНИЕ СТЕНДОМ"
         freeCameraBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-        print("YBA: Свободная камера отключена")
+        print("YBA: Управление стендом отключено")
     end
 end)
 
 -- Информация об управлении
 local controlsInfo = Instance.new("TextLabel", innerContainer)
-controlsInfo.Size = UDim2.new(1, -10, 0, 80)
-controlsInfo.Text = "Управление свободной камерой:\nWASD - Движение камеры\nМышь - Поворот камеры\nQ/E - Высота камеры\nShift - Медленное движение\nКамера следует за головой стенда"
+controlsInfo.Size = UDim2.new(1, -10, 0, 100)
+controlsInfo.Text = "Управление стендом от 3-го лица:\nWASD - Движение стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nQ/E - Высота камеры\nShift - Медленное движение\nКамера следует за стендом"
 controlsInfo.Font = Enum.Font.Gotham
 controlsInfo.TextSize = 10
 controlsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
