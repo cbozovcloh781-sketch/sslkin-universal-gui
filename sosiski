@@ -170,6 +170,7 @@ local freeCameraDistance = 10
 local freeCameraHeight = 5
 local freeCameraTarget = nil
 local freeCameraLastMousePos = Vector2.new(0, 0)
+local lastCameraUpdate = nil
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -1183,7 +1184,7 @@ local function unfreezePlayer()
     end
 end
 
--- Функция активации свободной камеры как в YBA
+-- Функция активации свободной камеры, обходя проверки YBA
 local function activateFreeCamera(stand)
     if not stand or not stand.Root then 
         print("YBA: Ошибка - стенд или его Root не найден")
@@ -1196,7 +1197,7 @@ local function activateFreeCamera(stand)
         return false
     end
     
-    print("YBA: Активируем свободную камеру как в YBA для стенда: " .. stand.Name)
+    print("YBA: Активируем свободную камеру, обходя проверки YBA для стенда: " .. stand.Name)
     
     -- Сохраняем текущую камеру
     originalStandCameraCFrame = camera.CFrame
@@ -1556,7 +1557,7 @@ local function controlFreeCamera(stand)
             moveVector = moveVector - Vector3.new(0, 1, 0)
         end
         
-        -- Применяем движение к стенду
+        -- Применяем движение к стенду (обходя проверки YBA)
         if moveVector.Magnitude > 0 then
             moveVector = moveVector.Unit * 50
             
@@ -1567,6 +1568,18 @@ local function controlFreeCamera(stand)
                 bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
             end
             bv.Velocity = moveVector
+            
+            -- Дополнительно создаем BodyGyro для поворота стенда
+            local gyro = standRoot:FindFirstChild("BodyGyro")
+            if not gyro then
+                gyro = Instance.new("BodyGyro", standRoot)
+                gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            end
+            
+            -- Поворачиваем стенд в направлении движения
+            local moveDirection = moveVector.Unit
+            local targetCFrame = CFrame.lookAt(standRoot.Position, standRoot.Position + moveDirection)
+            gyro.CFrame = targetCFrame
         else
             -- Останавливаем стенд
             local standRoot = freeCameraTarget.Root
@@ -1593,8 +1606,19 @@ local function controlFreeCamera(stand)
         local cameraPos = standHead + cameraOffset -- Камера относительно головы стенда
         local lookAtPos = standHead -- Смотрим на голову стенда
         
-        -- Принудительно обновляем камеру каждый кадр
+        -- Принудительно обновляем камеру каждый кадр (обходя проверки YBA)
         camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+        
+        -- Дополнительно принудительно обновляем камеру каждую секунду
+        if not lastCameraUpdate then
+            lastCameraUpdate = tick()
+        end
+        
+        if tick() - lastCameraUpdate > 1 then
+            camera.CameraType = Enum.CameraType.Scriptable
+            camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+            lastCameraUpdate = tick()
+        end
         
         -- Отладочная информация
         if not debugCameraFrame then
@@ -2010,14 +2034,25 @@ local function startYBA()
         switchCameraToStand(targetStand)
     end
     
-    -- Активируем свободную камеру для стенда
+    -- Активируем свободную камеру для стенда (обходя проверки YBA)
     if YBAConfig.TransferControl then
-        print("YBA: Активируем свободную камеру для стенда...")
+        print("YBA: Активируем свободную камеру для стенда, обходя проверки...")
         
         -- Используем систему свободной камеры как в Infinite Yield
         if activateFreeCamera(targetStand) then
             controlFreeCamera(targetStand)
             print("YBA: Свободная камера активирована для стенда")
+            
+            -- Дополнительно принудительно обновляем камеру через 1 секунду
+            wait(1)
+            local camera = workspace.CurrentCamera
+            if camera and targetStand.Root then
+                local standHead = targetStand.Root.Position + Vector3.new(0, 2, 0)
+                local cameraPos = standHead + Vector3.new(0, 5, 10)
+                camera.CameraType = Enum.CameraType.Scriptable
+                camera.CFrame = CFrame.new(cameraPos, standHead)
+                print("YBA: Камера принудительно обновлена")
+            end
         else
             print("YBA: Не удалось активировать свободную камеру")
         end
