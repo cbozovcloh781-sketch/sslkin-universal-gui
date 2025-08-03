@@ -106,6 +106,8 @@ local YBAConfig = {
     StandControlSpeed = 1.0,
     StandControlSmoothing = 0.1,
     MouseSensitivity = 0.01,
+    FreeCameraEnabled = false,
+    CameraFollowStand = false,
 }
 
 local isFlying = false
@@ -149,6 +151,17 @@ local standControlConnections = {}
 local originalGravity = workspace.Gravity
 local originalWalkSpeed = 16
 local originalJumpPower = 50
+
+-- Free Camera Variables
+local isFreeCameraEnabled = false
+local freeCameraConnections = {}
+local cameraSubject = nil
+local cameraType = nil
+local cameraFocus = nil
+local cameraPosition = nil
+local cameraRotation = Vector2.new(0, 0)
+local lastMousePos = Vector2.new(0, 0)
+local isMouseDown = false
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -1245,45 +1258,12 @@ local function controlStand(stand)
             end
         end
         
-        -- Обновляем позицию камеры для следования за стендом с возможностью поворота
-        if YBAConfig.SwitchCamera and controlledStand.Root then
-            local standPos = controlledStand.Root.Position
-            
-            -- Обработка поворота камеры мышью
-            if isMouseDown then
-                local currentMousePos = UserInputService:GetMouseLocation()
-                local mouseDelta = currentMousePos - lastMousePos
-                
-                -- Обновляем поворот камеры
-                cameraRotation = cameraRotation + Vector2.new(mouseDelta.X * YBAConfig.MouseSensitivity, mouseDelta.Y * YBAConfig.MouseSensitivity)
-                
-                -- Ограничиваем вертикальный поворот
-                cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
-                
-                lastMousePos = currentMousePos
-            end
-            
-            -- Вычисляем позицию камеры с учетом поворота
-            local cameraOffset = Vector3.new(
-                math.sin(cameraRotation.X) * YBAConfig.CameraDistance,
-                YBAConfig.CameraHeight + math.sin(cameraRotation.Y) * 10,
-                math.cos(cameraRotation.X) * YBAConfig.CameraDistance
-            )
-            
-            local cameraPos = standPos + cameraOffset
-            local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
-            
-            -- Плавно перемещаем камеру
-            local currentCameraPos = camera.CFrame.Position
-            local cameraMoveDirection = (cameraPos - currentCameraPos)
-            
-            if cameraMoveDirection.Magnitude > 1 then
-                -- Плавное перемещение камеры
-                local smoothedCameraPos = currentCameraPos:Lerp(cameraPos, 0.1)
-                camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
-            else
-                -- Если камера уже близко к цели, просто обновляем позицию
-                camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+        -- Управление стендом (камера управляется отдельно через свободную камеру)
+        if controlledStand and controlledStand.Root then
+            -- Обновляем позицию камеры относительно стенда в свободной камере
+            if YBAConfig.CameraFollowStand then
+                local standPos = controlledStand.Root.Position
+                cameraPosition = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
             end
         end
     end)
@@ -1314,9 +1294,11 @@ local function startYBA()
         freezePlayer()
     end
     
-    -- Переключаем камеру
+    -- Запускаем свободную камеру
     if YBAConfig.SwitchCamera then
-        switchCameraToStand(targetStand)
+        startFreeCamera()
+        -- Привязываем камеру к стенду
+        attachCameraToStand(targetStand)
     end
     
     -- Передаем управление стенду
@@ -1336,8 +1318,8 @@ local function stopYBA()
     -- Восстанавливаем управление игроком
     unfreezePlayer()
     
-    -- Восстанавливаем камеру
-    restoreCamera()
+    -- Останавливаем свободную камеру
+    stopFreeCamera()
     
     -- Останавливаем управление стендом
     for _, connection in ipairs(standControlConnections) do
@@ -1349,6 +1331,160 @@ local function stopYBA()
     controlledStand = nil
     
     print("YBA: Stand Range Hack деактивирован!")
+end
+
+-- Free Camera Functions
+local function startFreeCamera()
+    if isFreeCameraEnabled then return end
+    
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+    
+    isFreeCameraEnabled = true
+    YBAConfig.FreeCameraEnabled = true
+    
+    -- Сохраняем оригинальные настройки камеры
+    cameraSubject = camera.CameraSubject
+    cameraType = camera.CameraType
+    cameraFocus = camera.Focus
+    cameraPosition = camera.CFrame.Position
+    
+    -- Переключаем на свободную камеру
+    camera.CameraType = Enum.CameraType.Scriptable
+    camera.CameraSubject = nil
+    
+    -- Сбрасываем поворот камеры
+    cameraRotation = Vector2.new(0, 0)
+    
+    -- Обработка мыши для поворота камеры
+    local mouseConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isMouseDown = true
+            lastMousePos = UserInputService:GetMouseLocation()
+        end
+    end)
+    
+    local mouseEndConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isMouseDown = false
+        end
+    end)
+    
+    -- Основной цикл свободной камеры
+    local freeCameraConnection = RunService.RenderStepped:Connect(function()
+        if not isFreeCameraEnabled then return end
+        
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+        
+        -- Обработка поворота камеры мышью
+        if isMouseDown then
+            local currentMousePos = UserInputService:GetMouseLocation()
+            local mouseDelta = currentMousePos - lastMousePos
+            
+            -- Обновляем поворот камеры
+            cameraRotation = cameraRotation + Vector2.new(mouseDelta.X * YBAConfig.MouseSensitivity, mouseDelta.Y * YBAConfig.MouseSensitivity)
+            
+            -- Ограничиваем вертикальный поворот
+            cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
+            
+            lastMousePos = currentMousePos
+        end
+        
+        -- Вычисляем позицию и направление камеры
+        local cameraPos = cameraPosition or camera.CFrame.Position
+        local lookDirection = Vector3.new(
+            math.sin(cameraRotation.X) * math.cos(cameraRotation.Y),
+            math.sin(cameraRotation.Y),
+            math.cos(cameraRotation.X) * math.cos(cameraRotation.Y)
+        )
+        
+        -- Если камера привязана к стенду
+        if YBAConfig.CameraFollowStand and controlledStand and controlledStand.Root then
+            local standPos = controlledStand.Root.Position
+            cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
+            cameraPosition = cameraPos
+        end
+        
+        -- Применяем позицию и поворот камеры
+        local lookAtPos = cameraPos + lookDirection
+        camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+    end)
+    
+    -- Обработка клавиш для движения камеры
+    local inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+        
+        local moveSpeed = 2
+        local currentPos = camera.CFrame.Position
+        
+        if input.KeyCode == Enum.KeyCode.W then
+            cameraPosition = currentPos + camera.CFrame.LookVector * moveSpeed
+        elseif input.KeyCode == Enum.KeyCode.S then
+            cameraPosition = currentPos - camera.CFrame.LookVector * moveSpeed
+        elseif input.KeyCode == Enum.KeyCode.A then
+            cameraPosition = currentPos - camera.CFrame.RightVector * moveSpeed
+        elseif input.KeyCode == Enum.KeyCode.D then
+            cameraPosition = currentPos + camera.CFrame.RightVector * moveSpeed
+        elseif input.KeyCode == Enum.KeyCode.Space then
+            cameraPosition = currentPos + Vector3.new(0, moveSpeed, 0)
+        elseif input.KeyCode == Enum.KeyCode.LeftControl then
+            cameraPosition = currentPos - Vector3.new(0, moveSpeed, 0)
+        end
+    end)
+    
+    table.insert(freeCameraConnections, mouseConnection)
+    table.insert(freeCameraConnections, mouseEndConnection)
+    table.insert(freeCameraConnections, freeCameraConnection)
+    table.insert(freeCameraConnections, inputConnection)
+    
+    print("Free Camera: Активирована!")
+end
+
+local function stopFreeCamera()
+    if not isFreeCameraEnabled then return end
+    
+    isFreeCameraEnabled = false
+    YBAConfig.FreeCameraEnabled = false
+    YBAConfig.CameraFollowStand = false
+    
+    local camera = workspace.CurrentCamera
+    if camera then
+        -- Восстанавливаем оригинальные настройки камеры
+        camera.CameraType = cameraType or Enum.CameraType.Custom
+        camera.CameraSubject = cameraSubject
+        camera.Focus = cameraFocus
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(freeCameraConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    freeCameraConnections = {}
+    
+    print("Free Camera: Деактивирована!")
+end
+
+local function attachCameraToStand(stand)
+    if not stand or not stand.Root then return end
+    
+    YBAConfig.CameraFollowStand = true
+    controlledStand = stand
+    
+    -- Устанавливаем начальную позицию камеры относительно стенда
+    local standPos = stand.Root.Position
+    cameraPosition = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
+    
+    print("Free Camera: Привязана к стенду - " .. stand.Name)
 end
 
 local function getAlivePlayers()
@@ -1503,6 +1639,13 @@ UserInputService.InputBegan:Connect(function(input, gp)
             
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+            end
+        elseif input.KeyCode == Enum.KeyCode.F then
+            -- Клавиша F для быстрого включения/выключения свободной камеры
+            if YBAConfig.FreeCameraEnabled then
+                stopFreeCamera()
+            else
+                startFreeCamera()
             end
         end
     end
@@ -2509,6 +2652,23 @@ end)
 
 slider("Mouse Sensitivity", 0.001, 0.05, YBAConfig.MouseSensitivity, function(v)
     YBAConfig.MouseSensitivity = v
+end)
+
+-- Free Camera Controls
+local freeCameraToggleBtn = toggle("Free Camera", YBAConfig.FreeCameraEnabled, function(v)
+    YBAConfig.FreeCameraEnabled = v
+    if v then 
+        startFreeCamera() 
+    else 
+        stopFreeCamera() 
+    end
+end)
+
+local attachCameraToggleBtn = toggle("Attach to Stand", YBAConfig.CameraFollowStand, function(v)
+    YBAConfig.CameraFollowStand = v
+    if v and controlledStand then
+        attachCameraToStand(controlledStand)
+    end
 end)
 
 
