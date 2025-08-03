@@ -1,0 +1,3541 @@
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+
+
+local Config = {
+    ESP = {
+        Enabled     = true,
+        TeamCheck   = false,
+        ShowOutline = true,
+        ShowLines   = false,
+        Rainbow     = false,
+        FillColor   = Color3.fromRGB(255,255,255),
+        OutlineColor= Color3.fromRGB(255,255,255),
+        TextColor   = Color3.fromRGB(255,255,255),
+        LineColor   = Color3.fromRGB(255,255,255),
+        FillTransparency    = 0.5,
+        OutlineTransparency = 0,
+        Font        = Enum.Font.SciFi,
+        TeamColor   = Color3.fromRGB(0,255,0),
+        EnemyColor  = Color3.fromRGB(255,0,0),
+        ToggleKey   = nil,
+    },
+    Aimbot = {
+        Enabled         = false,
+        TeamCheck       = false,
+        VisibilityCheck = true,
+        FOV             = 150,
+        ToggleKey       = nil,
+        FOVColor        = Color3.fromRGB(255,128,128),
+        FOVRainbow      = false,
+    },
+    MenuCollapsed = false,
+}
+
+
+local FlyConfig = {
+    Enabled = false,
+    Speed = 1,
+    ToggleKey = nil,
+}
+
+
+local NoClipConfig = {
+    Enabled = false,
+    ToggleKey = nil,
+    ForceToggleKey = nil,
+}
+
+
+local SpeedHackConfig = {
+    Enabled = false,
+    Speed = 1,
+    ToggleKey = nil,
+    UseJumpPower = false,
+}
+
+local LongJumpConfig = {
+    Enabled = false,
+    JumpPower = 150,
+    ToggleKey = nil,
+}
+
+local InfiniteJumpConfig = {
+    Enabled = false,
+    JumpPower = 50,
+    ToggleKey = nil,
+}
+
+
+local TeleportConfig = {
+    Enabled = false,
+    TargetPlayer = nil,
+    OriginalPosition = nil,
+    ToggleKey = nil,
+    SelectedPlayerName = nil,
+    UseStealthMode = true,
+    TeleportSpeed = 800,
+    ReturnSpeed = 2000,
+    BehindPlayerDistance = 2.5,
+    StabilizationTime = 0.5,
+    MaxSpeedResetTime = 2.0,
+    SpeedResetThreshold = 50,
+    InstantTurnSpeed = 600,
+    SmoothingFactor = 0.15,
+    MaxCorrectionSpeed = 300,
+    StabilizationThreshold = 0.8,
+}
+
+local YBAConfig = {
+    Enabled = false,
+    ToggleKey = nil,
+    StandRange = 50,
+    FreezePlayer = true,
+    SwitchCamera = true,
+    TransferControl = true,
+    AutoFindStands = true,
+    MaxStandDistance = 100,
+    CameraDistance = 15,
+    CameraHeight = 5,
+    StandControlSpeed = 1.0,
+    StandControlSmoothing = 0.1,
+    MouseSensitivity = 0.01,
+    CameraSmoothing = 0.08,
+    CameraFollowDistance = 20.2,
+    CameraFollowHeight = 6.1,
+    MouseLookSensitivity = 0.003,
+    StandRotationSpeed = 0.05,
+}
+
+local isFlying = false
+local flyConnections = {}
+local originalGravity = workspace.Gravity
+
+local isNoClipping = false
+local noClipConnections = {}
+
+local isSpeedHacking = false
+local speedHackConnections = {}
+local originalWalkSpeed = 16
+local originalJumpPower = 50
+
+local isLongJumping = false
+local longJumpConnections = {}
+local originalLongJumpPower = 50
+
+local isInfiniteJumping = false
+local infiniteJumpConnections = {}
+local lastJumpTime = 0
+
+local isTeleporting = false
+local teleportConnections = {}
+local playerSelectionWindow = nil
+local lastTeleportPosition = nil
+local stabilizationStartTime = nil
+local isStabilizing = false
+local speedResetTimer = 0
+local lastSpeedCheck = tick()
+local lastBehindDistance = 0
+
+-- YBA Stand Control Variables
+local isYBAEnabled = false
+local ybaConnections = {}
+local originalPlayerPosition = nil
+local originalPlayerCFrame = nil
+local originalCameraCFrame = nil
+local controlledStand = nil
+local standControlConnections = {}
+local originalGravity = workspace.Gravity
+local originalYBAWalkSpeed = 16
+local originalYBAJumpPower = 50
+
+-- Новая система управления стендами
+local isStandControlActive = false
+local currentControlledStand = nil
+local standCameraConnections = {}
+local originalStandCameraCFrame = nil
+local standControlActive = false
+
+-- Система свободной камеры как в Infinite Yield
+local freeCameraActive = false
+local freeCameraConnections = {}
+local freeCameraRotation = Vector2.new(0, 0)
+local freeCameraDistance = 10
+local freeCameraHeight = 5
+local freeCameraTarget = nil
+local freeCameraLastMousePos = Vector2.new(0, 0)
+local lastCameraUpdate = nil
+
+local function startFly()
+    local plr = Players.LocalPlayer
+    local char = plr.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if not hum or not root then return end
+    
+    isFlying = true
+    
+    local flyOriginalJumpPower = hum.JumpPower
+    local flyOriginalJumpHeight = hum.JumpHeight
+    local flyOriginalGravity = workspace.Gravity
+    local flyOriginalHipHeight = hum.HipHeight
+    
+    hum.JumpPower = 0
+    hum.JumpHeight = 0
+    workspace.Gravity = 0
+    hum.HipHeight = 0
+    
+    local ctrl = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
+    
+    local inputDown = UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1
+        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
+        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
+        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 1
+        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 1
+        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = -1 end
+    end)
+    
+    local inputUp = UserInputService.InputEnded:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
+        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
+        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
+        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0
+        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 0
+        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = 0 end
+    end)
+    
+    local renderConnection = RunService.RenderStepped:Connect(function()
+        if not isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
+            if hum then
+                hum.JumpPower = flyOriginalJumpPower
+                hum.JumpHeight = flyOriginalJumpHeight
+                hum.HipHeight = flyOriginalHipHeight
+            end
+            if not isNoClipping then
+                workspace.Gravity = flyOriginalGravity
+            end
+            
+            inputDown:Disconnect()
+            inputUp:Disconnect()
+            renderConnection:Disconnect()
+            return
+        end
+        
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        
+        
+        local forward = cam.CFrame.lookVector
+        local right = cam.CFrame.rightVector
+        local up = Vector3.new(0, 1, 0)
+        
+        local moveVector = Vector3.new(0, 0, 0)
+        moveVector = moveVector + (forward * (ctrl.f + ctrl.b))
+        moveVector = moveVector + (right * (ctrl.r + ctrl.l))
+        moveVector = moveVector + (up * (ctrl.u + ctrl.d))
+        
+        if moveVector.Magnitude > 0 then
+            moveVector = moveVector.Unit * (FlyConfig.Speed * 10)
+            local bv = root:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", root)
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            end
+            bv.Velocity = moveVector
+        else
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+    end)
+    
+    table.insert(flyConnections, inputDown)
+    table.insert(flyConnections, inputUp)
+    table.insert(flyConnections, renderConnection)
+end
+
+local function stopFly()
+    isFlying = false
+    
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if hum then
+        
+        hum.JumpPower = 50
+        hum.JumpHeight = 7.2
+        hum.HipHeight = 2
+    end
+    
+    workspace.Gravity = 196.2
+    
+    
+    if root then
+        local bv = root:FindFirstChild("BodyVelocity")
+        if bv then
+            bv:Destroy()
+        end
+    end
+    
+    
+    for _, connection in ipairs(flyConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    flyConnections = {}
+end
+
+
+local function startNoClip()
+    local char = Players.LocalPlayer.Character
+    if not char then return end
+    
+    isNoClipping = true
+    
+    
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.CanCollide then
+            part.CanCollide = false
+        end
+    end
+    
+    
+    local function noclip()
+        if not char or not char.Parent then return end
+        
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+    
+    
+    local noClipLoop = RunService.Heartbeat:Connect(function()
+        if not isNoClipping or not char or not char.Parent then
+            return
+        end
+        noclip()
+    end)
+    
+    table.insert(noClipConnections, noClipLoop)
+    
+    
+    local function setupNoClipForPart(part)
+        if part:IsA("BasePart") and part.CanCollide then
+            part.CanCollide = false
+        end
+    end
+    
+    local descendantAdded = char.DescendantAdded:Connect(setupNoClipForPart)
+    table.insert(noClipConnections, descendantAdded)
+    
+    
+    task.spawn(function()
+        task.wait(0.5)
+        if isNoClipping and char and char.Parent then
+            noclip()
+        end
+    end)
+end
+
+local function stopNoClip()
+    isNoClipping = false
+    
+    local char = Players.LocalPlayer.Character
+    if not char then return end
+    
+    
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+        end
+    end
+    
+    
+    for _, connection in ipairs(noClipConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    noClipConnections = {}
+end
+
+local function startSpeedHack()
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    
+    isSpeedHacking = true
+    originalWalkSpeed = hum.WalkSpeed
+    originalJumpPower = hum.JumpPower
+    
+    hum.WalkSpeed = SpeedHackConfig.Speed * 16
+    
+    if SpeedHackConfig.UseJumpPower then
+        hum.JumpPower = SpeedHackConfig.Speed * 50
+    end
+    
+    local function onCharacterAdded(newChar)
+        local newHum = newChar:WaitForChild("Humanoid")
+        if isSpeedHacking then
+            newHum.WalkSpeed = SpeedHackConfig.Speed * 16
+            if SpeedHackConfig.UseJumpPower then
+                newHum.JumpPower = SpeedHackConfig.Speed * 50
+            end
+        end
+    end
+    
+    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+    table.insert(speedHackConnections, characterAddedConnection)
+    
+    local speedLoop = RunService.Heartbeat:Connect(function()
+        if not isSpeedHacking then return end
+        
+        local currentChar = Players.LocalPlayer.Character
+        local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
+        
+        if currentHum then
+            if currentHum.WalkSpeed ~= SpeedHackConfig.Speed * 16 then
+                currentHum.WalkSpeed = SpeedHackConfig.Speed * 16
+            end
+            
+            if SpeedHackConfig.UseJumpPower and currentHum.JumpPower ~= SpeedHackConfig.Speed * 50 then
+                currentHum.JumpPower = SpeedHackConfig.Speed * 50
+            end
+        end
+    end)
+    
+    table.insert(speedHackConnections, speedLoop)
+end
+
+local function stopSpeedHack()
+    isSpeedHacking = false
+    
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = originalWalkSpeed
+        hum.JumpPower = originalJumpPower
+    end
+    
+    for _, connection in ipairs(speedHackConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    speedHackConnections = {}
+end
+
+
+local function startLongJump()
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    
+    isLongJumping = true
+    originalLongJumpPower = hum.JumpPower
+    
+    hum.JumpPower = LongJumpConfig.JumpPower
+    
+    
+    local function onCharacterAdded(newChar)
+        local newHum = newChar:WaitForChild("Humanoid")
+        if isLongJumping then
+            newHum.JumpPower = LongJumpConfig.JumpPower
+        end
+    end
+    
+    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+    table.insert(longJumpConnections, characterAddedConnection)
+    
+    
+    local longJumpLoop = RunService.Heartbeat:Connect(function()
+        if not isLongJumping then return end
+        
+        local currentChar = Players.LocalPlayer.Character
+        local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
+        
+        if currentHum and currentHum.JumpPower ~= LongJumpConfig.JumpPower then
+            currentHum.JumpPower = LongJumpConfig.JumpPower
+        end
+    end)
+    
+    table.insert(longJumpConnections, longJumpLoop)
+end
+
+local function stopLongJump()
+    isLongJumping = false
+    
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.JumpPower = originalLongJumpPower
+    end
+    
+    
+    for _, connection in ipairs(longJumpConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    longJumpConnections = {}
+end
+
+
+local function startInfiniteJump()
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return end
+    
+    isInfiniteJumping = true
+    lastJumpTime = 0
+    
+    
+    local function onJumpRequest()
+        if not isInfiniteJumping then return end
+        
+        local currentTime = tick()
+        if currentTime - lastJumpTime < 0.1 then return end 
+        
+        lastJumpTime = currentTime
+        
+        
+        local bv = Instance.new("BodyVelocity", root)
+        bv.MaxForce = Vector3.new(0, math.huge, 0)
+        bv.Velocity = Vector3.new(0, InfiniteJumpConfig.JumpPower, 0)
+        
+        
+        task.spawn(function()
+            task.wait(0.3)
+            if bv and bv.Parent then
+                bv:Destroy()
+            end
+        end)
+    end
+    
+    
+    local jumpConnection = hum.Jumping:Connect(onJumpRequest)
+    table.insert(infiniteJumpConnections, jumpConnection)
+    
+    
+    local function onInputBegan(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Space then
+            onJumpRequest()
+        end
+    end
+    
+    local inputConnection = UserInputService.InputBegan:Connect(onInputBegan)
+    table.insert(infiniteJumpConnections, inputConnection)
+    
+    
+    local function onCharacterAdded(newChar)
+        if isInfiniteJumping then
+            task.wait(1) 
+            startInfiniteJump() 
+        end
+    end
+    
+    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+    table.insert(infiniteJumpConnections, characterAddedConnection)
+end
+
+local function stopInfiniteJump()
+    isInfiniteJumping = false
+    lastJumpTime = 0
+    
+    
+    for _, connection in ipairs(infiniteJumpConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    infiniteJumpConnections = {}
+    
+    
+    local char = Players.LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if root then
+        for _, child in pairs(root:GetChildren()) do
+            if child:IsA("BodyVelocity") then
+                child:Destroy()
+            end
+        end
+    end
+end
+
+
+local function createStealthTeleport()
+    if not TeleportConfig.TargetPlayer then 
+        return 
+    end
+    
+    local char = Players.LocalPlayer.Character
+    local targetChar = TeleportConfig.TargetPlayer.Character
+    if not char or not targetChar then 
+        return 
+    end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not root or not targetRoot or not humanoid then 
+        return 
+    end
+    
+    isTeleporting = true
+    isStabilizing = false
+    speedResetTimer = 0
+    lastSpeedCheck = tick()
+    lastBehindDistance = 0
+    
+    
+    if not TeleportConfig.OriginalPosition then
+        TeleportConfig.OriginalPosition = root.Position
+    end
+    
+    
+    if not isNoClipping then
+        startNoClip()
+    end
+    
+    
+    task.spawn(function()
+        task.wait(0.1) 
+        if not isNoClipping then
+            startNoClip()
+        end
+        
+        
+        local char = Players.LocalPlayer.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+    
+    local stealthTeleportLoop = RunService.Heartbeat:Connect(function()
+        if not isTeleporting or not targetChar or not targetChar.Parent then
+            return
+        end
+        
+        
+        if isNoClipping and char and char.Parent then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+        
+        
+        local currentTime = tick()
+        speedResetTimer = speedResetTimer + (currentTime - lastSpeedCheck)
+        lastSpeedCheck = currentTime
+        
+        -- Плавный сброс скорости
+        if speedResetTimer >= TeleportConfig.MaxSpeedResetTime then
+            speedResetTimer = 0
+            
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold then
+                -- Плавное снижение скорости вместо резкого сброса
+                bv.Velocity = bv.Velocity * 0.7
+                task.wait(0.1)
+                if bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold * 0.5 then
+                    bv.Velocity = bv.Velocity * 0.5
+                end
+            end
+            
+            -- Плавное восстановление скорости ходьбы
+            if humanoid and humanoid.WalkSpeed > 16 then
+                humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 2, 16)
+            end
+        end
+        
+        local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+        if currentTargetRoot then
+            local targetPos = currentTargetRoot.Position
+            local currentPos = root.Position
+            local distance = (targetPos - currentPos).Magnitude
+            
+            -- Предотвращение рывков при резких изменениях позиции цели
+            if lastTeleportPosition then
+                local targetMovement = (targetPos - lastTeleportPosition).Magnitude
+                if targetMovement > 5 then
+                    -- Если цель резко переместилась, плавно адаптируемся
+                    task.wait(0.05)
+                end
+            end
+            lastTeleportPosition = targetPos
+            
+            local targetCFrame = currentTargetRoot.CFrame
+            local targetLookVector = targetCFrame.LookVector
+            local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+            local behindDistance = (behindPosition.Position - currentPos).Magnitude
+            
+            local bv = root:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", root)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                -- Плавное начало движения
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+            
+            
+            -- Плавная стабилизация за игроком
+            if behindDistance < TeleportConfig.StabilizationThreshold and not isStabilizing then
+                isStabilizing = true
+                stabilizationStartTime = tick()
+                lastTeleportPosition = behindPosition.Position
+                
+                -- Плавно останавливаем движение
+                bv.Velocity = bv.Velocity * 0.5
+                task.wait(0.05)
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+            
+            if isStabilizing then
+                local stabilizationTime = tick() - stabilizationStartTime
+                
+                if stabilizationTime < TeleportConfig.StabilizationTime then
+                    local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+                    local correctionDirection = (newBehindPosition.Position - currentPos)
+                    local correctionMagnitude = correctionDirection.Magnitude
+                    
+                    -- Плавная коррекция позиции
+                    if correctionMagnitude > 0.3 then
+                        local correctionSpeed = math.min(correctionMagnitude * TeleportConfig.MaxCorrectionSpeed, TeleportConfig.MaxCorrectionSpeed)
+                        bv.Velocity = correctionDirection.Unit * correctionSpeed
+                    else
+                        -- Плавное затухание скорости
+                        bv.Velocity = bv.Velocity * (1 - TeleportConfig.SmoothingFactor)
+                        if bv.Velocity.Magnitude < 5 then
+                            bv.Velocity = Vector3.new(0, 0, 0)
+                        end
+                    end
+                else
+                    isStabilizing = false
+                    stabilizationStartTime = nil
+                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                end
+            else
+                -- Плавное движение к цели
+                local currentVelocity = bv.Velocity
+                local newDirection = (behindPosition.Position - currentPos).Unit
+                local targetSpeed = 0
+                
+                if distance > 10 then
+                    targetSpeed = TeleportConfig.TeleportSpeed
+                elseif distance > 4 then
+                    targetSpeed = TeleportConfig.TeleportSpeed * 0.6
+                elseif distance > 2 then
+                    targetSpeed = TeleportConfig.TeleportSpeed * 0.4
+                else
+                    targetSpeed = TeleportConfig.TeleportSpeed * 0.2
+                end
+                
+                -- Плавное изменение скорости
+                local currentSpeed = currentVelocity.Magnitude
+                local speedDiff = targetSpeed - currentSpeed
+                local acceleration = math.sign(speedDiff) * math.min(math.abs(speedDiff), TeleportConfig.TeleportSpeed * 0.1)
+                
+                -- Предотвращение слишком частых изменений скорости
+                if math.abs(speedDiff) < 10 and currentSpeed > 0 then
+                    -- Если изменение скорости небольшое, сохраняем текущую скорость
+                    targetSpeed = currentSpeed
+                end
+                
+                if currentVelocity.Magnitude > 0 then
+                    local currentDirection = currentVelocity.Unit
+                    local directionDot = currentDirection:Dot(newDirection)
+                    
+                    if directionDot < 0.5 then
+                        -- Резкий поворот с плавным снижением скорости
+                        bv.Velocity = newDirection * (currentSpeed * 0.8)
+                    else
+                        -- Плавный поворот
+                        local smoothedDirection = (currentDirection + newDirection).Unit
+                        bv.Velocity = smoothedDirection * (currentSpeed + acceleration)
+                    end
+                else
+                    bv.Velocity = newDirection * targetSpeed
+                end
+            end
+        end
+    end)
+    
+    table.insert(teleportConnections, stealthTeleportLoop)
+end
+
+local function startTeleport()
+    if not TeleportConfig.TargetPlayer then 
+        return 
+    end
+    
+    local char = Players.LocalPlayer.Character
+    local targetChar = TeleportConfig.TargetPlayer.Character
+    if not char or not targetChar then 
+        return 
+    end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    if not root or not targetRoot then 
+        return 
+    end
+    
+    isTeleporting = true
+    isStabilizing = false
+    stabilizationStartTime = nil
+    lastTeleportPosition = nil
+    speedResetTimer = 0
+    lastSpeedCheck = tick()
+    lastBehindDistance = 0
+    
+    
+    TeleportConfig.OriginalPosition = root.Position
+    
+    
+    if not isNoClipping then
+        startNoClip()
+    end
+    
+    
+    task.spawn(function()
+        task.wait(0.1) 
+        if not isNoClipping then
+            startNoClip()
+        end
+        
+        
+        local char = Players.LocalPlayer.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+    
+    if startTeleportBtn then
+        startTeleportBtn.Text = "TELEPORT ACTIVE"
+        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+    end
+    if stopTeleportBtn then
+        stopTeleportBtn.Text = "STOP TELEPORT"
+        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+    end
+    
+    createStealthTeleport()
+    
+    
+    task.spawn(function()
+        task.wait(0.2)
+        if not isNoClipping then
+            startNoClip()
+        end
+        
+        
+        local char = Players.LocalPlayer.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+local function stopTeleport()
+    isTeleporting = false
+    isStabilizing = false
+    stabilizationStartTime = nil
+    lastTeleportPosition = nil
+    speedResetTimer = 0
+    lastBehindDistance = 0
+    TeleportConfig.Enabled = false
+    
+    local char = Players.LocalPlayer.Character
+    if not char then 
+        return 
+    end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    
+    
+    for _, connection in ipairs(teleportConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            end
+        end
+    end
+    teleportConnections = {}
+    
+    
+    local bv = root and root:FindFirstChild("BodyVelocity")
+    if bv then
+        
+        bv.Velocity = Vector3.new(0, 0, 0)
+        task.wait(0.1) 
+        bv:Destroy()
+    end
+    
+    
+    if humanoid then
+        humanoid.WalkSpeed = 16
+        humanoid.JumpPower = 50
+    end
+    
+    
+    if root and TeleportConfig.OriginalPosition then
+        
+        if not isNoClipping then
+            startNoClip()
+        end
+        
+        
+        local returnConnections = {}
+        
+        local returnLoop = RunService.Heartbeat:Connect(function()
+            if not root or not root.Parent then
+                return
+            end
+            
+            local currentPos = root.Position
+            local returnPos = TeleportConfig.OriginalPosition
+            local distance = (returnPos - currentPos).Magnitude
+            
+            if distance > 3 then
+                local returnBv = root:FindFirstChild("BodyVelocity")
+                if not returnBv then
+                    returnBv = Instance.new("BodyVelocity", root)
+                    returnBv.MaxForce = Vector3.new(1e6, 1e6, 1e6) 
+                end
+                
+                local returnDirection = (returnPos - currentPos).Unit
+                local returnSpeed = TeleportConfig.ReturnSpeed
+                
+                returnSpeed = returnSpeed + math.random(-5, 5)
+                
+                returnBv.Velocity = returnDirection * returnSpeed
+            else
+                
+                local returnBv = root:FindFirstChild("BodyVelocity")
+                if returnBv then
+                    returnBv.Velocity = Vector3.new(0, 0, 0)
+                    task.wait(0.5) 
+                    returnBv:Destroy()
+                end
+                
+                
+                root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
+                TeleportConfig.OriginalPosition = nil
+                
+                
+                local freezeBv = Instance.new("BodyVelocity", root)
+                freezeBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                freezeBv.Velocity = Vector3.new(0, 0, 0)
+                
+                task.wait(2) 
+                
+                if freezeBv then
+                    freezeBv:Destroy()
+                end
+                
+                
+                task.spawn(function()
+                    task.wait(5)
+                    if isNoClipping then
+                        stopNoClip()
+                    end
+                end)
+                
+                
+                for _, connection in ipairs(returnConnections) do
+                    if connection then
+                        pcall(function() connection:Disconnect() end)
+                    end
+                end
+                
+                if returnLoop then
+                    returnLoop:Disconnect()
+                end
+            end
+        end)
+        
+        table.insert(returnConnections, returnLoop)
+    end
+    
+    
+    local humanoid = char and char:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = 16
+        humanoid.JumpPower = 50
+    end
+    
+    if startTeleportBtn then
+        startTeleportBtn.Text = "START TELEPORT"
+        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+    end
+    if stopTeleportBtn then
+        stopTeleportBtn.Text = "STOP TELEPORT"
+        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+    end
+end
+
+-- YBA Stand Control Functions
+local function findStands()
+    local stands = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    
+    if not playerRoot then 
+        print("YBA: Не найден HumanoidRootPart игрока")
+        return stands 
+    end
+    
+    print("YBA: Поиск стендов в радиусе " .. YBAConfig.MaxStandDistance)
+    
+    -- Поиск стендов в YBA (различные варианты названий)
+    local standNames = {
+        "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
+        "Star Platinum", "The World", "Hierophant Green", "Magician's Red",
+        "Hermit Purple", "Silver Chariot", "Tower of Gray", "Dark Blue Moon",
+        "Strength", "Wheel of Fortune", "Hanged Man", "Emperor", "Empress",
+        "Judgment", "High Priestess", "Death Thirteen", "Lovers", "Sun",
+        "Bastet", "Thunder McQueen", "Anubis", "Khnum", "Tohth", "Horus",
+        "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth"
+    }
+    
+    local foundCount = 0
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") then
+            local isStand = false
+            for _, standName in ipairs(standNames) do
+                if obj.Name:find(standName) or obj.Name:lower():find(standName:lower()) then
+                    isStand = true
+                    break
+                end
+            end
+            
+            if isStand then
+                local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
+                if standRoot then
+                    local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                    if distance <= YBAConfig.MaxStandDistance then
+                        foundCount = foundCount + 1
+                        print("YBA: Найден стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
+                        table.insert(stands, {
+                            Model = obj,
+                            Root = standRoot,
+                            Distance = distance,
+                            Name = obj.Name
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    print("YBA: Найдено стендов по названию: " .. foundCount)
+    
+    -- Если стенды не найдены, ищем по другим критериям
+    if #stands == 0 then
+        print("YBA: Поиск альтернативных стендов...")
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
+                local standRoot = obj:FindFirstChild("HumanoidRootPart")
+                if standRoot then
+                    local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                    if distance <= YBAConfig.MaxStandDistance and distance > 5 then -- Исключаем самого игрока
+                        print("YBA: Найден альтернативный стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
+                        table.insert(stands, {
+                            Model = obj,
+                            Root = standRoot,
+                            Distance = distance,
+                            Name = obj.Name
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Сортируем по расстоянию
+    table.sort(stands, function(a, b) return a.Distance < b.Distance end)
+    print("YBA: Всего найдено подходящих стендов: " .. #stands)
+    return stands
+end
+
+local function freezePlayer()
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then return end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    
+    if root then
+        originalPlayerPosition = root.Position
+        originalPlayerCFrame = root.CFrame
+        
+        -- Создаем BodyVelocity для заморозки
+        local bv = root:FindFirstChild("BodyVelocity")
+        if not bv then
+            bv = Instance.new("BodyVelocity", root)
+            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        end
+        bv.Velocity = Vector3.new(0, 0, 0)
+        
+        -- Дополнительно отключаем все движения персонажа
+        local gyro = root:FindFirstChild("BodyGyro")
+        if not gyro then
+            gyro = Instance.new("BodyGyro", root)
+            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        end
+        gyro.CFrame = root.CFrame
+        
+        -- Принудительно отключаем камеру от персонажа
+        local camera = workspace.CurrentCamera
+        if camera then
+            camera.CameraType = Enum.CameraType.Scriptable
+        end
+    end
+    
+    if humanoid then
+        originalYBAWalkSpeed = humanoid.WalkSpeed
+        originalYBAJumpPower = humanoid.JumpPower
+        humanoid.WalkSpeed = 0
+        humanoid.JumpPower = 0
+        
+        -- Отключаем все действия персонажа
+        humanoid.AutoRotate = false
+        humanoid.AutoJumpEnabled = false
+    end
+end
+
+local function unfreezePlayer()
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then return end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    
+    if root then
+        local bv = root:FindFirstChild("BodyVelocity")
+        if bv then
+            bv:Destroy()
+        end
+        
+        local gyro = root:FindFirstChild("BodyGyro")
+        if gyro then
+            gyro:Destroy()
+        end
+    end
+    
+    if humanoid then
+        humanoid.WalkSpeed = originalYBAWalkSpeed
+        humanoid.JumpPower = originalYBAJumpPower
+        
+        -- Восстанавливаем стандартные настройки персонажа
+        humanoid.AutoRotate = true
+        humanoid.AutoJumpEnabled = true
+    end
+end
+
+-- Функция активации свободной камеры, обходя проверки YBA
+local function activateFreeCamera(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return false
+    end
+    
+    local camera = workspace.CurrentCamera
+    if not camera then 
+        print("YBA: Ошибка - камера не найдена")
+        return false
+    end
+    
+    print("YBA: Активируем свободную камеру, обходя проверки YBA для стенда: " .. stand.Name)
+    
+    -- Сохраняем текущую камеру
+    originalStandCameraCFrame = camera.CFrame
+    
+    -- Полностью отвязываем камеру от персонажа
+    camera.CameraType = Enum.CameraType.Scriptable
+    
+    -- Инициализируем свободную камеру
+    freeCameraActive = true
+    freeCameraTarget = stand
+    freeCameraRotation = Vector2.new(0, 0)
+    freeCameraDistance = 10
+    freeCameraHeight = 5
+    freeCameraLastMousePos = UserInputService:GetMouseLocation()
+    
+    -- Полностью отключаем управление персонажем и замораживаем его
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = false
+            humanoid.WalkSpeed = 0
+            humanoid.JumpPower = 0
+        end
+        
+        -- Замораживаем персонажа на месте
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            -- Удаляем старые BodyVelocity если есть
+            local oldBv = root:FindFirstChild("BodyVelocity")
+            if oldBv then
+                oldBv:Destroy()
+            end
+            
+            -- Создаем новый BodyVelocity для заморозки
+            local bv = Instance.new("BodyVelocity", root)
+            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            bv.Velocity = Vector3.new(0, 0, 0)
+            
+            -- Создаем BodyGyro для фиксации поворота
+            local oldGyro = root:FindFirstChild("BodyGyro")
+            if oldGyro then
+                oldGyro:Destroy()
+            end
+            
+            local gyro = Instance.new("BodyGyro", root)
+            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            gyro.CFrame = root.CFrame
+        end
+    end
+    
+    -- Сразу устанавливаем камеру за стендом
+    local standPos = stand.Root.Position
+    local standHead = standPos + Vector3.new(0, 2, 0)
+    local cameraPos = standHead + Vector3.new(0, 5, 10)
+    camera.CFrame = CFrame.new(cameraPos, standHead)
+    
+    print("YBA: Свободная камера активирована и привязана к стенду")
+    return true
+end
+
+-- Функция для переключения камеры на любой стенд (как в YBA)
+local function switchToStandControl(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return false
+    end
+    
+    local camera = workspace.CurrentCamera
+    if not camera then 
+        print("YBA: Ошибка - камера не найдена")
+        return false
+    end
+    
+    print("YBA: Переключаем управление на стенд: " .. stand.Name)
+    
+    -- Сохраняем текущую камеру
+    originalStandCameraCFrame = camera.CFrame
+    
+    -- Полностью отвязываем камеру от персонажа
+    camera.CameraType = Enum.CameraType.Scriptable
+    
+    -- Устанавливаем камеру за стендом
+    local standPos = stand.Root.Position
+    local cameraPos = standPos + Vector3.new(0, 5, 10) -- Камера за стендом
+    
+    camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+    
+    -- Отключаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = false
+        end
+    end
+    
+    currentControlledStand = stand
+    isStandControlActive = true
+    standControlActive = true
+    
+    print("YBA: Управление переключено на стенд: " .. stand.Name)
+    return true
+end
+
+local function switchCameraToStand(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден для камеры")
+        return 
+    end
+    
+    local camera = workspace.CurrentCamera
+    if not camera then 
+        print("YBA: Ошибка - камера не найдена")
+        return 
+    end
+    
+    print("YBA: Переключаем камеру на стенд: " .. stand.Name)
+    originalCameraCFrame = camera.CFrame
+    
+    -- Полностью отвязываем камеру от персонажа и привязываем к стенду
+    local standPos = stand.Root.Position
+    local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
+    
+    -- Отключаем стандартную камеру Roblox и создаем свободную камеру
+    print("YBA: Текущий тип камеры: " .. tostring(camera.CameraType))
+    camera.CameraType = Enum.CameraType.Scriptable
+    print("YBA: Новый тип камеры: " .. tostring(camera.CameraType))
+    
+    -- Инициализируем позицию камеры
+    camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+    print("YBA: Камера переключена на стенд")
+    print("YBA: Позиция камеры: " .. tostring(cameraPos))
+    print("YBA: Позиция стенда: " .. tostring(standPos))
+    
+    -- Принудительно перемещаем камеру к стенду
+    for i = 1, 10 do
+        camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+        wait(0.01)
+    end
+    print("YBA: Камера принудительно перемещена к стенду")
+    
+    -- Дополнительно отключаем камеру от персонажа
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = false
+        end
+    end
+end
+
+-- Функция для отключения свободной камеры
+local function disableFreeCamera()
+    if not freeCameraActive then return end
+    
+    print("YBA: Отключаем свободную камеру")
+    
+    freeCameraActive = false
+    freeCameraTarget = nil
+    
+    -- Восстанавливаем камеру
+    local camera = workspace.CurrentCamera
+    if camera then
+        camera.CameraType = Enum.CameraType.Custom
+        if originalStandCameraCFrame then
+            camera.CFrame = originalStandCameraCFrame
+        end
+    end
+    
+    -- Восстанавливаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = true
+        end
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(freeCameraConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    freeCameraConnections = {}
+    
+    print("YBA: Свободная камера отключена")
+    
+    -- Дополнительно восстанавливаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = originalYBAWalkSpeed
+            humanoid.JumpPower = originalYBAJumpPower
+        end
+        
+        -- Убираем заморозку персонажа
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+            
+            local gyro = root:FindFirstChild("BodyGyro")
+            if gyro then
+                gyro:Destroy()
+            end
+        end
+    end
+end
+
+-- Функция для отключения управления стендом
+local function disableStandControl()
+    if not isStandControlActive then return end
+    
+    print("YBA: Отключаем управление стендом")
+    
+    isStandControlActive = false
+    standControlActive = false
+    currentControlledStand = nil
+    
+    -- Восстанавливаем камеру
+    local camera = workspace.CurrentCamera
+    if camera then
+        camera.CameraType = Enum.CameraType.Custom
+        if originalStandCameraCFrame then
+            camera.CFrame = originalStandCameraCFrame
+        end
+    end
+    
+    -- Восстанавливаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = true
+        end
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(standCameraConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    standCameraConnections = {}
+    
+    print("YBA: Управление стендом отключено")
+end
+
+local function restoreCamera()
+    local camera = workspace.CurrentCamera
+    if camera then
+        -- Восстанавливаем стандартную камеру Roblox
+        camera.CameraType = Enum.CameraType.Custom
+        if originalCameraCFrame then
+            camera.CFrame = originalCameraCFrame
+        end
+        
+        -- Восстанавливаем управление персонажем
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = true
+            end
+        end
+    end
+end
+
+-- Функция управления свободной камерой как в Infinite Yield
+local function controlFreeCamera(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return 
+    end
+    
+    print("YBA: Начинаем управление свободной камерой для стенда: " .. stand.Name)
+    currentControlledStand = stand
+    
+    -- Создаем соединение для управления свободной камерой
+    local freeCameraConnection = RunService.Heartbeat:Connect(function()
+        if not freeCameraActive or not freeCameraTarget or not freeCameraTarget.Root or not freeCameraTarget.Root.Parent then
+            return
+        end
+        
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+        
+        -- Принудительно устанавливаем правильный тип камеры
+        camera.CameraType = Enum.CameraType.Scriptable
+        
+        -- Дополнительно отключаем управление персонажем каждый кадр
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = false
+                humanoid.WalkSpeed = 0
+                humanoid.JumpPower = 0
+            end
+            
+            -- Дополнительно замораживаем персонажа каждый кадр
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                local bv = root:FindFirstChild("BodyVelocity")
+                if bv then
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                end
+                
+                local gyro = root:FindFirstChild("BodyGyro")
+                if gyro then
+                    gyro.CFrame = root.CFrame
+                end
+            end
+        end
+        
+        -- Обработка мыши для поворота камеры (как в Infinite Yield)
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local mouseDelta = currentMousePos - freeCameraLastMousePos
+        
+        if mouseDelta.Magnitude > 0 then
+            local newRotationX = freeCameraRotation.X + mouseDelta.X * 0.003
+            local newRotationY = freeCameraRotation.Y + mouseDelta.Y * 0.003
+            newRotationY = math.clamp(newRotationY, -1.5, 1.5)
+            freeCameraRotation = Vector2.new(newRotationX, newRotationY)
+        end
+        
+        freeCameraLastMousePos = currentMousePos
+        
+        -- Получаем ввод пользователя для движения стенда
+        local moveVector = Vector3.new(0, 0, 0)
+        
+        -- Создаем базовое направление движения относительно камеры
+        local forward = Vector3.new(math.sin(freeCameraRotation.X), 0, math.cos(freeCameraRotation.X))
+        local right = Vector3.new(math.cos(freeCameraRotation.X), 0, -math.sin(freeCameraRotation.X))
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        -- Применяем движение к стенду (обходя проверки YBA)
+        if moveVector.Magnitude > 0 then
+            moveVector = moveVector.Unit * 50
+            
+            local standRoot = freeCameraTarget.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", standRoot)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            end
+            bv.Velocity = moveVector
+            
+            -- Дополнительно создаем BodyGyro для поворота стенда
+            local gyro = standRoot:FindFirstChild("BodyGyro")
+            if not gyro then
+                gyro = Instance.new("BodyGyro", standRoot)
+                gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            end
+            
+            -- Поворачиваем стенд в направлении движения
+            local moveDirection = moveVector.Unit
+            local targetCFrame = CFrame.lookAt(standRoot.Position, standRoot.Position + moveDirection)
+            gyro.CFrame = targetCFrame
+        else
+            -- Останавливаем стенд
+            local standRoot = freeCameraTarget.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+        
+        -- Принудительно обновляем камеру за головой стенда каждый кадр
+        local standPos = freeCameraTarget.Root.Position
+        local standHead = freeCameraTarget.Root.Position + Vector3.new(0, 2, 0) -- Голова стенда
+        
+        -- Принудительно отвязываем камеру от персонажа каждый кадр
+        camera.CameraType = Enum.CameraType.Scriptable
+        
+        -- Вычисляем позицию камеры за головой стенда (как в YBA)
+        local cameraOffset = Vector3.new(
+            math.sin(freeCameraRotation.X) * freeCameraDistance,
+            freeCameraHeight + math.sin(freeCameraRotation.Y) * 5,
+            math.cos(freeCameraRotation.X) * freeCameraDistance
+        )
+        
+        local cameraPos = standHead + cameraOffset -- Камера относительно головы стенда
+        local lookAtPos = standHead -- Смотрим на голову стенда
+        
+        -- Принудительно обновляем камеру каждый кадр (обходя проверки YBA)
+        camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+        
+        -- Дополнительно принудительно обновляем камеру каждую секунду
+        if not lastCameraUpdate then
+            lastCameraUpdate = tick()
+        end
+        
+        if tick() - lastCameraUpdate > 1 then
+            camera.CameraType = Enum.CameraType.Scriptable
+            camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+            lastCameraUpdate = tick()
+        end
+        
+        -- Отладочная информация
+        if not debugCameraFrame then
+            debugCameraFrame = 0
+        end
+        debugCameraFrame = debugCameraFrame + 1
+        if debugCameraFrame <= 10 then
+            print("YBA: Камера следует за головой стенда - Позиция: " .. tostring(cameraPos) .. ", Голова: " .. tostring(standHead))
+        end
+        
+        -- Дополнительные клавиши управления камерой
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+            freeCameraHeight = math.max(1, freeCameraHeight - 0.5)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+            freeCameraHeight = math.min(20, freeCameraHeight + 0.5)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.R) then
+            freeCameraRotation = Vector2.new(0, 0)
+            freeCameraDistance = 10
+            freeCameraHeight = 5
+        end
+    end)
+    
+    -- Обработка колесика мыши для изменения расстояния камеры (относительно стенда)
+    local mouseWheelConnection = UserInputService.InputChanged:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            local zoomSpeed = 2
+            if input.Position.Z > 0 then
+                freeCameraDistance = math.max(5, freeCameraDistance - zoomSpeed)
+            else
+                freeCameraDistance = math.min(30, freeCameraDistance + zoomSpeed)
+            end
+            
+            -- Принудительно обновляем камеру после изменения зума
+            if freeCameraTarget and freeCameraTarget.Root then
+                local standHead = freeCameraTarget.Root.Position + Vector3.new(0, 2, 0)
+                local cameraOffset = Vector3.new(
+                    math.sin(freeCameraRotation.X) * freeCameraDistance,
+                    freeCameraHeight + math.sin(freeCameraRotation.Y) * 5,
+                    math.cos(freeCameraRotation.X) * freeCameraDistance
+                )
+                local cameraPos = standHead + cameraOffset
+                camera.CFrame = CFrame.new(cameraPos, standHead)
+            end
+        end
+    end)
+    
+    table.insert(freeCameraConnections, freeCameraConnection)
+    table.insert(freeCameraConnections, mouseWheelConnection)
+end
+
+-- Функция для управления стендом как персонажем
+local function controlStandAsCharacter(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return 
+    end
+    
+    print("YBA: Начинаем управление стендом как персонажем: " .. stand.Name)
+    currentControlledStand = stand
+    
+    -- Переменные для управления
+    local cameraRotation = Vector2.new(0, 0)
+    local lastMousePos = UserInputService:GetMouseLocation()
+    local cameraDistance = 10
+    local cameraHeight = 5
+    
+    -- Создаем соединение для управления стендом
+    local standControlConnection = RunService.Heartbeat:Connect(function()
+        if not isStandControlActive or not currentControlledStand or not currentControlledStand.Root or not currentControlledStand.Root.Parent then
+            return
+        end
+        
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+        
+        -- Принудительно устанавливаем правильный тип камеры
+        camera.CameraType = Enum.CameraType.Scriptable
+        
+        -- Обработка мыши для поворота камеры
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local mouseDelta = currentMousePos - lastMousePos
+        
+        if mouseDelta.Magnitude > 0 then
+            local newRotationX = cameraRotation.X + mouseDelta.X * 0.003
+            local newRotationY = cameraRotation.Y + mouseDelta.Y * 0.003
+            newRotationY = math.clamp(newRotationY, -1.5, 1.5)
+            cameraRotation = Vector2.new(newRotationX, newRotationY)
+        end
+        
+        lastMousePos = currentMousePos
+        
+        -- Получаем ввод пользователя для движения стенда
+        local moveVector = Vector3.new(0, 0, 0)
+        
+        -- Создаем базовое направление движения относительно камеры
+        local forward = Vector3.new(math.sin(cameraRotation.X), 0, math.cos(cameraRotation.X))
+        local right = Vector3.new(math.cos(cameraRotation.X), 0, -math.sin(cameraRotation.X))
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        -- Применяем движение к стенду
+        if moveVector.Magnitude > 0 then
+            moveVector = moveVector.Unit * 50
+            
+            local standRoot = currentControlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", standRoot)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            end
+            bv.Velocity = moveVector
+        else
+            -- Останавливаем стенд
+            local standRoot = currentControlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+        
+        -- Обновляем камеру за стендом
+        local standPos = currentControlledStand.Root.Position
+        local cameraOffset = Vector3.new(
+            math.sin(cameraRotation.X) * cameraDistance,
+            cameraHeight + math.sin(cameraRotation.Y) * 5,
+            math.cos(cameraRotation.X) * cameraDistance
+        )
+        
+        local cameraPos = standPos + cameraOffset
+        local lookAtPos = standPos + Vector3.new(0, 2, 0)
+        
+        camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+    end)
+    
+    table.insert(standCameraConnections, standControlConnection)
+end
+
+local function controlStand(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return 
+    end
+    
+    print("YBA: Начинаем управление стендом: " .. stand.Name)
+    controlledStand = stand
+    
+    -- Переменные для свободной камеры
+    local cameraRotation = Vector2.new(0, 0)
+    local lastMousePos = UserInputService:GetMouseLocation()
+    local cameraDistance = YBAConfig.CameraFollowDistance
+    local cameraHeight = YBAConfig.CameraFollowHeight
+    local debugCameraFrame = 0
+    local lastStandPos = controlledStand.Root.Position
+    
+    -- Создаем соединение для управления стендом и камерой
+    local controlConnection = RunService.Heartbeat:Connect(function()
+        if not isYBAEnabled or not controlledStand or not controlledStand.Root or not controlledStand.Root.Parent then
+            return
+        end
+        
+        local camera = workspace.CurrentCamera
+        if not camera then 
+            return 
+        end
+        
+        -- Принудительно устанавливаем правильный тип камеры
+        if camera.CameraType ~= Enum.CameraType.Scriptable then
+            camera.CameraType = Enum.CameraType.Scriptable
+        end
+        
+        -- Обработка мыши для поворота камеры (всегда активна)
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local mouseDelta = currentMousePos - lastMousePos
+        
+        if mouseDelta.Magnitude > 0 then
+            -- Обновляем поворот камеры
+            local newRotationX = cameraRotation.X + mouseDelta.X * YBAConfig.MouseLookSensitivity
+            local newRotationY = cameraRotation.Y + mouseDelta.Y * YBAConfig.MouseLookSensitivity
+            
+            -- Ограничиваем вертикальный поворот
+            newRotationY = math.clamp(newRotationY, -1.5, 1.5)
+            
+            -- Создаем новый Vector2
+            cameraRotation = Vector2.new(newRotationX, newRotationY)
+        end
+        
+        lastMousePos = currentMousePos
+        
+        -- Получаем ввод пользователя для движения стенда
+        local moveVector = Vector3.new(0, 0, 0)
+        
+        -- Создаем базовое направление движения относительно камеры
+        local forward = Vector3.new(math.sin(cameraRotation.X), 0, math.cos(cameraRotation.X))
+        local right = Vector3.new(math.cos(cameraRotation.X), 0, -math.sin(cameraRotation.X))
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        -- Изменение высоты камеры клавишами Q и E
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+            cameraHeight = math.max(1, cameraHeight - 0.5)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+            cameraHeight = math.min(20, cameraHeight + 0.5)
+        end
+        
+        -- Сброс камеры клавишей R
+        if UserInputService:IsKeyDown(Enum.KeyCode.R) then
+            cameraRotation = Vector2.new(0, 0)
+            cameraDistance = YBAConfig.CameraFollowDistance
+            cameraHeight = YBAConfig.CameraFollowHeight
+        end
+        
+        if moveVector.Magnitude > 0 then
+            moveVector = moveVector.Unit * (YBAConfig.StandControlSpeed * 50)
+            
+            -- Применяем движение к стенду
+            local standRoot = controlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", standRoot)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            end
+            
+            -- Плавное движение с предотвращением рывков
+            if bv.Velocity.Magnitude > 0 then
+                local currentVel = bv.Velocity
+                local targetVel = moveVector
+                local smoothedVel = currentVel:Lerp(targetVel, YBAConfig.StandControlSmoothing)
+                
+                -- Ограничиваем максимальное изменение скорости
+                local maxSpeedChange = YBAConfig.StandControlSpeed * 10
+                local speedDiff = (smoothedVel - currentVel).Magnitude
+                if speedDiff > maxSpeedChange then
+                    smoothedVel = currentVel + (smoothedVel - currentVel).Unit * maxSpeedChange
+                end
+                
+                bv.Velocity = smoothedVel
+            else
+                bv.Velocity = moveVector
+            end
+            
+            -- Плавный поворот стенда в направлении движения
+            local moveDirection = moveVector.Unit
+            local currentCFrame = standRoot.CFrame
+            local targetCFrame = CFrame.lookAt(standRoot.Position, standRoot.Position + moveDirection)
+            
+            -- Плавно поворачиваем стенд
+            local newCFrame = currentCFrame:Lerp(targetCFrame, YBAConfig.StandRotationSpeed)
+            standRoot.CFrame = CFrame.new(newCFrame.Position, newCFrame.Position + newCFrame.LookVector)
+        else
+            -- Плавная остановка
+            local standRoot = controlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if bv and bv.Velocity.Magnitude > 0 then
+                bv.Velocity = bv.Velocity * (1 - YBAConfig.StandControlSmoothing)
+                if bv.Velocity.Magnitude < 1 then
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                end
+            end
+        end
+        
+        -- Принудительное перемещение камеры за стендом
+        if YBAConfig.SwitchCamera and controlledStand.Root then
+            local standPos = controlledStand.Root.Position
+            
+            -- Вычисляем позицию камеры с учетом поворота
+            local cameraOffset = Vector3.new(
+                math.sin(cameraRotation.X) * cameraDistance,
+                cameraHeight + math.sin(cameraRotation.Y) * 10,
+                math.cos(cameraRotation.X) * cameraDistance
+            )
+            
+            local cameraPos = standPos + cameraOffset
+            local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
+            
+            -- Принудительно перемещаем камеру каждый кадр
+            camera.CameraType = Enum.CameraType.Scriptable
+            
+            -- Создаем плавное перемещение камеры
+            local currentCameraPos = camera.CFrame.Position
+            local targetCameraPos = cameraPos
+            
+            -- Определяем скорость перемещения камеры в зависимости от движения стенда
+            local standMovement = (standPos - lastStandPos).Magnitude
+            local cameraSpeed = math.min(0.2, 0.05 + standMovement * 0.1)
+            
+            -- Плавно перемещаем камеру к цели
+            local smoothedCameraPos = currentCameraPos:Lerp(targetCameraPos, cameraSpeed)
+            camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
+            
+            -- Обновляем позицию стенда
+            lastStandPos = standPos
+            
+            -- Отладочная информация (только первые несколько кадров)
+            debugCameraFrame = debugCameraFrame + 1
+            if debugCameraFrame <= 5 then
+                print("YBA: Камера перемещена - Текущая: " .. tostring(currentCameraPos) .. ", Цель: " .. tostring(targetCameraPos) .. ", Стенд: " .. tostring(standPos) .. ", Скорость: " .. cameraSpeed)
+            end
+        end
+    end)
+    
+    -- Обработка колесика мыши для изменения расстояния камеры
+    local mouseWheelConnection = UserInputService.InputChanged:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            local zoomSpeed = 2
+            if input.Position.Z > 0 then
+                cameraDistance = math.max(5, cameraDistance - zoomSpeed)
+            else
+                cameraDistance = math.min(50, cameraDistance + zoomSpeed)
+            end
+        end
+    end)
+    
+    table.insert(standControlConnections, controlConnection)
+    table.insert(standControlConnections, mouseWheelConnection)
+    
+    -- Обработка клавиши для быстрого переключения на стенд
+    local quickSwitchConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        -- Клавиша F для быстрого переключения на ближайший стенд
+        if input.KeyCode == Enum.KeyCode.F then
+            if freeCameraActive then
+                disableFreeCamera()
+            else
+                local stands = findStands()
+                if #stands > 0 then
+                    local targetStand = stands[1]
+                    if activateFreeCamera(targetStand) then
+                        controlFreeCamera(targetStand)
+                        print("YBA: Быстрое переключение на стенд: " .. targetStand.Name)
+                    end
+                else
+                    print("YBA: Стенды не найдены для быстрого переключения")
+                end
+            end
+        end
+    end)
+    
+    table.insert(standControlConnections, quickSwitchConnection)
+end
+
+local function startYBA()
+    if isYBAEnabled then return end
+    
+    print("YBA: Запуск Stand Range Hack...")
+    
+    isYBAEnabled = true
+    YBAConfig.Enabled = true
+    
+    -- Находим ближайший стенд
+    local stands = findStands()
+    print("YBA: Найдено стендов: " .. #stands)
+    
+    if #stands == 0 then
+        print("YBA: Стенды не найдены в радиусе " .. YBAConfig.MaxStandDistance)
+        print("YBA: Попробуйте увеличить Stand Range в настройках")
+        return
+    end
+    
+    local targetStand = stands[1] -- Берем ближайший стенд
+    print("YBA: Найден стенд - " .. targetStand.Name .. " на расстоянии " .. math.floor(targetStand.Distance))
+    
+    -- Замораживаем игрока
+    if YBAConfig.FreezePlayer then
+        print("YBA: Замораживаем игрока...")
+        freezePlayer()
+    end
+    
+    -- Переключаем камеру
+    if YBAConfig.SwitchCamera then
+        print("YBA: Переключаем камеру на стенд...")
+        switchCameraToStand(targetStand)
+    end
+    
+    -- Активируем свободную камеру для стенда (обходя проверки YBA)
+    if YBAConfig.TransferControl then
+        print("YBA: Активируем свободную камеру для стенда, обходя проверки...")
+        
+        -- Используем систему свободной камеры как в Infinite Yield
+        if activateFreeCamera(targetStand) then
+            controlFreeCamera(targetStand)
+            print("YBA: Свободная камера активирована для стенда")
+            
+            -- Дополнительно принудительно обновляем камеру через 1 секунду
+            wait(1)
+            local camera = workspace.CurrentCamera
+            if camera and targetStand.Root then
+                local standHead = targetStand.Root.Position + Vector3.new(0, 2, 0)
+                local cameraPos = standHead + Vector3.new(0, 5, 10)
+                camera.CameraType = Enum.CameraType.Scriptable
+                camera.CFrame = CFrame.new(cameraPos, standHead)
+                print("YBA: Камера принудительно обновлена")
+            end
+        else
+            print("YBA: Не удалось активировать свободную камеру")
+        end
+    else
+        print("YBA: TransferControl отключен")
+    end
+    
+    print("YBA: Stand Range Hack активирован!")
+end
+
+local function stopYBA()
+    if not isYBAEnabled then return end
+    
+    isYBAEnabled = false
+    YBAConfig.Enabled = false
+    
+    -- Отключаем свободную камеру
+    disableFreeCamera()
+    
+    -- Отключаем управление стендом
+    disableStandControl()
+    
+    -- Восстанавливаем управление игроком
+    unfreezePlayer()
+    
+    -- Восстанавливаем камеру
+    restoreCamera()
+    
+    -- Останавливаем управление стендом
+    for _, connection in ipairs(standControlConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    standControlConnections = {}
+    controlledStand = nil
+    
+    print("YBA: Stand Range Hack деактивирован!")
+end
+
+local function getAlivePlayers()
+    local alivePlayers = {}
+    
+    print("=== ПОИСК ЖИВЫХ ИГРОКОВ ===")
+    
+    
+    if not Players then
+        print("Players сервис не найден!")
+        return alivePlayers
+    end
+    
+    if not Players.LocalPlayer then
+        print("LocalPlayer не найден!")
+        return alivePlayers
+    end
+    
+    local allPlayers = Players:GetPlayers()
+    if not allPlayers then
+        print("Не удалось получить список игроков!")
+        return alivePlayers
+    end
+    
+    print("Всего игроков на сервере: " .. #allPlayers)
+    print("Локальный игрок: " .. Players.LocalPlayer.Name)
+    
+    for i, player in ipairs(allPlayers) do
+        if player then
+            print("Проверяем игрока " .. i .. ": " .. player.Name)
+            
+            if player ~= Players.LocalPlayer then
+                print("  - Это не локальный игрок")
+                
+                if player.Character then
+                    print("  - У игрока есть персонаж")
+                    
+                    local humanoid = player.Character:FindFirstChild("Humanoid")
+                    if humanoid then
+                        print("  - У игрока есть Humanoid, здоровье: " .. humanoid.Health)
+                        
+                        if humanoid.Health > 0 then
+                            print("  - Игрок жив, добавляем в список")
+                            table.insert(alivePlayers, player)
+                        else
+                            print("  - Игрок мертв")
+                        end
+                    else
+                        print("  - У игрока нет Humanoid")
+                    end
+                else
+                    print("  - У игрока нет персонажа")
+                end
+            else
+                print("  - Это локальный игрок, пропускаем")
+            end
+        else
+            print("Игрок " .. i .. " равен nil")
+        end
+    end
+    
+    print("Найдено живых игроков: " .. #alivePlayers)
+    return alivePlayers
+end
+
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    if not gp then
+        if FlyConfig.ToggleKey and input.KeyCode == FlyConfig.ToggleKey then
+            FlyConfig.Enabled = not FlyConfig.Enabled
+            if FlyConfig.Enabled then 
+                startFly() 
+            else 
+                stopFly() 
+            end
+            
+            if guiCallbacks.fly then
+                guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
+            end
+        elseif NoClipConfig.ToggleKey and input.KeyCode == NoClipConfig.ToggleKey then
+            NoClipConfig.Enabled = not NoClipConfig.Enabled
+            if NoClipConfig.Enabled then 
+                startNoClip() 
+            else 
+                stopNoClip() 
+            end
+            
+            if guiCallbacks.noClip then
+                guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
+            end
+        elseif SpeedHackConfig.ToggleKey and input.KeyCode == SpeedHackConfig.ToggleKey then
+            SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
+            if SpeedHackConfig.Enabled then 
+                startSpeedHack() 
+            else 
+                stopSpeedHack() 
+            end
+            
+            if guiCallbacks.speedHack then
+                guiCallbacks.speedHack.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
+            end
+        elseif TeleportConfig.ToggleKey and input.KeyCode == TeleportConfig.ToggleKey then
+            if TeleportConfig.Enabled then
+                stopTeleport()
+                TeleportConfig.Enabled = false
+            else
+                if TeleportConfig.TargetPlayer then
+                    startTeleport()
+                    TeleportConfig.Enabled = true
+                else
+                    print("Сначала выберите игрока для телепортации")
+                end
+            end
+            
+            if guiCallbacks.teleport then
+                guiCallbacks.teleport.Text = "Выбранный игрок: " .. (TeleportConfig.SelectedPlayerName or "Не выбран")
+            end
+        elseif LongJumpConfig.ToggleKey and input.KeyCode == LongJumpConfig.ToggleKey then
+            LongJumpConfig.Enabled = not LongJumpConfig.Enabled
+            if LongJumpConfig.Enabled then 
+                startLongJump() 
+            else 
+                stopLongJump() 
+            end
+            
+            if guiCallbacks.longJump then
+                guiCallbacks.longJump.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
+            end
+        elseif InfiniteJumpConfig.ToggleKey and input.KeyCode == InfiniteJumpConfig.ToggleKey then
+            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
+            if InfiniteJumpConfig.Enabled then 
+                startInfiniteJump() 
+            else 
+                stopInfiniteJump() 
+            end
+            
+            if guiCallbacks.infiniteJump then
+                guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
+            end
+        elseif NoClipConfig.ForceToggleKey and input.KeyCode == NoClipConfig.ForceToggleKey then
+            if isNoClipping then
+                stopNoClip()
+            else
+                startNoClip()
+            end
+        elseif YBAConfig.ToggleKey and input.KeyCode == YBAConfig.ToggleKey then
+            if YBAConfig.Enabled then
+                stopYBA()
+            else
+                startYBA()
+            end
+            
+            if guiCallbacks.yba then
+                guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+            end
+        end
+    end
+end)
+
+
+local ESPs, Lines = {}, {}
+local FOVCircle
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 2
+FOVCircle.NumSides = 100
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+
+
+local function getName(p)
+    return p.Name
+end
+local function getHealth(p)
+    local h = p.Character and p.Character:FindFirstChild("Humanoid")
+    return (h and h.Health>0) and math.floor(h.Health) or 0
+end
+local function isAlive(p) return getHealth(p)>0 end
+local function getRainbow() return Color3.fromHSV((tick()%5)/5,1,1) end
+local function getESPColor(p)
+    if Config.ESP.Rainbow then return getRainbow() end
+    if Config.ESP.TeamCheck then return (p.TeamColor==Players.LocalPlayer.TeamColor) and Config.ESP.TeamColor or Config.ESP.EnemyColor end
+    return Config.ESP.FillColor
+end
+local function getOutlineColor(p)
+    if Config.ESP.Rainbow then return getRainbow() end
+    if Config.ESP.TeamCheck then return (p.TeamColor==Players.LocalPlayer.TeamColor) and Config.ESP.TeamColor or Config.ESP.EnemyColor end
+    return Config.ESP.OutlineColor
+end
+local function rayVisible(p)
+    if not Config.Aimbot.VisibilityCheck then return true end
+    local cam=workspace.CurrentCamera
+    local head=p.Character and p.Character:FindFirstChild("Head") if not head then return false end
+    local rp=RaycastParams.new()
+    rp.FilterType=Enum.RaycastFilterType.Blacklist
+    rp.FilterDescendantsInstances={Players.LocalPlayer.Character,p.Character}
+    return not workspace:Raycast(cam.CFrame.Position, head.Position-cam.CFrame.Position, rp)
+end
+
+
+local function createOrUpdateESP(p)
+    if not ESPs[p] then
+        local hl=Instance.new("Highlight"); hl.Adornee=p.Character; hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent=p.Character
+        local bg=Instance.new("BillboardGui",p.Character); bg.AlwaysOnTop=true; bg.Size=UDim2.new(0,200,0,30); bg.StudsOffset=Vector3.new(0,2,0)
+        local tl=Instance.new("TextLabel",bg); tl.Size=UDim2.new(1,0,1,0); tl.BackgroundTransparency=1; tl.Font=Config.ESP.Font; tl.TextSize=18
+        ESPs[p]={hl=hl,bg=bg,tl=tl}
+    end
+    local d=ESPs[p]
+    d.hl.FillColor=getESPColor(p); d.hl.FillTransparency=Config.ESP.FillTransparency
+    d.hl.OutlineColor=getOutlineColor(p); d.hl.OutlineTransparency=Config.ESP.ShowOutline and Config.ESP.OutlineTransparency or 1
+    d.tl.TextColor3=Config.ESP.TextColor
+    d.tl.Text=string.format("%s | HP:%d | %dm",getName(p),getHealth(p),math.floor((Players.LocalPlayer.Character.HumanoidRootPart.Position-p.Character.HumanoidRootPart.Position).Magnitude))
+end
+
+local function removeESP(p)
+    if ESPs[p] then 
+        if ESPs[p].hl and ESPs[p].hl.Parent then ESPs[p].hl:Destroy() end
+        if ESPs[p].bg and ESPs[p].bg.Parent then ESPs[p].bg:Destroy() end
+        ESPs[p]=nil 
+    end
+    if Lines[p] then Lines[p]:Remove(); Lines[p]=nil end
+end
+
+
+local function isPlayerAlive(player)
+    if not player then 
+        print("Player is nil")
+        return false 
+    end
+    
+    
+    if not player.Name then
+        print("Player has no name")
+        return false
+    end
+    
+    if not player.Character then 
+        print("Player " .. tostring(player.Name) .. " has no character")
+        return false 
+    end
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if not humanoid then 
+        print("Player " .. tostring(player.Name) .. " has no humanoid")
+        return false 
+    end
+    local isAlive = humanoid.Health > 0
+    print("Player " .. tostring(player.Name) .. " health: " .. tostring(humanoid.Health) .. ", alive: " .. tostring(isAlive))
+    return isAlive
+end
+
+local function isPlayerOnServer(player)
+    if not player or not player.Character then return false end
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    return humanoid.Health > 0 and humanoid.Parent ~= nil
+end
+
+
+local function onPlayerDied(player)
+    removeESP(player)
+end
+
+local function onPlayerRespawned(player)
+    if Config.ESP.Enabled and player ~= Players.LocalPlayer then
+        spawn(function()
+            wait(2) 
+            if isPlayerAlive(player) then
+                createOrUpdateESP(player)
+            end
+        end)
+    end
+end
+
+
+local function setupPlayerESP(player)
+    if player == Players.LocalPlayer then return end
+    
+    
+    local function onCharacterAdded(char)
+        local humanoid = char:WaitForChild("Humanoid")
+        
+        
+        humanoid.Died:Connect(function()
+            onPlayerDied(player)
+        end)
+        
+        
+        humanoid.StateChanged:Connect(function(_, new)
+            if new == Enum.HumanoidStateType.Dead then
+                onPlayerDied(player)
+            elseif new == Enum.HumanoidStateType.Running then
+                onPlayerRespawned(player)
+            end
+        end)
+        
+        
+        char.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                onPlayerDied(player)
+            end
+        end)
+    end
+    
+    if player.Character then
+        onCharacterAdded(player.Character)
+    end
+    player.CharacterAdded:Connect(onCharacterAdded)
+    player.CharacterRemoving:Connect(function()
+        onPlayerDied(player)
+    end)
+end
+
+
+for _, player in ipairs(Players:GetPlayers()) do
+    setupPlayerESP(player)
+end
+
+
+Players.PlayerAdded:Connect(setupPlayerESP)
+
+
+Players.PlayerRemoving:Connect(function(player)
+    removeESP(player)
+end)
+
+local function getClosestTarget()
+    local cam = workspace.CurrentCamera
+    local closest, minDist = nil, Config.Aimbot.FOV
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p == Players.LocalPlayer then continue end
+        if Config.Aimbot.TeamCheck and p.Team == Players.LocalPlayer.Team then continue end
+        if not isAlive(p) then continue end
+        if Config.Aimbot.VisibilityCheck and not rayVisible(p) then continue end
+
+        local head = p.Character and p.Character:FindFirstChild("Head")
+        if not head then continue end
+        local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
+        if not onScreen then continue end
+
+        local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
+        if dist < minDist then
+            closest = head
+            minDist = dist
+        end
+    end
+    return closest
+end
+
+
+RunService.RenderStepped:Connect(function()
+    local cam = workspace.CurrentCamera
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == Players.LocalPlayer then continue end
+        
+        local char = player.Character
+        local hum = char and char:FindFirstChild("Humanoid")
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        
+        if isPlayerAlive(player) and root then
+            if Config.ESP.Enabled then
+                createOrUpdateESP(player)
+                if Config.ESP.ShowLines then
+                    if not Lines[player] then
+                        local ln = Drawing.new("Line")
+                        ln.Thickness = 2
+                        ln.Transparency = 1
+                        Lines[player] = ln
+                    end
+                    local pos, onScreen = cam:WorldToViewportPoint(root.Position)
+                    Lines[player].Visible = onScreen
+                    if onScreen then
+                        Lines[player].From = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y)
+                        Lines[player].To = Vector2.new(pos.X, pos.Y)
+                        Lines[player].Color = getESPColor(player)
+                    end
+                elseif Lines[player] then
+                    Lines[player].Visible = false
+                end
+            else
+                removeESP(player)
+            end
+        else
+            
+            removeESP(player)
+        end
+    end
+
+    
+if Config.Aimbot.Enabled then
+    local target = getClosestTarget()
+    if target then
+        local cam = workspace.CurrentCamera
+        cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target.Position)
+    end
+end
+
+
+local cam = workspace.CurrentCamera
+FOVCircle.Visible = Config.Aimbot.Enabled
+FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
+FOVCircle.Color = Config.Aimbot.FOVRainbow and getRainbow() or Config.Aimbot.FOVColor
+FOVCircle.Radius = Config.Aimbot.FOV
+
+
+    
+end)
+
+
+UserInputService.InputBegan:Connect(function(inp, gp)
+    if gp then return end
+    if inp.UserInputType == Enum.UserInputType.Keyboard then
+        if Config.ESP.ToggleKey and inp.KeyCode == Config.ESP.ToggleKey then
+            Config.ESP.Enabled = not Config.ESP.Enabled
+            print("ESP toggled:", Config.ESP.Enabled)
+        elseif Config.Aimbot.ToggleKey and inp.KeyCode == Config.Aimbot.ToggleKey then
+            Config.Aimbot.Enabled = not Config.Aimbot.Enabled
+            print("Aimbot toggled:", Config.Aimbot.Enabled)
+        end
+    end
+end)
+
+
+local screenGui = Instance.new("ScreenGui", CoreGui)
+screenGui.Name = "SslkinGui"
+screenGui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", screenGui)
+frame.Name = "MainFrame"
+frame.Position = UDim2.new(0, 20, 0.5, -200)
+frame.Size = UDim2.new(0, 300, 0, 0)
+frame.AutomaticSize = Enum.AutomaticSize.Y
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+
+local titleBar = Instance.new("Frame", frame)
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 36)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+
+local titleText = Instance.new("TextLabel", titleBar)
+titleText.Name = "TitleText"
+titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "SSLKIN UNI-GUI"
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 14
+titleText.TextColor3 = Color3.new(1, 1, 1)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+
+local collapseBtn = Instance.new("TextButton", titleBar)
+collapseBtn.Name = "Collapse"
+collapseBtn.Size = UDim2.new(0, 26, 0, 26)
+collapseBtn.Position = UDim2.new(1, -30, 0.5, -13)
+collapseBtn.Text = "−"
+collapseBtn.Font = Enum.Font.GothamBold
+collapseBtn.TextSize = 18
+collapseBtn.TextColor3 = Color3.new(1, 1, 1)
+collapseBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+Instance.new("UICorner", collapseBtn).CornerRadius = UDim.new(0, 6)
+
+local scroll = Instance.new("ScrollingFrame", frame)
+scroll.Position = UDim2.new(0, 0, 0, 30)
+scroll.Size = UDim2.new(1, 0, 1, -46)
+scroll.CanvasSize = UDim2.new(0, 0, 3, 0)
+scroll.ScrollBarThickness = 6
+scroll.BackgroundTransparency = 1
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scroll.ClipsDescendants = true
+
+local innerContainer = Instance.new("Frame", scroll)
+innerContainer.Name = "InnerContainer"
+innerContainer.BackgroundTransparency = 1
+innerContainer.Size = UDim2.new(1, -20, 0, 0)
+innerContainer.Position = UDim2.new(0, 10, 0, 0)
+innerContainer.AutomaticSize = Enum.AutomaticSize.Y
+innerContainer.ClipsDescendants = false
+
+local function toggleMenu()
+    Config.MenuCollapsed = not Config.MenuCollapsed
+    local collapsed = Config.MenuCollapsed
+    local size = collapsed and UDim2.new(0, 280, 0, 40) or UDim2.new(0, 280, 0, 800)
+    local text = collapsed and "+" or "−"
+    local color = collapsed and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+
+    TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = size
+    }):Play()
+
+    TweenService:Create(collapseBtn, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundColor3 = color
+    }):Play()
+
+    collapseBtn.Text = text
+    scroll.Visible = not collapsed
+end
+
+collapseBtn.MouseButton1Click:Connect(toggleMenu)
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    if not gp and input.KeyCode == Enum.KeyCode.Insert then
+        toggleMenu()
+    end
+end)
+
+local UIListLayout = Instance.new("UIListLayout", innerContainer)
+UIListLayout.Padding = UDim.new(0, 8)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+
+local function sectionHeader(text)
+	
+	local spacer = Instance.new("Frame", innerContainer)
+	spacer.Size = UDim2.new(1, 0, 0, 10)
+	spacer.BackgroundTransparency = 1
+	
+	local lbl = Instance.new("TextLabel", innerContainer)
+	lbl.Text = text
+	lbl.Size = UDim2.new(1, -10, 0, 30)
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 16
+	lbl.TextColor3 = Color3.fromRGB(255,255,255)
+	lbl.BackgroundTransparency = 1
+end
+
+local function toggle(label, default, callback)
+	local btn = Instance.new("TextButton", innerContainer)
+	btn.Size = UDim2.new(1, -10, 0, 28)
+	btn.Text = label .. ": " .. (default and "ON" or "OFF")
+	btn.Font = Enum.Font.Gotham
+	btn.TextSize = 14
+	btn.TextColor3 = Color3.new(1,1,1)
+	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+	btn.AutoButtonColor = false
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+
+	btn.MouseButton1Click:Connect(function()
+		default = not default
+		btn.Text = label .. ": " .. (default and "ON" or "OFF")
+		callback(default)
+	end)
+	
+	return btn
+end
+
+local function slider(label, min, max, value, callback)
+	local container = Instance.new("Frame", innerContainer)
+	container.Size = UDim2.new(1, -10, 0, 36)
+	container.BackgroundTransparency = 1
+
+	local lbl = Instance.new("TextLabel", container)
+	lbl.Text = label .. ": " .. value
+	lbl.Size = UDim2.new(1, 0, 0.5, 0)
+	lbl.Font = Enum.Font.Gotham
+	lbl.TextSize = 13
+	lbl.TextColor3 = Color3.new(1,1,1)
+	lbl.BackgroundTransparency = 1
+
+	local sliderBack = Instance.new("Frame", container)
+	sliderBack.Position = UDim2.new(0,0,0.5,4)
+	sliderBack.Size = UDim2.new(1, 0, 0, 6)
+	sliderBack.BackgroundColor3 = Color3.fromRGB(50,50,50)
+	Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(1,0)
+
+	local sliderFill = Instance.new("Frame", sliderBack)
+	sliderFill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
+	sliderFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1,0)
+
+	local dragging = false
+	sliderBack.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+	RunService.RenderStepped:Connect(function()
+		if dragging then
+			local pos = UserInputService:GetMouseLocation().X
+			local abs = sliderBack.AbsolutePosition.X
+			local width = sliderBack.AbsoluteSize.X
+			local pct = math.clamp((pos - abs) / width, 0, 1)
+			local newVal = math.floor((min + (max - min) * pct) * 10) / 10
+			sliderFill.Size = UDim2.new(pct, 0, 1, 0)
+			lbl.Text = label .. ": " .. newVal
+			callback(newVal)
+		end
+	end)
+end
+
+local function colorPicker(labelText, currentColor, callback)
+    local lbl = Instance.new("TextLabel", innerContainer)
+    lbl.Text = labelText
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
+    lbl.Size = UDim2.new(1, -10, 0, 20)
+    lbl.Font = Enum.Font.SourceSans
+    lbl.TextSize = 14
+
+    local colors = {
+        Color3.fromRGB(255, 255, 255),
+        Color3.fromRGB(255, 0, 0),
+        Color3.fromRGB(0, 255, 0),
+        Color3.fromRGB(0, 0, 255),
+        Color3.fromRGB(255, 255, 0),
+        Color3.fromRGB(255, 0, 255),
+        Color3.fromRGB(0, 255, 255),
+        Color3.fromRGB(128, 128, 128),
+        Color3.fromRGB(255, 165, 0),
+    }
+
+    local row = Instance.new("Frame", innerContainer)
+    row.Size = UDim2.new(1, -10, 0, 28)
+    row.BackgroundTransparency = 1
+
+    local layout = Instance.new("UIListLayout", row)
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    layout.Padding = UDim.new(0, 4)
+
+    for _, clr in pairs(colors) do
+        local btn = Instance.new("TextButton", row)
+        btn.Size = UDim2.new(0, 24, 0, 24)
+        btn.BackgroundColor3 = clr
+        btn.Text = ""
+        btn.AutoButtonColor = false
+        btn.MouseButton1Click:Connect(function()
+            callback(clr)
+        end)
+    end
+end
+
+local function speedInput(label, currentSpeed, callback)
+    local container = Instance.new("Frame", innerContainer)
+    container.Size = UDim2.new(1, -10, 0, 36)
+    container.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", container)
+    lbl.Text = label .. ": " .. currentSpeed
+    lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
+
+    local inputBox = Instance.new("TextBox", container)
+    inputBox.Position = UDim2.new(0.7, 5, 0.25, 0)
+    inputBox.Size = UDim2.new(0.3, -5, 0.5, 0)
+    inputBox.Text = tostring(currentSpeed)
+    inputBox.Font = Enum.Font.Gotham
+    inputBox.TextSize = 12
+    inputBox.TextColor3 = Color3.new(1,1,1)
+    inputBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    inputBox.PlaceholderText = "Speed"
+    Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0,4)
+
+    inputBox.FocusLost:Connect(function()
+        local newSpeed = tonumber(inputBox.Text)
+        if newSpeed and newSpeed > 0 then
+            callback(newSpeed)
+            lbl.Text = label .. ": " .. newSpeed
+        else
+            inputBox.Text = tostring(currentSpeed)
+        end
+    end)
+
+    return lbl, inputBox
+end
+
+local function playerSelector(label, currentPlayer, callback)
+    local container = Instance.new("Frame", innerContainer)
+    container.Size = UDim2.new(1, -10, 0, 36)
+    container.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", container)
+    lbl.Text = label .. ": " .. (currentPlayer and currentPlayer.Name or "None")
+    lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
+
+    local selectBtn = Instance.new("TextButton", container)
+    selectBtn.Position = UDim2.new(0.7, 5, 0.25, 0)
+    selectBtn.Size = UDim2.new(0.3, -5, 0.5, 0)
+    selectBtn.Text = "Выбрать игрока"
+    selectBtn.Font = Enum.Font.Gotham
+    selectBtn.TextSize = 12
+    selectBtn.TextColor3 = Color3.new(1,1,1)
+    selectBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    Instance.new("UICorner", selectBtn).CornerRadius = UDim.new(0,4)
+
+    selectBtn.MouseButton1Click:Connect(function()
+        print("=== КНОПКА ВЫБОРА ИГРОКА НАЖАТА ===")
+        
+        
+        createPlayerSelectionWindow()
+        
+        
+        if TeleportConfig.TargetPlayer then
+            lbl.Text = label .. ": " .. TeleportConfig.TargetPlayer.Name
+            callback(TeleportConfig.TargetPlayer)
+        end
+    end)
+
+    return lbl, selectBtn
+end
+
+
+local function keyBindButton(name, currentKey, callback)
+    local btn = Instance.new("TextButton", innerContainer)
+    btn.Size = UDim2.new(1, -10, 0, 24)
+    btn.Text = name .. " Hotkey: [" .. (currentKey and tostring(currentKey.Name) or "None") .. "]"
+    btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 13
+    btn.AutoButtonColor = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+
+    btn.MouseButton1Click:Connect(function()
+        btn.Text = name .. " Hotkey: [Press any key]"
+        local conn
+        conn = UserInputService.InputBegan:Connect(function(input, gp)
+            if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
+                conn:Disconnect()
+                callback(input.KeyCode)
+                btn.Text = name .. " Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+            end
+        end)
+    end)
+end
+
+
+keyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
+    Config.ESP.ToggleKey = newKey
+end)
+
+keyBindButton("Aimbot", Config.Aimbot.ToggleKey, function(newKey)
+    Config.Aimbot.ToggleKey = newKey
+end)
+
+keyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
+    FlyConfig.ToggleKey = newKey
+end)
+
+keyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
+    NoClipConfig.ToggleKey = newKey
+end)
+
+keyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
+    SpeedHackConfig.ToggleKey = newKey
+end)
+
+keyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
+    TeleportConfig.ToggleKey = newKey
+end)
+
+keyBindButton("YBA Stand Range", YBAConfig.ToggleKey, function(newKey)
+    YBAConfig.ToggleKey = newKey
+end)
+
+
+
+
+sectionHeader("🔷ESP Settings")
+toggle("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
+toggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
+toggle("Show Outline", Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
+toggle("Show Lines", Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
+toggle("Rainbow Colors", Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
+
+colorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
+colorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
+colorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor = c end)
+slider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
+slider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
+
+
+local divider1 = Instance.new("Frame", innerContainer)
+divider1.Size = UDim2.new(1, -10, 0, 2)
+divider1.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+divider1.BorderSizePixel = 0
+
+
+sectionHeader("🔷Aimbot Settings")
+toggle("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
+toggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
+toggle("Visibility Check", Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
+slider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
+toggle("FOV Rainbow", Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
+colorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
+
+
+local divider2 = Instance.new("Frame", innerContainer)
+divider2.Size = UDim2.new(1, -10, 0, 2)
+divider2.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+divider2.BorderSizePixel = 0
+
+
+local guiCallbacks = {}
+
+
+local function updateStatusDisplay()
+    if guiCallbacks.fly then
+        guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
+    end
+    if guiCallbacks.noClip then
+        guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
+    end
+    if guiCallbacks.speedHack then
+        guiCallbacks.speedHack.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
+    end
+    if guiCallbacks.teleport then
+        guiCallbacks.teleport.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
+    end
+    if guiCallbacks.yba then
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+    end
+end
+
+
+RunService.Heartbeat:Connect(function()
+    updateStatusDisplay()
+end)
+
+
+sectionHeader("🟨 Fly Settings")
+
+local flyToggleBtn = toggle("Fly", FlyConfig.Enabled, function(v)
+    FlyConfig.Enabled = v
+    if v then startFly() else stopFly() end
+    
+    if guiCallbacks.fly then
+        guiCallbacks.fly.Text = "Fly: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.fly = flyToggleBtn
+
+slider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
+    FlyConfig.Speed = v
+end)
+
+
+speedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
+    FlyConfig.Speed = v
+end)
+
+
+local divider3 = Instance.new("Frame", innerContainer)
+divider3.Size = UDim2.new(1, -10, 0, 2)
+divider3.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+divider3.BorderSizePixel = 0
+
+
+sectionHeader("🟪 NoClip Settings")
+
+
+local noClipStatusLabel = Instance.new("TextLabel", innerContainer)
+noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
+noClipStatusLabel.Text = "NoClip Status: OFF"
+noClipStatusLabel.Font = Enum.Font.GothamBold
+noClipStatusLabel.TextSize = 12
+noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+noClipStatusLabel.BackgroundTransparency = 1
+noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+
+local forceNoClipBtn = Instance.new("TextButton", innerContainer)
+forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
+forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+forceNoClipBtn.Font = Enum.Font.GothamBold
+forceNoClipBtn.TextSize = 14
+forceNoClipBtn.TextColor3 = Color3.new(1,1,1)
+forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+forceNoClipBtn.AutoButtonColor = false
+Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
+
+
+local function updateNoClipStatus()
+    if isNoClipping then
+        noClipStatusLabel.Text = "NoClip Status: ON"
+        noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
+        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+    else
+        noClipStatusLabel.Text = "NoClip Status: OFF"
+        noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+    end
+end
+
+forceNoClipBtn.MouseButton1Click:Connect(function()
+    if isNoClipping then
+        stopNoClip()
+        forceNoClipBtn.Text = "NOCLIP DISABLED"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+        task.wait(1)
+        updateNoClipStatus()
+    else
+        startNoClip()
+        forceNoClipBtn.Text = "NOCLIP ENABLED"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
+        task.wait(1)
+        updateNoClipStatus()
+    end
+end)
+
+
+RunService.Heartbeat:Connect(function()
+    updateNoClipStatus()
+end)
+
+
+local forceNoClipKeyBtn = Instance.new("TextButton", innerContainer)
+forceNoClipKeyBtn.Size = UDim2.new(1, -10, 0, 24)
+forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. (NoClipConfig.ForceToggleKey and tostring(NoClipConfig.ForceToggleKey.Name) or "None") .. "]"
+forceNoClipKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+forceNoClipKeyBtn.TextColor3 = Color3.new(1,1,1)
+forceNoClipKeyBtn.Font = Enum.Font.Gotham
+forceNoClipKeyBtn.TextSize = 13
+forceNoClipKeyBtn.AutoButtonColor = false
+Instance.new("UICorner", forceNoClipKeyBtn).CornerRadius = UDim.new(0,6)
+
+forceNoClipKeyBtn.MouseButton1Click:Connect(function()
+    forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [Press any key]"
+    local conn
+    conn = UserInputService.InputBegan:Connect(function(input, gp)
+        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
+            conn:Disconnect()
+            NoClipConfig.ForceToggleKey = input.KeyCode
+            forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+        end
+    end)
+end)
+
+
+local divider4 = Instance.new("Frame", innerContainer)
+divider4.Size = UDim2.new(1, -10, 0, 2)
+divider4.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+divider4.BorderSizePixel = 0
+
+
+sectionHeader("🟦 SpeedHack Settings")
+
+local speedHackToggleBtn = toggle("SpeedHack", SpeedHackConfig.Enabled, function(v)
+    SpeedHackConfig.Enabled = v
+    if v then startSpeedHack() else stopSpeedHack() end
+    
+    if guiCallbacks.speedHack then
+        guiCallbacks.speedHack.Text = "SpeedHack: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.speedHack = speedHackToggleBtn
+
+toggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
+    SpeedHackConfig.UseJumpPower = v
+    
+    if SpeedHackConfig.Enabled then
+        stopSpeedHack()
+        startSpeedHack()
+    end
+end)
+
+slider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
+    SpeedHackConfig.Speed = v
+    
+    if SpeedHackConfig.Enabled then
+        local char = Players.LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = v * 16
+            if SpeedHackConfig.UseJumpPower then
+                hum.JumpPower = v * 50
+            end
+        end
+    end
+end)
+
+
+speedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
+    SpeedHackConfig.Speed = v
+    if SpeedHackConfig.Enabled then
+        local char = Players.LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = v * 16
+            if SpeedHackConfig.UseJumpPower then
+                hum.JumpPower = v * 50
+            end
+        end
+    end
+end)
+
+local divider5 = Instance.new("Frame", innerContainer)
+divider5.Position = UDim2.new(0, 5, 0, yOffset)
+divider5.Size = UDim2.new(1, -10, 0, 2)
+divider5.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+divider5.BorderSizePixel = 0
+
+sectionHeader("🦘 Jump Settings")
+
+local longJumpToggleBtn = toggle("Long Jump", LongJumpConfig.Enabled, function(v)
+    LongJumpConfig.Enabled = v
+    if v then startLongJump() else stopLongJump() end
+    if guiCallbacks.longJump then
+        guiCallbacks.longJump.Text = "Long Jump: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.longJump = longJumpToggleBtn
+
+slider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
+    LongJumpConfig.JumpPower = v
+    if LongJumpConfig.Enabled then
+        local char = Players.LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.JumpPower = v
+        end
+    end
+end)
+
+local infiniteJumpToggleBtn = toggle("Infinite Jump", InfiniteJumpConfig.Enabled, function(v)
+    InfiniteJumpConfig.Enabled = v
+    if v then startInfiniteJump() else stopInfiniteJump() end
+    if guiCallbacks.infiniteJump then
+        guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.infiniteJump = infiniteJumpToggleBtn
+
+slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
+    InfiniteJumpConfig.JumpPower = v
+end)
+
+
+sectionHeader("🟩 Teleport Settings")
+
+
+local teleportSpacer = Instance.new("Frame", innerContainer)
+teleportSpacer.Size = UDim2.new(1, -10, 0, 10)
+teleportSpacer.BackgroundTransparency = 1
+
+local selectedPlayerLabel = Instance.new("TextLabel", innerContainer)
+selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
+selectedPlayerLabel.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
+selectedPlayerLabel.Font = Enum.Font.GothamBold
+selectedPlayerLabel.TextSize = 14
+selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
+selectedPlayerLabel.BackgroundTransparency = 1
+selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local startTeleportBtn = Instance.new("TextButton", innerContainer)
+startTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
+startTeleportBtn.Text = "START TELEPORT"
+startTeleportBtn.Font = Enum.Font.GothamBold
+startTeleportBtn.TextSize = 14
+startTeleportBtn.TextColor3 = Color3.new(1,1,1)
+startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+startTeleportBtn.AutoButtonColor = false
+Instance.new("UICorner", startTeleportBtn).CornerRadius = UDim.new(0,6)
+
+startTeleportBtn.MouseButton1Click:Connect(function()
+    if not TeleportConfig.TargetPlayer then
+        startTeleportBtn.Text = "Select player first!"
+        task.wait(2)
+        startTeleportBtn.Text = "START TELEPORT"
+        return
+    end
+    
+    if TeleportConfig.Enabled then
+        stopTeleport()
+        TeleportConfig.Enabled = false
+        startTeleportBtn.Text = "START TELEPORT"
+        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+    else
+        startTeleport()
+        TeleportConfig.Enabled = true
+        startTeleportBtn.Text = "STOP TELEPORT"
+        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+    end
+end)
+
+local stopTeleportBtn = Instance.new("TextButton", innerContainer)
+stopTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
+stopTeleportBtn.Text = "STOP TELEPORT"
+stopTeleportBtn.Font = Enum.Font.GothamBold
+stopTeleportBtn.TextSize = 14
+stopTeleportBtn.TextColor3 = Color3.new(1,1,1)
+stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+stopTeleportBtn.AutoButtonColor = false
+Instance.new("UICorner", stopTeleportBtn).CornerRadius = UDim.new(0,6)
+
+stopTeleportBtn.MouseButton1Click:Connect(function()
+    if TeleportConfig.Enabled then
+        stopTeleport()
+        TeleportConfig.Enabled = false
+        startTeleportBtn.Text = "START TELEPORT"
+        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+        stopTeleportBtn.Text = "Teleport stopped"
+        task.wait(2)
+        stopTeleportBtn.Text = "STOP TELEPORT"
+    else
+        stopTeleportBtn.Text = "Teleport not active"
+        task.wait(2)
+        stopTeleportBtn.Text = "STOP TELEPORT"
+    end
+end)
+
+-- YBA Stand Range Hack Section
+sectionHeader("🟪 YBA Stand Range Hack")
+
+local ybaSpacer = Instance.new("Frame", innerContainer)
+ybaSpacer.Size = UDim2.new(1, -10, 0, 10)
+ybaSpacer.BackgroundTransparency = 1
+
+local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+    YBAConfig.Enabled = v
+    if v then 
+        startYBA() 
+    else 
+        stopYBA() 
+    end
+    if guiCallbacks.yba then
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.yba = ybaToggleBtn
+
+slider("Stand Range", 10, 200, YBAConfig.MaxStandDistance, function(v)
+    YBAConfig.MaxStandDistance = v
+end)
+
+slider("Camera Distance", 5, 50, YBAConfig.CameraDistance, function(v)
+    YBAConfig.CameraDistance = v
+end)
+
+slider("Camera Height", 1, 20, YBAConfig.CameraHeight, function(v)
+    YBAConfig.CameraHeight = v
+end)
+
+slider("Stand Control Speed", 0.1, 3.0, YBAConfig.StandControlSpeed, function(v)
+    YBAConfig.StandControlSpeed = v
+end)
+
+slider("Control Smoothing", 0.01, 0.5, YBAConfig.StandControlSmoothing, function(v)
+    YBAConfig.StandControlSmoothing = v
+end)
+
+slider("Mouse Sensitivity", 0.001, 0.05, YBAConfig.MouseSensitivity, function(v)
+    YBAConfig.MouseSensitivity = v
+end)
+
+slider("Camera Follow Distance", 10, 50, YBAConfig.CameraFollowDistance, function(v)
+    YBAConfig.CameraFollowDistance = v
+end)
+
+slider("Camera Follow Height", 1, 20, YBAConfig.CameraFollowHeight, function(v)
+    YBAConfig.CameraFollowHeight = v
+end)
+
+slider("Camera Smoothing", 0.01, 0.2, YBAConfig.CameraSmoothing, function(v)
+    YBAConfig.CameraSmoothing = v
+end)
+
+slider("Mouse Look Sensitivity", 0.001, 0.01, YBAConfig.MouseLookSensitivity, function(v)
+    YBAConfig.MouseLookSensitivity = v
+end)
+
+slider("Stand Rotation Speed", 0.01, 0.2, YBAConfig.StandRotationSpeed, function(v)
+    YBAConfig.StandRotationSpeed = v
+end)
+
+-- Информация об управлении
+local controlsInfo = Instance.new("TextLabel", innerContainer)
+controlsInfo.Size = UDim2.new(1, -10, 0, 60)
+controlsInfo.Text = "Управление:\nWASD - Движение стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nQ/E - Высота камеры\nR - Сброс камеры"
+controlsInfo.Font = Enum.Font.Gotham
+controlsInfo.TextSize = 10
+controlsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+controlsInfo.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+controlsInfo.BorderSizePixel = 1
+controlsInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
+controlsInfo.TextXAlignment = Enum.TextXAlignment.Left
+controlsInfo.TextYAlignment = Enum.TextYAlignment.Top
+Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4)
+
+
+local function createPlayerListInMenu()
+    local allPlayers = Players:GetPlayers()
+    local alivePlayers = {}
+    
+    
+    for _, player in ipairs(allPlayers) do
+        if player and player ~= Players.LocalPlayer then
+            table.insert(alivePlayers, player)
+        end
+    end
+    
+    
+    table.sort(alivePlayers, function(a, b)
+        return a.Name:lower() < b.Name:lower()
+    end)
+    
+    print("Создаем отсортированный список игроков в меню: " .. #alivePlayers .. " игроков")
+    
+    
+    local currentLetter = ""
+    for i, player in ipairs(alivePlayers) do
+        local firstLetter = player.Name:sub(1,1):upper()
+        
+        
+        if firstLetter ~= currentLetter then
+            currentLetter = firstLetter
+            
+            
+            local letterHeader = Instance.new("TextLabel", innerContainer)
+            letterHeader.Size = UDim2.new(1, -10, 0, 20)
+            letterHeader.Text = "--- " .. currentLetter .. " ---"
+            letterHeader.Font = Enum.Font.GothamBold
+            letterHeader.TextSize = 12
+            letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
+            letterHeader.BackgroundColor3 = Color3.fromRGB(30,30,40)
+            letterHeader.BorderSizePixel = 0
+            letterHeader.TextXAlignment = Enum.TextXAlignment.Center
+            Instance.new("UICorner", letterHeader).CornerRadius = UDim.new(0,4)
+        end
+        
+        local playerBtn = Instance.new("TextButton", innerContainer)
+        playerBtn.Size = UDim2.new(1, -10, 0, 30)
+        playerBtn.Text = player.Name
+        playerBtn.Font = Enum.Font.Gotham
+        playerBtn.TextSize = 12
+        playerBtn.TextColor3 = Color3.new(1,1,1)
+        playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
+        playerBtn.AutoButtonColor = false
+        playerBtn.BorderSizePixel = 1
+        playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
+        Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
+        
+        
+        playerBtn.MouseEnter:Connect(function()
+            playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
+            playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
+        end)
+        
+        playerBtn.MouseLeave:Connect(function()
+            playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
+            playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
+        end)
+        
+        playerBtn.MouseButton1Click:Connect(function()
+            for _, btn in ipairs(innerContainer:GetChildren()) do
+                if btn:IsA("TextButton") and 
+                   btn ~= startTeleportBtn and 
+                   btn ~= stopTeleportBtn and 
+                   btn ~= updatePlayersBtn and
+                   btn.Size.Y.Offset == 30 then
+                    btn.BackgroundColor3 = Color3.fromRGB(50,50,60)
+                    btn.BorderColor3 = Color3.fromRGB(100,100,120)
+                end
+            end
+            
+            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
+            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
+            
+            TeleportConfig.TargetPlayer = player
+            TeleportConfig.SelectedPlayerName = player.Name
+            TeleportConfig.OriginalPosition = nil 
+            selectedPlayerLabel.Text = "Selected Player: " .. player.Name
+        end)
+    end
+end
+createPlayerListInMenu()
+
+
+guiCallbacks.teleport = selectedPlayerLabel
+
+local function updatePlayerList()
+    local tempContainer = Instance.new("Frame")
+    tempContainer.Name = "TempPlayerList"
+    tempContainer.Parent = nil
+    
+    local allPlayers = Players:GetPlayers()
+    local alivePlayers = {}
+    for _, player in ipairs(allPlayers) do
+        if player and player ~= Players.LocalPlayer then
+            table.insert(alivePlayers, player)
+        end
+    end
+    
+    table.sort(alivePlayers, function(a, b)
+        return a.Name:lower() < b.Name:lower()
+    end)
+    
+    local currentLetter = ""
+    for i, player in ipairs(alivePlayers) do
+        local firstLetter = player.Name:sub(1,1):upper()
+        
+        if firstLetter ~= currentLetter then
+            currentLetter = firstLetter
+            
+            local letterHeader = Instance.new("TextLabel", tempContainer)
+            letterHeader.Size = UDim2.new(1, -10, 0, 20)
+            letterHeader.Text = "--- " .. currentLetter .. " ---"
+            letterHeader.Font = Enum.Font.GothamBold
+            letterHeader.TextSize = 12
+            letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
+            letterHeader.BackgroundColor3 = Color3.fromRGB(30,30,40)
+            letterHeader.BorderSizePixel = 0
+            letterHeader.TextXAlignment = Enum.TextXAlignment.Center
+            Instance.new("UICorner", letterHeader).CornerRadius = UDim.new(0,4)
+        end
+        
+        local playerBtn = Instance.new("TextButton", tempContainer)
+        playerBtn.Size = UDim2.new(1, -10, 0, 30)
+        playerBtn.Text = player.Name
+        playerBtn.Font = Enum.Font.Gotham
+        playerBtn.TextSize = 12
+        playerBtn.TextColor3 = Color3.new(1,1,1)
+        playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
+        playerBtn.AutoButtonColor = false
+        playerBtn.BorderSizePixel = 1
+        playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
+        Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
+        
+        
+        playerBtn.MouseEnter:Connect(function()
+            playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
+            playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
+        end)
+        
+        playerBtn.MouseLeave:Connect(function()
+            playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
+            playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
+        end)
+        
+        playerBtn.MouseButton1Click:Connect(function()
+            for _, btn in ipairs(innerContainer:GetChildren()) do
+                if btn:IsA("TextButton") and 
+                   btn ~= startTeleportBtn and 
+                   btn ~= stopTeleportBtn and 
+                   btn ~= updatePlayersBtn and
+                   btn.Size.Y.Offset == 30 then
+                    btn.BackgroundColor3 = Color3.fromRGB(50,50,60)
+                    btn.BorderColor3 = Color3.fromRGB(100,100,120)
+                end
+            end
+            
+            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
+            
+            TeleportConfig.TargetPlayer = player
+            TeleportConfig.SelectedPlayerName = player.Name
+            TeleportConfig.OriginalPosition = nil 
+            selectedPlayerLabel.Text = "Selected Player: " .. player.Name
+        end)
+    end
+    
+    for _, child in ipairs(innerContainer:GetChildren()) do
+        if child:IsA("TextButton") then
+            if child.Text and child.Text:len() > 0 and 
+               not child.Text:find("UPDATE") and 
+               not child.Text:find("ESP") and 
+               not child.Text:find("Aimbot") and 
+               not child.Text:find("Fly") and 
+               not child.Text:find("NoClip") and 
+               not child.Text:find("SpeedHack") and 
+               not child.Text:find("Team Check") and 
+               not child.Text:find("Show Outline") and 
+               not child.Text:find("Show Lines") and 
+               not child.Text:find("Rainbow Colors") and 
+               not child.Text:find("Fill Color") and 
+               not child.Text:find("Outline Color") and 
+               not child.Text:find("Text Color") and 
+               not child.Text:find("Fill Transparency") and 
+               not child.Text:find("Outline Transparency") and 
+               not child.Text:find("Visibility Check") and 
+               not child.Text:find("FOV Radius") and 
+               not child.Text:find("FOV Rainbow") and 
+               not child.Text:find("Aimbot FOV Color") and 
+               not child.Text:find("Fly Speed") and 
+               not child.Text:find("Custom Fly Speed") and 
+               not child.Text:find("Use JumpPower Method") and 
+               not child.Text:find("SpeedHack Speed") and 
+               not child.Text:find("Custom SpeedHack Speed") and 
+               not child.Text:find("START TELEPORT") and 
+               not child.Text:find("STOP TELEPORT") and 
+               not child.Text:find("Hotkey:") and 
+               child.Size.Y.Offset == 30 then
+                child:Destroy()
+            end
+        end
+    end
+    
+    for _, child in ipairs(innerContainer:GetChildren()) do
+        if child:IsA("TextLabel") and child.Text and child.Text:find("---") then
+            child:Destroy()
+        end
+    end
+    
+    for _, child in ipairs(tempContainer:GetChildren()) do
+        child.Parent = innerContainer
+    end
+    
+    tempContainer:Destroy()
+end
+
+local updatePlayersBtn = Instance.new("TextButton", innerContainer)
+updatePlayersBtn.Size = UDim2.new(1, -10, 0, 28)
+updatePlayersBtn.Text = "UPDATE PLAYER LIST"
+updatePlayersBtn.Font = Enum.Font.GothamBold
+updatePlayersBtn.TextSize = 14
+updatePlayersBtn.TextColor3 = Color3.new(1,1,1)
+updatePlayersBtn.BackgroundColor3 = Color3.fromRGB(100,150,255)
+updatePlayersBtn.AutoButtonColor = false
+Instance.new("UICorner", updatePlayersBtn).CornerRadius = UDim.new(0,6)
+
+updatePlayersBtn.MouseButton1Click:Connect(function()
+    updatePlayersBtn.Text = "UPDATING..."
+    updatePlayerList()
+    task.wait(1)
+    updatePlayersBtn.Text = "LIST UPDATED!"
+    task.wait(2)
+    updatePlayersBtn.Text = "UPDATE PLAYER LIST"
+    
+    task.spawn(function()
+        task.wait(5)
+    end)
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(30)
+        updatePlayerList()
+    end
+end) 
