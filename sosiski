@@ -83,12 +83,10 @@ local TeleportConfig = {
     TeleportSpeed = 2500,
     ReturnSpeed = 2000,
     BehindPlayerDistance = 2.5,
-    StabilizationTime = 0.15,
+    StabilizationTime = 0.3,
     MaxSpeedResetTime = 1.5,
     SpeedResetThreshold = 80,
-    InstantTurnSpeed = 3000,
-    DeadZoneRadius = 0.8,
-    DeadZoneTime = 0.5,
+    InstantTurnSpeed = 2000,
 }
 
 local isFlying = false
@@ -117,10 +115,9 @@ local playerSelectionWindow = nil
 local lastTeleportPosition = nil
 local stabilizationStartTime = nil
 local isStabilizing = false
-local isInDeadZone = false
-local deadZoneTimer = 0
 local speedResetTimer = 0
 local lastSpeedCheck = tick()
+local lastBehindDistance = 0
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -566,10 +563,9 @@ local function createStealthTeleport()
     
     isTeleporting = true
     isStabilizing = false
-    isInDeadZone = false
     speedResetTimer = 0
-    deadZoneTimer = 0
     lastSpeedCheck = tick()
+    lastBehindDistance = 0
     
     
     if not TeleportConfig.OriginalPosition then
@@ -653,37 +649,34 @@ local function createStealthTeleport()
             end
             
             
-            if behindDistance <= TeleportConfig.DeadZoneRadius then
-                if not isInDeadZone then
-                    isInDeadZone = true
-                    deadZoneTimer = tick()
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                    bv.MaxForce = Vector3.new(5e4, 5e4, 5e4)
-                end
-                
-                local timeInDeadZone = tick() - deadZoneTimer
-                if timeInDeadZone < TeleportConfig.DeadZoneTime then
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                else
-                    local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
-                    local correctionDirection = (newBehindPosition.Position - currentPos)
-                    local correctionMagnitude = correctionDirection.Magnitude
-                    
-                    if correctionMagnitude > 0.3 then
-                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.1)
-                    else
-                        bv.Velocity = Vector3.new(0, 0, 0)
-                    end
-                end
-            elseif behindDistance <= 2.0 and not isStabilizing then
+            if behindDistance < 1.2 and not isStabilizing then
                 isStabilizing = true
-                isInDeadZone = false
                 stabilizationStartTime = tick()
                 lastTeleportPosition = behindPosition.Position
-                bv.MaxForce = Vector3.new(3e5, 3e5, 3e5)
+                bv.Velocity = Vector3.new(0, 0, 0)
+                bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+                
+                task.spawn(function()
+                    task.wait(0.1)
+                    if isStabilizing then
+                        root.CFrame = behindPosition
+                        bv.Velocity = Vector3.new(0, 0, 0)
+                        task.wait(0.2)
+                        if bv and bv.Parent then
+                            bv:Destroy()
+                        end
+                        local newBv = Instance.new("BodyVelocity", root)
+                        newBv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+                        newBv.Velocity = Vector3.new(0, 0, 0)
+                        task.wait(0.1)
+                        if newBv and newBv.Parent then
+                            newBv:Destroy()
+                        end
+                    end
+                end)
             end
             
-            if isStabilizing and behindDistance > TeleportConfig.DeadZoneRadius then
+            if isStabilizing then
                 local stabilizationTime = tick() - stabilizationStartTime
                 
                 if stabilizationTime < TeleportConfig.StabilizationTime then
@@ -691,12 +684,12 @@ local function createStealthTeleport()
                     local correctionDirection = (newBehindPosition.Position - currentPos)
                     local correctionMagnitude = correctionDirection.Magnitude
                     
-                    if correctionMagnitude > 1.2 then
-                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.4)
-                    elseif correctionMagnitude > 0.8 then
+                    if correctionMagnitude > 1.0 then
                         bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.2)
-                    else
+                    elseif correctionMagnitude > 0.5 then
                         bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.1)
+                    else
+                        bv.Velocity = Vector3.new(0, 0, 0)
                     end
                 else
                     isStabilizing = false
@@ -708,42 +701,19 @@ local function createStealthTeleport()
                 local currentVelocity = bv.Velocity
                 local newDirection = (behindPosition.Position - currentPos).Unit
                 
-                if distance > 20 then
+                if distance > 15 then
                     bv.Velocity = (targetPos - currentPos).Unit * TeleportConfig.TeleportSpeed
-                elseif distance > 15 then
-                    local behindPosDistance = (behindPosition.Position - currentPos).Magnitude
-                    if behindPosDistance > 3.0 then
-                        bv.Velocity = newDirection * TeleportConfig.TeleportSpeed
-                    else
-                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.8)
-                    end
-                elseif distance > 8 then
-                    local behindPosDistance = (behindPosition.Position - currentPos).Magnitude
-                    if behindPosDistance > 1.5 then
-                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.7)
-                    else
-                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.4)
-                    end
-                elseif distance > 3 then
+                elseif distance > 5 then
+                    bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.8)
+                elseif distance > 2 then
                     local dotProduct = currentVelocity.Unit:Dot(newDirection)
-                    local behindPosDistance = (behindPosition.Position - currentPos).Magnitude
-                    
-                    if behindPosDistance > 2.0 then
-                        if dotProduct < 0.5 then
-                            bv.Velocity = newDirection * TeleportConfig.InstantTurnSpeed
-                        else
-                            bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.8)
-                        end
+                    if dotProduct < 0.7 then
+                        bv.Velocity = newDirection * TeleportConfig.InstantTurnSpeed
                     else
-                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.3)
+                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.6)
                     end
                 else
-                    local behindPosDistance = (behindPosition.Position - currentPos).Magnitude
-                    if behindPosDistance > 1.0 then
-                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.6)
-                    else
-                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.2)
-                    end
+                    bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.3)
                 end
             end
         end
@@ -771,12 +741,11 @@ local function startTeleport()
     
     isTeleporting = true
     isStabilizing = false
-    isInDeadZone = false
     stabilizationStartTime = nil
     lastTeleportPosition = nil
-    deadZoneTimer = 0
     speedResetTimer = 0
     lastSpeedCheck = tick()
+    lastBehindDistance = 0
     
     
     TeleportConfig.OriginalPosition = root.Position
@@ -837,11 +806,10 @@ end
 local function stopTeleport()
     isTeleporting = false
     isStabilizing = false
-    isInDeadZone = false
     stabilizationStartTime = nil
     lastTeleportPosition = nil
-    deadZoneTimer = 0
     speedResetTimer = 0
+    lastBehindDistance = 0
     TeleportConfig.Enabled = false
     
     local char = Players.LocalPlayer.Character
