@@ -52,12 +52,28 @@ local NoClipConfig = {
     ForceToggleKey = nil, -- Горячая клавиша для FORCE NOCLIP
 }
 
--- Система SpeedHack
+-- Система SpeedHack с прыжками
 local SpeedHackConfig = {
     Enabled = false,
     Speed = 1,
     ToggleKey = nil,
     UseJumpPower = false, -- Альтернативный метод через JumpPower
+    SafeMode = true, -- Безопасный режим для YBA
+    MaxSafeSpeed = 3, -- Максимальная безопасная скорость для YBA
+}
+
+-- Система Long Jump
+local LongJumpConfig = {
+    Enabled = false,
+    JumpPower = 150, -- Сила прыжка (50-500)
+    ToggleKey = nil,
+}
+
+-- Система Infinite Jump
+local InfiniteJumpConfig = {
+    Enabled = false,
+    JumpPower = 50, -- Сила прыжка для бесконечных прыжков
+    ToggleKey = nil,
 }
 
 -- Система телепортации к игрокам
@@ -68,12 +84,13 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil, -- Сохраняем ник выбранного игрока
     UseStealthMode = true, -- Использовать скрытый режим телепортации
-    TeleportSpeed = 1200, -- Уменьшенная скорость для более стабильного движения
-    ReturnSpeed = 1200, -- Скорость возврата в исходную точку
+    TeleportSpeed = 2500, -- Увеличенная скорость для быстрого движения
+    ReturnSpeed = 2000, -- Скорость возврата в исходную точку
     BehindPlayerDistance = 2.5, -- Увеличенное расстояние за спиной игрока для лучшего позиционирования
-    StabilizationTime = 0.3, -- Время стабилизации после достижения позиции
-    MaxSpeedResetTime = 1.0, -- Максимальное время для сброса скорости
-    SpeedResetThreshold = 50, -- Порог скорости для принудительного сброса
+    StabilizationTime = 0.15, -- Уменьшенное время стабилизации для быстроты
+    MaxSpeedResetTime = 1.5, -- Увеличенное время для сброса скорости
+    SpeedResetThreshold = 80, -- Увеличенный порог скорости
+    InstantTurnSpeed = 3000, -- Скорость мгновенного поворота
 }
 
 -- Переменные для полета
@@ -90,6 +107,16 @@ local isSpeedHacking = false
 local speedHackConnections = {}
 local originalWalkSpeed = 16
 local originalJumpPower = 50
+local speedHackSafetyTimer = 0
+
+-- Переменные для Long Jump
+local isLongJumping = false
+local longJumpConnections = {}
+
+-- Переменные для Infinite Jump
+local isInfiniteJumping = false
+local infiniteJumpConnections = {}
+local lastJumpTime = 0
 
 -- Переменные для телепортации
 local isTeleporting = false
@@ -314,31 +341,39 @@ local function stopNoClip()
     noClipConnections = {}
 end
 
--- Функции SpeedHack - Безопасная система без BodyVelocity
+-- Функции SpeedHack - Безопасная система для YBA
 local function startSpeedHack()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return end
     
     isSpeedHacking = true
+    speedHackSafetyTimer = 0
     originalWalkSpeed = hum.WalkSpeed
     originalJumpPower = hum.JumpPower
     
+    -- Вычисляем безопасную скорость для YBA
+    local safeSpeed = SpeedHackConfig.SafeMode and 
+        math.min(SpeedHackConfig.Speed, SpeedHackConfig.MaxSafeSpeed) or SpeedHackConfig.Speed
+    
     -- Устанавливаем скорость через Humanoid (безопасный метод)
-    hum.WalkSpeed = SpeedHackConfig.Speed * 16
+    hum.WalkSpeed = safeSpeed * 16
     
     -- Альтернативный метод через JumpPower для большей скорости
     if SpeedHackConfig.UseJumpPower then
-        hum.JumpPower = SpeedHackConfig.Speed * 50
+        hum.JumpPower = safeSpeed * 50
     end
     
     -- Создаем соединение для обновления скорости при респавне
     local function onCharacterAdded(newChar)
         local newHum = newChar:WaitForChild("Humanoid")
         if isSpeedHacking then
-            newHum.WalkSpeed = SpeedHackConfig.Speed * 16
+            local currentSafeSpeed = SpeedHackConfig.SafeMode and 
+                math.min(SpeedHackConfig.Speed, SpeedHackConfig.MaxSafeSpeed) or SpeedHackConfig.Speed
+            newHum.WalkSpeed = currentSafeSpeed * 16
             if SpeedHackConfig.UseJumpPower then
-                newHum.JumpPower = SpeedHackConfig.Speed * 50
+                newHum.JumpPower = currentSafeSpeed * 50
             end
         end
     end
@@ -346,22 +381,47 @@ local function startSpeedHack()
     local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
     table.insert(speedHackConnections, characterAddedConnection)
     
-    -- Создаем соединение для постоянного обновления скорости
+    -- Создаем соединение для постоянного обновления скорости с безопасностью
     local speedLoop = RunService.Heartbeat:Connect(function()
         if not isSpeedHacking then return end
         
         local currentChar = Players.LocalPlayer.Character
         local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
+        local currentRoot = currentChar and currentChar:FindFirstChild("HumanoidRootPart")
         
-        if currentHum then
-            -- Обновляем WalkSpeed только если она отличается
-            if currentHum.WalkSpeed ~= SpeedHackConfig.Speed * 16 then
-                currentHum.WalkSpeed = SpeedHackConfig.Speed * 16
+        if currentHum and currentRoot then
+            -- Система безопасности - сброс скорости каждые 2 секунды в YBA
+            speedHackSafetyTimer = speedHackSafetyTimer + RunService.Heartbeat:Wait()
+            
+            if SpeedHackConfig.SafeMode and speedHackSafetyTimer >= 2.0 then
+                speedHackSafetyTimer = 0
+                -- Временно сбрасываем скорость для безопасности
+                currentHum.WalkSpeed = 16
+                task.wait(0.1)
+                
+                -- Возвращаем скорость
+                local currentSafeSpeed = math.min(SpeedHackConfig.Speed, SpeedHackConfig.MaxSafeSpeed)
+                currentHum.WalkSpeed = currentSafeSpeed * 16
+            else
+                -- Обычное обновление скорости
+                local targetSpeed = SpeedHackConfig.SafeMode and 
+                    math.min(SpeedHackConfig.Speed, SpeedHackConfig.MaxSafeSpeed) or SpeedHackConfig.Speed
+                
+                -- Обновляем WalkSpeed только если она отличается
+                if currentHum.WalkSpeed ~= targetSpeed * 16 then
+                    currentHum.WalkSpeed = targetSpeed * 16
+                end
+                
+                -- Обновляем JumpPower если используется альтернативный метод
+                if SpeedHackConfig.UseJumpPower and currentHum.JumpPower ~= targetSpeed * 50 then
+                    currentHum.JumpPower = targetSpeed * 50
+                end
             end
             
-            -- Обновляем JumpPower если используется альтернативный метод
-            if SpeedHackConfig.UseJumpPower and currentHum.JumpPower ~= SpeedHackConfig.Speed * 50 then
-                currentHum.JumpPower = SpeedHackConfig.Speed * 50
+            -- Дополнительная безопасность - сброс BodyVelocity если скорость слишком высокая
+            local bv = currentRoot:FindFirstChild("BodyVelocity")
+            if bv and bv.Velocity.Magnitude > 100 then
+                bv.Velocity = bv.Velocity * 0.5
             end
         end
     end)
@@ -371,6 +431,7 @@ end
 
 local function stopSpeedHack()
     isSpeedHacking = false
+    speedHackSafetyTimer = 0
     
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -390,6 +451,153 @@ local function stopSpeedHack()
         end
     end
     speedHackConnections = {}
+end
+
+-- Функции Long Jump
+local function startLongJump()
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    
+    isLongJumping = true
+    
+    -- Устанавливаем силу прыжка
+    hum.JumpPower = LongJumpConfig.JumpPower
+    
+    -- Создаем соединение для обновления при респавне
+    local function onCharacterAdded(newChar)
+        local newHum = newChar:WaitForChild("Humanoid")
+        if isLongJumping then
+            newHum.JumpPower = LongJumpConfig.JumpPower
+        end
+    end
+    
+    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+    table.insert(longJumpConnections, characterAddedConnection)
+    
+    -- Создаем соединение для постоянного обновления силы прыжка
+    local longJumpLoop = RunService.Heartbeat:Connect(function()
+        if not isLongJumping then return end
+        
+        local currentChar = Players.LocalPlayer.Character
+        local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
+        
+        if currentHum and currentHum.JumpPower ~= LongJumpConfig.JumpPower then
+            currentHum.JumpPower = LongJumpConfig.JumpPower
+        end
+    end)
+    
+    table.insert(longJumpConnections, longJumpLoop)
+end
+
+local function stopLongJump()
+    isLongJumping = false
+    
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.JumpPower = originalJumpPower
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(longJumpConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    longJumpConnections = {}
+end
+
+-- Функции Infinite Jump
+local function startInfiniteJump()
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return end
+    
+    isInfiniteJumping = true
+    lastJumpTime = 0
+    
+    -- Создаем соединение для обнаружения прыжков
+    local function onJumpRequest()
+        if not isInfiniteJumping then return end
+        
+        local currentTime = tick()
+        if currentTime - lastJumpTime < 0.1 then return end -- Защита от спама
+        
+        lastJumpTime = currentTime
+        
+        -- Создаем импульс прыжка
+        local bv = Instance.new("BodyVelocity", root)
+        bv.MaxForce = Vector3.new(0, math.huge, 0)
+        bv.Velocity = Vector3.new(0, InfiniteJumpConfig.JumpPower, 0)
+        
+        -- Удаляем BodyVelocity через короткое время
+        task.spawn(function()
+            task.wait(0.3)
+            if bv and bv.Parent then
+                bv:Destroy()
+            end
+        end)
+    end
+    
+    -- Подключаемся к событию прыжка
+    local jumpConnection = hum.Jumping:Connect(onJumpRequest)
+    table.insert(infiniteJumpConnections, jumpConnection)
+    
+    -- Альтернативный метод через клавишу Space
+    local function onInputBegan(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Space then
+            onJumpRequest()
+        end
+    end
+    
+    local inputConnection = UserInputService.InputBegan:Connect(onInputBegan)
+    table.insert(infiniteJumpConnections, inputConnection)
+    
+    -- Создаем соединение для обновления при респавне
+    local function onCharacterAdded(newChar)
+        if isInfiniteJumping then
+            task.wait(1) -- Ждем полной загрузки персонажа
+            startInfiniteJump() -- Перезапускаем infinite jump
+        end
+    end
+    
+    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+    table.insert(infiniteJumpConnections, characterAddedConnection)
+end
+
+local function stopInfiniteJump()
+    isInfiniteJumping = false
+    lastJumpTime = 0
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(infiniteJumpConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    infiniteJumpConnections = {}
+    
+    -- Удаляем любые оставшиеся BodyVelocity
+    local char = Players.LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if root then
+        for _, child in pairs(root:GetChildren()) do
+            if child:IsA("BodyVelocity") then
+                child:Destroy()
+            end
+        end
+    end
 end
 
 -- Новая улучшенная система телепортации к игрокам (безопасная для YBA)
@@ -494,22 +702,17 @@ local function createStealthTeleport()
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(8e5, 8e5, 8e5) -- Уменьшенная сила для плавности
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- Увеличенная сила для быстрого движения
             end
             
             -- Режим стабилизации - когда мы находимся за спиной игрока
-            if behindDistance <= 1.2 and not isStabilizing then
+            if behindDistance <= 1.0 and not isStabilizing then
                 isStabilizing = true
                 stabilizationStartTime = tick()
                 lastTeleportPosition = behindPosition.Position
                 
-                -- Плавно переходим в точную позицию
-                bv.Velocity = Vector3.new(0, 0, 0)
-                root.CFrame = behindPosition
-                
-                -- Создаем стабилизирующий BodyVelocity с нулевой скоростью
-                bv.Velocity = Vector3.new(0, 0, 0)
-                bv.MaxForce = Vector3.new(5e4, 5e4, 5e4) -- Слабая сила для стабилизации
+                -- Быстро переходим в точную позицию
+                bv.MaxForce = Vector3.new(2e5, 2e5, 2e5) -- Средняя сила для стабилизации
             end
             
             -- Если мы в режиме стабилизации
@@ -521,36 +724,44 @@ local function createStealthTeleport()
                     local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
                     local correctionDirection = (newBehindPosition.Position - currentPos)
                     
-                    if correctionDirection.Magnitude > 0.5 then
-                        -- Небольшая коррекция позиции
-                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.2)
+                    if correctionDirection.Magnitude > 0.3 then
+                        -- Быстрая коррекция позиции
+                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.4)
                     else
-                        -- Стабилизация на месте
-                        bv.Velocity = Vector3.new(0, 0, 0)
-                        root.CFrame = newBehindPosition
+                        -- Мягкая стабилизация
+                        bv.Velocity = correctionDirection * (TeleportConfig.TeleportSpeed * 0.1)
                     end
                 else
                     -- Завершаем стабилизацию и переходим в следящий режим
                     isStabilizing = false
                     stabilizationStartTime = nil
+                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- Возвращаем высокую силу
                 end
             else
-                -- Обычный режим телепортации
-                if distance > 15 then
-                    -- Быстрое приближение на большом расстоянии
-                    local direction = (targetPos - currentPos).Unit
-                    local speed = TeleportConfig.TeleportSpeed
-                    bv.Velocity = direction * speed
-                elseif distance > 5 then
-                    -- Умеренное приближение на среднем расстоянии
-                    local direction = (behindPosition.Position - currentPos).Unit
-                    local speed = TeleportConfig.TeleportSpeed * 0.6
-                    bv.Velocity = direction * speed
+                -- Улучшенный режим телепортации без остановок
+                local currentVelocity = bv.Velocity
+                local newDirection = (behindPosition.Position - currentPos).Unit
+                
+                if distance > 20 then
+                    -- Быстрое приближение на очень большом расстоянии
+                    bv.Velocity = (targetPos - currentPos).Unit * TeleportConfig.TeleportSpeed
+                elseif distance > 8 then
+                    -- Среднее приближение - летим прямо к позиции за спиной
+                    bv.Velocity = newDirection * TeleportConfig.TeleportSpeed
+                elseif distance > 3 then
+                    -- Точное позиционирование - проверяем изменение направления
+                    local dotProduct = currentVelocity.Unit:Dot(newDirection)
+                    
+                    if dotProduct < 0.5 then
+                        -- Резкое изменение направления - мгновенный поворот
+                        bv.Velocity = newDirection * TeleportConfig.InstantTurnSpeed
+                    else
+                        -- Плавное движение в том же направлении
+                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.8)
+                    end
                 else
-                    -- Точное позиционирование за спиной
-                    local direction = (behindPosition.Position - currentPos).Unit
-                    local speed = TeleportConfig.TeleportSpeed * 0.3
-                    bv.Velocity = direction * speed
+                    -- Очень близко - быстрое позиционирование
+                    bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.5)
                 end
             end
         end
@@ -891,6 +1102,28 @@ UserInputService.InputBegan:Connect(function(input, gp)
             -- Обновляем GUI
             if guiCallbacks.teleport then
                 guiCallbacks.teleport.Text = "Выбранный игрок: " .. (TeleportConfig.SelectedPlayerName or "Не выбран")
+            end
+        elseif LongJumpConfig.ToggleKey and input.KeyCode == LongJumpConfig.ToggleKey then
+            LongJumpConfig.Enabled = not LongJumpConfig.Enabled
+            if LongJumpConfig.Enabled then 
+                startLongJump() 
+            else 
+                stopLongJump() 
+            end
+            -- Обновляем GUI
+            if guiCallbacks.longJump then
+                guiCallbacks.longJump.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
+            end
+        elseif InfiniteJumpConfig.ToggleKey and input.KeyCode == InfiniteJumpConfig.ToggleKey then
+            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
+            if InfiniteJumpConfig.Enabled then 
+                startInfiniteJump() 
+            else 
+                stopInfiniteJump() 
+            end
+            -- Обновляем GUI
+            if guiCallbacks.infiniteJump then
+                guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
             end
         elseif NoClipConfig.ForceToggleKey and input.KeyCode == NoClipConfig.ForceToggleKey then
             if isNoClipping then
