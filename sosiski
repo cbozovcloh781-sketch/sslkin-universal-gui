@@ -67,6 +67,7 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil, -- Сохраняем ник выбранного игрока
     UseStealthMode = true, -- Использовать скрытый режим телепортации
+    PlayerDeathConnection = nil, -- Соединение для отслеживания смерти игрока
 }
 
 -- Переменные для полета
@@ -385,12 +386,38 @@ local function createStealthTeleport()
     
     TeleportConfig.OriginalPosition = root.Position
     
+    -- Автоматически включаем NoClip при телепортации
     if not isNoClipping then
         startNoClip()
     end
     
+    -- Отслеживаем смерть целевого игрока
+    local function setupPlayerDeathTracking()
+        if TeleportConfig.PlayerDeathConnection then
+            TeleportConfig.PlayerDeathConnection:Disconnect()
+        end
+        
+        local targetHumanoid = targetChar:FindFirstChild("Humanoid")
+        if targetHumanoid then
+            TeleportConfig.PlayerDeathConnection = targetHumanoid.Died:Connect(function()
+                print("Целевой игрок умер! Отменяем телепортацию и возвращаемся к исходной точке...")
+                stopTeleport()
+            end)
+        end
+    end
+    
+    setupPlayerDeathTracking()
+    
     local stealthTeleportLoop = RunService.Heartbeat:Connect(function()
         if not isTeleporting or not targetChar or not targetChar.Parent then
+            return
+        end
+        
+        -- Проверяем, жив ли целевой игрок
+        local targetHumanoid = targetChar:FindFirstChild("Humanoid")
+        if not targetHumanoid or targetHumanoid.Health <= 0 then
+            print("Целевой игрок мертв! Отменяем телепортацию...")
+            stopTeleport()
             return
         end
         
@@ -456,6 +483,12 @@ local function stopTeleport()
     isTeleporting = false
     TeleportConfig.Enabled = false
     
+    -- Отключаем отслеживание смерти игрока
+    if TeleportConfig.PlayerDeathConnection then
+        TeleportConfig.PlayerDeathConnection:Disconnect()
+        TeleportConfig.PlayerDeathConnection = nil
+    end
+    
     local char = Players.LocalPlayer.Character
     if not char then 
         return 
@@ -478,6 +511,7 @@ local function stopTeleport()
     end
     
     if root and TeleportConfig.OriginalPosition then
+        -- Убеждаемся что NoClip включен для возврата
         if not isNoClipping then
             startNoClip()
         end
@@ -756,63 +790,21 @@ end
 local function getAlivePlayers()
     local alivePlayers = {}
     
-    print("=== ПОИСК ЖИВЫХ ИГРОКОВ ===")
-    
-    -- Простая и надежная проверка
-    if not Players then
-        print("Players сервис не найден!")
-        return alivePlayers
-    end
-    
-    if not Players.LocalPlayer then
-        print("LocalPlayer не найден!")
+    if not Players or not Players.LocalPlayer then
         return alivePlayers
     end
     
     local allPlayers = Players:GetPlayers()
     if not allPlayers then
-        print("Не удалось получить список игроков!")
         return alivePlayers
     end
     
-    print("Всего игроков на сервере: " .. #allPlayers)
-    print("Локальный игрок: " .. Players.LocalPlayer.Name)
-    
-    for i, player in ipairs(allPlayers) do
-        if player then
-            print("Проверяем игрока " .. i .. ": " .. player.Name)
-            
-            if player ~= Players.LocalPlayer then
-                print("  - Это не локальный игрок")
-                
-                if player.Character then
-                    print("  - У игрока есть персонаж")
-                    
-                    local humanoid = player.Character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        print("  - У игрока есть Humanoid, здоровье: " .. humanoid.Health)
-                        
-                        if humanoid.Health > 0 then
-                            print("  - Игрок жив, добавляем в список")
-                            table.insert(alivePlayers, player)
-                        else
-                            print("  - Игрок мертв")
-                        end
-                    else
-                        print("  - У игрока нет Humanoid")
-                    end
-                else
-                    print("  - У игрока нет персонажа")
-                end
-            else
-                print("  - Это локальный игрок, пропускаем")
-            end
-        else
-            print("Игрок " .. i .. " равен nil")
+    for _, player in ipairs(allPlayers) do
+        if player and player ~= Players.LocalPlayer and isPlayerAlive(player) then
+            table.insert(alivePlayers, player)
         end
     end
     
-    print("Найдено живых игроков: " .. #alivePlayers)
     return alivePlayers
 end
 
@@ -914,6 +906,12 @@ end
 
 -- ESP handlers
 local function createOrUpdateESP(p)
+    -- Проверяем, что игрок жив перед созданием ESP
+    if not isPlayerAlive(p) then
+        removeESP(p)
+        return
+    end
+    
     if not ESPs[p] then
         local hl=Instance.new("Highlight"); hl.Adornee=p.Character; hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent=p.Character
         local bg=Instance.new("BillboardGui",p.Character); bg.AlwaysOnTop=true; bg.Size=UDim2.new(0,200,0,30); bg.StudsOffset=Vector3.new(0,2,0)
@@ -939,27 +937,24 @@ end
 -- Улучшенная система отслеживания игроков
 local function isPlayerAlive(player)
     if not player then 
-        print("Player is nil")
         return false 
     end
     
     -- Проверяем, что у игрока есть имя
     if not player.Name then
-        print("Player has no name")
         return false
     end
     
     if not player.Character then 
-        print("Player " .. tostring(player.Name) .. " has no character")
         return false 
     end
     local humanoid = player.Character:FindFirstChild("Humanoid")
     if not humanoid then 
-        print("Player " .. tostring(player.Name) .. " has no humanoid")
         return false 
     end
-    local isAlive = humanoid.Health > 0
-    print("Player " .. tostring(player.Name) .. " health: " .. tostring(humanoid.Health) .. ", alive: " .. tostring(isAlive))
+    
+    -- Проверяем здоровье и состояние
+    local isAlive = humanoid.Health > 0 and humanoid.Parent ~= nil
     return isAlive
 end
 
@@ -997,14 +992,29 @@ local function setupPlayerESP(player)
         -- Обработка смерти
         humanoid.Died:Connect(function()
             onPlayerDied(player)
+            -- Обновляем список игроков при смерти
+            task.spawn(function()
+                task.wait(1)
+                updatePlayerList()
+            end)
         end)
         
         -- Обработка респавна через StateChanged
         humanoid.StateChanged:Connect(function(_, new)
             if new == Enum.HumanoidStateType.Dead then
                 onPlayerDied(player)
+                -- Обновляем список игроков при смерти
+                task.spawn(function()
+                    task.wait(1)
+                    updatePlayerList()
+                end)
             elseif new == Enum.HumanoidStateType.Running then
                 onPlayerRespawned(player)
+                -- Обновляем список игроков при респавне
+                task.spawn(function()
+                    task.wait(2)
+                    updatePlayerList()
+                end)
             end
         end)
         
@@ -1012,6 +1022,11 @@ local function setupPlayerESP(player)
         char.AncestryChanged:Connect(function(_, parent)
             if not parent then
                 onPlayerDied(player)
+                -- Обновляем список игроков при удалении персонажа
+                task.spawn(function()
+                    task.wait(1)
+                    updatePlayerList()
+                end)
             end
         end)
     end
@@ -1022,6 +1037,11 @@ local function setupPlayerESP(player)
     player.CharacterAdded:Connect(onCharacterAdded)
     player.CharacterRemoving:Connect(function()
         onPlayerDied(player)
+        -- Обновляем список игроков при удалении персонажа
+        task.spawn(function()
+            task.wait(1)
+            updatePlayerList()
+        end)
     end)
 end
 
@@ -1031,11 +1051,23 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 
 -- Настройка ESP для новых игроков
-Players.PlayerAdded:Connect(setupPlayerESP)
+Players.PlayerAdded:Connect(function(player)
+    setupPlayerESP(player)
+    -- Обновляем список игроков при присоединении нового игрока
+    task.spawn(function()
+        task.wait(3)
+        updatePlayerList()
+    end)
+end)
 
 -- Clean up on player leaving
 Players.PlayerRemoving:Connect(function(player)
     removeESP(player)
+    -- Обновляем список игроков при выходе игрока
+    task.spawn(function()
+        task.wait(1)
+        updatePlayerList()
+    end)
 end)
 
 local function getClosestTarget()
@@ -1045,7 +1077,7 @@ local function getClosestTarget()
     for _, p in ipairs(Players:GetPlayers()) do
         if p == Players.LocalPlayer then continue end
         if Config.Aimbot.TeamCheck and p.Team == Players.LocalPlayer.Team then continue end
-        if not isAlive(p) then continue end
+        if not isPlayerAlive(p) then continue end
         if Config.Aimbot.VisibilityCheck and not rayVisible(p) then continue end
 
         local head = p.Character and p.Character:FindFirstChild("Head")
@@ -1416,8 +1448,8 @@ local function playerSelector(label, currentPlayer, callback)
     selectBtn.MouseButton1Click:Connect(function()
         print("=== КНОПКА ВЫБОРА ИГРОКА НАЖАТА ===")
         
-        -- Используем новую функцию создания окна выбора игрока
-        createPlayerSelectionWindow()
+        -- Обновляем список игроков и создаем новое окно выбора
+        updatePlayerList()
         
         -- Обновляем текст после выбора игрока
         if TeleportConfig.TargetPlayer then
@@ -1717,24 +1749,14 @@ end)
 
 -- Создаем список игроков прямо в меню
 local function createPlayerListInMenu()
-    local allPlayers = Players:GetPlayers()
-    local alivePlayers = {}
-    
-    -- Получаем список всех игроков кроме локального
-    for _, player in ipairs(allPlayers) do
-        if player and player ~= Players.LocalPlayer then
-            table.insert(alivePlayers, player)
-        end
-    end
+    local alivePlayers = getAlivePlayers()
     
     -- Сортируем игроков по алфавиту (по имени)
     table.sort(alivePlayers, function(a, b)
         return a.Name:lower() < b.Name:lower()
     end)
     
-    print("Создаем отсортированный список игроков в меню: " .. #alivePlayers .. " игроков")
-    
-    -- Создаем кнопки для каждого игрока
+    -- Создаем кнопки для каждого живого игрока
     local currentLetter = ""
     for i, player in ipairs(alivePlayers) do
         local firstLetter = player.Name:sub(1,1):upper()
@@ -1812,13 +1834,7 @@ local function updatePlayerList()
     tempContainer.Name = "TempPlayerList"
     tempContainer.Parent = nil
     
-    local allPlayers = Players:GetPlayers()
-    local alivePlayers = {}
-    for _, player in ipairs(allPlayers) do
-        if player and player ~= Players.LocalPlayer then
-            table.insert(alivePlayers, player)
-        end
-    end
+    local alivePlayers = getAlivePlayers()
     
     table.sort(alivePlayers, function(a, b)
         return a.Name:lower() < b.Name:lower()
