@@ -1181,11 +1181,15 @@ local function switchCameraToStand(stand)
     local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
     
     -- Отключаем стандартную камеру Roblox и создаем свободную камеру
+    print("YBA: Текущий тип камеры: " .. tostring(camera.CameraType))
     camera.CameraType = Enum.CameraType.Scriptable
+    print("YBA: Новый тип камеры: " .. tostring(camera.CameraType))
     
     -- Инициализируем позицию камеры
     camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
     print("YBA: Камера переключена на стенд")
+    print("YBA: Позиция камеры: " .. tostring(cameraPos))
+    print("YBA: Позиция стенда: " .. tostring(standPos))
 end
 
 local function restoreCamera()
@@ -1368,6 +1372,15 @@ local function controlStand(stand)
                 -- Если камера уже близко к цели, просто обновляем позицию
                 camera.CFrame = CFrame.new(cameraPos, lookAtPos)
             end
+            
+            -- Отладочная информация (только первые несколько кадров)
+            if not debugCameraFrame then
+                debugCameraFrame = 0
+            end
+            debugCameraFrame = debugCameraFrame + 1
+            if debugCameraFrame <= 10 then
+                print("YBA: Камера обновлена - Позиция: " .. tostring(cameraPos) .. ", Стенд: " .. tostring(standPos))
+            end
         end
     end)
     
@@ -1426,6 +1439,9 @@ local function startYBA()
     if YBAConfig.TransferControl then
         print("YBA: Передаем управление стенду...")
         controlStand(targetStand)
+        print("YBA: Управление стендом передано")
+    else
+        print("YBA: TransferControl отключен")
     end
     
     print("YBA: Stand Range Hack активирован!")
