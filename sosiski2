@@ -2072,211 +2072,69 @@ UserInputService.InputBegan:Connect(function(inp, gp)
     end
 end)
 
--- YBA Item ESP Functions (Полностью переписанная версия)
-local itemCache = {}
-local lastCacheUpdate = 0
-local cacheUpdateInterval = 1 -- Обновляем кэш каждую секунду
+-- YBA Item ESP Functions (Простая и эффективная версия)
+local itemESPEnabled = false
+local itemESPConnections = {}
+local itemESPElements = {}
 
--- Функция для проверки, является ли объект предметом
-local function isItemObject(obj)
-    if not obj or not obj.Name then return false, nil end
-    
-    -- Расширенный список предметов YBA
-    local itemNames = {
-        "Arrow", "Rokakaka", "Rib Cage", "Heart", "Pelvis", "Requiem Arrow", 
-        "Dio's Diary", "Mysterious Arrow", "Steel Ball", "Corpse Part", 
-        "Corpse", "Dio's Bone", "Stand Arrow", "Arrow", "Rokakaka", "Rib Cage", 
-        "Heart", "Pelvis", "Requiem Arrow", "Dio's Diary", "Mysterious Arrow", 
-        "Steel Ball", "Corpse Part", "Corpse", "Dio's Bone", "Stand Arrow",
-        -- Дополнительные варианты названий
-        "Item", "Pickup", "Drop", "Loot", "Treasure", "Collectible", "Reward",
-        "Fragment", "Piece", "Part", "Component", "Material", "Resource",
-        -- YBA специфичные названия
-        "YBA", "YBAItem", "YBA_Item", "YBA_Arrow", "YBA_Rokakaka", "YBA_Heart",
-        "YBA_Pelvis", "YBA_Rib", "YBA_Corpse", "YBA_Diary", "YBA_Bone",
-        -- Общие названия предметов
-        "Pickup", "Collectible", "Item", "Drop", "Loot", "Treasure", "Reward",
-        "Fragment", "Piece", "Part", "Component", "Material", "Resource",
-        "Object", "Thing", "Stuff", "Goods", "Merchandise", "Product"
-    }
-    
-    local objName = obj.Name:lower()
-    
-    -- Проверяем точное совпадение
-    for _, name in ipairs(itemNames) do
-        if objName == name:lower() then
-            return true, name
-        end
-    end
-    
-    -- Проверяем частичное совпадение
-    for _, name in ipairs(itemNames) do
-        if objName:find(name:lower()) then
-            return true, name
-        end
-    end
-    
-    -- Проверяем родительский объект
-    if obj.Parent and obj.Parent.Name then
-        local parentName = obj.Parent.Name:lower()
-        for _, name in ipairs(itemNames) do
-            if parentName:find(name:lower()) then
-                return true, name
-            end
-        end
-    end
-    
-    -- Проверяем дедушку (родитель родителя)
-    if obj.Parent and obj.Parent.Parent and obj.Parent.Parent.Name then
-        local grandParentName = obj.Parent.Parent.Name:lower()
-        for _, name in ipairs(itemNames) do
-            if grandParentName:find(name:lower()) then
-                return true, name
-            end
-        end
-    end
-    
-    return false, nil
-end
-
--- Дополнительная функция для поиска предметов по свойствам
-local function isItemByProperties(obj)
-    if not obj then return false, nil end
-    
-    -- Проверяем наличие специальных свойств
-    if obj:IsA("BasePart") then
-        -- Проверяем, есть ли у объекта специальные свойства
-        if obj:FindFirstChild("Item") or obj:FindFirstChild("Pickup") or obj:FindFirstChild("Collectible") then
-            return true, "Special Item"
-        end
-        
-        -- Проверяем размер объекта (предметы обычно маленькие)
-        if obj.Size.X < 5 and obj.Size.Y < 5 and obj.Size.Z < 5 then
-            -- Проверяем, не является ли это игроком или стендом
-            if not obj:FindFirstChild("Humanoid") and not obj:FindFirstChild("Stand") then
-                return true, "Small Object"
-            end
-        end
-    end
-    
-    return false, nil
-end
-
--- Функция для поиска предметов в workspace
-local function findItemsInWorkspace()
-    local items = {}
+-- Простая функция для поиска всех объектов в workspace
+local function getAllObjects()
+    local objects = {}
     local player = Players.LocalPlayer
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
     if not playerRoot then 
-        return items 
+        return objects 
     end
     
-    print("YBA: Начинаем поиск предметов...")
+    print("YBA: Ищем все объекты в workspace...")
     
-    -- Сначала ищем в специальных игровых папках
-    local gameFolders = {"Items", "Drops", "Pickups", "Loot", "Treasure", "Collectibles", "YBA", "YBAItems", "GameItems"}
-    for _, folderName in ipairs(gameFolders) do
-        local folder = workspace:FindFirstChild(folderName)
-        if folder then
-            print("YBA: Найдена игровая папка:", folderName)
-            for _, obj in pairs(folder:GetDescendants()) do
-                if obj:IsA("BasePart") or obj:IsA("Model") then
-                    local isItem, itemName = isItemObject(obj)
-                    
-                    if not isItem then
-                        isItem, itemName = isItemByProperties(obj)
-                    end
-                    
-                    if isItem then
-                        local itemRoot = obj
-                        if obj:IsA("Model") then
-                            itemRoot = obj:FindFirstChild("PrimaryPart") or 
-                                       obj:FindFirstChild("RootPart") or 
-                                       obj:FindFirstChild("HumanoidRootPart") or
-                                       obj:FindFirstChild("Main") or
-                                       obj:FindFirstChild("Part")
-                        end
-                        
-                        if not itemRoot then
-                            itemRoot = obj
-                        end
-                        
-                        local distance = (itemRoot.Position - playerRoot.Position).Magnitude
-                        if distance <= YBAConfig.ItemESP.MaxDistance then
-                            table.insert(items, {
-                                Object = obj,
-                                Root = itemRoot,
-                                Distance = distance,
-                                Name = itemName
-                            })
-                            print("YBA: Найден предмет в папке", folderName, ":", itemName, "на расстоянии", math.floor(distance), "м")
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Ищем во всех объектах workspace
+    -- Ищем все BasePart и Model в workspace
     for _, obj in pairs(workspace:GetDescendants()) do
-        -- Проверяем только BasePart и Model
         if obj:IsA("BasePart") or obj:IsA("Model") then
-            local isItem, itemName = isItemObject(obj)
-            
-            -- Если не нашли по названию, проверяем по свойствам
-            if not isItem then
-                isItem, itemName = isItemByProperties(obj)
-            end
-            
-            if isItem then
+            -- Исключаем игроков и их части
+            if not obj:FindFirstChild("Humanoid") and not obj:FindFirstChild("HumanoidRootPart") then
                 local itemRoot = obj
                 
                 -- Для Model ищем корневую часть
                 if obj:IsA("Model") then
                     itemRoot = obj:FindFirstChild("PrimaryPart") or 
                                obj:FindFirstChild("RootPart") or 
-                               obj:FindFirstChild("HumanoidRootPart") or
                                obj:FindFirstChild("Main") or
                                obj:FindFirstChild("Part")
                 end
                 
-                -- Если не нашли корневую часть, используем сам объект
                 if not itemRoot then
                     itemRoot = obj
                 end
                 
                 local distance = (itemRoot.Position - playerRoot.Position).Magnitude
                 if distance <= YBAConfig.ItemESP.MaxDistance then
-                    table.insert(items, {
+                    table.insert(objects, {
                         Object = obj,
                         Root = itemRoot,
                         Distance = distance,
-                        Name = itemName
+                        Name = obj.Name
                     })
-                    print("YBA: Найден предмет:", itemName, "на расстоянии", math.floor(distance), "м")
                 end
             end
         end
     end
     
-    -- Сортируем по расстоянию
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    -- Сортируем по расстоянию и берем только ближайшие
+    table.sort(objects, function(a, b) return a.Distance < b.Distance end)
     
-    print("YBA: Всего найдено предметов:", #items)
-    return items
-end
-
-local function updateItemCache()
-    local currentTime = tick()
-    if currentTime - lastCacheUpdate < cacheUpdateInterval then
-        return itemCache
+    -- Ограничиваем количество объектов
+    local maxObjects = 20
+    if #objects > maxObjects then
+        for i = maxObjects + 1, #objects do
+            objects[i] = nil
+        end
     end
-    lastCacheUpdate = currentTime
     
-    itemCache = findItemsInWorkspace()
-    return itemCache
+    print("YBA: Найдено объектов для ESP:", #objects)
+    return objects
 end
 
 local function createItemESP(item)
@@ -2288,11 +2146,11 @@ local function createItemESP(item)
         return nil
     end
     
-    print("YBA: Создаем ESP для предмета:", item.Name)
+    print("YBA: Создаем ESP для объекта:", item.Name)
     
     local esp = {}
     
-    -- Создаем Highlight только если включен
+    -- Создаем Highlight
     if YBAConfig.ItemESP.ShowOutline then
         local success, highlight = pcall(function()
             local hl = Instance.new("Highlight")
@@ -2303,18 +2161,18 @@ local function createItemESP(item)
             hl.OutlineColor = YBAConfig.ItemESP.OutlineColor
             hl.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
             hl.Parent = item.Object
-            print("YBA: Highlight создан для:", item.Name)
             return hl
         end)
         
         if success then
             esp.highlight = highlight
+            print("YBA: Highlight создан для:", item.Name)
         else
             print("YBA: Ошибка при создании Highlight для:", item.Name)
         end
     end
     
-    -- Создаем BillboardGui только если включен
+    -- Создаем BillboardGui
     if YBAConfig.ItemESP.ShowText then
         local success, billboard = pcall(function()
             local bg = Instance.new("BillboardGui")
@@ -2333,20 +2191,19 @@ local function createItemESP(item)
             tl.TextYAlignment = Enum.TextYAlignment.Center
             tl.Text = string.format("%s\n%dm", item.Name, math.floor(item.Distance))
             
-            print("YBA: BillboardGui создан для:", item.Name)
             return {billboard = bg, text = tl}
         end)
         
         if success then
             esp.billboard = billboard.billboard
             esp.text = billboard.text
+            print("YBA: BillboardGui создан для:", item.Name)
         else
             print("YBA: Ошибка при создании BillboardGui для:", item.Name)
         end
     end
     
     itemESPElements[item.Object] = esp
-    print("YBA: ESP создан для предмета:", item.Name)
     return esp
 end
 
@@ -2393,21 +2250,8 @@ local function startItemESP()
     print("YBA: Показывать обводку:", YBAConfig.ItemESP.ShowOutline)
     print("YBA: Показывать текст:", YBAConfig.ItemESP.ShowText)
     
-    -- Тестируем поиск всех объектов в workspace
-    print("YBA: Тестируем поиск объектов в workspace...")
-    local testCount = 0
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            testCount = testCount + 1
-            if testCount <= 20 then -- Показываем первые 20 объектов
-                print("YBA: Объект", testCount, ":", obj.Name, "Тип:", obj.ClassName)
-            end
-        end
-    end
-    print("YBA: Всего найдено BasePart и Model:", testCount)
-    
     local lastUpdate = 0
-    local updateInterval = 0.5 -- Обновляем каждые 0.5 секунды
+    local updateInterval = 1 -- Обновляем каждую секунду
     
     -- Основной цикл обновления Item ESP
     local itemESPLoop = RunService.Heartbeat:Connect(function()
@@ -2423,15 +2267,15 @@ local function startItemESP()
         end
         lastUpdate = currentTime
         
-        -- Получаем предметы из кэша
-        local items = updateItemCache()
-        local currentItems = {}
+        -- Получаем все объекты
+        local objects = getAllObjects()
+        local currentObjects = {}
         
-        -- Обрабатываем только первые 15 предметов
-        for i = 1, math.min(15, #items) do
-            local item = items[i]
+        -- Обрабатываем объекты
+        for i = 1, math.min(10, #objects) do
+            local item = objects[i]
             if item and item.Object and item.Object.Parent then
-                currentItems[item.Object] = true
+                currentObjects[item.Object] = true
                 
                 -- Создаем ESP только если его еще нет
                 if not itemESPElements[item.Object] then
@@ -2443,9 +2287,9 @@ local function startItemESP()
             end
         end
         
-        -- Удаляем ESP для предметов, которых больше нет в кэше
+        -- Удаляем ESP для объектов, которых больше нет
         for obj, esp in pairs(itemESPElements) do
-            if not currentItems[obj] then
+            if not currentObjects[obj] then
                 pcall(removeItemESP, {Object = obj})
             end
         end
@@ -2459,9 +2303,6 @@ local function stopItemESP()
     itemESPEnabled = false
     
     print("YBA: Item ESP деактивирован!")
-    
-    -- Очищаем кэш
-    itemCache = {}
     
     -- Удаляем все ESP элементы
     for obj, esp in pairs(itemESPElements) do
@@ -3563,11 +3404,41 @@ forceSearchItemsBtn.AutoButtonColor = false
 Instance.new("UICorner", forceSearchItemsBtn).CornerRadius = UDim.new(0,6)
 
 forceSearchItemsBtn.MouseButton1Click:Connect(function()
-    print("YBA: Принудительный поиск предметов...")
-    local items = findItemsInWorkspace()
-    print("YBA: Найдено предметов:", #items)
-    for i = 1, math.min(10, #items) do
-        local item = items[i]
-        print("YBA: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+    print("YBA: Принудительный поиск объектов...")
+    local objects = getAllObjects()
+    print("YBA: Найдено объектов:", #objects)
+    for i = 1, math.min(10, #objects) do
+        local item = objects[i]
+        print("YBA: Объект", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+    end
+end)
+
+-- Кнопка для тестирования ESP на ближайшем объекте
+local testESPBtn = Instance.new("TextButton", innerContainer)
+testESPBtn.Size = UDim2.new(1, -10, 0, 28)
+testESPBtn.Text = "TEST ESP ON NEAREST OBJECT"
+testESPBtn.Font = Enum.Font.GothamBold
+testESPBtn.TextSize = 12
+testESPBtn.TextColor3 = Color3.new(1,1,1)
+testESPBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+testESPBtn.AutoButtonColor = false
+Instance.new("UICorner", testESPBtn).CornerRadius = UDim.new(0,6)
+
+testESPBtn.MouseButton1Click:Connect(function()
+    print("YBA: Тестируем ESP на ближайшем объекте...")
+    local objects = getAllObjects()
+    if #objects > 0 then
+        local nearestObject = objects[1]
+        print("YBA: Ближайший объект:", nearestObject.Name, "на расстоянии", math.floor(nearestObject.Distance), "м")
+        
+        -- Создаем ESP для этого объекта
+        local esp = createItemESP(nearestObject)
+        if esp then
+            print("YBA: ESP успешно создан для:", nearestObject.Name)
+        else
+            print("YBA: Ошибка при создании ESP для:", nearestObject.Name)
+        end
+    else
+        print("YBA: Объекты не найдены")
     end
 end) 
