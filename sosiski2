@@ -3579,6 +3579,7 @@ testESPBtn.MouseButton1Click:Connect(function()
         end
     else
         print("YBA: Предметы YBA не найдены или произошла ошибка")
+    end
 end)
 
 -- Конец файла
