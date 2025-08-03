@@ -3477,6 +3477,7 @@ end)
 
 toggle("Show Text", YBAConfig.ItemESP.ShowText, function(v) 
     YBAConfig.ItemESP.ShowText = v 
+end)
 
 slider("Max Distance", 50, 300, YBAConfig.ItemESP.MaxDistance, function(v)
     YBAConfig.ItemESP.MaxDistance = v
@@ -3575,8 +3576,10 @@ testESPBtn.MouseButton1Click:Connect(function()
             print("YBA: ESP успешно создан для:", nearestObject.Name)
         else
             print("YBA: Ошибка при создании ESP для:", nearestObject.Name)
+        end
     else
         print("YBA: Предметы YBA не найдены или произошла ошибка")
+    end
 end)
 
 -- Конец файла
