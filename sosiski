@@ -49,7 +49,6 @@ local FlyConfig = {
 local NoClipConfig = {
     Enabled = false,
     ToggleKey = nil,
-    ForceToggleKey = nil, -- Горячая клавиша для FORCE NOCLIP
 }
 
 -- Система SpeedHack
@@ -779,15 +778,11 @@ UserInputService.InputBegan:Connect(function(input, gp)
                 guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
             end
         elseif NoClipConfig.ToggleKey and input.KeyCode == NoClipConfig.ToggleKey then
-            NoClipConfig.Enabled = not NoClipConfig.Enabled
-            if NoClipConfig.Enabled then 
-                startNoClip() 
-            else 
-                stopNoClip() 
-            end
-            -- Обновляем GUI
-            if guiCallbacks.noClip then
-                guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
+            -- FORCE NOCLIP переключение
+            if isNoClipping then
+                stopNoClip()
+            else
+                startNoClip()
             end
         elseif SpeedHackConfig.ToggleKey and input.KeyCode == SpeedHackConfig.ToggleKey then
             SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
@@ -816,13 +811,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.teleport then
                 guiCallbacks.teleport.Text = "Выбранный игрок: " .. (TeleportConfig.SelectedPlayerName or "Не выбран")
             end
-        elseif NoClipConfig.ForceToggleKey and input.KeyCode == NoClipConfig.ForceToggleKey then
-            if isNoClipping then
-                stopNoClip()
-            else
-                startNoClip()
-            end
-        end
+
     end
 end)
 
@@ -1097,18 +1086,20 @@ screenGui.ResetOnSpawn = false
 local frame = Instance.new("Frame", screenGui)
 frame.Name = "MainFrame"
 frame.Position = UDim2.new(0, 20, 0.5, -200)
-frame.Size = UDim2.new(0, 300, 0, 0)
+frame.Size = UDim2.new(0, 250, 0, 0)
 frame.AutomaticSize = Enum.AutomaticSize.Y
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
+frame.ZIndex = 10
 
 local titleBar = Instance.new("Frame", frame)
 titleBar.Name = "TitleBar"
 titleBar.Size = UDim2.new(1, 0, 0, 36)
 titleBar.Position = UDim2.new(0, 0, 0, 0)
 titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+titleBar.ZIndex = 11
 
 local titleText = Instance.new("TextLabel", titleBar)
 titleText.Name = "TitleText"
@@ -1120,6 +1111,7 @@ titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 14
 titleText.TextColor3 = Color3.new(1, 1, 1)
 titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.ZIndex = 12
 
 local collapseBtn = Instance.new("TextButton", titleBar)
 collapseBtn.Name = "Collapse"
@@ -1130,6 +1122,7 @@ collapseBtn.Font = Enum.Font.GothamBold
 collapseBtn.TextSize = 18
 collapseBtn.TextColor3 = Color3.new(1, 1, 1)
 collapseBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+collapseBtn.ZIndex = 12
 Instance.new("UICorner", collapseBtn).CornerRadius = UDim.new(0, 6)
 
 local scroll = Instance.new("ScrollingFrame", frame)
@@ -1140,6 +1133,7 @@ scroll.ScrollBarThickness = 6
 scroll.BackgroundTransparency = 1
 scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 scroll.ClipsDescendants = true
+scroll.ZIndex = 9
 
 local innerContainer = Instance.new("Frame", scroll)
 innerContainer.Name = "InnerContainer"
@@ -1148,11 +1142,12 @@ innerContainer.Size = UDim2.new(1, -20, 0, 0)
 innerContainer.Position = UDim2.new(0, 10, 0, 0)
 innerContainer.AutomaticSize = Enum.AutomaticSize.Y
 innerContainer.ClipsDescendants = false
+innerContainer.ZIndex = 8
 
 local function toggleMenu()
     Config.MenuCollapsed = not Config.MenuCollapsed
     local collapsed = Config.MenuCollapsed
-    local size = collapsed and UDim2.new(0, 280, 0, 40) or UDim2.new(0, 280, 0, 800)
+    local size = collapsed and UDim2.new(0, 230, 0, 40) or UDim2.new(0, 230, 0, 800)
     local text = collapsed and "+" or "−"
     local color = collapsed and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
 
@@ -1580,29 +1575,6 @@ end)
 -- Обновляем статус каждые 0.5 секунды
 RunService.Heartbeat:Connect(function()
     updateNoClipStatus()
-end)
-
--- Кнопка для назначения горячей клавиши FORCE NOCLIP
-local forceNoClipKeyBtn = Instance.new("TextButton", innerContainer)
-forceNoClipKeyBtn.Size = UDim2.new(1, -10, 0, 24)
-forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. (NoClipConfig.ForceToggleKey and tostring(NoClipConfig.ForceToggleKey.Name) or "None") .. "]"
-forceNoClipKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-forceNoClipKeyBtn.TextColor3 = Color3.new(1,1,1)
-forceNoClipKeyBtn.Font = Enum.Font.Gotham
-forceNoClipKeyBtn.TextSize = 13
-forceNoClipKeyBtn.AutoButtonColor = false
-Instance.new("UICorner", forceNoClipKeyBtn).CornerRadius = UDim.new(0,6)
-
-forceNoClipKeyBtn.MouseButton1Click:Connect(function()
-    forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [Press any key]"
-    local conn
-    conn = UserInputService.InputBegan:Connect(function(input, gp)
-        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
-            conn:Disconnect()
-            NoClipConfig.ForceToggleKey = input.KeyCode
-            forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
-        end
-    end)
 end)
 
 -- Разделитель
