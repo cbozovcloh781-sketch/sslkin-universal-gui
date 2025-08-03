@@ -1,7 +1,6 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
-print("=== SSLKIN SCRIPT STARTED ===")
-print("Game loaded successfully")
+
 
 -- Services
 local Players = game:GetService("Players")
@@ -819,13 +818,16 @@ UserInputService.InputBegan:Connect(function(input, gp)
                 guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
             end
         elseif NoClipConfig.ToggleKey and input.KeyCode == NoClipConfig.ToggleKey then
-            -- FORCE NOCLIP переключение
-            if isNoClipping then
-                stopNoClip()
-            else
-                startNoClip()
+            NoClipConfig.Enabled = not NoClipConfig.Enabled
+            if NoClipConfig.Enabled then 
+                startNoClip() 
+            else 
+                stopNoClip() 
             end
-            print("NoClip переключен через горячую клавишу")
+            -- Обновляем GUI
+            if guiCallbacks.noClip then
+                guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
+            end
         elseif SpeedHackConfig.ToggleKey and input.KeyCode == SpeedHackConfig.ToggleKey then
             SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
             if SpeedHackConfig.Enabled then 
@@ -1122,11 +1124,9 @@ UserInputService.InputBegan:Connect(function(inp, gp)
 end)
 
 -- GUI Setup 
-print("Создаем GUI...")
 local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
 screenGui.ResetOnSpawn = false
-print("GUI создан успешно")
 
 local frame = Instance.new("Frame", screenGui)
 frame.Name = "MainFrame"
@@ -1559,62 +1559,15 @@ divider3.BorderSizePixel = 0
 -- 🟪 NoClip System Integration
 sectionHeader("🟪 NoClip Settings")
 
--- Индикатор статуса NoClip
-local noClipStatusLabel = Instance.new("TextLabel", innerContainer)
-noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
-noClipStatusLabel.Text = "NoClip Status: OFF"
-noClipStatusLabel.Font = Enum.Font.GothamBold
-noClipStatusLabel.TextSize = 12
-noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-noClipStatusLabel.BackgroundTransparency = 1
-noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
--- Кнопка для принудительного включения/выключения NoClip
-local forceNoClipBtn = Instance.new("TextButton", innerContainer)
-forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
-forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-forceNoClipBtn.Font = Enum.Font.GothamBold
-forceNoClipBtn.TextSize = 14
-forceNoClipBtn.TextColor3 = Color3.new(1,1,1)
-forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-forceNoClipBtn.AutoButtonColor = false
-Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
-
--- Функция обновления статуса NoClip
-local function updateNoClipStatus()
-    if isNoClipping then
-        noClipStatusLabel.Text = "NoClip Status: ON"
-        noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
-        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-    else
-        noClipStatusLabel.Text = "NoClip Status: OFF"
-        noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-    end
-end
-
-forceNoClipBtn.MouseButton1Click:Connect(function()
-    if isNoClipping then
-        stopNoClip()
-        forceNoClipBtn.Text = "NOCLIP DISABLED"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-        task.wait(1)
-        updateNoClipStatus()
-    else
-        startNoClip()
-        forceNoClipBtn.Text = "NOCLIP ENABLED"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
-        task.wait(1)
-        updateNoClipStatus()
+local noClipToggleBtn = toggle("NoClip", NoClipConfig.Enabled, function(v)
+    NoClipConfig.Enabled = v
+    if v then startNoClip() else stopNoClip() end
+    -- Обновляем текст кнопки
+    if guiCallbacks.noClip then
+        guiCallbacks.noClip.Text = "NoClip: " .. (v and "ON" or "OFF")
     end
 end)
-
--- Обновляем статус каждые 0.5 секунды
-RunService.Heartbeat:Connect(function()
-    updateNoClipStatus()
-end)
+guiCallbacks.noClip = noClipToggleBtn
 
 -- Разделитель
 local divider4 = Instance.new("Frame", innerContainer)
@@ -2013,5 +1966,4 @@ task.spawn(function()
     end
 end)
 
-print("Скрипт полностью загружен!")
-print("Нажмите Insert для открытия меню") 
+ 
