@@ -2051,31 +2051,9 @@ FOVCircle.Radius = Config.Aimbot.FOV
 end)
 
 
-UserInputService.InputBegan:Connect(function(inp, gp)
-    if gp then return end
-    if inp.UserInputType == Enum.UserInputType.Keyboard then
-        if Config.ESP.ToggleKey and inp.KeyCode == Config.ESP.ToggleKey then
-            Config.ESP.Enabled = not Config.ESP.Enabled
-            print("ESP toggled:", Config.ESP.Enabled)
-        elseif Config.Aimbot.ToggleKey and inp.KeyCode == Config.Aimbot.ToggleKey then
-            Config.Aimbot.Enabled = not Config.Aimbot.Enabled
-            print("Aimbot toggled:", Config.Aimbot.Enabled)
-        elseif YBAConfig.ItemESP.ToggleKey and inp.KeyCode == YBAConfig.ItemESP.ToggleKey then
-            YBAConfig.ItemESP.Enabled = not YBAConfig.ItemESP.Enabled
-            if YBAConfig.ItemESP.Enabled then
-                startItemESP()
-            else
-                stopItemESP()
-            end
-            print("YBA Item ESP toggled:", YBAConfig.ItemESP.Enabled)
-        end
-    end
-end)
+-- Обработчик клавиш будет добавлен после определения функций
 
 -- YBA Item ESP Functions (Простая и эффективная версия)
-local itemESPEnabled = false
-local itemESPConnections = {}
-local itemESPElements = {}
 
 -- Функция для проверки, является ли объект предметом YBA
 local function isYBAItem(obj)
@@ -2196,8 +2174,8 @@ local function getAllObjects()
                obj.Name ~= "RightLowerLeg" and
                obj.Name ~= "LeftFoot" and
                obj.Name ~= "RightFoot" and
-                               obj.Name ~= "LeftHand" and
-                obj.Name ~= "RightHand" and
+               obj.Name ~= "LeftHand" and
+               obj.Name ~= "RightHand" and
                 -- Исключаем стенды
                 not obj.Name:find("Stand") and
                 not obj.Name:find("Star Platinum") and
@@ -2231,8 +2209,8 @@ local function getAllObjects()
                 local isItem, itemName = isYBAItem(obj)
                 
                 if isItem then
-                local itemRoot = obj
-                local success = true
+                    local itemRoot = obj
+                    local success = true
                 
                 -- Для Model ищем корневую часть
                 if obj:IsA("Model") then
@@ -2452,6 +2430,28 @@ local function stopItemESP()
     end
     itemESPConnections = {}
 end
+
+-- Обработчик клавиш для ESP, Aimbot и Item ESP
+UserInputService.InputBegan:Connect(function(inp, gp)
+    if gp then return end
+    if inp.UserInputType == Enum.UserInputType.Keyboard then
+        if Config.ESP.ToggleKey and inp.KeyCode == Config.ESP.ToggleKey then
+            Config.ESP.Enabled = not Config.ESP.Enabled
+            print("ESP toggled:", Config.ESP.Enabled)
+        elseif Config.Aimbot.ToggleKey and inp.KeyCode == Config.Aimbot.ToggleKey then
+            Config.Aimbot.Enabled = not Config.Aimbot.Enabled
+            print("Aimbot toggled:", Config.Aimbot.Enabled)
+        elseif YBAConfig.ItemESP.ToggleKey and inp.KeyCode == YBAConfig.ItemESP.ToggleKey then
+            YBAConfig.ItemESP.Enabled = not YBAConfig.ItemESP.Enabled
+            if YBAConfig.ItemESP.Enabled then
+                startItemESP()
+            else
+                stopItemESP()
+            end
+            print("YBA Item ESP toggled:", YBAConfig.ItemESP.Enabled)
+        end
+    end
+end)
 
 
 local screenGui = Instance.new("ScreenGui", CoreGui)
