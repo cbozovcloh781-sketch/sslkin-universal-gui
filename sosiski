@@ -92,6 +92,22 @@ local TeleportConfig = {
     StabilizationThreshold = 0.8,
 }
 
+local YBAConfig = {
+    Enabled = false,
+    ToggleKey = nil,
+    StandRange = 50,
+    FreezePlayer = true,
+    SwitchCamera = true,
+    TransferControl = true,
+    AutoFindStands = true,
+    MaxStandDistance = 100,
+    CameraDistance = 15,
+    CameraHeight = 5,
+    StandControlSpeed = 1.0,
+    StandControlSmoothing = 0.1,
+    MouseSensitivity = 0.01,
+}
+
 local isFlying = false
 local flyConnections = {}
 local originalGravity = workspace.Gravity
@@ -121,6 +137,18 @@ local isStabilizing = false
 local speedResetTimer = 0
 local lastSpeedCheck = tick()
 local lastBehindDistance = 0
+
+-- YBA Stand Control Variables
+local isYBAEnabled = false
+local ybaConnections = {}
+local originalPlayerPosition = nil
+local originalPlayerCFrame = nil
+local originalCameraCFrame = nil
+local controlledStand = nil
+local standControlConnections = {}
+local originalGravity = workspace.Gravity
+local originalWalkSpeed = 16
+local originalJumpPower = 50
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -972,6 +1000,357 @@ local function stopTeleport()
     end
 end
 
+-- YBA Stand Control Functions
+local function findStands()
+    local stands = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    
+    if not playerRoot then return stands end
+    
+    -- Поиск стендов в YBA (различные варианты названий)
+    local standNames = {
+        "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
+        "Star Platinum", "The World", "Hierophant Green", "Magician's Red",
+        "Hermit Purple", "Silver Chariot", "Tower of Gray", "Dark Blue Moon",
+        "Strength", "Wheel of Fortune", "Hanged Man", "Emperor", "Empress",
+        "Judgment", "High Priestess", "Death Thirteen", "Lovers", "Sun",
+        "Bastet", "Thunder McQueen", "Anubis", "Khnum", "Tohth", "Horus",
+        "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth"
+    }
+    
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") then
+            local isStand = false
+            for _, standName in ipairs(standNames) do
+                if obj.Name:find(standName) or obj.Name:lower():find(standName:lower()) then
+                    isStand = true
+                    break
+                end
+            end
+            
+            if isStand then
+                local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
+                if standRoot then
+                    local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                    if distance <= YBAConfig.MaxStandDistance then
+                        table.insert(stands, {
+                            Model = obj,
+                            Root = standRoot,
+                            Distance = distance,
+                            Name = obj.Name
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Если стенды не найдены, ищем по другим критериям
+    if #stands == 0 then
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
+                local standRoot = obj:FindFirstChild("HumanoidRootPart")
+                if standRoot then
+                    local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                    if distance <= YBAConfig.MaxStandDistance and distance > 5 then -- Исключаем самого игрока
+                        table.insert(stands, {
+                            Model = obj,
+                            Root = standRoot,
+                            Distance = distance,
+                            Name = obj.Name
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Сортируем по расстоянию
+    table.sort(stands, function(a, b) return a.Distance < b.Distance end)
+    return stands
+end
+
+local function freezePlayer()
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then return end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    
+    if root then
+        originalPlayerPosition = root.Position
+        originalPlayerCFrame = root.CFrame
+        
+        -- Создаем BodyVelocity для заморозки
+        local bv = root:FindFirstChild("BodyVelocity")
+        if not bv then
+            bv = Instance.new("BodyVelocity", root)
+            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        end
+        bv.Velocity = Vector3.new(0, 0, 0)
+    end
+    
+    if humanoid then
+        originalWalkSpeed = humanoid.WalkSpeed
+        originalJumpPower = humanoid.JumpPower
+        humanoid.WalkSpeed = 0
+        humanoid.JumpPower = 0
+    end
+end
+
+local function unfreezePlayer()
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then return end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    
+    if root then
+        local bv = root:FindFirstChild("BodyVelocity")
+        if bv then
+            bv:Destroy()
+        end
+    end
+    
+    if humanoid then
+        humanoid.WalkSpeed = originalWalkSpeed
+        humanoid.JumpPower = originalJumpPower
+    end
+end
+
+local function switchCameraToStand(stand)
+    if not stand or not stand.Root then return end
+    
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+    
+    originalCameraCFrame = camera.CFrame
+    
+    -- Переключаем камеру на стенд, но сохраняем возможность поворота
+    local standPos = stand.Root.Position
+    local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
+    
+    -- Сохраняем текущий поворот камеры
+    local currentLookVector = camera.CFrame.LookVector
+    camera.CFrame = CFrame.new(cameraPos, cameraPos + currentLookVector)
+end
+
+local function restoreCamera()
+    local camera = workspace.CurrentCamera
+    if camera and originalCameraCFrame then
+        camera.CFrame = originalCameraCFrame
+    end
+end
+
+local function controlStand(stand)
+    if not stand or not stand.Root then return end
+    
+    controlledStand = stand
+    
+    -- Переменные для управления камерой
+    local cameraRotation = Vector2.new(0, 0)
+    local lastMousePos = Vector2.new(0, 0)
+    local isMouseDown = false
+    
+    -- Обработка мыши для поворота камеры
+    local mouseConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isMouseDown = true
+            lastMousePos = UserInputService:GetMouseLocation()
+        end
+    end)
+    
+    local mouseEndConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isMouseDown = false
+        end
+    end)
+    
+    -- Создаем соединение для управления стендом
+    local controlConnection = RunService.Heartbeat:Connect(function()
+        if not isYBAEnabled or not controlledStand or not controlledStand.Root or not controlledStand.Root.Parent then
+            return
+        end
+        
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+        
+        -- Получаем ввод пользователя
+        local moveVector = Vector3.new(0, 0, 0)
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        if moveVector.Magnitude > 0 then
+            moveVector = moveVector.Unit * (YBAConfig.StandControlSpeed * 50)
+            
+            -- Применяем движение к стенду
+            local standRoot = controlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", standRoot)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            end
+            
+            -- Плавное движение с предотвращением рывков
+            if bv.Velocity.Magnitude > 0 then
+                local currentVel = bv.Velocity
+                local targetVel = moveVector
+                local smoothedVel = currentVel:Lerp(targetVel, YBAConfig.StandControlSmoothing)
+                
+                -- Ограничиваем максимальное изменение скорости
+                local maxSpeedChange = YBAConfig.StandControlSpeed * 10
+                local speedDiff = (smoothedVel - currentVel).Magnitude
+                if speedDiff > maxSpeedChange then
+                    smoothedVel = currentVel + (smoothedVel - currentVel).Unit * maxSpeedChange
+                end
+                
+                bv.Velocity = smoothedVel
+            else
+                bv.Velocity = moveVector
+            end
+        else
+            -- Плавная остановка
+            local standRoot = controlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if bv and bv.Velocity.Magnitude > 0 then
+                bv.Velocity = bv.Velocity * (1 - YBAConfig.StandControlSmoothing)
+                if bv.Velocity.Magnitude < 1 then
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                end
+            end
+        end
+        
+        -- Обновляем позицию камеры для следования за стендом с возможностью поворота
+        if YBAConfig.SwitchCamera and controlledStand.Root then
+            local standPos = controlledStand.Root.Position
+            
+            -- Обработка поворота камеры мышью
+            if isMouseDown then
+                local currentMousePos = UserInputService:GetMouseLocation()
+                local mouseDelta = currentMousePos - lastMousePos
+                
+                -- Обновляем поворот камеры
+                cameraRotation = cameraRotation + Vector2.new(mouseDelta.X * YBAConfig.MouseSensitivity, mouseDelta.Y * YBAConfig.MouseSensitivity)
+                
+                -- Ограничиваем вертикальный поворот
+                cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
+                
+                lastMousePos = currentMousePos
+            end
+            
+            -- Вычисляем позицию камеры с учетом поворота
+            local cameraOffset = Vector3.new(
+                math.sin(cameraRotation.X) * YBAConfig.CameraDistance,
+                YBAConfig.CameraHeight + math.sin(cameraRotation.Y) * 10,
+                math.cos(cameraRotation.X) * YBAConfig.CameraDistance
+            )
+            
+            local cameraPos = standPos + cameraOffset
+            local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
+            
+            -- Плавно перемещаем камеру
+            local currentCameraPos = camera.CFrame.Position
+            local cameraMoveDirection = (cameraPos - currentCameraPos)
+            
+            if cameraMoveDirection.Magnitude > 1 then
+                -- Плавное перемещение камеры
+                local smoothedCameraPos = currentCameraPos:Lerp(cameraPos, 0.1)
+                camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
+            else
+                -- Если камера уже близко к цели, просто обновляем позицию
+                camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+            end
+        end
+    end)
+    
+    table.insert(standControlConnections, controlConnection)
+    table.insert(standControlConnections, mouseConnection)
+    table.insert(standControlConnections, mouseEndConnection)
+end
+
+local function startYBA()
+    if isYBAEnabled then return end
+    
+    isYBAEnabled = true
+    YBAConfig.Enabled = true
+    
+    -- Находим ближайший стенд
+    local stands = findStands()
+    if #stands == 0 then
+        print("YBA: Стенды не найдены в радиусе " .. YBAConfig.MaxStandDistance)
+        return
+    end
+    
+    local targetStand = stands[1] -- Берем ближайший стенд
+    print("YBA: Найден стенд - " .. targetStand.Name .. " на расстоянии " .. math.floor(targetStand.Distance))
+    
+    -- Замораживаем игрока
+    if YBAConfig.FreezePlayer then
+        freezePlayer()
+    end
+    
+    -- Переключаем камеру
+    if YBAConfig.SwitchCamera then
+        switchCameraToStand(targetStand)
+    end
+    
+    -- Передаем управление стенду
+    if YBAConfig.TransferControl then
+        controlStand(targetStand)
+    end
+    
+    print("YBA: Stand Range Hack активирован!")
+end
+
+local function stopYBA()
+    if not isYBAEnabled then return end
+    
+    isYBAEnabled = false
+    YBAConfig.Enabled = false
+    
+    -- Восстанавливаем управление игроком
+    unfreezePlayer()
+    
+    -- Восстанавливаем камеру
+    restoreCamera()
+    
+    -- Останавливаем управление стендом
+    for _, connection in ipairs(standControlConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    standControlConnections = {}
+    controlledStand = nil
+    
+    print("YBA: Stand Range Hack деактивирован!")
+end
+
 local function getAlivePlayers()
     local alivePlayers = {}
     
@@ -1114,6 +1493,16 @@ UserInputService.InputBegan:Connect(function(input, gp)
                 stopNoClip()
             else
                 startNoClip()
+            end
+        elseif YBAConfig.ToggleKey and input.KeyCode == YBAConfig.ToggleKey then
+            if YBAConfig.Enabled then
+                stopYBA()
+            else
+                startYBA()
+            end
+            
+            if guiCallbacks.yba then
+                guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
         end
     end
@@ -1726,6 +2115,10 @@ keyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
     TeleportConfig.ToggleKey = newKey
 end)
 
+keyBindButton("YBA Stand Range", YBAConfig.ToggleKey, function(newKey)
+    YBAConfig.ToggleKey = newKey
+end)
+
 
 
 
@@ -1779,6 +2172,9 @@ local function updateStatusDisplay()
     end
     if guiCallbacks.teleport then
         guiCallbacks.teleport.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
+    end
+    if guiCallbacks.yba then
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
     end
 end
 
@@ -2069,6 +2465,50 @@ stopTeleportBtn.MouseButton1Click:Connect(function()
         task.wait(2)
         stopTeleportBtn.Text = "STOP TELEPORT"
     end
+end)
+
+-- YBA Stand Range Hack Section
+sectionHeader("🟪 YBA Stand Range Hack")
+
+local ybaSpacer = Instance.new("Frame", innerContainer)
+ybaSpacer.Size = UDim2.new(1, -10, 0, 10)
+ybaSpacer.BackgroundTransparency = 1
+
+local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+    YBAConfig.Enabled = v
+    if v then 
+        startYBA() 
+    else 
+        stopYBA() 
+    end
+    if guiCallbacks.yba then
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.yba = ybaToggleBtn
+
+slider("Stand Range", 10, 200, YBAConfig.MaxStandDistance, function(v)
+    YBAConfig.MaxStandDistance = v
+end)
+
+slider("Camera Distance", 5, 50, YBAConfig.CameraDistance, function(v)
+    YBAConfig.CameraDistance = v
+end)
+
+slider("Camera Height", 1, 20, YBAConfig.CameraHeight, function(v)
+    YBAConfig.CameraHeight = v
+end)
+
+slider("Stand Control Speed", 0.1, 3.0, YBAConfig.StandControlSpeed, function(v)
+    YBAConfig.StandControlSpeed = v
+end)
+
+slider("Control Smoothing", 0.01, 0.5, YBAConfig.StandControlSmoothing, function(v)
+    YBAConfig.StandControlSmoothing = v
+end)
+
+slider("Mouse Sensitivity", 0.001, 0.05, YBAConfig.MouseSensitivity, function(v)
+    YBAConfig.MouseSensitivity = v
 end)
 
 
