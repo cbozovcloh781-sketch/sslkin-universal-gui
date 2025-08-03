@@ -103,6 +103,7 @@ local originalJumpPower = 50
 
 local isLongJumping = false
 local longJumpConnections = {}
+local originalLongJumpPower = 50
 
 local isInfiniteJumping = false
 local infiniteJumpConnections = {}
@@ -400,7 +401,7 @@ local function startLongJump()
     if not hum then return end
     
     isLongJumping = true
-    
+    originalLongJumpPower = hum.JumpPower
     
     hum.JumpPower = LongJumpConfig.JumpPower
     
@@ -436,7 +437,7 @@ local function stopLongJump()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then
-        hum.JumpPower = originalJumpPower
+        hum.JumpPower = originalLongJumpPower
     end
     
     
@@ -646,7 +647,7 @@ local function createStealthTeleport()
             end
             
             
-            if behindDistance <= 1.0 and not isStabilizing then
+            if behindDistance <= 1.5 and not isStabilizing then
                 isStabilizing = true
                 stabilizationStartTime = tick()
                 lastTeleportPosition = behindPosition.Position
@@ -663,13 +664,17 @@ local function createStealthTeleport()
                 if stabilizationTime < TeleportConfig.StabilizationTime then
                     local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
                     local correctionDirection = (newBehindPosition.Position - currentPos)
+                    local correctionMagnitude = correctionDirection.Magnitude
                     
-                    if correctionDirection.Magnitude > 0.3 then
-                        
+                    if correctionMagnitude > 0.8 then
+                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.6)
+                    elseif correctionMagnitude > 0.3 then
                         bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.4)
+                    elseif correctionMagnitude > 0.1 then
+                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.2)
                     else
-                        
-                        bv.Velocity = correctionDirection * (TeleportConfig.TeleportSpeed * 0.1)
+                        bv.Velocity = Vector3.new(0, 0, 0)
+                        root.CFrame = newBehindPosition
                     end
                 else
                     
@@ -683,25 +688,41 @@ local function createStealthTeleport()
                 local newDirection = (behindPosition.Position - currentPos).Unit
                 
                 if distance > 20 then
-                    
                     bv.Velocity = (targetPos - currentPos).Unit * TeleportConfig.TeleportSpeed
-                elseif distance > 8 then
-                    
-                    bv.Velocity = newDirection * TeleportConfig.TeleportSpeed
-                elseif distance > 3 then
-                    
-                    local dotProduct = currentVelocity.Unit:Dot(newDirection)
-                    
-                    if dotProduct < 0.5 then
-                        
-                        bv.Velocity = newDirection * TeleportConfig.InstantTurnSpeed
+                elseif distance > 15 then
+                    local behindPosDistance = (behindPosition.Position - currentPos).Magnitude
+                    if behindPosDistance > 3.0 then
+                        bv.Velocity = newDirection * TeleportConfig.TeleportSpeed
                     else
-                        
                         bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.8)
                     end
-                else
+                elseif distance > 8 then
+                    local behindPosDistance = (behindPosition.Position - currentPos).Magnitude
+                    if behindPosDistance > 1.5 then
+                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.7)
+                    else
+                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.4)
+                    end
+                elseif distance > 3 then
+                    local dotProduct = currentVelocity.Unit:Dot(newDirection)
+                    local behindPosDistance = (behindPosition.Position - currentPos).Magnitude
                     
-                    bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.5)
+                    if behindPosDistance > 2.0 then
+                        if dotProduct < 0.5 then
+                            bv.Velocity = newDirection * TeleportConfig.InstantTurnSpeed
+                        else
+                            bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.8)
+                        end
+                    else
+                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.3)
+                    end
+                else
+                    local behindPosDistance = (behindPosition.Position - currentPos).Magnitude
+                    if behindPosDistance > 1.0 then
+                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.6)
+                    else
+                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.2)
+                    end
                 end
             end
         end
