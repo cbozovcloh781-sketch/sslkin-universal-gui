@@ -890,7 +890,8 @@ end
 local function rayVisible(p)
     if not Config.Aimbot.VisibilityCheck then return true end
     local cam=workspace.CurrentCamera
-    local head=p.Character and p.Character:FindFirstChild("Head") if not head then return false end
+    local head=p.Character and p.Character:FindFirstChild("Head") 
+    if not head then return false end
     local rp=RaycastParams.new()
     rp.FilterType=Enum.RaycastFilterType.Blacklist
     rp.FilterDescendantsInstances={Players.LocalPlayer.Character,p.Character}
