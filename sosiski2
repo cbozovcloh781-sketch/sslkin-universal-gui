@@ -111,6 +111,21 @@ local YBAConfig = {
     CameraFollowHeight = 6.1,
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
+    -- Item ESP Configuration
+    ItemESP = {
+        Enabled = false,
+        ToggleKey = nil,
+        MaxDistance = 500,
+        ShowOutline = true,
+        ShowText = true,
+        FillColor = Color3.fromRGB(255, 215, 0), -- Золотой цвет для предметов
+        OutlineColor = Color3.fromRGB(255, 255, 0),
+        TextColor = Color3.fromRGB(255, 255, 255),
+        FillTransparency = 0.3,
+        OutlineTransparency = 0,
+        TextSize = 14,
+        Font = Enum.Font.GothamBold,
+    }
 }
 
 local isFlying = false
@@ -171,6 +186,11 @@ local freeCameraHeight = 5
 local freeCameraTarget = nil
 local freeCameraLastMousePos = Vector2.new(0, 0)
 local lastCameraUpdate = nil
+
+-- Item ESP Variables
+local itemESPConnections = {}
+local itemESPElements = {}
+local itemESPEnabled = false
 
 -- Новая система свободной камеры для YBA Stand Range
 local YBAFreeCamera = {} do
@@ -1766,6 +1786,17 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
+        elseif YBAConfig.ItemESP.ToggleKey and input.KeyCode == YBAConfig.ItemESP.ToggleKey then
+            YBAConfig.ItemESP.Enabled = not YBAConfig.ItemESP.Enabled
+            if YBAConfig.ItemESP.Enabled then
+                startItemESP()
+            else
+                stopItemESP()
+            end
+            
+            if guiCallbacks.itemESP then
+                guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
+            end
         end
     end
 end)
@@ -2029,9 +2060,249 @@ UserInputService.InputBegan:Connect(function(inp, gp)
         elseif Config.Aimbot.ToggleKey and inp.KeyCode == Config.Aimbot.ToggleKey then
             Config.Aimbot.Enabled = not Config.Aimbot.Enabled
             print("Aimbot toggled:", Config.Aimbot.Enabled)
+        elseif YBAConfig.ItemESP.ToggleKey and inp.KeyCode == YBAConfig.ItemESP.ToggleKey then
+            YBAConfig.ItemESP.Enabled = not YBAConfig.ItemESP.Enabled
+            if YBAConfig.ItemESP.Enabled then
+                startItemESP()
+            else
+                stopItemESP()
+            end
+            print("YBA Item ESP toggled:", YBAConfig.ItemESP.Enabled)
         end
     end
 end)
+
+-- YBA Item ESP Functions
+local function findItems()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    
+    if not playerRoot then 
+        return items 
+    end
+    
+    -- Список названий предметов в YBA
+    local itemNames = {
+        "Arrow", "Rokakaka", "Rib Cage", "Heart", "Pelvis", "Requiem Arrow", "Dio's Diary",
+        "Mysterious Arrow", "Steel Ball", "Corpse Part", "Corpse", "Dio's Bone", "Dio's Diary",
+        "Diamond", "Emerald", "Ruby", "Sapphire", "Gold", "Silver", "Bronze", "Iron",
+        "Stand Arrow", "Rokakaka Fruit", "Rokakaka", "Rokakaka Fruit", "Rokakaka", "Rokakaka",
+        "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow",
+        "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka",
+        "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage",
+        "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart",
+        "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis",
+        "Requiem Arrow", "Requiem Arrow", "Requiem Arrow", "Requiem Arrow", "Requiem Arrow",
+        "Dio's Diary", "Dio's Diary", "Dio's Diary", "Dio's Diary", "Dio's Diary",
+        "Mysterious Arrow", "Mysterious Arrow", "Mysterious Arrow", "Mysterious Arrow",
+        "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball",
+        "Corpse Part", "Corpse Part", "Corpse Part", "Corpse Part", "Corpse Part",
+        "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse",
+        "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone",
+        -- Дополнительные предметы
+        "Item", "Pickup", "Collectible", "Treasure", "Loot", "Drop", "Reward",
+        "Fragment", "Piece", "Part", "Component", "Material", "Resource",
+        "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow", "Arrow",
+        "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka", "Rokakaka",
+        "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage", "Rib Cage",
+        "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart", "Heart",
+        "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis", "Pelvis",
+        "Requiem Arrow", "Requiem Arrow", "Requiem Arrow", "Requiem Arrow",
+        "Dio's Diary", "Dio's Diary", "Dio's Diary", "Dio's Diary", "Dio's Diary",
+        "Mysterious Arrow", "Mysterious Arrow", "Mysterious Arrow", "Mysterious Arrow",
+        "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball", "Steel Ball",
+        "Corpse Part", "Corpse Part", "Corpse Part", "Corpse Part", "Corpse Part",
+        "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse", "Corpse",
+        "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone"
+    }
+    
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Model") then
+            local isItem = false
+            local itemName = "Unknown Item"
+            
+            -- Проверяем название объекта
+            for _, name in ipairs(itemNames) do
+                if obj.Name:find(name) or obj.Name:lower():find(name:lower()) then
+                    isItem = true
+                    itemName = name
+                    break
+                end
+            end
+            
+            -- Проверяем родительские объекты
+            if not isItem then
+                local parent = obj.Parent
+                while parent and parent ~= workspace do
+                    for _, name in ipairs(itemNames) do
+                        if parent.Name:find(name) or parent.Name:lower():find(name:lower()) then
+                            isItem = true
+                            itemName = name
+                            break
+                        end
+                    end
+                    if isItem then break end
+                    parent = parent.Parent
+                end
+            end
+            
+            if isItem then
+                local itemRoot = obj
+                if obj:IsA("Model") then
+                    itemRoot = obj:FindFirstChild("PrimaryPart") or obj:FindFirstChild("RootPart") or obj:FindFirstChild("HumanoidRootPart")
+                end
+                
+                if itemRoot then
+                    local distance = (itemRoot.Position - playerRoot.Position).Magnitude
+                    if distance <= YBAConfig.ItemESP.MaxDistance then
+                        table.insert(items, {
+                            Object = obj,
+                            Root = itemRoot,
+                            Distance = distance,
+                            Name = itemName
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Сортируем по расстоянию
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    return items
+end
+
+local function createItemESP(item)
+    if itemESPElements[item.Object] then
+        return itemESPElements[item.Object]
+    end
+    
+    local esp = {}
+    
+    -- Создаем Highlight для обводки
+    if YBAConfig.ItemESP.ShowOutline then
+        esp.highlight = Instance.new("Highlight")
+        esp.highlight.Adornee = item.Object
+        esp.highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        esp.highlight.FillColor = YBAConfig.ItemESP.FillColor
+        esp.highlight.FillTransparency = YBAConfig.ItemESP.FillTransparency
+        esp.highlight.OutlineColor = YBAConfig.ItemESP.OutlineColor
+        esp.highlight.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
+        esp.highlight.Parent = item.Object
+    end
+    
+    -- Создаем BillboardGui для текста
+    if YBAConfig.ItemESP.ShowText then
+        esp.billboard = Instance.new("BillboardGui")
+        esp.billboard.AlwaysOnTop = true
+        esp.billboard.Size = UDim2.new(0, 200, 0, 50)
+        esp.billboard.StudsOffset = Vector3.new(0, 2, 0)
+        esp.billboard.Parent = item.Object
+        
+        esp.text = Instance.new("TextLabel", esp.billboard)
+        esp.text.Size = UDim2.new(1, 0, 1, 0)
+        esp.text.BackgroundTransparency = 1
+        esp.text.Font = YBAConfig.ItemESP.Font
+        esp.text.TextSize = YBAConfig.ItemESP.TextSize
+        esp.text.TextColor3 = YBAConfig.ItemESP.TextColor
+        esp.text.TextXAlignment = Enum.TextXAlignment.Center
+        esp.text.TextYAlignment = Enum.TextYAlignment.Center
+    end
+    
+    itemESPElements[item.Object] = esp
+    return esp
+end
+
+local function updateItemESP(item)
+    local esp = itemESPElements[item.Object]
+    if not esp then return end
+    
+    if esp.text then
+        esp.text.Text = string.format("%s\n%dm", item.Name, math.floor(item.Distance))
+    end
+end
+
+local function removeItemESP(item)
+    local esp = itemESPElements[item.Object]
+    if not esp then return end
+    
+    if esp.highlight and esp.highlight.Parent then
+        esp.highlight:Destroy()
+    end
+    if esp.billboard and esp.billboard.Parent then
+        esp.billboard:Destroy()
+    end
+    
+    itemESPElements[item.Object] = nil
+end
+
+local function startItemESP()
+    if itemESPEnabled then return end
+    itemESPEnabled = true
+    
+    print("YBA: Item ESP активирован!")
+    
+    -- Основной цикл обновления Item ESP
+    local itemESPLoop = RunService.RenderStepped:Connect(function()
+        if not YBAConfig.ItemESP.Enabled then
+            stopItemESP()
+            return
+        end
+        
+        local success, items = pcall(findItems)
+        if not success then
+            print("YBA: Ошибка при поиске предметов:", items)
+            return
+        end
+        
+        local currentItems = {}
+        
+        for _, item in ipairs(items) do
+            if item and item.Object and item.Object.Parent then
+                currentItems[item.Object] = true
+                local success1 = pcall(createItemESP, item)
+                local success2 = pcall(updateItemESP, item)
+                if not success1 then
+                    print("YBA: Ошибка при создании ESP для предмета:", item.Name)
+                end
+                if not success2 then
+                    print("YBA: Ошибка при обновлении ESP для предмета:", item.Name)
+                end
+            end
+        end
+        
+        -- Удаляем ESP для предметов, которые больше не видны
+        for obj, esp in pairs(itemESPElements) do
+            if not currentItems[obj] then
+                pcall(removeItemESP, {Object = obj})
+            end
+        end
+    end)
+    
+    table.insert(itemESPConnections, itemESPLoop)
+end
+
+local function stopItemESP()
+    if not itemESPEnabled then return end
+    itemESPEnabled = false
+    
+    print("YBA: Item ESP деактивирован!")
+    
+    -- Удаляем все ESP элементы
+    for obj, esp in pairs(itemESPElements) do
+        pcall(removeItemESP, {Object = obj})
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(itemESPConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    itemESPConnections = {}
+end
 
 
 local screenGui = Instance.new("ScreenGui", CoreGui)
@@ -2381,6 +2652,10 @@ keyBindButton("YBA Stand Range", YBAConfig.ToggleKey, function(newKey)
     YBAConfig.ToggleKey = newKey
 end)
 
+keyBindButton("YBA Item ESP", YBAConfig.ItemESP.ToggleKey, function(newKey)
+    YBAConfig.ItemESP.ToggleKey = newKey
+end)
+
 
 
 
@@ -2437,6 +2712,9 @@ local function updateStatusDisplay()
     end
     if guiCallbacks.yba then
         guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+    end
+    if guiCallbacks.itemESP then
+        guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
     end
 end
 
@@ -2983,6 +3261,14 @@ task.spawn(function()
     end
 end)
 
+-- Инициализация Item ESP при запуске
+if YBAConfig.ItemESP.Enabled then
+    task.spawn(function()
+        task.wait(2) -- Ждем загрузки игры
+        startItemESP()
+    end)
+end
+
 -- YBA Hacks Section (в конце меню)
 sectionHeader("🟪 YBA Hacks")
 
@@ -3014,4 +3300,60 @@ controlsInfo.BorderSizePixel = 1
 controlsInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
 controlsInfo.TextXAlignment = Enum.TextXAlignment.Left
 controlsInfo.TextYAlignment = Enum.TextYAlignment.Top
-Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4) 
+Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4)
+
+-- YBA Item ESP Controls
+sectionHeader("🎯 YBA Item ESP")
+
+local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
+    YBAConfig.ItemESP.Enabled = v
+    if v then 
+        startItemESP() 
+    else 
+        stopItemESP() 
+    end
+    if guiCallbacks.itemESP then
+        guiCallbacks.itemESP.Text = "Item ESP: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.itemESP = itemESPToggleBtn
+
+-- Отключаем навигацию для кнопки Item ESP
+itemESPToggleBtn.AutoButtonColor = false
+
+-- Настройки Item ESP
+toggle("Show Outline", YBAConfig.ItemESP.ShowOutline, function(v) 
+    YBAConfig.ItemESP.ShowOutline = v 
+end)
+
+toggle("Show Text", YBAConfig.ItemESP.ShowText, function(v) 
+    YBAConfig.ItemESP.ShowText = v 
+end)
+
+slider("Max Distance", 50, 1000, YBAConfig.ItemESP.MaxDistance, function(v)
+    YBAConfig.ItemESP.MaxDistance = v
+end)
+
+slider("Fill Transparency", 0, 1, YBAConfig.ItemESP.FillTransparency, function(v)
+    YBAConfig.ItemESP.FillTransparency = v
+end)
+
+slider("Outline Transparency", 0, 1, YBAConfig.ItemESP.OutlineTransparency, function(v)
+    YBAConfig.ItemESP.OutlineTransparency = v
+end)
+
+slider("Text Size", 8, 20, YBAConfig.ItemESP.TextSize, function(v)
+    YBAConfig.ItemESP.TextSize = v
+end)
+
+colorPicker("Fill Color", YBAConfig.ItemESP.FillColor, function(c)
+    YBAConfig.ItemESP.FillColor = c
+end)
+
+colorPicker("Outline Color", YBAConfig.ItemESP.OutlineColor, function(c)
+    YBAConfig.ItemESP.OutlineColor = c
+end)
+
+colorPicker("Text Color", YBAConfig.ItemESP.TextColor, function(c)
+    YBAConfig.ItemESP.TextColor = c
+end) 
