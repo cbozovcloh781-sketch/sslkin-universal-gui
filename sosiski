@@ -1212,7 +1212,7 @@ local function activateFreeCamera(stand)
     freeCameraHeight = 5
     freeCameraLastMousePos = UserInputService:GetMouseLocation()
     
-    -- Полностью отключаем управление персонажем
+    -- Полностью отключаем управление персонажем и замораживаем его
     local player = Players.LocalPlayer
     if player and player.Character then
         local humanoid = player.Character:FindFirstChild("Humanoid")
@@ -1222,15 +1222,29 @@ local function activateFreeCamera(stand)
             humanoid.JumpPower = 0
         end
         
-        -- Замораживаем персонажа
+        -- Замораживаем персонажа на месте
         local root = player.Character:FindFirstChild("HumanoidRootPart")
         if root then
-            local bv = root:FindFirstChild("BodyVelocity")
-            if not bv then
-                bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            -- Удаляем старые BodyVelocity если есть
+            local oldBv = root:FindFirstChild("BodyVelocity")
+            if oldBv then
+                oldBv:Destroy()
             end
+            
+            -- Создаем новый BodyVelocity для заморозки
+            local bv = Instance.new("BodyVelocity", root)
+            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
             bv.Velocity = Vector3.new(0, 0, 0)
+            
+            -- Создаем BodyGyro для фиксации поворота
+            local oldGyro = root:FindFirstChild("BodyGyro")
+            if oldGyro then
+                oldGyro:Destroy()
+            end
+            
+            local gyro = Instance.new("BodyGyro", root)
+            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            gyro.CFrame = root.CFrame
         end
     end
     
@@ -1388,6 +1402,11 @@ local function disableFreeCamera()
             if bv then
                 bv:Destroy()
             end
+            
+            local gyro = root:FindFirstChild("BodyGyro")
+            if gyro then
+                gyro:Destroy()
+            end
         end
     end
 end
@@ -1482,6 +1501,20 @@ local function controlFreeCamera(stand)
                 humanoid.WalkSpeed = 0
                 humanoid.JumpPower = 0
             end
+            
+            -- Дополнительно замораживаем персонажа каждый кадр
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                local bv = root:FindFirstChild("BodyVelocity")
+                if bv then
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                end
+                
+                local gyro = root:FindFirstChild("BodyGyro")
+                if gyro then
+                    gyro.CFrame = root.CFrame
+                end
+            end
         end
         
         -- Обработка мыши для поворота камеры (как в Infinite Yield)
@@ -1547,6 +1580,9 @@ local function controlFreeCamera(stand)
         local standPos = freeCameraTarget.Root.Position
         local standHead = freeCameraTarget.Root.Position + Vector3.new(0, 2, 0) -- Голова стенда
         
+        -- Принудительно отвязываем камеру от персонажа каждый кадр
+        camera.CameraType = Enum.CameraType.Scriptable
+        
         -- Вычисляем позицию камеры за головой стенда (как в YBA)
         local cameraOffset = Vector3.new(
             math.sin(freeCameraRotation.X) * freeCameraDistance,
@@ -1583,7 +1619,7 @@ local function controlFreeCamera(stand)
         end
     end)
     
-    -- Обработка колесика мыши для изменения расстояния камеры
+    -- Обработка колесика мыши для изменения расстояния камеры (относительно стенда)
     local mouseWheelConnection = UserInputService.InputChanged:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         
@@ -1593,6 +1629,18 @@ local function controlFreeCamera(stand)
                 freeCameraDistance = math.max(5, freeCameraDistance - zoomSpeed)
             else
                 freeCameraDistance = math.min(30, freeCameraDistance + zoomSpeed)
+            end
+            
+            -- Принудительно обновляем камеру после изменения зума
+            if freeCameraTarget and freeCameraTarget.Root then
+                local standHead = freeCameraTarget.Root.Position + Vector3.new(0, 2, 0)
+                local cameraOffset = Vector3.new(
+                    math.sin(freeCameraRotation.X) * freeCameraDistance,
+                    freeCameraHeight + math.sin(freeCameraRotation.Y) * 5,
+                    math.cos(freeCameraRotation.X) * freeCameraDistance
+                )
+                local cameraPos = standHead + cameraOffset
+                camera.CFrame = CFrame.new(cameraPos, standHead)
             end
         end
     end)
