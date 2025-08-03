@@ -1117,6 +1117,12 @@ local function freezePlayer()
             gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
         end
         gyro.CFrame = root.CFrame
+        
+        -- Принудительно отключаем камеру от персонажа
+        local camera = workspace.CurrentCamera
+        if camera then
+            camera.CameraType = Enum.CameraType.Scriptable
+        end
     end
     
     if humanoid then
@@ -1195,6 +1201,15 @@ local function switchCameraToStand(stand)
     wait(0.1)
     camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
     print("YBA: Камера принудительно обновлена")
+    
+    -- Дополнительно отключаем камеру от персонажа
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = false
+        end
+    end
 end
 
 local function restoreCamera()
@@ -1204,6 +1219,15 @@ local function restoreCamera()
         camera.CameraType = Enum.CameraType.Custom
         if originalCameraCFrame then
             camera.CFrame = originalCameraCFrame
+        end
+        
+        -- Восстанавливаем управление персонажем
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = true
+            end
         end
     end
 end
@@ -1233,6 +1257,11 @@ local function controlStand(stand)
         local camera = workspace.CurrentCamera
         if not camera then 
             return 
+        end
+        
+        -- Принудительно устанавливаем правильный тип камеры
+        if camera.CameraType ~= Enum.CameraType.Scriptable then
+            camera.CameraType = Enum.CameraType.Scriptable
         end
         
         -- Обработка мыши для поворота камеры (всегда активна)
@@ -1344,7 +1373,7 @@ local function controlStand(stand)
         end
         
         -- Свободная камера, следующая за стендом
-        if YBAConfig.SwitchCamera and controlledStand.Root and camera.CameraType == Enum.CameraType.Scriptable then
+        if YBAConfig.SwitchCamera and controlledStand.Root then
             local standPos = controlledStand.Root.Position
             
             -- Вычисляем позицию камеры с учетом поворота
@@ -1358,6 +1387,7 @@ local function controlStand(stand)
             local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
             
             -- Принудительно обновляем камеру каждый кадр
+            camera.CameraType = Enum.CameraType.Scriptable
             camera.CFrame = CFrame.new(cameraPos, lookAtPos)
             
             -- Отладочная информация (только первые несколько кадров)
