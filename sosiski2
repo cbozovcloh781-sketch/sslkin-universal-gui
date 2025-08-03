@@ -95,7 +95,7 @@ local TeleportConfig = {
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
-    StandRange = 100000, -- Увеличена дистанция ударов стенда
+    StandRange = 1000000, -- Увеличена дистанция ударов стенда до максимума
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
@@ -2934,6 +2934,7 @@ local function updatePlayerList()
                not child.Text:find("STOP TELEPORT") and 
                not child.Text:find("Hotkey:") and 
                not child.Text:find("YBA Stand Range") and 
+               not child.Text:find("YBA Hacks") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
             end
@@ -2941,7 +2942,7 @@ local function updatePlayerList()
     end
     
     for _, child in ipairs(innerContainer:GetChildren()) do
-        if child:IsA("TextLabel") and child.Text and child.Text:find("---") then
+        if child:IsA("TextLabel") and child.Text and child.Text:find("---") and not child.Text:find("YBA Hacks") then
             child:Destroy()
         end
     end
