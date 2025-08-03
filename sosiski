@@ -87,6 +87,7 @@ local TeleportConfig = {
     MaxSpeedResetTime = 1.5,
     SpeedResetThreshold = 80,
     InstantTurnSpeed = 2000,
+    FollowSmoothness = 0.2,
 }
 
 local isFlying = false
@@ -555,6 +556,9 @@ local function createStealthTeleport()
     end
     
     local root = char:FindFirstChild("HumanoidRootPart")
+    -- Ensure no leftover BodyVelocity objects are present, which could cause jitter when following
+    local prevBV = root and root:FindFirstChild("BodyVelocity")
+    if prevBV then prevBV:Destroy() end
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
     if not root or not targetRoot or not humanoid then 
@@ -641,6 +645,10 @@ local function createStealthTeleport()
             local targetLookVector = targetCFrame.LookVector
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
             local behindDistance = (behindPosition.Position - currentPos).Magnitude
+            
+            -- Smooth follow: directly move the local player behind the target with interpolation
+            root.CFrame = root.CFrame:Lerp(behindPosition, TeleportConfig.FollowSmoothness)
+            return
             
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
