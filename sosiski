@@ -1190,6 +1190,11 @@ local function switchCameraToStand(stand)
     print("YBA: Камера переключена на стенд")
     print("YBA: Позиция камеры: " .. tostring(cameraPos))
     print("YBA: Позиция стенда: " .. tostring(standPos))
+    
+    -- Принудительно обновляем камеру еще раз
+    wait(0.1)
+    camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+    print("YBA: Камера принудительно обновлена")
 end
 
 local function restoreCamera()
@@ -1348,7 +1353,7 @@ local function controlStand(stand)
         end
         
         -- Свободная камера, следующая за стендом
-        if YBAConfig.SwitchCamera and controlledStand.Root then
+        if YBAConfig.SwitchCamera and controlledStand.Root and camera.CameraType == Enum.CameraType.Scriptable then
             local standPos = controlledStand.Root.Position
             
             -- Вычисляем позицию камеры с учетом поворота
@@ -1361,18 +1366,8 @@ local function controlStand(stand)
             local cameraPos = standPos + cameraOffset
             local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
             
-            -- Плавно перемещаем камеру
-            local currentCameraPos = camera.CFrame.Position
-            local cameraMoveDirection = (cameraPos - currentCameraPos)
-            
-            if cameraMoveDirection.Magnitude > 1 then
-                -- Плавное перемещение камеры
-                local smoothedCameraPos = currentCameraPos:Lerp(cameraPos, YBAConfig.CameraSmoothing or 0.08)
-                camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
-            else
-                -- Если камера уже близко к цели, просто обновляем позицию
-                camera.CFrame = CFrame.new(cameraPos, lookAtPos)
-            end
+            -- Принудительно обновляем камеру каждый кадр
+            camera.CFrame = CFrame.new(cameraPos, lookAtPos)
             
             -- Отладочная информация (только первые несколько кадров)
             if not debugCameraFrame then
