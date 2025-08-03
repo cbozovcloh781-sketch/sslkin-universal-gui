@@ -198,7 +198,6 @@ local YBAFreeCamera = {} do
     -- Ввод
     local input = {
         W = 0, A = 0, S = 0, D = 0,
-        Space = 0, LeftControl = 0,
         Up = 0, Down = 0,
         MouseDelta = Vector2.new(),
         MouseWheel = 0
@@ -226,7 +225,7 @@ local YBAFreeCamera = {} do
 
     -- Захват ввода
     local function startInput()
-        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
+        for _, key in pairs({"W", "A", "S", "D", "Up", "Down"}) do
             ContextActionService:BindActionAtPriority("FreecamKey_"..key, onKey, false, INPUT_PRIORITY, Enum.KeyCode[key])
         end
         ContextActionService:BindActionAtPriority("FreecamMouse", onMouse, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
@@ -242,7 +241,7 @@ local YBAFreeCamera = {} do
         input.MouseWheel = 0
         ContextActionService:UnbindAction("FreecamMouse")
         ContextActionService:UnbindAction("FreecamMouseWheel")
-        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
+        for _, key in pairs({"W", "A", "S", "D", "Up", "Down"}) do
             ContextActionService:UnbindAction("FreecamKey_"..key)
         end
     end
@@ -259,7 +258,7 @@ local YBAFreeCamera = {} do
         -- Управление движением стенда (исправлено)
         local moveX = input.D - input.A
         local moveZ = input.S - input.W
-        local moveY = input.Space - input.LeftControl
+        local moveY = 0 -- Отключено управление высотой камеры через Space/Ctrl
         
         local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
 
@@ -293,13 +292,7 @@ local YBAFreeCamera = {} do
             input.MouseWheel = 0
         end
 
-        -- Изменение высоты камеры клавишами Ctrl/Space
-        if input.LeftControl > 0 then
-            cameraHeight = math.max(1, cameraHeight - 0.3)
-        end
-        if input.Space > 0 then
-            cameraHeight = math.min(15, cameraHeight + 0.3)
-        end
+        -- Изменение высоты камеры отключено для фиксированной позиции
 
         -- Плавное вращение камеры
         cameraRot = cameraRot + pan
@@ -2694,117 +2687,7 @@ stopTeleportBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- YBA Stand Range Hack Section
-sectionHeader("🟪 YBA Stand Range Hack")
-
-local ybaSpacer = Instance.new("Frame", innerContainer)
-ybaSpacer.Size = UDim2.new(1, -10, 0, 10)
-ybaSpacer.BackgroundTransparency = 1
-
-local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
-    YBAConfig.Enabled = v
-    if v then 
-        startYBA() 
-    else 
-        stopYBA() 
-    end
-    if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.yba = ybaToggleBtn
-
-slider("Stand Range", 10, 200, YBAConfig.MaxStandDistance, function(v)
-    YBAConfig.MaxStandDistance = v
-end)
-
-slider("Camera Distance", 5, 50, YBAConfig.CameraDistance, function(v)
-    YBAConfig.CameraDistance = v
-end)
-
-slider("Camera Height", 1, 20, YBAConfig.CameraHeight, function(v)
-    YBAConfig.CameraHeight = v
-end)
-
-slider("Stand Control Speed", 0.1, 3.0, YBAConfig.StandControlSpeed, function(v)
-    YBAConfig.StandControlSpeed = v
-end)
-
-slider("Control Smoothing", 0.01, 0.5, YBAConfig.StandControlSmoothing, function(v)
-    YBAConfig.StandControlSmoothing = v
-end)
-
-slider("Mouse Sensitivity", 0.001, 0.05, YBAConfig.MouseSensitivity, function(v)
-    YBAConfig.MouseSensitivity = v
-end)
-
-slider("Camera Follow Distance", 10, 50, YBAConfig.CameraFollowDistance, function(v)
-    YBAConfig.CameraFollowDistance = v
-end)
-
-slider("Camera Follow Height", 1, 20, YBAConfig.CameraFollowHeight, function(v)
-    YBAConfig.CameraFollowHeight = v
-end)
-
-slider("Camera Smoothing", 0.01, 0.2, YBAConfig.CameraSmoothing, function(v)
-    YBAConfig.CameraSmoothing = v
-end)
-
-slider("Mouse Look Sensitivity", 0.001, 0.01, YBAConfig.MouseLookSensitivity, function(v)
-    YBAConfig.MouseLookSensitivity = v
-end)
-
-slider("Stand Rotation Speed", 0.01, 0.2, YBAConfig.StandRotationSpeed, function(v)
-    YBAConfig.StandRotationSpeed = v
-end)
-
--- Кнопка активации управления стендом
-local freeCameraBtn = Instance.new("TextButton", innerContainer)
-freeCameraBtn.Size = UDim2.new(1, -10, 0, 28)
-freeCameraBtn.Text = "АКТИВИРОВАТЬ УПРАВЛЕНИЕ СТЕНДОМ"
-freeCameraBtn.Font = Enum.Font.GothamBold
-freeCameraBtn.TextSize = 14
-freeCameraBtn.TextColor3 = Color3.new(1,1,1)
-freeCameraBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-freeCameraBtn.AutoButtonColor = false
-Instance.new("UICorner", freeCameraBtn).CornerRadius = UDim.new(0,6)
-
-freeCameraBtn.MouseButton1Click:Connect(function()
-    if not freeCameraActive then
-        local stands = findStands()
-        if #stands > 0 then
-            local targetStand = stands[1]
-            if activateFreeCamera(targetStand) then
-                freeCameraBtn.Text = "ОТКЛЮЧИТЬ УПРАВЛЕНИЕ СТЕНДОМ"
-                freeCameraBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-                print("YBA: Управление стендом активировано")
-            end
-        else
-            freeCameraBtn.Text = "СТЕНДЫ НЕ НАЙДЕНЫ"
-            task.wait(2)
-            freeCameraBtn.Text = "АКТИВИРОВАТЬ УПРАВЛЕНИЕ СТЕНДОМ"
-        end
-    else
-        disableFreeCamera()
-        freeCameraBtn.Text = "АКТИВИРОВАТЬ УПРАВЛЕНИЕ СТЕНДОМ"
-        freeCameraBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-        print("YBA: Управление стендом отключено")
-    end
-end)
-
--- Информация об управлении
-local controlsInfo = Instance.new("TextLabel", innerContainer)
-controlsInfo.Size = UDim2.new(1, -10, 0, 100)
-controlsInfo.Text = "Управление стендом от 3-го лица:\nWASD - Движение стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nCtrl/Space - Высота камеры\nShift - Медленное движение\nКамера следует за стендом"
-controlsInfo.Font = Enum.Font.Gotham
-controlsInfo.TextSize = 10
-controlsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
-controlsInfo.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-controlsInfo.BorderSizePixel = 1
-controlsInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
-controlsInfo.TextXAlignment = Enum.TextXAlignment.Left
-controlsInfo.TextYAlignment = Enum.TextYAlignment.Top
-Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4)
+-- YBA Hacks Section (перемещен в конец)
 
 
 local function createPlayerListInMenu()
@@ -3057,4 +2940,34 @@ task.spawn(function()
         task.wait(30)
         updatePlayerList()
     end
-end) 
+end)
+
+-- YBA Hacks Section (в конце меню)
+sectionHeader("🟪 YBA Hacks")
+
+local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+    YBAConfig.Enabled = v
+    if v then 
+        startYBA() 
+    else 
+        stopYBA() 
+    end
+    if guiCallbacks.yba then
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.yba = ybaToggleBtn
+
+-- Информация об управлении
+local controlsInfo = Instance.new("TextLabel", innerContainer)
+controlsInfo.Size = UDim2.new(1, -10, 0, 80)
+controlsInfo.Text = "Управление стендом от 3-го лица:\nWASD - Движение стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nShift - Медленное движение\nКамера зафиксирована за стендом"
+controlsInfo.Font = Enum.Font.Gotham
+controlsInfo.TextSize = 10
+controlsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+controlsInfo.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+controlsInfo.BorderSizePixel = 1
+controlsInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
+controlsInfo.TextXAlignment = Enum.TextXAlignment.Left
+controlsInfo.TextYAlignment = Enum.TextYAlignment.Top
+Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4) 
