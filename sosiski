@@ -67,10 +67,9 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil, -- Сохраняем ник выбранного игрока
     UseStealthMode = true, -- Использовать скрытый режим телепортации
-    TeleportSpeed = 1500, -- Высокая скорость для YBA
-    ReturnSpeed = 1200, -- Скорость возврата в исходную точку
-    BehindPlayerDistance = 2, -- Расстояние за спиной игрока (близко для удара)
-    UseHumanoidMethod = false, -- Использовать Humanoid вместо BodyVelocity
+    TeleportSpeed = 1800, -- Фиксированная скорость для YBA
+    ReturnSpeed = 1800, -- Скорость возврата в исходную точку
+    BehindPlayerDistance = 1.8, -- Фиксированное расстояние за спиной игрока
 }
 
 -- Переменные для полета
@@ -456,72 +455,45 @@ local function createStealthTeleport()
             local targetCFrame = currentTargetRoot.CFrame
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
             
-            if TeleportConfig.UseHumanoidMethod then
-                -- Альтернативный метод через Humanoid (более безопасный)
-                local humanoid = char:FindFirstChild("Humanoid")
-                if humanoid then
-                    if distance < 10 then
-                        -- Плавно перемещаемся за спину игрока
-                        local direction = (behindPosition.Position - currentPos).Unit
-                        local moveSpeed = TeleportConfig.TeleportSpeed * 0.2 -- Увеличиваем скорость
-                        humanoid:Move(direction)
-                        humanoid.WalkSpeed = moveSpeed
-                        
-                        -- Если мы очень близко, устанавливаем точную позицию и останавливаем движение
-                        if distance < 1.5 then
-                            root.CFrame = behindPosition
-                            humanoid.WalkSpeed = 16 -- Возвращаем нормальную скорость
-                            humanoid:Move(Vector3.new(0, 0, 0)) -- Останавливаем движение
-                        end
-                    else
-                        -- Плавное перемещение к игроку
-                        local direction = (targetPos - currentPos).Unit
-                        local speed = TeleportConfig.TeleportSpeed * 0.1
-                        humanoid:Move(direction)
-                        humanoid.WalkSpeed = speed
+            -- Стандартный метод через BodyVelocity
+            local bv = root:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", root)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- Уменьшаем силу для более естественного движения
+            end
+            
+            -- Если мы близко к игроку, позиционируемся точно за его спиной
+            if distance < 10 then
+                -- Плавно перемещаемся за спину игрока
+                local direction = (behindPosition.Position - currentPos).Unit
+                local moveSpeed = TeleportConfig.TeleportSpeed * 0.5 -- Увеличиваем скорость для быстрого приближения
+                bv.Velocity = direction * moveSpeed
+                
+                -- Если мы очень близко, устанавливаем точную позицию и останавливаем движение
+                if distance < 1.5 then
+                    -- Сначала останавливаем движение
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                    task.wait(0.1) -- Небольшая пауза
+                    
+                    -- Устанавливаем точную позицию
+                    root.CFrame = behindPosition
+                    
+                    -- Удаляем BodyVelocity чтобы избежать тряски
+                    if bv then
+                        bv:Destroy()
                     end
+                    
+                    -- Дополнительная стабилизация
+                    task.wait(0.2)
+                    root.CFrame = behindPosition
                 end
             else
-                -- Стандартный метод через BodyVelocity
-                local bv = root:FindFirstChild("BodyVelocity")
-                if not bv then
-                    bv = Instance.new("BodyVelocity", root)
-                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- Уменьшаем силу для более естественного движения
-                end
-                
-                -- Если мы близко к игроку, позиционируемся точно за его спиной
-                if distance < 10 then
-                    -- Плавно перемещаемся за спину игрока
-                    local direction = (behindPosition.Position - currentPos).Unit
-                    local moveSpeed = TeleportConfig.TeleportSpeed * 0.5 -- Увеличиваем скорость для быстрого приближения
-                    bv.Velocity = direction * moveSpeed
-                    
-                    -- Если мы очень близко, устанавливаем точную позицию и останавливаем движение
-                    if distance < 1.5 then
-                        -- Сначала останавливаем движение
-                        bv.Velocity = Vector3.new(0, 0, 0)
-                        task.wait(0.1) -- Небольшая пауза
-                        
-                        -- Устанавливаем точную позицию
-                        root.CFrame = behindPosition
-                        
-                        -- Удаляем BodyVelocity чтобы избежать тряски
-                        if bv then
-                            bv:Destroy()
-                        end
-                        
-                        -- Дополнительная стабилизация
-                        task.wait(0.2)
-                        root.CFrame = behindPosition
-                    end
-                else
-                    -- Быстрое перемещение к игроку
-                    local direction = (targetPos - currentPos).Unit
-                    local speed = TeleportConfig.TeleportSpeed
-                    -- Добавляем небольшую случайность для естественности
-                    speed = speed + math.random(-20, 20)
-                    bv.Velocity = direction * speed
-                end
+                -- Быстрое перемещение к игроку
+                local direction = (targetPos - currentPos).Unit
+                local speed = TeleportConfig.TeleportSpeed
+                -- Добавляем небольшую случайность для естественности
+                speed = speed + math.random(-20, 20)
+                bv.Velocity = direction * speed
             end
         end
     end)
@@ -675,6 +647,17 @@ local function stopTeleport()
                 -- Точная телепортация в исходную точку
                 root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
                 TeleportConfig.OriginalPosition = nil
+                
+                -- Заморозка в воздухе на 2 секунды для сброса скорости
+                local freezeBv = Instance.new("BodyVelocity", root)
+                freezeBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                freezeBv.Velocity = Vector3.new(0, 0, 0)
+                
+                task.wait(2) -- Заморозка на 2 секунды
+                
+                if freezeBv then
+                    freezeBv:Destroy()
+                end
                 
                 -- Отключаем NoClip через 5 секунд после возврата
                 task.spawn(function()
@@ -1545,6 +1528,35 @@ local noClipToggleBtn = toggle("NoClip", NoClipConfig.Enabled, function(v)
 end)
 guiCallbacks.noClip = noClipToggleBtn
 
+-- Кнопка для принудительного включения/выключения NoClip
+local forceNoClipBtn = Instance.new("TextButton", innerContainer)
+forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
+forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+forceNoClipBtn.Font = Enum.Font.GothamBold
+forceNoClipBtn.TextSize = 14
+forceNoClipBtn.TextColor3 = Color3.new(1,1,1)
+forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+forceNoClipBtn.AutoButtonColor = false
+Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
+
+forceNoClipBtn.MouseButton1Click:Connect(function()
+    if isNoClipping then
+        stopNoClip()
+        forceNoClipBtn.Text = "NOCLIP DISABLED"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+        task.wait(2)
+        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+    else
+        startNoClip()
+        forceNoClipBtn.Text = "NOCLIP ENABLED"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
+        task.wait(2)
+        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+    end
+end)
+
 -- Разделитель
 local divider4 = Instance.new("Frame", innerContainer)
 divider4.Size = UDim2.new(1, -10, 0, 2)
@@ -1613,22 +1625,15 @@ divider5.BorderSizePixel = 0
 -- 🟩 Teleport System Integration
 sectionHeader("🟩 Teleport Settings")
 
--- Настройки скорости телепортации
-slider("Teleport Speed", 500, 2500, TeleportConfig.TeleportSpeed, function(v)
-    TeleportConfig.TeleportSpeed = v
-end)
-
-slider("Return Speed", 500, 2500, TeleportConfig.ReturnSpeed, function(v)
-    TeleportConfig.ReturnSpeed = v
-end)
-
-slider("Behind Player Distance", 1, 5, TeleportConfig.BehindPlayerDistance, function(v)
-    TeleportConfig.BehindPlayerDistance = v
-end)
-
-toggle("Use Humanoid Method", TeleportConfig.UseHumanoidMethod, function(v)
-    TeleportConfig.UseHumanoidMethod = v
-end)
+-- Фиксированные настройки телепортации
+local teleportInfoLabel = Instance.new("TextLabel", innerContainer)
+teleportInfoLabel.Size = UDim2.new(1, -10, 0, 20)
+teleportInfoLabel.Text = "Teleport Speed: 1800 | Distance: 1.8m"
+teleportInfoLabel.Font = Enum.Font.Gotham
+teleportInfoLabel.TextSize = 12
+teleportInfoLabel.TextColor3 = Color3.fromRGB(200,200,200)
+teleportInfoLabel.BackgroundTransparency = 1
+teleportInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local selectedPlayerLabel = Instance.new("TextLabel", innerContainer)
 selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
