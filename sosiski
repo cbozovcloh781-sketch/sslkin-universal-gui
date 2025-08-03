@@ -80,13 +80,15 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil,
     UseStealthMode = true,
-    TeleportSpeed = 2500,
+    TeleportSpeed = 800, -- Уменьшил скорость для плавности
     ReturnSpeed = 2000,
-    BehindPlayerDistance = 2.5,
-    StabilizationTime = 0.3,
-    MaxSpeedResetTime = 1.5,
-    SpeedResetThreshold = 80,
-    InstantTurnSpeed = 2000,
+    BehindPlayerDistance = 3, -- Увеличил дистанцию для стабильности
+    StabilizationTime = 0.8, -- Увеличил время стабилизации
+    MaxSpeedResetTime = 2.0,
+    SpeedResetThreshold = 50, -- Снизил порог для более частого сброса
+    InstantTurnSpeed = 600, -- Снизил скорость поворота
+    UpdateRate = 0.05, -- Добавил контроль частоты обновления
+    SmoothingFactor = 0.15, -- Фактор сглаживания
 }
 
 local isFlying = false
@@ -118,6 +120,8 @@ local isStabilizing = false
 local speedResetTimer = 0
 local lastSpeedCheck = tick()
 local lastBehindDistance = 0
+local lastUpdateTime = 0
+local smoothedVelocity = Vector3.new(0, 0, 0)
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -566,6 +570,8 @@ local function createStealthTeleport()
     speedResetTimer = 0
     lastSpeedCheck = tick()
     lastBehindDistance = 0
+    lastUpdateTime = 0
+    smoothedVelocity = Vector3.new(0, 0, 0)
     
     
     if not TeleportConfig.OriginalPosition then
@@ -600,6 +606,13 @@ local function createStealthTeleport()
             return
         end
         
+        local currentTime = tick()
+        -- Ограничиваем частоту обновления для плавности
+        if currentTime - lastUpdateTime < TeleportConfig.UpdateRate then
+            return
+        end
+        lastUpdateTime = currentTime
+        
         
         if isNoClipping and char and char.Parent then
             for _, part in pairs(char:GetDescendants()) do
@@ -609,112 +622,73 @@ local function createStealthTeleport()
             end
         end
         
-        
-        local currentTime = tick()
-        speedResetTimer = speedResetTimer + (currentTime - lastSpeedCheck)
-        lastSpeedCheck = currentTime
-        
-        if speedResetTimer >= TeleportConfig.MaxSpeedResetTime then
-            speedResetTimer = 0
-            
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold then
-                bv.Velocity = bv.Velocity * 0.1 
-                task.wait(0.05)
-                bv.Velocity = Vector3.new(0, 0, 0)
-            end
-            
-            
-            if humanoid and humanoid.WalkSpeed > 16 then
-                humanoid.WalkSpeed = 16
-            end
-        end
-        
         local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-        if currentTargetRoot then
+        if currentTargetRoot and currentTargetRoot.Parent then
             local targetPos = currentTargetRoot.Position
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
             
-            
+            -- Вычисляем позицию за спиной игрока
             local targetCFrame = currentTargetRoot.CFrame
-            local targetLookVector = targetCFrame.LookVector
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
             local behindDistance = (behindPosition.Position - currentPos).Magnitude
             
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6) 
+                bv.MaxForce = Vector3.new(4e5, 4e5, 4e5) -- Уменьшил силу для плавности
             end
             
+            -- Вычисляем направление к целевой позиции
+            local targetDirection = (behindPosition.Position - currentPos)
+            local targetDistance = targetDirection.Magnitude
             
-            if behindDistance < 1.2 and not isStabilizing then
-                isStabilizing = true
-                stabilizationStartTime = tick()
-                lastTeleportPosition = behindPosition.Position
-                bv.Velocity = Vector3.new(0, 0, 0)
-                bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-                
-                task.spawn(function()
-                    task.wait(0.1)
-                    if isStabilizing then
-                        root.CFrame = behindPosition
-                        bv.Velocity = Vector3.new(0, 0, 0)
-                        task.wait(0.2)
-                        if bv and bv.Parent then
-                            bv:Destroy()
-                        end
-                        local newBv = Instance.new("BodyVelocity", root)
-                        newBv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-                        newBv.Velocity = Vector3.new(0, 0, 0)
-                        task.wait(0.1)
-                        if newBv and newBv.Parent then
-                            newBv:Destroy()
-                        end
-                    end
-                end)
-            end
+            -- Плавное следование с использованием сглаживания
+            local desiredVelocity = Vector3.new(0, 0, 0)
             
-            if isStabilizing then
-                local stabilizationTime = tick() - stabilizationStartTime
-                
-                if stabilizationTime < TeleportConfig.StabilizationTime then
-                    local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
-                    local correctionDirection = (newBehindPosition.Position - currentPos)
-                    local correctionMagnitude = correctionDirection.Magnitude
-                    
-                    if correctionMagnitude > 1.0 then
-                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.2)
-                    elseif correctionMagnitude > 0.5 then
-                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.1)
-                    else
-                        bv.Velocity = Vector3.new(0, 0, 0)
-                    end
-                else
-                    isStabilizing = false
-                    stabilizationStartTime = nil
-                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                end
+            if targetDistance > 8 then
+                -- Быстрое приближение при большом расстоянии
+                desiredVelocity = targetDirection.Unit * TeleportConfig.TeleportSpeed
+            elseif targetDistance > 1.5 then
+                -- Средняя скорость на средней дистанции
+                local speedMultiplier = math.min(targetDistance / 3, 1)
+                desiredVelocity = targetDirection.Unit * (TeleportConfig.TeleportSpeed * speedMultiplier * 0.7)
+            elseif targetDistance > 0.8 then
+                -- Медленное приближение вблизи
+                desiredVelocity = targetDirection.Unit * (TeleportConfig.TeleportSpeed * 0.3)
             else
-                
-                local currentVelocity = bv.Velocity
-                local newDirection = (behindPosition.Position - currentPos).Unit
-                
-                if distance > 15 then
-                    bv.Velocity = (targetPos - currentPos).Unit * TeleportConfig.TeleportSpeed
-                elseif distance > 5 then
-                    bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.8)
-                elseif distance > 2 then
-                    local dotProduct = currentVelocity.Unit:Dot(newDirection)
-                    if dotProduct < 0.7 then
-                        bv.Velocity = newDirection * TeleportConfig.InstantTurnSpeed
-                    else
-                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.6)
-                    end
-                else
-                    bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.3)
-                end
+                -- Очень медленное движение при близком расстоянии
+                desiredVelocity = targetDirection.Unit * (TeleportConfig.TeleportSpeed * 0.1)
+            end
+            
+            -- Применяем сглаживание скорости для устранения дерганья
+            local lerpFactor = TeleportConfig.SmoothingFactor
+            
+            -- Увеличиваем фактор сглаживания при близком расстоянии для большей стабильности
+            if targetDistance < 2 then
+                lerpFactor = lerpFactor * 0.7
+            end
+            
+            smoothedVelocity = smoothedVelocity:lerp(desiredVelocity, lerpFactor)
+            
+            -- Дополнительная стабилизация при очень близком расстоянии
+            if targetDistance < 0.5 then
+                smoothedVelocity = smoothedVelocity * 0.3
+            elseif targetDistance < 1.0 then
+                smoothedVelocity = smoothedVelocity * 0.6
+            end
+            
+            -- Применяем скорость с дополнительной проверкой
+            if smoothedVelocity.Magnitude > 0.1 then
+                bv.Velocity = smoothedVelocity
+            else
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+            
+            -- Мягкий сброс скорости при превышении лимитов
+            if bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold then
+                smoothedVelocity = smoothedVelocity * 0.7
+                bv.Velocity = smoothedVelocity
             end
         end
     end)
@@ -810,6 +784,8 @@ local function stopTeleport()
     lastTeleportPosition = nil
     speedResetTimer = 0
     lastBehindDistance = 0
+    lastUpdateTime = 0
+    smoothedVelocity = Vector3.new(0, 0, 0)
     TeleportConfig.Enabled = false
     
     local char = Players.LocalPlayer.Character
