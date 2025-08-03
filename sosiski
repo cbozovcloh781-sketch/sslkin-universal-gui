@@ -1214,15 +1214,6 @@ local function controlStand(stand)
         end
         
         lastMousePos = currentMousePos
-    
-    -- Создаем соединение для управления стендом
-    local controlConnection = RunService.Heartbeat:Connect(function()
-        if not isYBAEnabled or not controlledStand or not controlledStand.Root or not controlledStand.Root.Parent then
-            return
-        end
-        
-        local camera = workspace.CurrentCamera
-        if not camera then return end
         
         -- Получаем ввод пользователя для движения стенда
         local moveVector = Vector3.new(0, 0, 0)
