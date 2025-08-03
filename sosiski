@@ -67,9 +67,10 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil, -- Сохраняем ник выбранного игрока
     UseStealthMode = true, -- Использовать скрытый режим телепортации
-    TeleportSpeed = 3000, -- Увеличенная скорость телепортации
-    ReturnSpeed = 2500, -- Скорость возврата в исходную точку
+    TeleportSpeed = 150, -- Безопасная скорость для YBA
+    ReturnSpeed = 120, -- Скорость возврата в исходную точку
     BehindPlayerDistance = 5, -- Расстояние за спиной игрока
+    UseHumanoidMethod = false, -- Использовать Humanoid вместо BodyVelocity
 }
 
 -- Переменные для полета
@@ -366,7 +367,7 @@ local function stopSpeedHack()
     speedHackConnections = {}
 end
 
--- Новая улучшенная система телепортации к игрокам
+-- Новая улучшенная система телепортации к игрокам (безопасная для YBA)
 local function createStealthTeleport()
     if not TeleportConfig.TargetPlayer then 
         return 
@@ -411,28 +412,58 @@ local function createStealthTeleport()
             local targetCFrame = currentTargetRoot.CFrame
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
             
-            local bv = root:FindFirstChild("BodyVelocity")
-            if not bv then
-                bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-            end
-            
-            -- Если мы близко к игроку, позиционируемся точно за его спиной
-            if distance < 10 then
-                -- Плавно перемещаемся за спину игрока
-                local direction = (behindPosition.Position - currentPos).Unit
-                local moveSpeed = TeleportConfig.TeleportSpeed * 0.5 -- Уменьшаем скорость для точности
-                bv.Velocity = direction * moveSpeed
-                
-                -- Если мы очень близко, устанавливаем точную позицию
-                if distance < 2 then
-                    root.CFrame = behindPosition
-                    bv.Velocity = Vector3.new(0, 0, 0)
+            if TeleportConfig.UseHumanoidMethod then
+                -- Альтернативный метод через Humanoid (более безопасный)
+                local humanoid = char:FindFirstChild("Humanoid")
+                if humanoid then
+                    if distance < 15 then
+                        -- Плавно перемещаемся за спину игрока
+                        local direction = (behindPosition.Position - currentPos).Unit
+                        local moveSpeed = TeleportConfig.TeleportSpeed * 0.1 -- Очень медленная скорость
+                        humanoid:Move(direction)
+                        humanoid.WalkSpeed = moveSpeed
+                    else
+                        -- Плавное перемещение к игроку
+                        local direction = (targetPos - currentPos).Unit
+                        local speed = TeleportConfig.TeleportSpeed * 0.05
+                        humanoid:Move(direction)
+                        humanoid.WalkSpeed = speed
+                    end
                 end
             else
-                -- Быстрое перемещение к игроку
-                local direction = (targetPos - currentPos).Unit
-                bv.Velocity = direction * TeleportConfig.TeleportSpeed
+                -- Стандартный метод через BodyVelocity
+                local bv = root:FindFirstChild("BodyVelocity")
+                if not bv then
+                    bv = Instance.new("BodyVelocity", root)
+                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- Уменьшаем силу для более естественного движения
+                end
+                
+                -- Если мы близко к игроку, позиционируемся точно за его спиной
+                if distance < 15 then
+                    -- Плавно перемещаемся за спину игрока
+                    local direction = (behindPosition.Position - currentPos).Unit
+                    local moveSpeed = TeleportConfig.TeleportSpeed * 0.3 -- Еще более плавная скорость
+                    bv.Velocity = direction * moveSpeed
+                    
+                    -- Если мы очень близко, плавно подходим
+                    if distance < 3 then
+                        local finalDirection = (behindPosition.Position - currentPos).Unit
+                        bv.Velocity = finalDirection * (TeleportConfig.TeleportSpeed * 0.2)
+                    end
+                else
+                    -- Плавное перемещение к игроку с естественными паузами
+                    local direction = (targetPos - currentPos).Unit
+                    local speed = TeleportConfig.TeleportSpeed
+                    -- Добавляем небольшую случайность для естественности
+                    speed = speed + math.random(-10, 10)
+                    
+                    -- Иногда делаем небольшие паузы для естественности
+                    if math.random(1, 100) < 5 then -- 5% шанс паузы
+                        bv.Velocity = Vector3.new(0, 0, 0)
+                    else
+                        bv.Velocity = direction * speed
+                    end
+                end
             end
         end
     end)
@@ -528,11 +559,13 @@ local function stopTeleport()
                 local returnBv = root:FindFirstChild("BodyVelocity")
                 if not returnBv then
                     returnBv = Instance.new("BodyVelocity", root)
-                    returnBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                    returnBv.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- Уменьшаем силу для более естественного движения
                 end
                 
                 local returnDirection = (returnPos - currentPos).Unit
                 local returnSpeed = TeleportConfig.ReturnSpeed
+                -- Добавляем небольшую случайность для естественности
+                returnSpeed = returnSpeed + math.random(-5, 5)
                 
                 returnBv.Velocity = returnDirection * returnSpeed
             else
@@ -1479,16 +1512,20 @@ divider5.BorderSizePixel = 0
 sectionHeader("🟩 Teleport Settings")
 
 -- Настройки скорости телепортации
-slider("Teleport Speed", 1000, 5000, TeleportConfig.TeleportSpeed, function(v)
+slider("Teleport Speed", 50, 300, TeleportConfig.TeleportSpeed, function(v)
     TeleportConfig.TeleportSpeed = v
 end)
 
-slider("Return Speed", 1000, 5000, TeleportConfig.ReturnSpeed, function(v)
+slider("Return Speed", 50, 300, TeleportConfig.ReturnSpeed, function(v)
     TeleportConfig.ReturnSpeed = v
 end)
 
 slider("Behind Player Distance", 1, 10, TeleportConfig.BehindPlayerDistance, function(v)
     TeleportConfig.BehindPlayerDistance = v
+end)
+
+toggle("Use Humanoid Method", TeleportConfig.UseHumanoidMethod, function(v)
+    TeleportConfig.UseHumanoidMethod = v
 end)
 
 local selectedPlayerLabel = Instance.new("TextLabel", innerContainer)
