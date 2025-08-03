@@ -105,6 +105,7 @@ local YBAConfig = {
     CameraHeight = 5,
     StandControlSpeed = 1.0,
     StandControlSmoothing = 0.1,
+    MouseSensitivity = 0.01,
 }
 
 local isFlying = false
@@ -1129,11 +1130,13 @@ local function switchCameraToStand(stand)
     
     originalCameraCFrame = camera.CFrame
     
-    -- Переключаем камеру на стенд
+    -- Переключаем камеру на стенд, но сохраняем возможность поворота
     local standPos = stand.Root.Position
     local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
     
-    camera.CFrame = CFrame.new(cameraPos, standPos)
+    -- Сохраняем текущий поворот камеры
+    local currentLookVector = camera.CFrame.LookVector
+    camera.CFrame = CFrame.new(cameraPos, cameraPos + currentLookVector)
 end
 
 local function restoreCamera()
@@ -1147,6 +1150,29 @@ local function controlStand(stand)
     if not stand or not stand.Root then return end
     
     controlledStand = stand
+    
+    -- Переменные для управления камерой
+    local cameraRotation = Vector2.new(0, 0)
+    local lastMousePos = Vector2.new(0, 0)
+    local isMouseDown = false
+    
+    -- Обработка мыши для поворота камеры
+    local mouseConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isMouseDown = true
+            lastMousePos = UserInputService:GetMouseLocation()
+        end
+    end)
+    
+    local mouseEndConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isMouseDown = false
+        end
+    end)
     
     -- Создаем соединение для управления стендом
     local controlConnection = RunService.Heartbeat:Connect(function()
@@ -1219,15 +1245,52 @@ local function controlStand(stand)
             end
         end
         
-        -- Обновляем позицию камеры для следования за стендом
+        -- Обновляем позицию камеры для следования за стендом с возможностью поворота
         if YBAConfig.SwitchCamera and controlledStand.Root then
             local standPos = controlledStand.Root.Position
-            local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
-            camera.CFrame = CFrame.new(cameraPos, standPos)
+            
+            -- Обработка поворота камеры мышью
+            if isMouseDown then
+                local currentMousePos = UserInputService:GetMouseLocation()
+                local mouseDelta = currentMousePos - lastMousePos
+                
+                -- Обновляем поворот камеры
+                cameraRotation = cameraRotation + Vector2.new(mouseDelta.X * YBAConfig.MouseSensitivity, mouseDelta.Y * YBAConfig.MouseSensitivity)
+                
+                -- Ограничиваем вертикальный поворот
+                cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
+                
+                lastMousePos = currentMousePos
+            end
+            
+            -- Вычисляем позицию камеры с учетом поворота
+            local cameraOffset = Vector3.new(
+                math.sin(cameraRotation.X) * YBAConfig.CameraDistance,
+                YBAConfig.CameraHeight + math.sin(cameraRotation.Y) * 10,
+                math.cos(cameraRotation.X) * YBAConfig.CameraDistance
+            )
+            
+            local cameraPos = standPos + cameraOffset
+            local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
+            
+            -- Плавно перемещаем камеру
+            local currentCameraPos = camera.CFrame.Position
+            local cameraMoveDirection = (cameraPos - currentCameraPos)
+            
+            if cameraMoveDirection.Magnitude > 1 then
+                -- Плавное перемещение камеры
+                local smoothedCameraPos = currentCameraPos:Lerp(cameraPos, 0.1)
+                camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
+            else
+                -- Если камера уже близко к цели, просто обновляем позицию
+                camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+            end
         end
     end)
     
     table.insert(standControlConnections, controlConnection)
+    table.insert(standControlConnections, mouseConnection)
+    table.insert(standControlConnections, mouseEndConnection)
 end
 
 local function startYBA()
@@ -2442,6 +2505,10 @@ end)
 
 slider("Control Smoothing", 0.01, 0.5, YBAConfig.StandControlSmoothing, function(v)
     YBAConfig.StandControlSmoothing = v
+end)
+
+slider("Mouse Sensitivity", 0.001, 0.05, YBAConfig.MouseSensitivity, function(v)
+    YBAConfig.MouseSensitivity = v
 end)
 
 
