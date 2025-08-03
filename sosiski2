@@ -256,19 +256,7 @@ local YBAFreeCamera = {} do
         local standRoot = targetStand.Root
         local standPosition = standRoot.Position
         
-        -- Проверяем, не слишком ли далеко стенд от игрока (для стабильности)
-        local player = Players.LocalPlayer
-        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local playerPos = player.Character.HumanoidRootPart.Position
-            local distance = (standPosition - playerPos).Magnitude
-            
-            -- Если стенд слишком далеко, телепортируем его ближе к игроку
-            if distance > 1000 then
-                local newPos = playerPos + Vector3.new(0, 10, 0) -- На 10 единиц выше игрока
-                standRoot.CFrame = CFrame.new(newPos)
-                print("YBA: Стенд телепортирован ближе к игроку (дистанция: " .. math.floor(distance) .. ")")
-            end
-        end
+        -- Бесконечная привязка к стенду (убрана проверка дистанции)
         
         -- Управление движением стенда (исправлено)
         local moveX = input.D - input.A
@@ -318,6 +306,22 @@ local YBAFreeCamera = {} do
         cameraRot = cameraRot + pan
         cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
 
+        -- Поворот персонажа в зависимости от поворота камеры
+        local player = Players.LocalPlayer
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local playerRoot = player.Character.HumanoidRootPart
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            
+            if humanoid then
+                -- Поворачиваем персонажа в направлении камеры
+                local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
+                playerRoot.CFrame = targetCFrame
+                
+                -- Отключаем автоматический поворот персонажа
+                humanoid.AutoRotate = false
+            end
+        end
+
         -- Позиция камеры от третьего лица за стендом (фиксированная)
         local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
         local cameraOffset = Vector3.new(0, cameraHeight - 2, cameraDistance) -- Фиксированная позиция чуть ниже
@@ -346,6 +350,15 @@ local YBAFreeCamera = {} do
         cameraRot = Vector2.new()
         cameraFov = Camera.FieldOfView
         
+        -- Настраиваем персонажа для управления стендом
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = false -- Отключаем автоматический поворот персонажа
+            end
+        end
+        
         Camera.CameraType = Enum.CameraType.Scriptable
         RunService:BindToRenderStep("YBAFreecam", Enum.RenderPriority.Camera.Value, stepFreecam)
         startInput()
@@ -367,6 +380,15 @@ local YBAFreeCamera = {} do
             local bv = targetStand.Root:FindFirstChild("BodyVelocity")
             if bv then
                 bv:Destroy()
+            end
+        end
+        
+        -- Восстанавливаем нормальное поведение персонажа
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = true
             end
         end
         
@@ -1282,7 +1304,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance and distance > 0 then -- Убрано ограничение минимальной дистанции
+                    if distance <= YBAConfig.MaxStandDistance then -- Бесконечная привязка к стенду
                         foundCount = foundCount + 1
                         print("YBA: Найден стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
@@ -1307,7 +1329,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance and distance > 0 then -- Убрано ограничение минимальной дистанции
+                    if distance <= YBAConfig.MaxStandDistance then -- Бесконечная привязка к стенду
                         print("YBA: Найден альтернативный стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
                             Model = obj,
