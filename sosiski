@@ -1,5 +1,8 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
+print("=== SSLKIN SCRIPT STARTED ===")
+print("Game loaded successfully")
+
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -822,6 +825,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             else
                 startNoClip()
             end
+            print("NoClip переключен через горячую клавишу")
         elseif SpeedHackConfig.ToggleKey and input.KeyCode == SpeedHackConfig.ToggleKey then
             SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
             if SpeedHackConfig.Enabled then 
@@ -1117,9 +1121,11 @@ UserInputService.InputBegan:Connect(function(inp, gp)
 end)
 
 -- GUI Setup 
+print("Создаем GUI...")
 local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
 screenGui.ResetOnSpawn = false
+print("GUI создан успешно")
 
 local frame = Instance.new("Frame", screenGui)
 frame.Name = "MainFrame"
@@ -2004,4 +2010,7 @@ task.spawn(function()
         task.wait(30)
         updatePlayerList()
     end
-end) 
+end)
+
+print("Скрипт полностью загружен!")
+print("Нажмите Insert для открытия меню") 
