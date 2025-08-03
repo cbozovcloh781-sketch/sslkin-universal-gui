@@ -375,6 +375,11 @@ local function createStealthTeleport()
         return 
     end
     
+    local humanoid = targetChar:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        return
+    end
+    
     local root = char:FindFirstChild("HumanoidRootPart")
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
     if not root or not targetRoot then 
@@ -391,6 +396,12 @@ local function createStealthTeleport()
     
     local stealthTeleportLoop = RunService.Heartbeat:Connect(function()
         if not isTeleporting or not targetChar or not targetChar.Parent then
+            return
+        end
+        
+        local humanoid = targetChar:FindFirstChild("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then
+            stopTeleport()
             return
         end
         
@@ -413,6 +424,17 @@ local function createStealthTeleport()
     end)
     
     table.insert(teleportConnections, stealthTeleportLoop)
+    
+    local function onTargetDied()
+        if isTeleporting then
+            stopTeleport()
+        end
+    end
+    
+    if humanoid then
+        humanoid.Died:Connect(onTargetDied)
+        table.insert(teleportConnections, humanoid.Died:Connect(onTargetDied))
+    end
 end
 
 local function startTeleport()
@@ -424,6 +446,11 @@ local function startTeleport()
     local targetChar = TeleportConfig.TargetPlayer.Character
     if not char or not targetChar then 
         return 
+    end
+    
+    local humanoid = targetChar:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        return
     end
     
     local root = char:FindFirstChild("HumanoidRootPart")
@@ -746,7 +773,12 @@ local function getHealth(p)
     local h = p.Character and p.Character:FindFirstChild("Humanoid")
     return (h and h.Health>0) and math.floor(h.Health) or 0
 end
-local function isAlive(p) return getHealth(p)>0 end
+local function isAlive(p) 
+    if not p or not p.Character then return false end
+    local humanoid = p.Character:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    return humanoid.Health > 0
+end
 local function getRainbow() return Color3.fromHSV((tick()%5)/5,1,1) end
 local function getESPColor(p)
     if Config.ESP.Rainbow then return getRainbow() end
@@ -768,8 +800,12 @@ local function rayVisible(p)
     return not workspace:Raycast(cam.CFrame.Position, head.Position-cam.CFrame.Position, rp)
 end
 
--- ESP handlers
 local function createOrUpdateESP(p)
+    if not isAlive(p) then
+        removeESP(p)
+        return
+    end
+    
     if not ESPs[p] then
         local hl=Instance.new("Highlight"); hl.Adornee=p.Character; hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent=p.Character
         local bg=Instance.new("BillboardGui",p.Character); bg.AlwaysOnTop=true; bg.Size=UDim2.new(0,200,0,30); bg.StudsOffset=Vector3.new(0,2,0)
@@ -928,7 +964,7 @@ RunService.RenderStepped:Connect(function()
         local hum = char and char:FindFirstChild("Humanoid")
         local root = char and char:FindFirstChild("HumanoidRootPart")
         
-        if isPlayerAlive(player) and root then
+        if isAlive(player) and root then
             if Config.ESP.Enabled then
                 createOrUpdateESP(player)
                 if Config.ESP.ShowLines then
@@ -952,7 +988,6 @@ RunService.RenderStepped:Connect(function()
                 removeESP(player)
             end
         else
-            -- Убираем ESP если игрок мертв
             removeESP(player)
         end
     end
@@ -1527,6 +1562,15 @@ Instance.new("UICorner", startTeleportBtn).CornerRadius = UDim.new(0,6)
 startTeleportBtn.MouseButton1Click:Connect(function()
     if not TeleportConfig.TargetPlayer then
         startTeleportBtn.Text = "Select player first!"
+        task.wait(2)
+        startTeleportBtn.Text = "START TELEPORT"
+        return
+    end
+    
+    local targetChar = TeleportConfig.TargetPlayer.Character
+    local humanoid = targetChar and targetChar:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        startTeleportBtn.Text = "Player is dead!"
         task.wait(2)
         startTeleportBtn.Text = "START TELEPORT"
         return
