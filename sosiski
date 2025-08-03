@@ -49,6 +49,7 @@ local FlyConfig = {
 local NoClipConfig = {
     Enabled = false,
     ToggleKey = nil,
+    ForceToggleKey = nil, -- Горячая клавиша для FORCE NOCLIP
 }
 
 -- Система SpeedHack
@@ -815,6 +816,12 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.teleport then
                 guiCallbacks.teleport.Text = "Выбранный игрок: " .. (TeleportConfig.SelectedPlayerName or "Не выбран")
             end
+        elseif NoClipConfig.ForceToggleKey and input.KeyCode == NoClipConfig.ForceToggleKey then
+            if isNoClipping then
+                stopNoClip()
+            else
+                startNoClip()
+            end
         end
     end
 end)
@@ -1518,15 +1525,15 @@ divider3.BorderSizePixel = 0
 -- 🟪 NoClip System Integration
 sectionHeader("🟪 NoClip Settings")
 
-local noClipToggleBtn = toggle("NoClip", NoClipConfig.Enabled, function(v)
-    NoClipConfig.Enabled = v
-    if v then startNoClip() else stopNoClip() end
-    -- Обновляем текст кнопки
-    if guiCallbacks.noClip then
-        guiCallbacks.noClip.Text = "NoClip: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.noClip = noClipToggleBtn
+-- Индикатор статуса NoClip
+local noClipStatusLabel = Instance.new("TextLabel", innerContainer)
+noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
+noClipStatusLabel.Text = "NoClip Status: OFF"
+noClipStatusLabel.Font = Enum.Font.GothamBold
+noClipStatusLabel.TextSize = 12
+noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+noClipStatusLabel.BackgroundTransparency = 1
+noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 -- Кнопка для принудительного включения/выключения NoClip
 local forceNoClipBtn = Instance.new("TextButton", innerContainer)
@@ -1539,22 +1546,63 @@ forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
 forceNoClipBtn.AutoButtonColor = false
 Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
 
+-- Функция обновления статуса NoClip
+local function updateNoClipStatus()
+    if isNoClipping then
+        noClipStatusLabel.Text = "NoClip Status: ON"
+        noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
+        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+    else
+        noClipStatusLabel.Text = "NoClip Status: OFF"
+        noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+    end
+end
+
 forceNoClipBtn.MouseButton1Click:Connect(function()
     if isNoClipping then
         stopNoClip()
         forceNoClipBtn.Text = "NOCLIP DISABLED"
         forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-        task.wait(2)
-        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+        task.wait(1)
+        updateNoClipStatus()
     else
         startNoClip()
         forceNoClipBtn.Text = "NOCLIP ENABLED"
         forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
-        task.wait(2)
-        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+        task.wait(1)
+        updateNoClipStatus()
     end
+end)
+
+-- Обновляем статус каждые 0.5 секунды
+RunService.Heartbeat:Connect(function()
+    updateNoClipStatus()
+end)
+
+-- Кнопка для назначения горячей клавиши FORCE NOCLIP
+local forceNoClipKeyBtn = Instance.new("TextButton", innerContainer)
+forceNoClipKeyBtn.Size = UDim2.new(1, -10, 0, 24)
+forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. (NoClipConfig.ForceToggleKey and tostring(NoClipConfig.ForceToggleKey.Name) or "None") .. "]"
+forceNoClipKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+forceNoClipKeyBtn.TextColor3 = Color3.new(1,1,1)
+forceNoClipKeyBtn.Font = Enum.Font.Gotham
+forceNoClipKeyBtn.TextSize = 13
+forceNoClipKeyBtn.AutoButtonColor = false
+Instance.new("UICorner", forceNoClipKeyBtn).CornerRadius = UDim.new(0,6)
+
+forceNoClipKeyBtn.MouseButton1Click:Connect(function()
+    forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [Press any key]"
+    local conn
+    conn = UserInputService.InputBegan:Connect(function(input, gp)
+        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
+            conn:Disconnect()
+            NoClipConfig.ForceToggleKey = input.KeyCode
+            forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+        end
+    end)
 end)
 
 -- Разделитель
@@ -1625,15 +1673,10 @@ divider5.BorderSizePixel = 0
 -- 🟩 Teleport System Integration
 sectionHeader("🟩 Teleport Settings")
 
--- Фиксированные настройки телепортации
-local teleportInfoLabel = Instance.new("TextLabel", innerContainer)
-teleportInfoLabel.Size = UDim2.new(1, -10, 0, 20)
-teleportInfoLabel.Text = "Teleport Speed: 1800 | Distance: 1.8m"
-teleportInfoLabel.Font = Enum.Font.Gotham
-teleportInfoLabel.TextSize = 12
-teleportInfoLabel.TextColor3 = Color3.fromRGB(200,200,200)
-teleportInfoLabel.BackgroundTransparency = 1
-teleportInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+-- Пустое пространство для разделения
+local teleportSpacer = Instance.new("Frame", innerContainer)
+teleportSpacer.Size = UDim2.new(1, -10, 0, 10)
+teleportSpacer.BackgroundTransparency = 1
 
 local selectedPlayerLabel = Instance.new("TextLabel", innerContainer)
 selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
