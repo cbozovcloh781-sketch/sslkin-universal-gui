@@ -152,8 +152,8 @@ local originalCameraCFrame = nil
 local controlledStand = nil
 local standControlConnections = {}
 local originalGravity = workspace.Gravity
-local originalWalkSpeed = 16
-local originalJumpPower = 50
+local originalYBAWalkSpeed = 16
+local originalYBAJumpPower = 50
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -165,10 +165,10 @@ local function startFly()
     
     isFlying = true
     
-    local originalJumpPower = hum.JumpPower
-    local originalJumpHeight = hum.JumpHeight
-    local originalGravity = workspace.Gravity
-    local originalHipHeight = hum.HipHeight
+    local flyOriginalJumpPower = hum.JumpPower
+    local flyOriginalJumpHeight = hum.JumpHeight
+    local flyOriginalGravity = workspace.Gravity
+    local flyOriginalHipHeight = hum.HipHeight
     
     hum.JumpPower = 0
     hum.JumpHeight = 0
@@ -200,12 +200,12 @@ local function startFly()
     local renderConnection = RunService.RenderStepped:Connect(function()
         if not isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
             if hum then
-                hum.JumpPower = originalJumpPower
-                hum.JumpHeight = originalJumpHeight
-                hum.HipHeight = originalHipHeight
+                hum.JumpPower = flyOriginalJumpPower
+                hum.JumpHeight = flyOriginalJumpHeight
+                hum.HipHeight = flyOriginalHipHeight
             end
             if not isNoClipping then
-                workspace.Gravity = originalGravity
+                workspace.Gravity = flyOriginalGravity
             end
             
             inputDown:Disconnect()
@@ -1120,8 +1120,8 @@ local function freezePlayer()
     end
     
     if humanoid then
-        originalWalkSpeed = humanoid.WalkSpeed
-        originalJumpPower = humanoid.JumpPower
+        originalYBAWalkSpeed = humanoid.WalkSpeed
+        originalYBAJumpPower = humanoid.JumpPower
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
         
@@ -1152,8 +1152,8 @@ local function unfreezePlayer()
     end
     
     if humanoid then
-        humanoid.WalkSpeed = originalWalkSpeed
-        humanoid.JumpPower = originalJumpPower
+        humanoid.WalkSpeed = originalYBAWalkSpeed
+        humanoid.JumpPower = originalYBAJumpPower
         
         -- Восстанавливаем стандартные настройки персонажа
         humanoid.AutoRotate = true
@@ -1222,25 +1222,16 @@ local function controlStand(stand)
     local lastMousePos = UserInputService:GetMouseLocation()
     local cameraDistance = YBAConfig.CameraFollowDistance
     local cameraHeight = YBAConfig.CameraFollowHeight
+    local debugCameraFrame = 0
     
     -- Создаем соединение для управления стендом и камерой
     local controlConnection = RunService.Heartbeat:Connect(function()
         if not isYBAEnabled or not controlledStand or not controlledStand.Root or not controlledStand.Root.Parent then
-            if not isYBAEnabled then
-                print("YBA: YBA отключен")
-            elseif not controlledStand then
-                print("YBA: Стенд не найден")
-            elseif not controlledStand.Root then
-                print("YBA: Root стенда не найден")
-            elseif not controlledStand.Root.Parent then
-                print("YBA: Родитель стенда не найден")
-            end
             return
         end
         
         local camera = workspace.CurrentCamera
         if not camera then 
-            print("YBA: Камера не найдена в цикле управления")
             return 
         end
         
@@ -1370,11 +1361,8 @@ local function controlStand(stand)
             camera.CFrame = CFrame.new(cameraPos, lookAtPos)
             
             -- Отладочная информация (только первые несколько кадров)
-            if not debugCameraFrame then
-                debugCameraFrame = 0
-            end
             debugCameraFrame = debugCameraFrame + 1
-            if debugCameraFrame <= 10 then
+            if debugCameraFrame <= 5 then
                 print("YBA: Камера обновлена - Позиция: " .. tostring(cameraPos) .. ", Стенд: " .. tostring(standPos))
             end
         end
