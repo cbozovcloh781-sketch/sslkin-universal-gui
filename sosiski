@@ -1245,13 +1245,14 @@ local function controlStand(stand)
         
         if mouseDelta.Magnitude > 0 then
             -- Обновляем поворот камеры
-            cameraRotation = cameraRotation + Vector2.new(
-                mouseDelta.X * YBAConfig.MouseLookSensitivity, 
-                mouseDelta.Y * YBAConfig.MouseLookSensitivity
-            )
+            local newRotationX = cameraRotation.X + mouseDelta.X * YBAConfig.MouseLookSensitivity
+            local newRotationY = cameraRotation.Y + mouseDelta.Y * YBAConfig.MouseLookSensitivity
             
             -- Ограничиваем вертикальный поворот
-            cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
+            newRotationY = math.clamp(newRotationY, -1.5, 1.5)
+            
+            -- Создаем новый Vector2
+            cameraRotation = Vector2.new(newRotationX, newRotationY)
         end
         
         lastMousePos = currentMousePos
