@@ -2094,29 +2094,34 @@ local function getAllObjects()
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") or obj:IsA("Model") then
             -- Исключаем игроков и их части
-            if not obj:FindFirstChild("Humanoid") and not obj:FindFirstChild("HumanoidRootPart") then
+            if not obj:FindFirstChild("Humanoid") and not obj:FindFirstChild("HumanoidRootPart") and obj.Name ~= "HumanoidRootPart" then
                 local itemRoot = obj
+                local success = true
                 
                 -- Для Model ищем корневую часть
                 if obj:IsA("Model") then
                     itemRoot = obj:FindFirstChild("PrimaryPart") or 
                                obj:FindFirstChild("RootPart") or 
                                obj:FindFirstChild("Main") or
-                               obj:FindFirstChild("Part")
+                               obj:FindFirstChild("Part") or
+                               obj:FindFirstChild("HumanoidRootPart")
+                    
+                    -- Если не нашли корневую часть, пропускаем этот Model
+                    if not itemRoot then
+                        success = false
+                    end
                 end
                 
-                if not itemRoot then
-                    itemRoot = obj
-                end
-                
-                local distance = (itemRoot.Position - playerRoot.Position).Magnitude
-                if distance <= YBAConfig.ItemESP.MaxDistance then
-                    table.insert(objects, {
-                        Object = obj,
-                        Root = itemRoot,
-                        Distance = distance,
-                        Name = obj.Name
-                    })
+                if success and itemRoot then
+                    local distance = (itemRoot.Position - playerRoot.Position).Magnitude
+                    if distance <= YBAConfig.ItemESP.MaxDistance then
+                        table.insert(objects, {
+                            Object = obj,
+                            Root = itemRoot,
+                            Distance = distance,
+                            Name = obj.Name
+                        })
+                    end
                 end
             end
         end
@@ -2164,7 +2169,7 @@ local function createItemESP(item)
             return hl
         end)
         
-        if success then
+        if success and highlight then
             esp.highlight = highlight
             print("YBA: Highlight создан для:", item.Name)
         else
@@ -2194,7 +2199,7 @@ local function createItemESP(item)
             return {billboard = bg, text = tl}
         end)
         
-        if success then
+        if success and billboard then
             esp.billboard = billboard.billboard
             esp.text = billboard.text
             print("YBA: BillboardGui создан для:", item.Name)
@@ -2268,21 +2273,23 @@ local function startItemESP()
         lastUpdate = currentTime
         
         -- Получаем все объекты
-        local objects = getAllObjects()
+        local success, objects = pcall(getAllObjects)
         local currentObjects = {}
         
-        -- Обрабатываем объекты
-        for i = 1, math.min(10, #objects) do
-            local item = objects[i]
-            if item and item.Object and item.Object.Parent then
-                currentObjects[item.Object] = true
-                
-                -- Создаем ESP только если его еще нет
-                if not itemESPElements[item.Object] then
-                    pcall(createItemESP, item)
-                else
-                    -- Обновляем только текст
-                    pcall(updateItemESP, item)
+        if success and objects then
+            -- Обрабатываем объекты
+            for i = 1, math.min(10, #objects) do
+                local item = objects[i]
+                if item and item.Object and item.Object.Parent then
+                    currentObjects[item.Object] = true
+                    
+                    -- Создаем ESP только если его еще нет
+                    if not itemESPElements[item.Object] then
+                        pcall(createItemESP, item)
+                    else
+                        -- Обновляем только текст
+                        pcall(updateItemESP, item)
+                    end
                 end
             end
         end
@@ -3405,11 +3412,15 @@ Instance.new("UICorner", forceSearchItemsBtn).CornerRadius = UDim.new(0,6)
 
 forceSearchItemsBtn.MouseButton1Click:Connect(function()
     print("YBA: Принудительный поиск объектов...")
-    local objects = getAllObjects()
-    print("YBA: Найдено объектов:", #objects)
-    for i = 1, math.min(10, #objects) do
-        local item = objects[i]
-        print("YBA: Объект", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+    local success, objects = pcall(getAllObjects)
+    if success and objects then
+        print("YBA: Найдено объектов:", #objects)
+        for i = 1, math.min(10, #objects) do
+            local item = objects[i]
+            print("YBA: Объект", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+        end
+    else
+        print("YBA: Ошибка при поиске объектов")
     end
 end)
 
@@ -3426,8 +3437,8 @@ Instance.new("UICorner", testESPBtn).CornerRadius = UDim.new(0,6)
 
 testESPBtn.MouseButton1Click:Connect(function()
     print("YBA: Тестируем ESP на ближайшем объекте...")
-    local objects = getAllObjects()
-    if #objects > 0 then
+    local success, objects = pcall(getAllObjects)
+    if success and objects and #objects > 0 then
         local nearestObject = objects[1]
         print("YBA: Ближайший объект:", nearestObject.Name, "на расстоянии", math.floor(nearestObject.Distance), "м")
         
@@ -3439,6 +3450,6 @@ testESPBtn.MouseButton1Click:Connect(function()
             print("YBA: Ошибка при создании ESP для:", nearestObject.Name)
         end
     else
-        print("YBA: Объекты не найдены")
+        print("YBA: Объекты не найдены или произошла ошибка")
     end
 end) 
