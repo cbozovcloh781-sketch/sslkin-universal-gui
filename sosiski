@@ -1160,10 +1160,10 @@ local function switchCameraToStand(stand)
     local standPos = stand.Root.Position
     local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
     
-    -- Отключаем стандартную камеру Roblox
+    -- Отключаем стандартную камеру Roblox и создаем свободную камеру
     camera.CameraType = Enum.CameraType.Scriptable
     
-    -- Устанавливаем камеру на позицию стенда
+    -- Инициализируем позицию камеры
     camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
 end
 
@@ -1183,28 +1183,37 @@ local function controlStand(stand)
     
     controlledStand = stand
     
-    -- Переменные для управления камерой
+    -- Переменные для свободной камеры
     local cameraRotation = Vector2.new(0, 0)
-    local lastMousePos = Vector2.new(0, 0)
-    local isMouseDown = false
+    local lastMousePos = UserInputService:GetMouseLocation()
+    local cameraDistance = YBAConfig.CameraFollowDistance
+    local cameraHeight = YBAConfig.CameraFollowHeight
     
-    -- Обработка мыши для поворота камеры
-    local mouseConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isMouseDown = true
-            lastMousePos = UserInputService:GetMouseLocation()
+    -- Создаем соединение для управления стендом и камерой
+    local controlConnection = RunService.Heartbeat:Connect(function()
+        if not isYBAEnabled or not controlledStand or not controlledStand.Root or not controlledStand.Root.Parent then
+            return
         end
-    end)
-    
-    local mouseEndConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
         
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isMouseDown = false
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+        
+        -- Обработка мыши для поворота камеры (всегда активна)
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local mouseDelta = currentMousePos - lastMousePos
+        
+        if mouseDelta.Magnitude > 0 then
+            -- Обновляем поворот камеры
+            cameraRotation = cameraRotation + Vector2.new(
+                mouseDelta.X * YBAConfig.MouseLookSensitivity, 
+                mouseDelta.Y * YBAConfig.MouseLookSensitivity
+            )
+            
+            -- Ограничиваем вертикальный поворот
+            cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
         end
-    end)
+        
+        lastMousePos = currentMousePos
     
     -- Создаем соединение для управления стендом
     local controlConnection = RunService.Heartbeat:Connect(function()
@@ -1215,26 +1224,45 @@ local function controlStand(stand)
         local camera = workspace.CurrentCamera
         if not camera then return end
         
-        -- Получаем ввод пользователя
+        -- Получаем ввод пользователя для движения стенда
         local moveVector = Vector3.new(0, 0, 0)
         
+        -- Создаем базовое направление движения относительно камеры
+        local forward = Vector3.new(math.sin(cameraRotation.X), 0, math.cos(cameraRotation.X))
+        local right = Vector3.new(math.cos(cameraRotation.X), 0, -math.sin(cameraRotation.X))
+        
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveVector = moveVector + camera.CFrame.LookVector
+            moveVector = moveVector + forward
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveVector = moveVector - camera.CFrame.LookVector
+            moveVector = moveVector - forward
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveVector = moveVector - camera.CFrame.RightVector
+            moveVector = moveVector - right
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveVector = moveVector + camera.CFrame.RightVector
+            moveVector = moveVector + right
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
             moveVector = moveVector + Vector3.new(0, 1, 0)
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        -- Изменение высоты камеры клавишами Q и E
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+            cameraHeight = math.max(1, cameraHeight - 0.5)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+            cameraHeight = math.min(20, cameraHeight + 0.5)
+        end
+        
+        -- Сброс камеры клавишей R
+        if UserInputService:IsKeyDown(Enum.KeyCode.R) then
+            cameraRotation = Vector2.new(0, 0)
+            cameraDistance = YBAConfig.CameraFollowDistance
+            cameraHeight = YBAConfig.CameraFollowHeight
         end
         
         if moveVector.Magnitude > 0 then
@@ -1286,32 +1314,15 @@ local function controlStand(stand)
             end
         end
         
-        -- Обновляем позицию камеры для следования за стендом с возможностью поворота
+        -- Свободная камера, следующая за стендом
         if YBAConfig.SwitchCamera and controlledStand.Root then
             local standPos = controlledStand.Root.Position
             
-            -- Обработка поворота камеры мышью (всегда активна, не только при зажатой кнопке)
-            local currentMousePos = UserInputService:GetMouseLocation()
-            local mouseDelta = currentMousePos - lastMousePos
-            
-            if mouseDelta.Magnitude > 0 then
-                -- Обновляем поворот камеры с улучшенной чувствительностью
-                cameraRotation = cameraRotation + Vector2.new(
-                    mouseDelta.X * YBAConfig.MouseLookSensitivity, 
-                    mouseDelta.Y * YBAConfig.MouseLookSensitivity
-                )
-                
-                -- Ограничиваем вертикальный поворот
-                cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
-            end
-            
-            lastMousePos = currentMousePos
-            
             -- Вычисляем позицию камеры с учетом поворота
             local cameraOffset = Vector3.new(
-                math.sin(cameraRotation.X) * YBAConfig.CameraFollowDistance,
-                YBAConfig.CameraFollowHeight + math.sin(cameraRotation.Y) * 10,
-                math.cos(cameraRotation.X) * YBAConfig.CameraFollowDistance
+                math.sin(cameraRotation.X) * cameraDistance,
+                cameraHeight + math.sin(cameraRotation.Y) * 10,
+                math.cos(cameraRotation.X) * cameraDistance
             )
             
             local cameraPos = standPos + cameraOffset
@@ -1332,9 +1343,22 @@ local function controlStand(stand)
         end
     end)
     
+    -- Обработка колесика мыши для изменения расстояния камеры
+    local mouseWheelConnection = UserInputService.InputChanged:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            local zoomSpeed = 2
+            if input.Position.Z > 0 then
+                cameraDistance = math.max(5, cameraDistance - zoomSpeed)
+            else
+                cameraDistance = math.min(50, cameraDistance + zoomSpeed)
+            end
+        end
+    end)
+    
     table.insert(standControlConnections, controlConnection)
-    table.insert(standControlConnections, mouseConnection)
-    table.insert(standControlConnections, mouseEndConnection)
+    table.insert(standControlConnections, mouseWheelConnection)
 end
 
 local function startYBA()
@@ -2574,6 +2598,20 @@ end)
 slider("Stand Rotation Speed", 0.01, 0.2, YBAConfig.StandRotationSpeed, function(v)
     YBAConfig.StandRotationSpeed = v
 end)
+
+-- Информация об управлении
+local controlsInfo = Instance.new("TextLabel", innerContainer)
+controlsInfo.Size = UDim2.new(1, -10, 0, 60)
+controlsInfo.Text = "Управление:\nWASD - Движение стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nQ/E - Высота камеры\nR - Сброс камеры"
+controlsInfo.Font = Enum.Font.Gotham
+controlsInfo.TextSize = 10
+controlsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+controlsInfo.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+controlsInfo.BorderSizePixel = 1
+controlsInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
+controlsInfo.TextXAlignment = Enum.TextXAlignment.Left
+controlsInfo.TextYAlignment = Enum.TextYAlignment.Top
+Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4)
 
 
 local function createPlayerListInMenu()
