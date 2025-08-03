@@ -68,9 +68,12 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil, -- Сохраняем ник выбранного игрока
     UseStealthMode = true, -- Использовать скрытый режим телепортации
-    TeleportSpeed = 1800, -- Фиксированная скорость для YBA
-    ReturnSpeed = 1800, -- Скорость возврата в исходную точку
-    BehindPlayerDistance = 1.8, -- Фиксированное расстояние за спиной игрока
+    TeleportSpeed = 1200, -- Уменьшенная скорость для более стабильного движения
+    ReturnSpeed = 1200, -- Скорость возврата в исходную точку
+    BehindPlayerDistance = 2.5, -- Увеличенное расстояние за спиной игрока для лучшего позиционирования
+    StabilizationTime = 0.3, -- Время стабилизации после достижения позиции
+    MaxSpeedResetTime = 1.0, -- Максимальное время для сброса скорости
+    SpeedResetThreshold = 50, -- Порог скорости для принудительного сброса
 }
 
 -- Переменные для полета
@@ -92,6 +95,11 @@ local originalJumpPower = 50
 local isTeleporting = false
 local teleportConnections = {}
 local playerSelectionWindow = nil -- Окно выбора игрока
+local lastTeleportPosition = nil -- Последняя позиция телепортации
+local stabilizationStartTime = nil -- Время начала стабилизации
+local isStabilizing = false -- Флаг стабилизации
+local speedResetTimer = 0 -- Таймер для сброса скорости
+local lastSpeedCheck = tick() -- Последняя проверка скорости
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -398,11 +406,15 @@ local function createStealthTeleport()
     
     local root = char:FindFirstChild("HumanoidRootPart")
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-    if not root or not targetRoot then 
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not root or not targetRoot or not humanoid then 
         return 
     end
     
     isTeleporting = true
+    isStabilizing = false
+    speedResetTimer = 0
+    lastSpeedCheck = tick()
     
     -- Сохраняем исходную позицию только при первом запуске
     if not TeleportConfig.OriginalPosition then
@@ -446,55 +458,100 @@ local function createStealthTeleport()
             end
         end
         
+        -- Проверка и сброс скорости для предотвращения убийства
+        local currentTime = tick()
+        speedResetTimer = speedResetTimer + (currentTime - lastSpeedCheck)
+        lastSpeedCheck = currentTime
+        
+        if speedResetTimer >= TeleportConfig.MaxSpeedResetTime then
+            speedResetTimer = 0
+            -- Принудительный сброс скорости
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold then
+                bv.Velocity = bv.Velocity * 0.1 -- Резко снижаем скорость
+                task.wait(0.05)
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+            
+            -- Сброс скорости через Humanoid для дополнительной безопасности
+            if humanoid and humanoid.WalkSpeed > 16 then
+                humanoid.WalkSpeed = 16
+            end
+        end
+        
         local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
         if currentTargetRoot then
             local targetPos = currentTargetRoot.Position
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
             
-            -- Вычисляем позицию за спиной игрока
+            -- Вычисляем точную позицию за спиной игрока
             local targetCFrame = currentTargetRoot.CFrame
+            local targetLookVector = targetCFrame.LookVector
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+            local behindDistance = (behindPosition.Position - currentPos).Magnitude
             
-            -- Стандартный метод через BodyVelocity
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- Уменьшаем силу для более естественного движения
+                bv.MaxForce = Vector3.new(8e5, 8e5, 8e5) -- Уменьшенная сила для плавности
             end
             
-            -- Если мы близко к игроку, позиционируемся точно за его спиной
-            if distance < 10 then
-                -- Плавно перемещаемся за спину игрока
-                local direction = (behindPosition.Position - currentPos).Unit
-                local moveSpeed = TeleportConfig.TeleportSpeed * 0.5 -- Увеличиваем скорость для быстрого приближения
-                bv.Velocity = direction * moveSpeed
+            -- Режим стабилизации - когда мы находимся за спиной игрока
+            if behindDistance <= 1.2 and not isStabilizing then
+                isStabilizing = true
+                stabilizationStartTime = tick()
+                lastTeleportPosition = behindPosition.Position
                 
-                -- Если мы очень близко, устанавливаем точную позицию и останавливаем движение
-                if distance < 1.5 then
-                    -- Сначала останавливаем движение
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                    task.wait(0.1) -- Небольшая пауза
+                -- Плавно переходим в точную позицию
+                bv.Velocity = Vector3.new(0, 0, 0)
+                root.CFrame = behindPosition
+                
+                -- Создаем стабилизирующий BodyVelocity с нулевой скоростью
+                bv.Velocity = Vector3.new(0, 0, 0)
+                bv.MaxForce = Vector3.new(5e4, 5e4, 5e4) -- Слабая сила для стабилизации
+            end
+            
+            -- Если мы в режиме стабилизации
+            if isStabilizing then
+                local stabilizationTime = tick() - stabilizationStartTime
+                
+                -- Постоянно корректируем позицию за спиной
+                if stabilizationTime < TeleportConfig.StabilizationTime then
+                    local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+                    local correctionDirection = (newBehindPosition.Position - currentPos)
                     
-                    -- Устанавливаем точную позицию
-                    root.CFrame = behindPosition
-                    
-                    -- Удаляем BodyVelocity чтобы избежать тряски
-                    if bv then
-                        bv:Destroy()
+                    if correctionDirection.Magnitude > 0.5 then
+                        -- Небольшая коррекция позиции
+                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.2)
+                    else
+                        -- Стабилизация на месте
+                        bv.Velocity = Vector3.new(0, 0, 0)
+                        root.CFrame = newBehindPosition
                     end
-                    
-                    -- Дополнительная стабилизация
-                    task.wait(0.2)
-                    root.CFrame = behindPosition
+                else
+                    -- Завершаем стабилизацию и переходим в следящий режим
+                    isStabilizing = false
+                    stabilizationStartTime = nil
                 end
             else
-                -- Быстрое перемещение к игроку
-                local direction = (targetPos - currentPos).Unit
-                local speed = TeleportConfig.TeleportSpeed
-                -- Добавляем небольшую случайность для естественности
-                speed = speed + math.random(-20, 20)
-                bv.Velocity = direction * speed
+                -- Обычный режим телепортации
+                if distance > 15 then
+                    -- Быстрое приближение на большом расстоянии
+                    local direction = (targetPos - currentPos).Unit
+                    local speed = TeleportConfig.TeleportSpeed
+                    bv.Velocity = direction * speed
+                elseif distance > 5 then
+                    -- Умеренное приближение на среднем расстоянии
+                    local direction = (behindPosition.Position - currentPos).Unit
+                    local speed = TeleportConfig.TeleportSpeed * 0.6
+                    bv.Velocity = direction * speed
+                else
+                    -- Точное позиционирование за спиной
+                    local direction = (behindPosition.Position - currentPos).Unit
+                    local speed = TeleportConfig.TeleportSpeed * 0.3
+                    bv.Velocity = direction * speed
+                end
             end
         end
     end)
@@ -520,6 +577,11 @@ local function startTeleport()
     end
     
     isTeleporting = true
+    isStabilizing = false
+    stabilizationStartTime = nil
+    lastTeleportPosition = nil
+    speedResetTimer = 0
+    lastSpeedCheck = tick()
     
     -- Всегда сохраняем новую исходную позицию при запуске телепортации
     TeleportConfig.OriginalPosition = root.Position
@@ -579,6 +641,10 @@ end
 
 local function stopTeleport()
     isTeleporting = false
+    isStabilizing = false
+    stabilizationStartTime = nil
+    lastTeleportPosition = nil
+    speedResetTimer = 0
     TeleportConfig.Enabled = false
     
     local char = Players.LocalPlayer.Character
@@ -587,6 +653,7 @@ local function stopTeleport()
     end
     
     local root = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
     
     -- Отключаем все соединения телепортации
     for _, connection in ipairs(teleportConnections) do
@@ -598,10 +665,19 @@ local function stopTeleport()
     end
     teleportConnections = {}
     
-    -- Удаляем BodyVelocity телепортации
+    -- Удаляем BodyVelocity телепортации и принудительно сбрасываем скорость
     local bv = root and root:FindFirstChild("BodyVelocity")
     if bv then
+        -- Сначала обнуляем скорость
+        bv.Velocity = Vector3.new(0, 0, 0)
+        task.wait(0.1) -- Небольшая пауза для стабилизации
         bv:Destroy()
+    end
+    
+    -- Дополнительный сброс скорости через Humanoid
+    if humanoid then
+        humanoid.WalkSpeed = 16
+        humanoid.JumpPower = 50
     end
     
     -- Возвращаемся в исходную точку
