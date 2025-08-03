@@ -2042,11 +2042,11 @@ if Config.Aimbot.Enabled then
 end
 
 
-local cam = workspace.CurrentCamera
-FOVCircle.Visible = Config.Aimbot.Enabled
-FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
-FOVCircle.Color = Config.Aimbot.FOVRainbow and getRainbow() or Config.Aimbot.FOVColor
-FOVCircle.Radius = Config.Aimbot.FOV
+    local cam = workspace.CurrentCamera
+    FOVCircle.Visible = Config.Aimbot.Enabled
+    FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
+    FOVCircle.Color = Config.Aimbot.FOVRainbow and getRainbow() or Config.Aimbot.FOVColor
+    FOVCircle.Radius = Config.Aimbot.FOV
 end)
 
 
