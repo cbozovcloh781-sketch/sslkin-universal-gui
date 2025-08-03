@@ -1,13 +1,13 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
--- Services
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 
--- Configuration
+
 local Config = {
     ESP = {
         Enabled     = true,
@@ -38,68 +38,86 @@ local Config = {
     MenuCollapsed = false,
 }
 
--- Полностью переписанная система полета для YBA
+
 local FlyConfig = {
     Enabled = false,
     Speed = 1,
     ToggleKey = nil,
 }
 
--- Система NoClip
+
 local NoClipConfig = {
     Enabled = false,
     ToggleKey = nil,
-    ForceToggleKey = nil, -- Горячая клавиша для FORCE NOCLIP
+    ForceToggleKey = nil,
 }
 
--- Система SpeedHack
+
 local SpeedHackConfig = {
     Enabled = false,
     Speed = 1,
     ToggleKey = nil,
-    UseJumpPower = false, -- Альтернативный метод через JumpPower
+    UseJumpPower = false,
 }
 
--- Система телепортации к игрокам
+local LongJumpConfig = {
+    Enabled = false,
+    JumpPower = 150,
+    ToggleKey = nil,
+}
+
+local InfiniteJumpConfig = {
+    Enabled = false,
+    JumpPower = 50,
+    ToggleKey = nil,
+}
+
+
 local TeleportConfig = {
     Enabled = false,
     TargetPlayer = nil,
     OriginalPosition = nil,
     ToggleKey = nil,
-    SelectedPlayerName = nil, -- Сохраняем ник выбранного игрока
-    UseStealthMode = true, -- Использовать скрытый режим телепортации
-    TeleportSpeed = 1200, -- Уменьшенная скорость для более стабильного движения
-    ReturnSpeed = 1200, -- Скорость возврата в исходную точку
-    BehindPlayerDistance = 2.5, -- Увеличенное расстояние за спиной игрока для лучшего позиционирования
-    StabilizationTime = 0.3, -- Время стабилизации после достижения позиции
-    MaxSpeedResetTime = 1.0, -- Максимальное время для сброса скорости
-    SpeedResetThreshold = 50, -- Порог скорости для принудительного сброса
+    SelectedPlayerName = nil,
+    UseStealthMode = true,
+    TeleportSpeed = 2500,
+    ReturnSpeed = 2000,
+    BehindPlayerDistance = 2.5,
+    StabilizationTime = 0.3,
+    MaxSpeedResetTime = 1.5,
+    SpeedResetThreshold = 80,
+    InstantTurnSpeed = 2000,
 }
 
--- Переменные для полета
 local isFlying = false
 local flyConnections = {}
 local originalGravity = workspace.Gravity
 
--- Переменные для NoClip
 local isNoClipping = false
 local noClipConnections = {}
 
--- Переменные для SpeedHack
 local isSpeedHacking = false
 local speedHackConnections = {}
 local originalWalkSpeed = 16
 local originalJumpPower = 50
 
--- Переменные для телепортации
+local isLongJumping = false
+local longJumpConnections = {}
+local originalLongJumpPower = 50
+
+local isInfiniteJumping = false
+local infiniteJumpConnections = {}
+local lastJumpTime = 0
+
 local isTeleporting = false
 local teleportConnections = {}
-local playerSelectionWindow = nil -- Окно выбора игрока
-local lastTeleportPosition = nil -- Последняя позиция телепортации
-local stabilizationStartTime = nil -- Время начала стабилизации
-local isStabilizing = false -- Флаг стабилизации
-local speedResetTimer = 0 -- Таймер для сброса скорости
-local lastSpeedCheck = tick() -- Последняя проверка скорости
+local playerSelectionWindow = nil
+local lastTeleportPosition = nil
+local stabilizationStartTime = nil
+local isStabilizing = false
+local speedResetTimer = 0
+local lastSpeedCheck = tick()
+local lastBehindDistance = 0
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -111,17 +129,15 @@ local function startFly()
     
     isFlying = true
     
-    -- Сохраняем оригинальные настройки
     local originalJumpPower = hum.JumpPower
     local originalJumpHeight = hum.JumpHeight
     local originalGravity = workspace.Gravity
     local originalHipHeight = hum.HipHeight
     
-    -- Настройки для полета в YBA
     hum.JumpPower = 0
     hum.JumpHeight = 0
     workspace.Gravity = 0
-    hum.HipHeight = 0 -- Важно для YBA
+    hum.HipHeight = 0
     
     local ctrl = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
     
@@ -147,13 +163,11 @@ local function startFly()
     
     local renderConnection = RunService.RenderStepped:Connect(function()
         if not isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
-            -- Восстанавливаем оригинальные настройки
             if hum then
                 hum.JumpPower = originalJumpPower
                 hum.JumpHeight = originalJumpHeight
                 hum.HipHeight = originalHipHeight
             end
-            -- Восстанавливаем гравитацию только если NoClip не включен
             if not isNoClipping then
                 workspace.Gravity = originalGravity
             end
@@ -167,7 +181,7 @@ local function startFly()
         local cam = workspace.CurrentCamera
         if not cam then return end
         
-        -- Вычисляем направление движения
+        
         local forward = cam.CFrame.lookVector
         local right = cam.CFrame.rightVector
         local up = Vector3.new(0, 1, 0)
@@ -179,7 +193,6 @@ local function startFly()
         
         if moveVector.Magnitude > 0 then
             moveVector = moveVector.Unit * (FlyConfig.Speed * 10)
-            -- Используем BodyVelocity для YBA
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
@@ -187,7 +200,6 @@ local function startFly()
             end
             bv.Velocity = moveVector
         else
-            -- Останавливаем движение
             local bv = root:FindFirstChild("BodyVelocity")
             if bv then
                 bv.Velocity = Vector3.new(0, 0, 0)
@@ -195,7 +207,6 @@ local function startFly()
         end
     end)
     
-    -- Сохраняем соединения
     table.insert(flyConnections, inputDown)
     table.insert(flyConnections, inputUp)
     table.insert(flyConnections, renderConnection)
@@ -209,7 +220,7 @@ local function stopFly()
     local root = char and char:FindFirstChild("HumanoidRootPart")
     
     if hum then
-        -- Восстанавливаем оригинальные настройки
+        
         hum.JumpPower = 50
         hum.JumpHeight = 7.2
         hum.HipHeight = 2
@@ -217,7 +228,7 @@ local function stopFly()
     
     workspace.Gravity = 196.2
     
-    -- Удаляем BodyVelocity
+    
     if root then
         local bv = root:FindFirstChild("BodyVelocity")
         if bv then
@@ -225,7 +236,7 @@ local function stopFly()
         end
     end
     
-    -- Отключаем все соединения
+    
     for _, connection in ipairs(flyConnections) do
         if connection then
             pcall(function() connection:Disconnect() end)
@@ -234,21 +245,21 @@ local function stopFly()
     flyConnections = {}
 end
 
--- Улучшенный NoClip для надежной работы
+
 local function startNoClip()
     local char = Players.LocalPlayer.Character
     if not char then return end
     
     isNoClipping = true
     
-    -- Принудительно отключаем коллизии сразу
+    
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") and part.CanCollide then
             part.CanCollide = false
         end
     end
     
-    -- Infinite Yield NoClip метод с улучшениями
+    
     local function noclip()
         if not char or not char.Parent then return end
         
@@ -259,7 +270,7 @@ local function startNoClip()
         end
     end
     
-    -- Создаем соединение для постоянного обновления NoClip
+    
     local noClipLoop = RunService.Heartbeat:Connect(function()
         if not isNoClipping or not char or not char.Parent then
             return
@@ -269,7 +280,7 @@ local function startNoClip()
     
     table.insert(noClipConnections, noClipLoop)
     
-    -- Создаем соединение для новых частей персонажа
+    
     local function setupNoClipForPart(part)
         if part:IsA("BasePart") and part.CanCollide then
             part.CanCollide = false
@@ -279,7 +290,7 @@ local function startNoClip()
     local descendantAdded = char.DescendantAdded:Connect(setupNoClipForPart)
     table.insert(noClipConnections, descendantAdded)
     
-    -- Дополнительная проверка через 0.5 секунды
+    
     task.spawn(function()
         task.wait(0.5)
         if isNoClipping and char and char.Parent then
@@ -294,14 +305,14 @@ local function stopNoClip()
     local char = Players.LocalPlayer.Character
     if not char then return end
     
-    -- Восстанавливаем коллизии (Infinite Yield метод)
+    
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.CanCollide = true
         end
     end
     
-    -- Отключаем все соединения
+    
     for _, connection in ipairs(noClipConnections) do
         if connection then
             if typeof(connection) == "RBXScriptConnection" then
@@ -314,7 +325,6 @@ local function stopNoClip()
     noClipConnections = {}
 end
 
--- Функции SpeedHack - Безопасная система без BodyVelocity
 local function startSpeedHack()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -324,15 +334,12 @@ local function startSpeedHack()
     originalWalkSpeed = hum.WalkSpeed
     originalJumpPower = hum.JumpPower
     
-    -- Устанавливаем скорость через Humanoid (безопасный метод)
     hum.WalkSpeed = SpeedHackConfig.Speed * 16
     
-    -- Альтернативный метод через JumpPower для большей скорости
     if SpeedHackConfig.UseJumpPower then
         hum.JumpPower = SpeedHackConfig.Speed * 50
     end
     
-    -- Создаем соединение для обновления скорости при респавне
     local function onCharacterAdded(newChar)
         local newHum = newChar:WaitForChild("Humanoid")
         if isSpeedHacking then
@@ -346,7 +353,6 @@ local function startSpeedHack()
     local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
     table.insert(speedHackConnections, characterAddedConnection)
     
-    -- Создаем соединение для постоянного обновления скорости
     local speedLoop = RunService.Heartbeat:Connect(function()
         if not isSpeedHacking then return end
         
@@ -354,12 +360,10 @@ local function startSpeedHack()
         local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
         
         if currentHum then
-            -- Обновляем WalkSpeed только если она отличается
             if currentHum.WalkSpeed ~= SpeedHackConfig.Speed * 16 then
                 currentHum.WalkSpeed = SpeedHackConfig.Speed * 16
             end
             
-            -- Обновляем JumpPower если используется альтернативный метод
             if SpeedHackConfig.UseJumpPower and currentHum.JumpPower ~= SpeedHackConfig.Speed * 50 then
                 currentHum.JumpPower = SpeedHackConfig.Speed * 50
             end
@@ -379,7 +383,6 @@ local function stopSpeedHack()
         hum.JumpPower = originalJumpPower
     end
     
-    -- Отключаем все соединения
     for _, connection in ipairs(speedHackConnections) do
         if connection then
             if typeof(connection) == "RBXScriptConnection" then
@@ -392,7 +395,154 @@ local function stopSpeedHack()
     speedHackConnections = {}
 end
 
--- Новая улучшенная система телепортации к игрокам (безопасная для YBA)
+
+local function startLongJump()
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    
+    isLongJumping = true
+    originalLongJumpPower = hum.JumpPower
+    
+    hum.JumpPower = LongJumpConfig.JumpPower
+    
+    
+    local function onCharacterAdded(newChar)
+        local newHum = newChar:WaitForChild("Humanoid")
+        if isLongJumping then
+            newHum.JumpPower = LongJumpConfig.JumpPower
+        end
+    end
+    
+    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+    table.insert(longJumpConnections, characterAddedConnection)
+    
+    
+    local longJumpLoop = RunService.Heartbeat:Connect(function()
+        if not isLongJumping then return end
+        
+        local currentChar = Players.LocalPlayer.Character
+        local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
+        
+        if currentHum and currentHum.JumpPower ~= LongJumpConfig.JumpPower then
+            currentHum.JumpPower = LongJumpConfig.JumpPower
+        end
+    end)
+    
+    table.insert(longJumpConnections, longJumpLoop)
+end
+
+local function stopLongJump()
+    isLongJumping = false
+    
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.JumpPower = originalLongJumpPower
+    end
+    
+    
+    for _, connection in ipairs(longJumpConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    longJumpConnections = {}
+end
+
+
+local function startInfiniteJump()
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return end
+    
+    isInfiniteJumping = true
+    lastJumpTime = 0
+    
+    
+    local function onJumpRequest()
+        if not isInfiniteJumping then return end
+        
+        local currentTime = tick()
+        if currentTime - lastJumpTime < 0.1 then return end 
+        
+        lastJumpTime = currentTime
+        
+        
+        local bv = Instance.new("BodyVelocity", root)
+        bv.MaxForce = Vector3.new(0, math.huge, 0)
+        bv.Velocity = Vector3.new(0, InfiniteJumpConfig.JumpPower, 0)
+        
+        
+        task.spawn(function()
+            task.wait(0.3)
+            if bv and bv.Parent then
+                bv:Destroy()
+            end
+        end)
+    end
+    
+    
+    local jumpConnection = hum.Jumping:Connect(onJumpRequest)
+    table.insert(infiniteJumpConnections, jumpConnection)
+    
+    
+    local function onInputBegan(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Space then
+            onJumpRequest()
+        end
+    end
+    
+    local inputConnection = UserInputService.InputBegan:Connect(onInputBegan)
+    table.insert(infiniteJumpConnections, inputConnection)
+    
+    
+    local function onCharacterAdded(newChar)
+        if isInfiniteJumping then
+            task.wait(1) 
+            startInfiniteJump() 
+        end
+    end
+    
+    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+    table.insert(infiniteJumpConnections, characterAddedConnection)
+end
+
+local function stopInfiniteJump()
+    isInfiniteJumping = false
+    lastJumpTime = 0
+    
+    
+    for _, connection in ipairs(infiniteJumpConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    infiniteJumpConnections = {}
+    
+    
+    local char = Players.LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if root then
+        for _, child in pairs(root:GetChildren()) do
+            if child:IsA("BodyVelocity") then
+                child:Destroy()
+            end
+        end
+    end
+end
+
+
 local function createStealthTeleport()
     if not TeleportConfig.TargetPlayer then 
         return 
@@ -415,25 +565,26 @@ local function createStealthTeleport()
     isStabilizing = false
     speedResetTimer = 0
     lastSpeedCheck = tick()
+    lastBehindDistance = 0
     
-    -- Сохраняем исходную позицию только при первом запуске
+    
     if not TeleportConfig.OriginalPosition then
         TeleportConfig.OriginalPosition = root.Position
     end
     
-    -- Принудительно включаем NoClip при телепортации
+    
     if not isNoClipping then
         startNoClip()
     end
     
-    -- Дополнительная проверка и принудительное включение NoClip
+    
     task.spawn(function()
-        task.wait(0.1) -- Небольшая задержка
+        task.wait(0.1) 
         if not isNoClipping then
             startNoClip()
         end
         
-        -- Принудительно отключаем коллизии для всех частей персонажа
+        
         local char = Players.LocalPlayer.Character
         if char then
             for _, part in pairs(char:GetDescendants()) do
@@ -449,7 +600,7 @@ local function createStealthTeleport()
             return
         end
         
-        -- Дополнительная проверка NoClip во время телепортации
+        
         if isNoClipping and char and char.Parent then
             for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") and part.CanCollide then
@@ -458,22 +609,22 @@ local function createStealthTeleport()
             end
         end
         
-        -- Проверка и сброс скорости для предотвращения убийства
+        
         local currentTime = tick()
         speedResetTimer = speedResetTimer + (currentTime - lastSpeedCheck)
         lastSpeedCheck = currentTime
         
         if speedResetTimer >= TeleportConfig.MaxSpeedResetTime then
             speedResetTimer = 0
-            -- Принудительный сброс скорости
+            
             local bv = root:FindFirstChild("BodyVelocity")
             if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold then
-                bv.Velocity = bv.Velocity * 0.1 -- Резко снижаем скорость
+                bv.Velocity = bv.Velocity * 0.1 
                 task.wait(0.05)
                 bv.Velocity = Vector3.new(0, 0, 0)
             end
             
-            -- Сброс скорости через Humanoid для дополнительной безопасности
+            
             if humanoid and humanoid.WalkSpeed > 16 then
                 humanoid.WalkSpeed = 16
             end
@@ -485,7 +636,7 @@ local function createStealthTeleport()
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
             
-            -- Вычисляем точную позицию за спиной игрока
+            
             local targetCFrame = currentTargetRoot.CFrame
             local targetLookVector = targetCFrame.LookVector
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
@@ -494,63 +645,75 @@ local function createStealthTeleport()
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(8e5, 8e5, 8e5) -- Уменьшенная сила для плавности
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6) 
             end
             
-            -- Режим стабилизации - когда мы находимся за спиной игрока
-            if behindDistance <= 1.2 and not isStabilizing then
+            
+            if behindDistance < 1.2 and not isStabilizing then
                 isStabilizing = true
                 stabilizationStartTime = tick()
                 lastTeleportPosition = behindPosition.Position
-                
-                -- Плавно переходим в точную позицию
                 bv.Velocity = Vector3.new(0, 0, 0)
-                root.CFrame = behindPosition
+                bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
                 
-                -- Создаем стабилизирующий BodyVelocity с нулевой скоростью
-                bv.Velocity = Vector3.new(0, 0, 0)
-                bv.MaxForce = Vector3.new(5e4, 5e4, 5e4) -- Слабая сила для стабилизации
+                task.spawn(function()
+                    task.wait(0.1)
+                    if isStabilizing then
+                        root.CFrame = behindPosition
+                        bv.Velocity = Vector3.new(0, 0, 0)
+                        task.wait(0.2)
+                        if bv and bv.Parent then
+                            bv:Destroy()
+                        end
+                        local newBv = Instance.new("BodyVelocity", root)
+                        newBv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+                        newBv.Velocity = Vector3.new(0, 0, 0)
+                        task.wait(0.1)
+                        if newBv and newBv.Parent then
+                            newBv:Destroy()
+                        end
+                    end
+                end)
             end
             
-            -- Если мы в режиме стабилизации
             if isStabilizing then
                 local stabilizationTime = tick() - stabilizationStartTime
                 
-                -- Постоянно корректируем позицию за спиной
                 if stabilizationTime < TeleportConfig.StabilizationTime then
                     local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
                     local correctionDirection = (newBehindPosition.Position - currentPos)
+                    local correctionMagnitude = correctionDirection.Magnitude
                     
-                    if correctionDirection.Magnitude > 0.5 then
-                        -- Небольшая коррекция позиции
+                    if correctionMagnitude > 1.0 then
                         bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.2)
+                    elseif correctionMagnitude > 0.5 then
+                        bv.Velocity = correctionDirection.Unit * (TeleportConfig.TeleportSpeed * 0.1)
                     else
-                        -- Стабилизация на месте
                         bv.Velocity = Vector3.new(0, 0, 0)
-                        root.CFrame = newBehindPosition
                     end
                 else
-                    -- Завершаем стабилизацию и переходим в следящий режим
                     isStabilizing = false
                     stabilizationStartTime = nil
+                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
                 end
             else
-                -- Обычный режим телепортации
+                
+                local currentVelocity = bv.Velocity
+                local newDirection = (behindPosition.Position - currentPos).Unit
+                
                 if distance > 15 then
-                    -- Быстрое приближение на большом расстоянии
-                    local direction = (targetPos - currentPos).Unit
-                    local speed = TeleportConfig.TeleportSpeed
-                    bv.Velocity = direction * speed
+                    bv.Velocity = (targetPos - currentPos).Unit * TeleportConfig.TeleportSpeed
                 elseif distance > 5 then
-                    -- Умеренное приближение на среднем расстоянии
-                    local direction = (behindPosition.Position - currentPos).Unit
-                    local speed = TeleportConfig.TeleportSpeed * 0.6
-                    bv.Velocity = direction * speed
+                    bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.8)
+                elseif distance > 2 then
+                    local dotProduct = currentVelocity.Unit:Dot(newDirection)
+                    if dotProduct < 0.7 then
+                        bv.Velocity = newDirection * TeleportConfig.InstantTurnSpeed
+                    else
+                        bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.6)
+                    end
                 else
-                    -- Точное позиционирование за спиной
-                    local direction = (behindPosition.Position - currentPos).Unit
-                    local speed = TeleportConfig.TeleportSpeed * 0.3
-                    bv.Velocity = direction * speed
+                    bv.Velocity = newDirection * (TeleportConfig.TeleportSpeed * 0.3)
                 end
             end
         end
@@ -582,23 +745,24 @@ local function startTeleport()
     lastTeleportPosition = nil
     speedResetTimer = 0
     lastSpeedCheck = tick()
+    lastBehindDistance = 0
     
-    -- Всегда сохраняем новую исходную позицию при запуске телепортации
+    
     TeleportConfig.OriginalPosition = root.Position
     
-    -- Принудительно включаем NoClip при телепортации
+    
     if not isNoClipping then
         startNoClip()
     end
     
-    -- Дополнительная проверка и принудительное включение NoClip
+    
     task.spawn(function()
-        task.wait(0.1) -- Небольшая задержка
+        task.wait(0.1) 
         if not isNoClipping then
             startNoClip()
         end
         
-        -- Принудительно отключаем коллизии для всех частей персонажа
+        
         local char = Players.LocalPlayer.Character
         if char then
             for _, part in pairs(char:GetDescendants()) do
@@ -620,14 +784,14 @@ local function startTeleport()
     
     createStealthTeleport()
     
-    -- Принудительное включение NoClip через небольшую задержку
+    
     task.spawn(function()
         task.wait(0.2)
         if not isNoClipping then
             startNoClip()
         end
         
-        -- Дополнительная проверка коллизий
+        
         local char = Players.LocalPlayer.Character
         if char then
             for _, part in pairs(char:GetDescendants()) do
@@ -645,6 +809,7 @@ local function stopTeleport()
     stabilizationStartTime = nil
     lastTeleportPosition = nil
     speedResetTimer = 0
+    lastBehindDistance = 0
     TeleportConfig.Enabled = false
     
     local char = Players.LocalPlayer.Character
@@ -655,7 +820,7 @@ local function stopTeleport()
     local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
     
-    -- Отключаем все соединения телепортации
+    
     for _, connection in ipairs(teleportConnections) do
         if connection then
             if typeof(connection) == "RBXScriptConnection" then
@@ -665,29 +830,29 @@ local function stopTeleport()
     end
     teleportConnections = {}
     
-    -- Удаляем BodyVelocity телепортации и принудительно сбрасываем скорость
+    
     local bv = root and root:FindFirstChild("BodyVelocity")
     if bv then
-        -- Сначала обнуляем скорость
+        
         bv.Velocity = Vector3.new(0, 0, 0)
-        task.wait(0.1) -- Небольшая пауза для стабилизации
+        task.wait(0.1) 
         bv:Destroy()
     end
     
-    -- Дополнительный сброс скорости через Humanoid
+    
     if humanoid then
         humanoid.WalkSpeed = 16
         humanoid.JumpPower = 50
     end
     
-    -- Возвращаемся в исходную точку
+    
     if root and TeleportConfig.OriginalPosition then
-        -- Автоматически включаем NoClip для возврата
+        
         if not isNoClipping then
             startNoClip()
         end
         
-        -- Создаем отдельное соединение для возврата
+        
         local returnConnections = {}
         
         local returnLoop = RunService.Heartbeat:Connect(function()
@@ -703,40 +868,40 @@ local function stopTeleport()
                 local returnBv = root:FindFirstChild("BodyVelocity")
                 if not returnBv then
                     returnBv = Instance.new("BodyVelocity", root)
-                    returnBv.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- Уменьшаем силу для более естественного движения
+                    returnBv.MaxForce = Vector3.new(1e6, 1e6, 1e6) 
                 end
                 
                 local returnDirection = (returnPos - currentPos).Unit
                 local returnSpeed = TeleportConfig.ReturnSpeed
-                -- Добавляем небольшую случайность для естественности
+                
                 returnSpeed = returnSpeed + math.random(-5, 5)
                 
                 returnBv.Velocity = returnDirection * returnSpeed
             else
-                -- Достигли исходной точки
+                
                 local returnBv = root:FindFirstChild("BodyVelocity")
                 if returnBv then
                     returnBv.Velocity = Vector3.new(0, 0, 0)
-                    task.wait(0.5) -- Небольшая пауза для стабилизации
+                    task.wait(0.5) 
                     returnBv:Destroy()
                 end
                 
-                -- Точная телепортация в исходную точку
+                
                 root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
                 TeleportConfig.OriginalPosition = nil
                 
-                -- Заморозка в воздухе на 2 секунды для сброса скорости
+                
                 local freezeBv = Instance.new("BodyVelocity", root)
                 freezeBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
                 freezeBv.Velocity = Vector3.new(0, 0, 0)
                 
-                task.wait(2) -- Заморозка на 2 секунды
+                task.wait(2) 
                 
                 if freezeBv then
                     freezeBv:Destroy()
                 end
                 
-                -- Отключаем NoClip через 5 секунд после возврата
+                
                 task.spawn(function()
                     task.wait(5)
                     if isNoClipping then
@@ -744,7 +909,7 @@ local function stopTeleport()
                     end
                 end)
                 
-                -- Отключаем все соединения возврата
+                
                 for _, connection in ipairs(returnConnections) do
                     if connection then
                         pcall(function() connection:Disconnect() end)
@@ -760,7 +925,7 @@ local function stopTeleport()
         table.insert(returnConnections, returnLoop)
     end
     
-    -- Восстанавливаем нормальные настройки движения
+    
     local humanoid = char and char:FindFirstChild("Humanoid")
     if humanoid then
         humanoid.WalkSpeed = 16
@@ -782,7 +947,7 @@ local function getAlivePlayers()
     
     print("=== ПОИСК ЖИВЫХ ИГРОКОВ ===")
     
-    -- Простая и надежная проверка
+    
     if not Players then
         print("Players сервис не найден!")
         return alivePlayers
@@ -840,7 +1005,7 @@ local function getAlivePlayers()
     return alivePlayers
 end
 
--- Обработка горячих клавиш для полета, NoClip и SpeedHack
+
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp then
         if FlyConfig.ToggleKey and input.KeyCode == FlyConfig.ToggleKey then
@@ -850,7 +1015,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             else 
                 stopFly() 
             end
-            -- Обновляем GUI
+            
             if guiCallbacks.fly then
                 guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
             end
@@ -861,7 +1026,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             else 
                 stopNoClip() 
             end
-            -- Обновляем GUI
+            
             if guiCallbacks.noClip then
                 guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
             end
@@ -872,7 +1037,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             else 
                 stopSpeedHack() 
             end
-            -- Обновляем GUI
+            
             if guiCallbacks.speedHack then
                 guiCallbacks.speedHack.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
             end
@@ -888,9 +1053,31 @@ UserInputService.InputBegan:Connect(function(input, gp)
                     print("Сначала выберите игрока для телепортации")
                 end
             end
-            -- Обновляем GUI
+            
             if guiCallbacks.teleport then
                 guiCallbacks.teleport.Text = "Выбранный игрок: " .. (TeleportConfig.SelectedPlayerName or "Не выбран")
+            end
+        elseif LongJumpConfig.ToggleKey and input.KeyCode == LongJumpConfig.ToggleKey then
+            LongJumpConfig.Enabled = not LongJumpConfig.Enabled
+            if LongJumpConfig.Enabled then 
+                startLongJump() 
+            else 
+                stopLongJump() 
+            end
+            
+            if guiCallbacks.longJump then
+                guiCallbacks.longJump.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
+            end
+        elseif InfiniteJumpConfig.ToggleKey and input.KeyCode == InfiniteJumpConfig.ToggleKey then
+            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
+            if InfiniteJumpConfig.Enabled then 
+                startInfiniteJump() 
+            else 
+                stopInfiniteJump() 
+            end
+            
+            if guiCallbacks.infiniteJump then
+                guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
             end
         elseif NoClipConfig.ForceToggleKey and input.KeyCode == NoClipConfig.ForceToggleKey then
             if isNoClipping then
@@ -902,7 +1089,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- State
+
 local ESPs, Lines = {}, {}
 local FOVCircle
 
@@ -912,7 +1099,7 @@ FOVCircle.NumSides = 100
 FOVCircle.Filled = false
 FOVCircle.Visible = false
 
--- Utils
+
 local function getName(p)
     return p.Name
 end
@@ -942,7 +1129,7 @@ local function rayVisible(p)
     return not workspace:Raycast(cam.CFrame.Position, head.Position-cam.CFrame.Position, rp)
 end
 
--- ESP handlers
+
 local function createOrUpdateESP(p)
     if not ESPs[p] then
         local hl=Instance.new("Highlight"); hl.Adornee=p.Character; hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent=p.Character
@@ -966,14 +1153,14 @@ local function removeESP(p)
     if Lines[p] then Lines[p]:Remove(); Lines[p]=nil end
 end
 
--- Улучшенная система отслеживания игроков
+
 local function isPlayerAlive(player)
     if not player then 
         print("Player is nil")
         return false 
     end
     
-    -- Проверяем, что у игрока есть имя
+    
     if not player.Name then
         print("Player has no name")
         return false
@@ -1000,7 +1187,7 @@ local function isPlayerOnServer(player)
     return humanoid.Health > 0 and humanoid.Parent ~= nil
 end
 
--- Обработка смерти и респавна игроков
+
 local function onPlayerDied(player)
     removeESP(player)
 end
@@ -1008,7 +1195,7 @@ end
 local function onPlayerRespawned(player)
     if Config.ESP.Enabled and player ~= Players.LocalPlayer then
         spawn(function()
-            wait(2) -- Увеличиваем задержку для полного респавна
+            wait(2) 
             if isPlayerAlive(player) then
                 createOrUpdateESP(player)
             end
@@ -1016,20 +1203,20 @@ local function onPlayerRespawned(player)
     end
 end
 
--- Подключение обработчиков для каждого игрока
+
 local function setupPlayerESP(player)
     if player == Players.LocalPlayer then return end
     
-    -- Обработка смерти
+    
     local function onCharacterAdded(char)
         local humanoid = char:WaitForChild("Humanoid")
         
-        -- Обработка смерти
+        
         humanoid.Died:Connect(function()
             onPlayerDied(player)
         end)
         
-        -- Обработка респавна через StateChanged
+        
         humanoid.StateChanged:Connect(function(_, new)
             if new == Enum.HumanoidStateType.Dead then
                 onPlayerDied(player)
@@ -1038,7 +1225,7 @@ local function setupPlayerESP(player)
             end
         end)
         
-        -- Дополнительная проверка через CharacterRemoving
+        
         char.AncestryChanged:Connect(function(_, parent)
             if not parent then
                 onPlayerDied(player)
@@ -1055,15 +1242,15 @@ local function setupPlayerESP(player)
     end)
 end
 
--- Настройка ESP для существующих игроков
+
 for _, player in ipairs(Players:GetPlayers()) do
     setupPlayerESP(player)
 end
 
--- Настройка ESP для новых игроков
+
 Players.PlayerAdded:Connect(setupPlayerESP)
 
--- Clean up on player leaving
+
 Players.PlayerRemoving:Connect(function(player)
     removeESP(player)
 end)
@@ -1092,7 +1279,7 @@ local function getClosestTarget()
     return closest
 end
 
--- Render loop: only alive players on server
+
 RunService.RenderStepped:Connect(function()
     local cam = workspace.CurrentCamera
     for _, player in ipairs(Players:GetPlayers()) do
@@ -1126,12 +1313,12 @@ RunService.RenderStepped:Connect(function()
                 removeESP(player)
             end
         else
-            -- Убираем ESP если игрок мертв
+            
             removeESP(player)
         end
     end
 
-    -- Aimbot
+    
 if Config.Aimbot.Enabled then
     local target = getClosestTarget()
     if target then
@@ -1140,7 +1327,7 @@ if Config.Aimbot.Enabled then
     end
 end
 
--- FOV Circle update
+
 local cam = workspace.CurrentCamera
 FOVCircle.Visible = Config.Aimbot.Enabled
 FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
@@ -1148,10 +1335,10 @@ FOVCircle.Color = Config.Aimbot.FOVRainbow and getRainbow() or Config.Aimbot.FOV
 FOVCircle.Radius = Config.Aimbot.FOV
 
 
-    -- Aimbot logic unchanged below...
+    
 end)
 
--- Hotkeys binding
+
 UserInputService.InputBegan:Connect(function(inp, gp)
     if gp then return end
     if inp.UserInputType == Enum.UserInputType.Keyboard then
@@ -1165,7 +1352,7 @@ UserInputService.InputBegan:Connect(function(inp, gp)
     end
 end)
 
--- GUI Setup 
+
 local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
 screenGui.ResetOnSpawn = false
@@ -1256,9 +1443,9 @@ local UIListLayout = Instance.new("UIListLayout", innerContainer)
 UIListLayout.Padding = UDim.new(0, 8)
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Helper functions
+
 local function sectionHeader(text)
-	-- Добавляем отступ перед заголовком
+	
 	local spacer = Instance.new("Frame", innerContainer)
 	spacer.Size = UDim2.new(1, 0, 0, 10)
 	spacer.BackgroundTransparency = 1
@@ -1446,10 +1633,10 @@ local function playerSelector(label, currentPlayer, callback)
     selectBtn.MouseButton1Click:Connect(function()
         print("=== КНОПКА ВЫБОРА ИГРОКА НАЖАТА ===")
         
-        -- Используем новую функцию создания окна выбора игрока
+        
         createPlayerSelectionWindow()
         
-        -- Обновляем текст после выбора игрока
+        
         if TeleportConfig.TargetPlayer then
             lbl.Text = label .. ": " .. TeleportConfig.TargetPlayer.Name
             callback(TeleportConfig.TargetPlayer)
@@ -1459,7 +1646,7 @@ local function playerSelector(label, currentPlayer, callback)
     return lbl, selectBtn
 end
 
--- 🔥 Горячие клавиши переключения ESP / Aimbot / Fly
+
 local function keyBindButton(name, currentKey, callback)
     local btn = Instance.new("TextButton", innerContainer)
     btn.Size = UDim2.new(1, -10, 0, 24)
@@ -1484,7 +1671,7 @@ local function keyBindButton(name, currentKey, callback)
     end)
 end
 
--- Кнопки назначения горячих клавиш
+
 keyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
     Config.ESP.ToggleKey = newKey
 end)
@@ -1511,7 +1698,7 @@ end)
 
 
 
--- 🟦 ESP
+
 sectionHeader("🔷ESP Settings")
 toggle("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
 toggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
@@ -1525,13 +1712,13 @@ colorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor
 slider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
 slider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
 
--- Разделитель
+
 local divider1 = Instance.new("Frame", innerContainer)
 divider1.Size = UDim2.new(1, -10, 0, 2)
 divider1.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider1.BorderSizePixel = 0
 
--- 🟥 Aimbot
+
 sectionHeader("🔷Aimbot Settings")
 toggle("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
 toggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
@@ -1540,16 +1727,16 @@ slider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV =
 toggle("FOV Rainbow", Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
 colorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
 
--- Разделитель
+
 local divider2 = Instance.new("Frame", innerContainer)
 divider2.Size = UDim2.new(1, -10, 0, 2)
 divider2.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider2.BorderSizePixel = 0
 
--- Система обновления GUI
+
 local guiCallbacks = {}
 
--- Функция для обновления отображения статуса в реальном времени
+
 local function updateStatusDisplay()
     if guiCallbacks.fly then
         guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
@@ -1565,18 +1752,18 @@ local function updateStatusDisplay()
     end
 end
 
--- Обновляем отображение каждые 0.5 секунды
+
 RunService.Heartbeat:Connect(function()
     updateStatusDisplay()
 end)
 
--- 🟨 Fly System Integration
+
 sectionHeader("🟨 Fly Settings")
 
 local flyToggleBtn = toggle("Fly", FlyConfig.Enabled, function(v)
     FlyConfig.Enabled = v
     if v then startFly() else stopFly() end
-    -- Обновляем текст кнопки
+    
     if guiCallbacks.fly then
         guiCallbacks.fly.Text = "Fly: " .. (v and "ON" or "OFF")
     end
@@ -1587,21 +1774,21 @@ slider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
     FlyConfig.Speed = v
 end)
 
--- Кастомный ввод скорости для полета
+
 speedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
     FlyConfig.Speed = v
 end)
 
--- Разделитель
+
 local divider3 = Instance.new("Frame", innerContainer)
 divider3.Size = UDim2.new(1, -10, 0, 2)
 divider3.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider3.BorderSizePixel = 0
 
--- 🟪 NoClip System Integration
+
 sectionHeader("🟪 NoClip Settings")
 
--- Индикатор статуса NoClip
+
 local noClipStatusLabel = Instance.new("TextLabel", innerContainer)
 noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
 noClipStatusLabel.Text = "NoClip Status: OFF"
@@ -1611,7 +1798,7 @@ noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
 noClipStatusLabel.BackgroundTransparency = 1
 noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- Кнопка для принудительного включения/выключения NoClip
+
 local forceNoClipBtn = Instance.new("TextButton", innerContainer)
 forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
 forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
@@ -1622,7 +1809,7 @@ forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
 forceNoClipBtn.AutoButtonColor = false
 Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
 
--- Функция обновления статуса NoClip
+
 local function updateNoClipStatus()
     if isNoClipping then
         noClipStatusLabel.Text = "NoClip Status: ON"
@@ -1653,12 +1840,12 @@ forceNoClipBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Обновляем статус каждые 0.5 секунды
+
 RunService.Heartbeat:Connect(function()
     updateNoClipStatus()
 end)
 
--- Кнопка для назначения горячей клавиши FORCE NOCLIP
+
 local forceNoClipKeyBtn = Instance.new("TextButton", innerContainer)
 forceNoClipKeyBtn.Size = UDim2.new(1, -10, 0, 24)
 forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. (NoClipConfig.ForceToggleKey and tostring(NoClipConfig.ForceToggleKey.Name) or "None") .. "]"
@@ -1681,19 +1868,19 @@ forceNoClipKeyBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Разделитель
+
 local divider4 = Instance.new("Frame", innerContainer)
 divider4.Size = UDim2.new(1, -10, 0, 2)
 divider4.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider4.BorderSizePixel = 0
 
--- 🟦 SpeedHack System Integration
+
 sectionHeader("🟦 SpeedHack Settings")
 
 local speedHackToggleBtn = toggle("SpeedHack", SpeedHackConfig.Enabled, function(v)
     SpeedHackConfig.Enabled = v
     if v then startSpeedHack() else stopSpeedHack() end
-    -- Обновляем текст кнопки
+    
     if guiCallbacks.speedHack then
         guiCallbacks.speedHack.Text = "SpeedHack: " .. (v and "ON" or "OFF")
     end
@@ -1702,7 +1889,7 @@ guiCallbacks.speedHack = speedHackToggleBtn
 
 toggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
     SpeedHackConfig.UseJumpPower = v
-    -- Перезапускаем SpeedHack если он активен
+    
     if SpeedHackConfig.Enabled then
         stopSpeedHack()
         startSpeedHack()
@@ -1711,7 +1898,7 @@ end)
 
 slider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
     SpeedHackConfig.Speed = v
-    -- Обновляем скорость если SpeedHack активен
+    
     if SpeedHackConfig.Enabled then
         local char = Players.LocalPlayer.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1724,10 +1911,9 @@ slider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
     end
 end)
 
--- Кастомный ввод скорости для SpeedHack
+
 speedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
     SpeedHackConfig.Speed = v
-    -- Обновляем скорость если SpeedHack активен
     if SpeedHackConfig.Enabled then
         local char = Players.LocalPlayer.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1740,16 +1926,51 @@ speedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
     end
 end)
 
--- Разделитель
 local divider5 = Instance.new("Frame", innerContainer)
+divider5.Position = UDim2.new(0, 5, 0, yOffset)
 divider5.Size = UDim2.new(1, -10, 0, 2)
 divider5.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider5.BorderSizePixel = 0
 
--- 🟩 Teleport System Integration
+sectionHeader("🦘 Jump Settings")
+
+local longJumpToggleBtn = toggle("Long Jump", LongJumpConfig.Enabled, function(v)
+    LongJumpConfig.Enabled = v
+    if v then startLongJump() else stopLongJump() end
+    if guiCallbacks.longJump then
+        guiCallbacks.longJump.Text = "Long Jump: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.longJump = longJumpToggleBtn
+
+slider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
+    LongJumpConfig.JumpPower = v
+    if LongJumpConfig.Enabled then
+        local char = Players.LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.JumpPower = v
+        end
+    end
+end)
+
+local infiniteJumpToggleBtn = toggle("Infinite Jump", InfiniteJumpConfig.Enabled, function(v)
+    InfiniteJumpConfig.Enabled = v
+    if v then startInfiniteJump() else stopInfiniteJump() end
+    if guiCallbacks.infiniteJump then
+        guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.infiniteJump = infiniteJumpToggleBtn
+
+slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
+    InfiniteJumpConfig.JumpPower = v
+end)
+
+
 sectionHeader("🟩 Teleport Settings")
 
--- Пустое пространство для разделения
+
 local teleportSpacer = Instance.new("Frame", innerContainer)
 teleportSpacer.Size = UDim2.new(1, -10, 0, 10)
 teleportSpacer.BackgroundTransparency = 1
@@ -1820,38 +2041,38 @@ stopTeleportBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Создаем список игроков прямо в меню
+
 local function createPlayerListInMenu()
     local allPlayers = Players:GetPlayers()
     local alivePlayers = {}
     
-    -- Получаем список всех игроков кроме локального
+    
     for _, player in ipairs(allPlayers) do
         if player and player ~= Players.LocalPlayer then
             table.insert(alivePlayers, player)
         end
     end
     
-    -- Сортируем игроков по алфавиту (по имени)
+    
     table.sort(alivePlayers, function(a, b)
         return a.Name:lower() < b.Name:lower()
     end)
     
     print("Создаем отсортированный список игроков в меню: " .. #alivePlayers .. " игроков")
     
-    -- Создаем кнопки для каждого игрока
+    
     local currentLetter = ""
     for i, player in ipairs(alivePlayers) do
         local firstLetter = player.Name:sub(1,1):upper()
         
-        -- Добавляем разделитель для новой буквы
+        
         if firstLetter ~= currentLetter then
             currentLetter = firstLetter
             
-            -- Создаем заголовок для буквы
+            
             local letterHeader = Instance.new("TextLabel", innerContainer)
             letterHeader.Size = UDim2.new(1, -10, 0, 20)
-            letterHeader.Text = "--- " .. firstLetter .. " ---"
+            letterHeader.Text = "--- " .. currentLetter .. " ---"
             letterHeader.Font = Enum.Font.GothamBold
             letterHeader.TextSize = 12
             letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
@@ -1873,7 +2094,7 @@ local function createPlayerListInMenu()
         playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
         Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
         
-        -- Эффекты при наведении
+        
         playerBtn.MouseEnter:Connect(function()
             playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
             playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
@@ -1903,7 +2124,7 @@ local function createPlayerListInMenu()
             
             TeleportConfig.TargetPlayer = player
             TeleportConfig.SelectedPlayerName = player.Name
-            TeleportConfig.OriginalPosition = nil -- Сбрасываем исходную позицию при выборе нового игрока
+            TeleportConfig.OriginalPosition = nil 
             selectedPlayerLabel.Text = "Selected Player: " .. player.Name
         end)
     end
@@ -1939,7 +2160,7 @@ local function updatePlayerList()
             
             local letterHeader = Instance.new("TextLabel", tempContainer)
             letterHeader.Size = UDim2.new(1, -10, 0, 20)
-            letterHeader.Text = "--- " .. firstLetter .. " ---"
+            letterHeader.Text = "--- " .. currentLetter .. " ---"
             letterHeader.Font = Enum.Font.GothamBold
             letterHeader.TextSize = 12
             letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
@@ -1961,7 +2182,7 @@ local function updatePlayerList()
         playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
         Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
         
-        -- Эффекты при наведении
+        
         playerBtn.MouseEnter:Connect(function()
             playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
             playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
@@ -1989,7 +2210,7 @@ local function updatePlayerList()
             
             TeleportConfig.TargetPlayer = player
             TeleportConfig.SelectedPlayerName = player.Name
-            TeleportConfig.OriginalPosition = nil -- Сбрасываем исходную позицию при выборе нового игрока
+            TeleportConfig.OriginalPosition = nil 
             selectedPlayerLabel.Text = "Selected Player: " .. player.Name
         end)
     end
