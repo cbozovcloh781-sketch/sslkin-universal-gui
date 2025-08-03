@@ -155,6 +155,13 @@ local originalGravity = workspace.Gravity
 local originalYBAWalkSpeed = 16
 local originalYBAJumpPower = 50
 
+-- Новая система управления стендами
+local isStandControlActive = false
+local currentControlledStand = nil
+local standCameraConnections = {}
+local originalStandCameraCFrame = nil
+local standControlActive = false
+
 local function startFly()
     local plr = Players.LocalPlayer
     local char = plr.Character
@@ -1167,6 +1174,50 @@ local function unfreezePlayer()
     end
 end
 
+-- Функция для переключения камеры на любой стенд (как в YBA)
+local function switchToStandControl(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return false
+    end
+    
+    local camera = workspace.CurrentCamera
+    if not camera then 
+        print("YBA: Ошибка - камера не найдена")
+        return false
+    end
+    
+    print("YBA: Переключаем управление на стенд: " .. stand.Name)
+    
+    -- Сохраняем текущую камеру
+    originalStandCameraCFrame = camera.CFrame
+    
+    -- Полностью отвязываем камеру от персонажа
+    camera.CameraType = Enum.CameraType.Scriptable
+    
+    -- Устанавливаем камеру за стендом
+    local standPos = stand.Root.Position
+    local cameraPos = standPos + Vector3.new(0, 5, 10) -- Камера за стендом
+    
+    camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
+    
+    -- Отключаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = false
+        end
+    end
+    
+    currentControlledStand = stand
+    isStandControlActive = true
+    standControlActive = true
+    
+    print("YBA: Управление переключено на стенд: " .. stand.Name)
+    return true
+end
+
 local function switchCameraToStand(stand)
     if not stand or not stand.Root then 
         print("YBA: Ошибка - стенд или его Root не найден для камеры")
@@ -1214,6 +1265,45 @@ local function switchCameraToStand(stand)
     end
 end
 
+-- Функция для отключения управления стендом
+local function disableStandControl()
+    if not isStandControlActive then return end
+    
+    print("YBA: Отключаем управление стендом")
+    
+    isStandControlActive = false
+    standControlActive = false
+    currentControlledStand = nil
+    
+    -- Восстанавливаем камеру
+    local camera = workspace.CurrentCamera
+    if camera then
+        camera.CameraType = Enum.CameraType.Custom
+        if originalStandCameraCFrame then
+            camera.CFrame = originalStandCameraCFrame
+        end
+    end
+    
+    -- Восстанавливаем управление персонажем
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = true
+        end
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(standCameraConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    standCameraConnections = {}
+    
+    print("YBA: Управление стендом отключено")
+end
+
 local function restoreCamera()
     local camera = workspace.CurrentCamera
     if camera then
@@ -1232,6 +1322,110 @@ local function restoreCamera()
             end
         end
     end
+end
+
+-- Функция для управления стендом как персонажем
+local function controlStandAsCharacter(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return 
+    end
+    
+    print("YBA: Начинаем управление стендом как персонажем: " .. stand.Name)
+    currentControlledStand = stand
+    
+    -- Переменные для управления
+    local cameraRotation = Vector2.new(0, 0)
+    local lastMousePos = UserInputService:GetMouseLocation()
+    local cameraDistance = 10
+    local cameraHeight = 5
+    
+    -- Создаем соединение для управления стендом
+    local standControlConnection = RunService.Heartbeat:Connect(function()
+        if not isStandControlActive or not currentControlledStand or not currentControlledStand.Root or not currentControlledStand.Root.Parent then
+            return
+        end
+        
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+        
+        -- Принудительно устанавливаем правильный тип камеры
+        camera.CameraType = Enum.CameraType.Scriptable
+        
+        -- Обработка мыши для поворота камеры
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local mouseDelta = currentMousePos - lastMousePos
+        
+        if mouseDelta.Magnitude > 0 then
+            local newRotationX = cameraRotation.X + mouseDelta.X * 0.003
+            local newRotationY = cameraRotation.Y + mouseDelta.Y * 0.003
+            newRotationY = math.clamp(newRotationY, -1.5, 1.5)
+            cameraRotation = Vector2.new(newRotationX, newRotationY)
+        end
+        
+        lastMousePos = currentMousePos
+        
+        -- Получаем ввод пользователя для движения стенда
+        local moveVector = Vector3.new(0, 0, 0)
+        
+        -- Создаем базовое направление движения относительно камеры
+        local forward = Vector3.new(math.sin(cameraRotation.X), 0, math.cos(cameraRotation.X))
+        local right = Vector3.new(math.cos(cameraRotation.X), 0, -math.sin(cameraRotation.X))
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        -- Применяем движение к стенду
+        if moveVector.Magnitude > 0 then
+            moveVector = moveVector.Unit * 50
+            
+            local standRoot = currentControlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", standRoot)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            end
+            bv.Velocity = moveVector
+        else
+            -- Останавливаем стенд
+            local standRoot = currentControlledStand.Root
+            local bv = standRoot:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+        
+        -- Обновляем камеру за стендом
+        local standPos = currentControlledStand.Root.Position
+        local cameraOffset = Vector3.new(
+            math.sin(cameraRotation.X) * cameraDistance,
+            cameraHeight + math.sin(cameraRotation.Y) * 5,
+            math.cos(cameraRotation.X) * cameraDistance
+        )
+        
+        local cameraPos = standPos + cameraOffset
+        local lookAtPos = standPos + Vector3.new(0, 2, 0)
+        
+        camera.CFrame = CFrame.new(cameraPos, lookAtPos)
+    end)
+    
+    table.insert(standCameraConnections, standControlConnection)
 end
 
 local function controlStand(stand)
@@ -1431,6 +1625,31 @@ local function controlStand(stand)
     
     table.insert(standControlConnections, controlConnection)
     table.insert(standControlConnections, mouseWheelConnection)
+    
+    -- Обработка клавиши для быстрого переключения на стенд
+    local quickSwitchConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        -- Клавиша F для быстрого переключения на ближайший стенд
+        if input.KeyCode == Enum.KeyCode.F then
+            if isStandControlActive then
+                disableStandControl()
+            else
+                local stands = findStands()
+                if #stands > 0 then
+                    local targetStand = stands[1]
+                    if switchToStandControl(targetStand) then
+                        controlStandAsCharacter(targetStand)
+                        print("YBA: Быстрое переключение на стенд: " .. targetStand.Name)
+                    end
+                else
+                    print("YBA: Стенды не найдены для быстрого переключения")
+                end
+            end
+        end
+    end)
+    
+    table.insert(standControlConnections, quickSwitchConnection)
 end
 
 local function startYBA()
@@ -1469,17 +1688,13 @@ local function startYBA()
     -- Передаем управление стенду
     if YBAConfig.TransferControl then
         print("YBA: Передаем управление стенду...")
-        controlStand(targetStand)
-        print("YBA: Управление стендом передано")
         
-        -- Принудительно перемещаем камеру к стенду сразу после активации
-        local camera = workspace.CurrentCamera
-        if camera and targetStand.Root then
-            local standPos = targetStand.Root.Position
-            local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
-            camera.CameraType = Enum.CameraType.Scriptable
-            camera.CFrame = CFrame.new(cameraPos, standPos + Vector3.new(0, 2, 0))
-            print("YBA: Камера принудительно перемещена к стенду после активации")
+        -- Используем новую систему управления стендом
+        if switchToStandControl(targetStand) then
+            controlStandAsCharacter(targetStand)
+            print("YBA: Управление стендом передано")
+        else
+            print("YBA: Не удалось переключить управление на стенд")
         end
     else
         print("YBA: TransferControl отключен")
@@ -1493,6 +1708,9 @@ local function stopYBA()
     
     isYBAEnabled = false
     YBAConfig.Enabled = false
+    
+    -- Отключаем управление стендом
+    disableStandControl()
     
     -- Восстанавливаем управление игроком
     unfreezePlayer()
