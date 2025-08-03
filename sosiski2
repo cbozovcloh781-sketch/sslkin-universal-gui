@@ -2072,29 +2072,51 @@ UserInputService.InputBegan:Connect(function(inp, gp)
     end
 end)
 
--- YBA Item ESP Functions (Переписанная версия)
+-- YBA Item ESP Functions (Полностью переписанная версия)
 local itemCache = {}
 local lastCacheUpdate = 0
-local cacheUpdateInterval = 2 -- Обновляем кэш каждые 2 секунды
+local cacheUpdateInterval = 1 -- Обновляем кэш каждую секунду
 
+-- Функция для проверки, является ли объект предметом
 local function isItemObject(obj)
     if not obj or not obj.Name then return false, nil end
     
-    -- Основные предметы YBA
+    -- Расширенный список предметов YBA
     local itemNames = {
         "Arrow", "Rokakaka", "Rib Cage", "Heart", "Pelvis", "Requiem Arrow", 
         "Dio's Diary", "Mysterious Arrow", "Steel Ball", "Corpse Part", 
-        "Corpse", "Dio's Bone", "Stand Arrow"
+        "Corpse", "Dio's Bone", "Stand Arrow", "Arrow", "Rokakaka", "Rib Cage", 
+        "Heart", "Pelvis", "Requiem Arrow", "Dio's Diary", "Mysterious Arrow", 
+        "Steel Ball", "Corpse Part", "Corpse", "Dio's Bone", "Stand Arrow",
+        -- Дополнительные варианты названий
+        "Item", "Pickup", "Drop", "Loot", "Treasure", "Collectible", "Reward",
+        "Fragment", "Piece", "Part", "Component", "Material", "Resource",
+        -- YBA специфичные названия
+        "YBA", "YBAItem", "YBA_Item", "YBA_Arrow", "YBA_Rokakaka", "YBA_Heart",
+        "YBA_Pelvis", "YBA_Rib", "YBA_Corpse", "YBA_Diary", "YBA_Bone",
+        -- Общие названия предметов
+        "Pickup", "Collectible", "Item", "Drop", "Loot", "Treasure", "Reward",
+        "Fragment", "Piece", "Part", "Component", "Material", "Resource",
+        "Object", "Thing", "Stuff", "Goods", "Merchandise", "Product"
     }
     
     local objName = obj.Name:lower()
+    
+    -- Проверяем точное совпадение
+    for _, name in ipairs(itemNames) do
+        if objName == name:lower() then
+            return true, name
+        end
+    end
+    
+    -- Проверяем частичное совпадение
     for _, name in ipairs(itemNames) do
         if objName:find(name:lower()) then
             return true, name
         end
     end
     
-    -- Проверяем родительский объект (только один уровень)
+    -- Проверяем родительский объект
     if obj.Parent and obj.Parent.Name then
         local parentName = obj.Parent.Name:lower()
         for _, name in ipairs(itemNames) do
@@ -2104,7 +2126,146 @@ local function isItemObject(obj)
         end
     end
     
+    -- Проверяем дедушку (родитель родителя)
+    if obj.Parent and obj.Parent.Parent and obj.Parent.Parent.Name then
+        local grandParentName = obj.Parent.Parent.Name:lower()
+        for _, name in ipairs(itemNames) do
+            if grandParentName:find(name:lower()) then
+                return true, name
+            end
+        end
+    end
+    
     return false, nil
+end
+
+-- Дополнительная функция для поиска предметов по свойствам
+local function isItemByProperties(obj)
+    if not obj then return false, nil end
+    
+    -- Проверяем наличие специальных свойств
+    if obj:IsA("BasePart") then
+        -- Проверяем, есть ли у объекта специальные свойства
+        if obj:FindFirstChild("Item") or obj:FindFirstChild("Pickup") or obj:FindFirstChild("Collectible") then
+            return true, "Special Item"
+        end
+        
+        -- Проверяем размер объекта (предметы обычно маленькие)
+        if obj.Size.X < 5 and obj.Size.Y < 5 and obj.Size.Z < 5 then
+            -- Проверяем, не является ли это игроком или стендом
+            if not obj:FindFirstChild("Humanoid") and not obj:FindFirstChild("Stand") then
+                return true, "Small Object"
+            end
+        end
+    end
+    
+    return false, nil
+end
+
+-- Функция для поиска предметов в workspace
+local function findItemsInWorkspace()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    
+    if not playerRoot then 
+        return items 
+    end
+    
+    print("YBA: Начинаем поиск предметов...")
+    
+    -- Сначала ищем в специальных игровых папках
+    local gameFolders = {"Items", "Drops", "Pickups", "Loot", "Treasure", "Collectibles", "YBA", "YBAItems", "GameItems"}
+    for _, folderName in ipairs(gameFolders) do
+        local folder = workspace:FindFirstChild(folderName)
+        if folder then
+            print("YBA: Найдена игровая папка:", folderName)
+            for _, obj in pairs(folder:GetDescendants()) do
+                if obj:IsA("BasePart") or obj:IsA("Model") then
+                    local isItem, itemName = isItemObject(obj)
+                    
+                    if not isItem then
+                        isItem, itemName = isItemByProperties(obj)
+                    end
+                    
+                    if isItem then
+                        local itemRoot = obj
+                        if obj:IsA("Model") then
+                            itemRoot = obj:FindFirstChild("PrimaryPart") or 
+                                       obj:FindFirstChild("RootPart") or 
+                                       obj:FindFirstChild("HumanoidRootPart") or
+                                       obj:FindFirstChild("Main") or
+                                       obj:FindFirstChild("Part")
+                        end
+                        
+                        if not itemRoot then
+                            itemRoot = obj
+                        end
+                        
+                        local distance = (itemRoot.Position - playerRoot.Position).Magnitude
+                        if distance <= YBAConfig.ItemESP.MaxDistance then
+                            table.insert(items, {
+                                Object = obj,
+                                Root = itemRoot,
+                                Distance = distance,
+                                Name = itemName
+                            })
+                            print("YBA: Найден предмет в папке", folderName, ":", itemName, "на расстоянии", math.floor(distance), "м")
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Ищем во всех объектах workspace
+    for _, obj in pairs(workspace:GetDescendants()) do
+        -- Проверяем только BasePart и Model
+        if obj:IsA("BasePart") or obj:IsA("Model") then
+            local isItem, itemName = isItemObject(obj)
+            
+            -- Если не нашли по названию, проверяем по свойствам
+            if not isItem then
+                isItem, itemName = isItemByProperties(obj)
+            end
+            
+            if isItem then
+                local itemRoot = obj
+                
+                -- Для Model ищем корневую часть
+                if obj:IsA("Model") then
+                    itemRoot = obj:FindFirstChild("PrimaryPart") or 
+                               obj:FindFirstChild("RootPart") or 
+                               obj:FindFirstChild("HumanoidRootPart") or
+                               obj:FindFirstChild("Main") or
+                               obj:FindFirstChild("Part")
+                end
+                
+                -- Если не нашли корневую часть, используем сам объект
+                if not itemRoot then
+                    itemRoot = obj
+                end
+                
+                local distance = (itemRoot.Position - playerRoot.Position).Magnitude
+                if distance <= YBAConfig.ItemESP.MaxDistance then
+                    table.insert(items, {
+                        Object = obj,
+                        Root = itemRoot,
+                        Distance = distance,
+                        Name = itemName
+                    })
+                    print("YBA: Найден предмет:", itemName, "на расстоянии", math.floor(distance), "м")
+                end
+            end
+        end
+    end
+    
+    -- Сортируем по расстоянию
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    
+    print("YBA: Всего найдено предметов:", #items)
+    return items
 end
 
 local function updateItemCache()
@@ -2114,83 +2275,7 @@ local function updateItemCache()
     end
     lastCacheUpdate = currentTime
     
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    
-    if not playerRoot then 
-        itemCache = {}
-        return itemCache 
-    end
-    
-    local newCache = {}
-    local processedCount = 0
-    local maxProcessed = 500 -- Ограничиваем количество проверяемых объектов
-    
-    -- Ищем только в основных папках workspace и игровых папках
-    local searchFolders = {workspace}
-    
-    -- Добавляем игровые папки, если они существуют
-    local gameFolders = {"Items", "Drops", "Pickups", "Loot", "Treasure", "Collectibles"}
-    for _, folderName in ipairs(gameFolders) do
-        local folder = workspace:FindFirstChild(folderName)
-        if folder then
-            table.insert(searchFolders, folder)
-        end
-    end
-    
-    for _, folder in ipairs(searchFolders) do
-        for _, obj in ipairs(folder:GetChildren()) do
-            if processedCount >= maxProcessed then break end
-            processedCount = processedCount + 1
-            
-            -- Проверяем только BasePart и Model
-            if obj:IsA("BasePart") or obj:IsA("Model") then
-                local isItem, itemName = isItemObject(obj)
-                
-                if isItem then
-                    local itemRoot = obj
-                    if obj:IsA("Model") then
-                        itemRoot = obj:FindFirstChild("PrimaryPart") or obj:FindFirstChild("RootPart") or obj:FindFirstChild("HumanoidRootPart")
-                    end
-                    
-                    if itemRoot then
-                        local distance = (itemRoot.Position - playerRoot.Position).Magnitude
-                        if distance <= YBAConfig.ItemESP.MaxDistance then
-                            table.insert(newCache, {
-                                Object = obj,
-                                Root = itemRoot,
-                                Distance = distance,
-                                Name = itemName
-                            })
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Сортируем по расстоянию и ограничиваем количество
-    table.sort(newCache, function(a, b) return a.Distance < b.Distance end)
-    
-    -- Ограничиваем количество предметов в кэше
-    local maxItems = 20
-    if #newCache > maxItems then
-        for i = maxItems + 1, #newCache do
-            newCache[i] = nil
-        end
-    end
-    
-    -- Отладочная информация (только при первом запуске)
-    if #newCache > 0 and not itemESPEnabled then
-        print("YBA: Найдено предметов:", #newCache)
-        for i = 1, math.min(5, #newCache) do
-            local item = newCache[i]
-            print("YBA: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
-        end
-    end
-    
-    itemCache = newCache
+    itemCache = findItemsInWorkspace()
     return itemCache
 end
 
@@ -2202,6 +2287,8 @@ local function createItemESP(item)
     if not item.Object or not item.Object.Parent then
         return nil
     end
+    
+    print("YBA: Создаем ESP для предмета:", item.Name)
     
     local esp = {}
     
@@ -2216,11 +2303,14 @@ local function createItemESP(item)
             hl.OutlineColor = YBAConfig.ItemESP.OutlineColor
             hl.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
             hl.Parent = item.Object
+            print("YBA: Highlight создан для:", item.Name)
             return hl
         end)
         
         if success then
             esp.highlight = highlight
+        else
+            print("YBA: Ошибка при создании Highlight для:", item.Name)
         end
     end
     
@@ -2229,8 +2319,8 @@ local function createItemESP(item)
         local success, billboard = pcall(function()
             local bg = Instance.new("BillboardGui")
             bg.AlwaysOnTop = true
-            bg.Size = UDim2.new(0, 150, 0, 40)
-            bg.StudsOffset = Vector3.new(0, 2, 0)
+            bg.Size = UDim2.new(0, 200, 0, 50)
+            bg.StudsOffset = Vector3.new(0, 3, 0)
             bg.Parent = item.Object
             
             local tl = Instance.new("TextLabel", bg)
@@ -2241,17 +2331,22 @@ local function createItemESP(item)
             tl.TextColor3 = YBAConfig.ItemESP.TextColor
             tl.TextXAlignment = Enum.TextXAlignment.Center
             tl.TextYAlignment = Enum.TextYAlignment.Center
+            tl.Text = string.format("%s\n%dm", item.Name, math.floor(item.Distance))
             
+            print("YBA: BillboardGui создан для:", item.Name)
             return {billboard = bg, text = tl}
         end)
         
         if success then
             esp.billboard = billboard.billboard
             esp.text = billboard.text
+        else
+            print("YBA: Ошибка при создании BillboardGui для:", item.Name)
         end
     end
     
     itemESPElements[item.Object] = esp
+    print("YBA: ESP создан для предмета:", item.Name)
     return esp
 end
 
@@ -2297,6 +2392,19 @@ local function startItemESP()
     print("YBA: Максимальная дистанция:", YBAConfig.ItemESP.MaxDistance)
     print("YBA: Показывать обводку:", YBAConfig.ItemESP.ShowOutline)
     print("YBA: Показывать текст:", YBAConfig.ItemESP.ShowText)
+    
+    -- Тестируем поиск всех объектов в workspace
+    print("YBA: Тестируем поиск объектов в workspace...")
+    local testCount = 0
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Model") then
+            testCount = testCount + 1
+            if testCount <= 20 then -- Показываем первые 20 объектов
+                print("YBA: Объект", testCount, ":", obj.Name, "Тип:", obj.ClassName)
+            end
+        end
+    end
+    print("YBA: Всего найдено BasePart и Model:", testCount)
     
     local lastUpdate = 0
     local updateInterval = 0.5 -- Обновляем каждые 0.5 секунды
@@ -3441,4 +3549,25 @@ forceDisableItemESPBtn.MouseButton1Click:Connect(function()
         guiCallbacks.itemESP.Text = "Item ESP: OFF"
     end
     print("YBA: Item ESP принудительно отключен!")
+end)
+
+-- Кнопка для принудительного поиска предметов
+local forceSearchItemsBtn = Instance.new("TextButton", innerContainer)
+forceSearchItemsBtn.Size = UDim2.new(1, -10, 0, 28)
+forceSearchItemsBtn.Text = "FORCE SEARCH ITEMS"
+forceSearchItemsBtn.Font = Enum.Font.GothamBold
+forceSearchItemsBtn.TextSize = 12
+forceSearchItemsBtn.TextColor3 = Color3.new(1,1,1)
+forceSearchItemsBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
+forceSearchItemsBtn.AutoButtonColor = false
+Instance.new("UICorner", forceSearchItemsBtn).CornerRadius = UDim.new(0,6)
+
+forceSearchItemsBtn.MouseButton1Click:Connect(function()
+    print("YBA: Принудительный поиск предметов...")
+    local items = findItemsInWorkspace()
+    print("YBA: Найдено предметов:", #items)
+    for i = 1, math.min(10, #items) do
+        local item = items[i]
+        print("YBA: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+    end
 end) 
