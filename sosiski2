@@ -7,6 +7,100 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 
+-- Добавляем недостающие переменные и функции
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 2
+FOVCircle.NumSides = 100
+FOVCircle.Radius = 150
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+
+local Lines = {}
+
+-- Недостающие функции
+local function isAlive(player)
+    if not player or not player.Character then return false end
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+
+local function rayVisible(target)
+    local camera = workspace.CurrentCamera
+    local origin = camera.CFrame.Position
+    local direction = (target.Position - origin).Unit
+    local ray = Ray.new(origin, direction * 1000)
+    local hit = workspace:FindPartOnRayWithIgnoreList(ray, {Players.LocalPlayer.Character})
+    return not hit or (hit.Position - target.Position).Magnitude < 5
+end
+
+local function getESPColor(player)
+    if Config.ESP.Rainbow then
+        return getRainbow()
+    elseif Config.ESP.TeamCheck and player.Team == Players.LocalPlayer.Team then
+        return Config.ESP.TeamColor
+    else
+        return Config.ESP.EnemyColor
+    end
+end
+
+local function getRainbow()
+    local hue = tick() * 50 % 360
+    return Color3.fromHSV(hue / 360, 1, 1)
+end
+
+local ESPElements = {}
+
+local function createOrUpdateESP(player)
+    if not player or player == Players.LocalPlayer then return end
+    
+    if not ESPElements[player] then
+        ESPElements[player] = {}
+    end
+    
+    local char = player.Character
+    if not char then return end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    -- Создаем Highlight если включен
+    if Config.ESP.ShowOutline and not ESPElements[player].highlight then
+        local highlight = Instance.new("Highlight")
+        highlight.Adornee = char
+        highlight.FillColor = getESPColor(player)
+        highlight.FillTransparency = Config.ESP.FillTransparency
+        highlight.OutlineColor = Config.ESP.OutlineColor
+        highlight.OutlineTransparency = Config.ESP.OutlineTransparency
+        highlight.Parent = char
+        ESPElements[player].highlight = highlight
+    end
+    
+    -- Обновляем цвета
+    if ESPElements[player].highlight then
+        ESPElements[player].highlight.FillColor = getESPColor(player)
+    end
+end
+
+local function removeESP(player)
+    if ESPElements[player] then
+        if ESPElements[player].highlight then
+            ESPElements[player].highlight:Destroy()
+        end
+        ESPElements[player] = nil
+    end
+end
+
+local function onPlayerDied(player)
+    removeESP(player)
+end
+
+local function onPlayerRespawned(player)
+    -- ESP будет создан автоматически в следующем цикле
+end
+
+local function isPlayerAlive(player)
+    return isAlive(player)
+end
 
 local Config = {
     ESP = {
@@ -1786,8 +1880,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
-        
-end
+        end
+    end
+end)
 
 
 local function setupPlayerESP(player)
@@ -2940,7 +3035,7 @@ speedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
 end)
 
 local divider5 = Instance.new("Frame", innerContainer)
-divider5.Position = UDim2.new(0, 5, 0, yOffset)
+divider5.Position = UDim2.new(0, 5, 0, 0)
 divider5.Size = UDim2.new(1, -10, 0, 2)
 divider5.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider5.BorderSizePixel = 0
@@ -3349,116 +3444,5 @@ controlsInfo.TextXAlignment = Enum.TextXAlignment.Left
 controlsInfo.TextYAlignment = Enum.TextYAlignment.Top
 Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4)
 
-local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
-local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
-
-local itemESPEnabled = false
-local itemESPCache = {}
-local itemESPUpdateInterval = 1
-local lastUpdate = 0
-
-local function isValidItem(obj)
-    if not obj:IsA("Model") then return false end
-    local name = obj.Name:lower()
-    local keywords = {
-        "arrow", "rokakaka", "rib", "pelvis", "heart", "diary", "bone",
-        "corpse", "mysterious", "steel", "part", "stand", "drop", "item", "loot"
-    }
-    for _, word in ipairs(keywords) do
-        if name:find(word) then return true end
-    end
-    return false
-end
-
-local function createItemESP(model)
-    if itemESPCache[model] then return end
-
-    local root = model:FindFirstChildWhichIsA("BasePart")
-    if not root then return end
-
-    local highlight = Instance.new("Highlight")
-    highlight.Adornee = model
-    highlight.FillColor = YBAConfig.ItemESP.FillColor
-    highlight.FillTransparency = YBAConfig.ItemESP.FillTransparency
-    highlight.OutlineColor = YBAConfig.ItemESP.OutlineColor
-    highlight.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = model
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.AlwaysOnTop = true
-    billboard.Size = UDim2.new(0, 200, 0, 30)
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
-    billboard.Adornee = root
-    billboard.Parent = model
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = model.Name
-    label.TextColor3 = YBAConfig.ItemESP.TextColor
-    label.TextSize = YBAConfig.ItemESP.TextSize
-    label.Font = YBAConfig.ItemESP.Font
-    label.Parent = billboard
-
-    itemESPCache[model] = {highlight = highlight, billboard = billboard}
-end
-
-local function clearItemESP()
-    for model, data in pairs(itemESPCache) do
-        if data.highlight then data.highlight:Destroy() end
-        if data.billboard then data.billboard:Destroy() end
-    end
-    itemESPCache = {}
-end
-
-local function updateItemESP()
-    if not itemESPEnabled then return end
-    if tick() - lastUpdate < itemESPUpdateInterval then return end
-    lastUpdate = tick()
-
-    clearItemESP()
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if isValidItem(obj) and (obj:IsA("Model") or obj:IsA("Part")) then
-            local root = obj:IsA("Part") and obj or obj:FindFirstChildWhichIsA("BasePart")
-            if root and (root.Position - Camera.CFrame.Position).Magnitude <= YBAConfig.ItemESP.MaxDistance then
-                createItemESP(obj)
-            end
-        end
-    end
-end
-
-function startItemESP()
-    itemESPEnabled = true
-end
-
-function stopItemESP()
-    itemESPEnabled = false
-    clearItemESP()
-end
-
-RunService.RenderStepped:Connect(updateItemESP)
-
-
-
--- Обработчик клика по кнопке Item ESP (вне InputBegan)
-if guiCallbacks.itemESP then
-    guiCallbacks.itemESP.MouseButton1Click:Connect(function()
-        YBAConfig.ItemESP.Enabled = not YBAConfig.ItemESP.Enabled
-
-        if YBAConfig.ItemESP.Enabled then
-            startItemESP()
-            guiCallbacks.itemESP.Text = "Item ESP: ON"
-            guiCallbacks.itemESP.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-        else
-            stopItemESP()
-            guiCallbacks.itemESP.Text = "Item ESP: OFF"
-            guiCallbacks.itemESP.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-        end
-    end)
-end
+-- Конец файла
 
