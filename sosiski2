@@ -115,7 +115,7 @@ local YBAConfig = {
     ItemESP = {
         Enabled = false,
         ToggleKey = nil,
-        MaxDistance = 500,
+        MaxDistance = 200, -- Уменьшена дистанция для снижения нагрузки
         ShowOutline = true,
         ShowText = true,
         FillColor = Color3.fromRGB(255, 215, 0), -- Золотой цвет для предметов
@@ -2118,13 +2118,21 @@ local function findItems()
         "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone", "Dio's Bone"
     }
     
+    local processedCount = 0
+    local maxProcessed = 1000 -- Ограничиваем количество обрабатываемых объектов
+    
     for _, obj in pairs(workspace:GetDescendants()) do
+        if processedCount >= maxProcessed then break end
+        processedCount = processedCount + 1
+        
         if obj:IsA("BasePart") or obj:IsA("Model") then
             local isItem = false
             local itemName = "Unknown Item"
             
-            -- Проверяем название объекта
-            for _, name in ipairs(itemNames) do
+            -- Проверяем название объекта (только основные предметы)
+            local mainItemNames = {"Arrow", "Rokakaka", "Rib Cage", "Heart", "Pelvis", "Requiem Arrow", "Dio's Diary", "Mysterious Arrow", "Steel Ball", "Corpse Part", "Corpse", "Dio's Bone"}
+            
+            for _, name in ipairs(mainItemNames) do
                 if obj.Name:find(name) or obj.Name:lower():find(name:lower()) then
                     isItem = true
                     itemName = name
@@ -2132,11 +2140,12 @@ local function findItems()
                 end
             end
             
-            -- Проверяем родительские объекты
+            -- Проверяем родительские объекты только для основных предметов
             if not isItem then
                 local parent = obj.Parent
-                while parent and parent ~= workspace do
-                    for _, name in ipairs(itemNames) do
+                local depth = 0
+                while parent and parent ~= workspace and depth < 3 do -- Ограничиваем глубину поиска
+                    for _, name in ipairs(mainItemNames) do
                         if parent.Name:find(name) or parent.Name:lower():find(name:lower()) then
                             isItem = true
                             itemName = name
@@ -2145,6 +2154,7 @@ local function findItems()
                     end
                     if isItem then break end
                     parent = parent.Parent
+                    depth = depth + 1
                 end
             end
             
@@ -2179,36 +2189,57 @@ local function createItemESP(item)
         return itemESPElements[item.Object]
     end
     
+    -- Проверяем, что объект все еще существует
+    if not item.Object or not item.Object.Parent then
+        return nil
+    end
+    
     local esp = {}
     
     -- Создаем Highlight для обводки
     if YBAConfig.ItemESP.ShowOutline then
-        esp.highlight = Instance.new("Highlight")
-        esp.highlight.Adornee = item.Object
-        esp.highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        esp.highlight.FillColor = YBAConfig.ItemESP.FillColor
-        esp.highlight.FillTransparency = YBAConfig.ItemESP.FillTransparency
-        esp.highlight.OutlineColor = YBAConfig.ItemESP.OutlineColor
-        esp.highlight.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
-        esp.highlight.Parent = item.Object
+        local success, highlight = pcall(function()
+            local hl = Instance.new("Highlight")
+            hl.Adornee = item.Object
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.FillColor = YBAConfig.ItemESP.FillColor
+            hl.FillTransparency = YBAConfig.ItemESP.FillTransparency
+            hl.OutlineColor = YBAConfig.ItemESP.OutlineColor
+            hl.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
+            hl.Parent = item.Object
+            return hl
+        end)
+        
+        if success then
+            esp.highlight = highlight
+        end
     end
     
     -- Создаем BillboardGui для текста
     if YBAConfig.ItemESP.ShowText then
-        esp.billboard = Instance.new("BillboardGui")
-        esp.billboard.AlwaysOnTop = true
-        esp.billboard.Size = UDim2.new(0, 200, 0, 50)
-        esp.billboard.StudsOffset = Vector3.new(0, 2, 0)
-        esp.billboard.Parent = item.Object
+        local success, billboard = pcall(function()
+            local bg = Instance.new("BillboardGui")
+            bg.AlwaysOnTop = true
+            bg.Size = UDim2.new(0, 200, 0, 50)
+            bg.StudsOffset = Vector3.new(0, 2, 0)
+            bg.Parent = item.Object
+            
+            local tl = Instance.new("TextLabel", bg)
+            tl.Size = UDim2.new(1, 0, 1, 0)
+            tl.BackgroundTransparency = 1
+            tl.Font = YBAConfig.ItemESP.Font
+            tl.TextSize = YBAConfig.ItemESP.TextSize
+            tl.TextColor3 = YBAConfig.ItemESP.TextColor
+            tl.TextXAlignment = Enum.TextXAlignment.Center
+            tl.TextYAlignment = Enum.TextYAlignment.Center
+            
+            return {billboard = bg, text = tl}
+        end)
         
-        esp.text = Instance.new("TextLabel", esp.billboard)
-        esp.text.Size = UDim2.new(1, 0, 1, 0)
-        esp.text.BackgroundTransparency = 1
-        esp.text.Font = YBAConfig.ItemESP.Font
-        esp.text.TextSize = YBAConfig.ItemESP.TextSize
-        esp.text.TextColor3 = YBAConfig.ItemESP.TextColor
-        esp.text.TextXAlignment = Enum.TextXAlignment.Center
-        esp.text.TextYAlignment = Enum.TextYAlignment.Center
+        if success then
+            esp.billboard = billboard.billboard
+            esp.text = billboard.text
+        end
     end
     
     itemESPElements[item.Object] = esp
@@ -2219,8 +2250,19 @@ local function updateItemESP(item)
     local esp = itemESPElements[item.Object]
     if not esp then return end
     
-    if esp.text then
-        esp.text.Text = string.format("%s\n%dm", item.Name, math.floor(item.Distance))
+    -- Проверяем, что объект все еще существует
+    if not item.Object or not item.Object.Parent then
+        return
+    end
+    
+    if esp.text and esp.text.Parent then
+        local success = pcall(function()
+            esp.text.Text = string.format("%s\n%dm", item.Name, math.floor(item.Distance))
+        end)
+        if not success then
+            -- Если текст не обновился, удаляем ESP
+            pcall(removeItemESP, {Object = item.Object})
+        end
     end
 end
 
@@ -2228,12 +2270,17 @@ local function removeItemESP(item)
     local esp = itemESPElements[item.Object]
     if not esp then return end
     
-    if esp.highlight and esp.highlight.Parent then
-        esp.highlight:Destroy()
-    end
-    if esp.billboard and esp.billboard.Parent then
-        esp.billboard:Destroy()
-    end
+    pcall(function()
+        if esp.highlight and esp.highlight.Parent then
+            esp.highlight:Destroy()
+        end
+    end)
+    
+    pcall(function()
+        if esp.billboard and esp.billboard.Parent then
+            esp.billboard:Destroy()
+        end
+    end)
     
     itemESPElements[item.Object] = nil
 end
@@ -2244,12 +2291,26 @@ local function startItemESP()
     
     print("YBA: Item ESP активирован!")
     
+    local lastUpdate = 0
+    local updateInterval = 0.1 -- Обновляем каждые 0.1 секунды вместо каждого кадра
+    
     -- Основной цикл обновления Item ESP
-    local itemESPLoop = RunService.RenderStepped:Connect(function()
+    local itemESPLoop = RunService.Heartbeat:Connect(function()
         if not YBAConfig.ItemESP.Enabled then
             stopItemESP()
             return
         end
+        
+        -- Ограничиваем частоту обновлений
+        local currentTime = tick()
+        if currentTime - lastUpdate < updateInterval then
+            return
+        end
+        lastUpdate = currentTime
+        
+        -- Добавляем таймаут для защиты от зависаний
+        local startTime = tick()
+        local maxExecutionTime = 0.05 -- Максимум 50мс на выполнение
         
         local success, items = pcall(findItems)
         if not success then
@@ -2257,26 +2318,46 @@ local function startItemESP()
             return
         end
         
+        -- Ограничиваем количество предметов для обработки
+        local maxItems = 30 -- Уменьшено с 50 до 30
         local currentItems = {}
+        local processedCount = 0
         
         for _, item in ipairs(items) do
+            -- Проверяем таймаут
+            if tick() - startTime > maxExecutionTime then
+                print("YBA: Item ESP превысил время выполнения, прерываем")
+                break
+            end
+            
+            if processedCount >= maxItems then break end
+            
             if item and item.Object and item.Object.Parent then
                 currentItems[item.Object] = true
-                local success1 = pcall(createItemESP, item)
-                local success2 = pcall(updateItemESP, item)
-                if not success1 then
-                    print("YBA: Ошибка при создании ESP для предмета:", item.Name)
-                end
-                if not success2 then
-                    print("YBA: Ошибка при обновлении ESP для предмета:", item.Name)
+                processedCount = processedCount + 1
+                
+                -- Создаем ESP только если его еще нет
+                if not itemESPElements[item.Object] then
+                    local success1 = pcall(createItemESP, item)
+                    if not success1 then
+                        print("YBA: Ошибка при создании ESP для предмета:", item.Name)
+                    end
+                else
+                    -- Обновляем только текст
+                    local success2 = pcall(updateItemESP, item)
+                    if not success2 then
+                        print("YBA: Ошибка при обновлении ESP для предмета:", item.Name)
+                    end
                 end
             end
         end
         
         -- Удаляем ESP для предметов, которые больше не видны
+        local removedCount = 0
         for obj, esp in pairs(itemESPElements) do
-            if not currentItems[obj] then
+            if not currentItems[obj] and removedCount < 5 then -- Уменьшено с 10 до 5
                 pcall(removeItemESP, {Object = obj})
+                removedCount = removedCount + 1
             end
         end
     end)
@@ -3261,13 +3342,13 @@ task.spawn(function()
     end
 end)
 
--- Инициализация Item ESP при запуске
-if YBAConfig.ItemESP.Enabled then
-    task.spawn(function()
-        task.wait(2) -- Ждем загрузки игры
-        startItemESP()
-    end)
-end
+-- Инициализация Item ESP при запуске (отключена для безопасности)
+-- if YBAConfig.ItemESP.Enabled then
+--     task.spawn(function()
+--         task.wait(2) -- Ждем загрузки игры
+--         startItemESP()
+--     end)
+-- end
 
 -- YBA Hacks Section (в конце меню)
 sectionHeader("🟪 YBA Hacks")
@@ -3330,7 +3411,7 @@ toggle("Show Text", YBAConfig.ItemESP.ShowText, function(v)
     YBAConfig.ItemESP.ShowText = v 
 end)
 
-slider("Max Distance", 50, 1000, YBAConfig.ItemESP.MaxDistance, function(v)
+slider("Max Distance", 50, 500, YBAConfig.ItemESP.MaxDistance, function(v)
     YBAConfig.ItemESP.MaxDistance = v
 end)
 
@@ -3356,4 +3437,24 @@ end)
 
 colorPicker("Text Color", YBAConfig.ItemESP.TextColor, function(c)
     YBAConfig.ItemESP.TextColor = c
+end)
+
+-- Кнопка для принудительного отключения Item ESP
+local forceDisableItemESPBtn = Instance.new("TextButton", innerContainer)
+forceDisableItemESPBtn.Size = UDim2.new(1, -10, 0, 28)
+forceDisableItemESPBtn.Text = "FORCE DISABLE ITEM ESP"
+forceDisableItemESPBtn.Font = Enum.Font.GothamBold
+forceDisableItemESPBtn.TextSize = 12
+forceDisableItemESPBtn.TextColor3 = Color3.new(1,1,1)
+forceDisableItemESPBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+forceDisableItemESPBtn.AutoButtonColor = false
+Instance.new("UICorner", forceDisableItemESPBtn).CornerRadius = UDim.new(0,6)
+
+forceDisableItemESPBtn.MouseButton1Click:Connect(function()
+    YBAConfig.ItemESP.Enabled = false
+    stopItemESP()
+    if guiCallbacks.itemESP then
+        guiCallbacks.itemESP.Text = "Item ESP: OFF"
+    end
+    print("YBA: Item ESP принудительно отключен!")
 end) 
