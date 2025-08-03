@@ -70,6 +70,7 @@ local TeleportConfig = {
     TeleportSpeed = 1800, -- Фиксированная скорость для YBA
     ReturnSpeed = 1800, -- Скорость возврата в исходную точку
     BehindPlayerDistance = 1.8, -- Фиксированное расстояние за спиной игрока
+    BehindPlayerTime = 0, -- Время нахождения за спиной игрока
 }
 
 -- Переменные для полета
@@ -451,9 +452,16 @@ local function createStealthTeleport()
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
             
-            -- Вычисляем позицию за спиной игрока
+            -- Вычисляем позицию за спиной игрока с учетом высоты
             local targetCFrame = currentTargetRoot.CFrame
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+            
+            -- Учитываем высоту игрока для более точного позиционирования
+            local targetHumanoid = targetChar:FindFirstChild("Humanoid")
+            if targetHumanoid then
+                local heightOffset = targetHumanoid.HipHeight + 2
+                behindPosition = targetCFrame * CFrame.new(0, heightOffset, TeleportConfig.BehindPlayerDistance)
+            end
             
             -- Стандартный метод через BodyVelocity
             local bv = root:FindFirstChild("BodyVelocity")
@@ -466,26 +474,55 @@ local function createStealthTeleport()
             if distance < 10 then
                 -- Плавно перемещаемся за спину игрока
                 local direction = (behindPosition.Position - currentPos).Unit
-                local moveSpeed = TeleportConfig.TeleportSpeed * 0.5 -- Увеличиваем скорость для быстрого приближения
+                local moveSpeed = TeleportConfig.TeleportSpeed * 0.3 -- Уменьшаем скорость для точности
                 bv.Velocity = direction * moveSpeed
                 
                 -- Если мы очень близко, устанавливаем точную позицию и останавливаем движение
                 if distance < 1.5 then
-                    -- Сначала останавливаем движение
+                    -- Останавливаем движение и устанавливаем точную позицию
                     bv.Velocity = Vector3.new(0, 0, 0)
-                    task.wait(0.1) -- Небольшая пауза
                     
-                    -- Устанавливаем точную позицию
-                    root.CFrame = behindPosition
-                    
-                    -- Удаляем BodyVelocity чтобы избежать тряски
+                    -- Удаляем BodyVelocity сразу
                     if bv then
                         bv:Destroy()
                     end
                     
-                    -- Дополнительная стабилизация
-                    task.wait(0.2)
+                    -- Устанавливаем точную позицию за спиной
                     root.CFrame = behindPosition
+                    
+                    -- Дополнительная стабилизация через небольшую паузу
+                    task.spawn(function()
+                        task.wait(0.1)
+                        if root and root.Parent then
+                            root.CFrame = behindPosition
+                        end
+                        
+                        -- Еще одна проверка через 0.5 секунды
+                        task.wait(0.4)
+                        if root and root.Parent then
+                            root.CFrame = behindPosition
+                        end
+                    end)
+                    
+                    -- Защита от убийства при долгом нахождении за спиной
+                    TeleportConfig.BehindPlayerTime = TeleportConfig.BehindPlayerTime + 1
+                    
+                    -- Если находимся за спиной больше 3 секунд, уменьшаем скорость
+                    if TeleportConfig.BehindPlayerTime > 3 then
+                        -- Восстанавливаем нормальную скорость ходьбы
+                        local humanoid = char:FindFirstChild("Humanoid")
+                        if humanoid then
+                            humanoid.WalkSpeed = 16
+                        end
+                        
+                        -- Периодически обновляем позицию для стабильности
+                        if TeleportConfig.BehindPlayerTime % 10 == 0 then
+                            root.CFrame = behindPosition
+                        end
+                    end
+                else
+                    -- Сбрасываем счетчик времени если не за спиной
+                    TeleportConfig.BehindPlayerTime = 0
                 end
             else
                 -- Быстрое перемещение к игроку
@@ -579,6 +616,7 @@ end
 local function stopTeleport()
     isTeleporting = false
     TeleportConfig.Enabled = false
+    TeleportConfig.BehindPlayerTime = 0 -- Сбрасываем время нахождения за спиной
     
     local char = Players.LocalPlayer.Character
     if not char then 
