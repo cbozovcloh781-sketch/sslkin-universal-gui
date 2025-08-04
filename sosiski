@@ -112,16 +112,22 @@ local YBAConfig = {
     CameraFollowHeight = 6.1,
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
-    -- Анти тайм стоп функция
+    -- Анти тайм стоп функция (обновленная версия из sosiski2)
     AntiTimeStop = {
+        MovementSpeed = 50,
+        JumpPower = 100,
+        WalkSpeed = 50,
+        AutoActivate = false,
+        DetectionRange = 1000,
+        VisualEffect = true,
+        SoundEffect = true,
+        AntiFreeze = true,
+        TimeStopBypass = true,
+        MovementOverride = true,
+        DisableOnAttack = false,
+        ServerSync = true,
         Enabled = false,
         ToggleKey = nil,
-        AutoActivate = false, -- Отключено автовключение
-        DetectionRange = 1000,
-        ActivationDelay = 0.1,
-        Duration = 30.0, -- Увеличено время до 30 секунд
-        Cooldown = 10.0,
-        LastActivation = 0,
         IsActive = false
     },
     -- Item ESP Configuration
@@ -238,6 +244,16 @@ local lastCameraUpdate = nil
 local itemESPConnections = {}
 local itemESPElements = {}
 local itemESPEnabled = false
+
+-- Глобальные переменные для новой системы анти тайм стопа
+local isAntiTimeStopEnabled = false
+local antiTimeStopConnections = {}
+local originalAntiTimeStopWalkSpeed = 16
+local originalAntiTimeStopJumpPower = 50
+local timeStopDetected = false
+local timeStopStartTime = 0
+local timeStopDuration = 0
+local antiTimeStopEffect = nil
 
 local YBAFreeCamera = {} do
     local RunService = game:GetService("RunService")
@@ -1465,57 +1481,7 @@ local function unfreezePlayer()
     end
 end
 
--- Функции для анти тайм стоп
-local function startAntiTimeStop()
-    if YBAConfig.AntiTimeStop.IsActive then return end
-    
-    local currentTime = tick()
-    if currentTime - YBAConfig.AntiTimeStop.LastActivation < YBAConfig.AntiTimeStop.Cooldown then
-        print("YBA: Анти тайм стоп на кулдауне")
-        return
-    end
-    
-    YBAConfig.AntiTimeStop.IsActive = true
-    YBAConfig.AntiTimeStop.LastActivation = currentTime
-    
-    print("YBA: Анти тайм стоп активирован!")
-    
-    -- Создаем эффект анти тайм стоп
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            -- Увеличиваем скорость для "прорыва" тайм стопа
-            humanoid.WalkSpeed = humanoid.WalkSpeed * 3 -- Увеличено с 2 до 3
-            humanoid.JumpPower = humanoid.JumpPower * 2 -- Увеличено с 1.5 до 2
-        end
-    end
-    
-    -- Автоматически отключаем через Duration секунд
-    spawn(function()
-        wait(YBAConfig.AntiTimeStop.Duration)
-        stopAntiTimeStop()
-    end)
-end
-
-local function stopAntiTimeStop()
-    if not YBAConfig.AntiTimeStop.IsActive then return end
-    
-    YBAConfig.AntiTimeStop.IsActive = false
-    print("YBA: Анти тайм стоп деактивирован")
-    
-    -- Восстанавливаем нормальную скорость
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = originalYBAWalkSpeed
-            humanoid.JumpPower = originalYBAJumpPower
-        end
-    end
-end
-
--- Функция для автоматического обнаружения тайм стопа
+-- Функции для анти тайм стоп (обновленная версия из sosiski2)
 local function detectTimeStop()
     if not YBAConfig.AntiTimeStop.AutoActivate then return end
     
@@ -1536,7 +1502,6 @@ local function detectTimeStop()
                     local humanoid = otherPlayer.Character:FindFirstChild("Humanoid")
                     if humanoid and humanoid.WalkSpeed == 0 then
                         print("YBA: Обнаружен тайм стоп! Активируем защиту...")
-                        wait(YBAConfig.AntiTimeStop.ActivationDelay)
                         startAntiTimeStop()
                         break
                     end
@@ -1544,6 +1509,173 @@ local function detectTimeStop()
             end
         end
     end
+end
+
+local function createAntiTimeStopEffect()
+    if not YBAConfig.AntiTimeStop.VisualEffect then return end
+    
+    local player = Players.LocalPlayer
+    if not player or not player.Character then return end
+    
+    -- Создаем визуальный эффект
+    local effect = Instance.new("Part")
+    effect.Size = Vector3.new(1, 1, 1)
+    effect.Transparency = 0.5
+    effect.Material = Enum.Material.Neon
+    effect.BrickColor = BrickColor.new("Really blue")
+    effect.Anchored = true
+    effect.CanCollide = false
+    effect.Parent = workspace
+    
+    -- Анимация эффекта
+    local tween = TweenService:Create(effect, TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {
+        Size = Vector3.new(10, 10, 10),
+        Transparency = 1
+    })
+    tween:Play()
+    
+    antiTimeStopEffect = effect
+    
+    -- Удаляем эффект через 1 секунду
+    spawn(function()
+        wait(1)
+        if effect and effect.Parent then
+            effect:Destroy()
+        end
+    end)
+end
+
+local function removeAntiTimeStopEffect()
+    if antiTimeStopEffect and antiTimeStopEffect.Parent then
+        antiTimeStopEffect:Destroy()
+        antiTimeStopEffect = nil
+    end
+end
+
+local function startAntiTimeStop()
+    if YBAConfig.AntiTimeStop.IsActive then return end
+    
+    YBAConfig.AntiTimeStop.IsActive = true
+    print("YBA: Анти тайм стоп активирован!")
+    
+    local player = Players.LocalPlayer
+    if not player or not player.Character then return end
+    
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not rootPart then return end
+    
+    -- Сохраняем оригинальные значения
+    originalAntiTimeStopWalkSpeed = humanoid.WalkSpeed
+    originalAntiTimeStopJumpPower = humanoid.JumpPower
+    
+    -- Применяем настройки анти тайм стопа
+    humanoid.WalkSpeed = YBAConfig.AntiTimeStop.WalkSpeed
+    humanoid.JumpPower = YBAConfig.AntiTimeStop.JumpPower
+    
+    -- Анти-заморозка
+    if YBAConfig.AntiTimeStop.AntiFreeze then
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.Parent = rootPart
+        
+        local bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)
+        bodyGyro.D = 1000
+        bodyGyro.P = 10000
+        bodyGyro.CFrame = rootPart.CFrame
+        bodyGyro.Parent = rootPart
+        
+        table.insert(antiTimeStopConnections, bodyVelocity)
+        table.insert(antiTimeStopConnections, bodyGyro)
+    end
+    
+    -- Обход тайм стопа
+    if YBAConfig.AntiTimeStop.TimeStopBypass then
+        -- Принудительное движение
+        spawn(function()
+            while YBAConfig.AntiTimeStop.IsActive do
+                if rootPart and humanoid then
+                    local moveDirection = Vector3.new(0, 0, 0)
+                    
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                        moveDirection = moveDirection + rootPart.CFrame.LookVector
+                    end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                        moveDirection = moveDirection - rootPart.CFrame.LookVector
+                    end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                        moveDirection = moveDirection - rootPart.CFrame.RightVector
+                    end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                        moveDirection = moveDirection + rootPart.CFrame.RightVector
+                    end
+                    
+                    if moveDirection.Magnitude > 0 then
+                        moveDirection = moveDirection.Unit * YBAConfig.AntiTimeStop.MovementSpeed
+                        rootPart.CFrame = rootPart.CFrame + moveDirection * 0.1
+                    end
+                end
+                wait(0.01)
+            end
+        end)
+    end
+    
+    -- Синхронизация с сервером
+    if YBAConfig.AntiTimeStop.ServerSync then
+        local remoteEvent = Instance.new("RemoteEvent")
+        remoteEvent.Name = "AntiTimeStopSync"
+        remoteEvent.Parent = player.Character
+    end
+    
+    -- Визуальный эффект
+    createAntiTimeStopEffect()
+    
+    -- Звуковой эффект
+    if YBAConfig.AntiTimeStop.SoundEffect then
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+        sound.Volume = 0.5
+        sound.Parent = rootPart
+        sound:Play()
+        
+        spawn(function()
+            wait(1)
+            if sound and sound.Parent then
+                sound:Destroy()
+            end
+        end)
+    end
+end
+
+local function stopAntiTimeStop()
+    if not YBAConfig.AntiTimeStop.IsActive then return end
+    
+    YBAConfig.AntiTimeStop.IsActive = false
+    print("YBA: Анти тайм стоп деактивирован")
+    
+    local player = Players.LocalPlayer
+    if not player or not player.Character then return end
+    
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        -- Восстанавливаем оригинальные значения
+        humanoid.WalkSpeed = originalAntiTimeStopWalkSpeed
+        humanoid.JumpPower = originalAntiTimeStopJumpPower
+    end
+    
+    -- Удаляем все соединения
+    for _, connection in ipairs(antiTimeStopConnections) do
+        if connection and connection.Parent then
+            connection:Destroy()
+        end
+    end
+    antiTimeStopConnections = {}
+    
+    -- Удаляем визуальный эффект
+    removeAntiTimeStopEffect()
 end
 
 local function activateFreeCamera(stand)
@@ -3451,22 +3583,58 @@ slider("Stand Speed", 0.1, 5.0, YBAConfig.StandSpeed, function(v)
     print("YBA Stand Speed установлен в:", v)
 end)
 
--- Настройки анти тайм стоп
+-- Настройки анти тайм стоп (обновленная версия)
 sectionHeader("⏰ Anti Time Stop Settings")
+
+slider("Movement Speed", 10, 100, YBAConfig.AntiTimeStop.MovementSpeed, function(v)
+    YBAConfig.AntiTimeStop.MovementSpeed = v
+    print("Anti Time Stop Movement Speed установлен в:", v)
+end)
+
+slider("Walk Speed", 10, 100, YBAConfig.AntiTimeStop.WalkSpeed, function(v)
+    YBAConfig.AntiTimeStop.WalkSpeed = v
+    print("Anti Time Stop Walk Speed установлен в:", v)
+end)
+
+slider("Jump Power", 50, 200, YBAConfig.AntiTimeStop.JumpPower, function(v)
+    YBAConfig.AntiTimeStop.JumpPower = v
+    print("Anti Time Stop Jump Power установлен в:", v)
+end)
 
 slider("Detection Range", 100, 2000, YBAConfig.AntiTimeStop.DetectionRange, function(v)
     YBAConfig.AntiTimeStop.DetectionRange = v
     print("Anti Time Stop Detection Range установлен в:", v)
 end)
 
-slider("Duration", 5.0, 60.0, YBAConfig.AntiTimeStop.Duration, function(v)
-    YBAConfig.AntiTimeStop.Duration = v
-    print("Anti Time Stop Duration установлен в:", v)
+-- Дополнительные настройки
+toggle("Visual Effect", YBAConfig.AntiTimeStop.VisualEffect, function(v)
+    YBAConfig.AntiTimeStop.VisualEffect = v
+    print("Anti Time Stop Visual Effect установлен в:", v and "ON" or "OFF")
 end)
 
-slider("Cooldown", 5.0, 20.0, YBAConfig.AntiTimeStop.Cooldown, function(v)
-    YBAConfig.AntiTimeStop.Cooldown = v
-    print("Anti Time Stop Cooldown установлен в:", v)
+toggle("Sound Effect", YBAConfig.AntiTimeStop.SoundEffect, function(v)
+    YBAConfig.AntiTimeStop.SoundEffect = v
+    print("Anti Time Stop Sound Effect установлен в:", v and "ON" or "OFF")
+end)
+
+toggle("Anti Freeze", YBAConfig.AntiTimeStop.AntiFreeze, function(v)
+    YBAConfig.AntiTimeStop.AntiFreeze = v
+    print("Anti Time Stop Anti Freeze установлен в:", v and "ON" or "OFF")
+end)
+
+toggle("Time Stop Bypass", YBAConfig.AntiTimeStop.TimeStopBypass, function(v)
+    YBAConfig.AntiTimeStop.TimeStopBypass = v
+    print("Anti Time Stop Time Stop Bypass установлен в:", v and "ON" or "OFF")
+end)
+
+toggle("Movement Override", YBAConfig.AntiTimeStop.MovementOverride, function(v)
+    YBAConfig.AntiTimeStop.MovementOverride = v
+    print("Anti Time Stop Movement Override установлен в:", v and "ON" or "OFF")
+end)
+
+toggle("Server Sync", YBAConfig.AntiTimeStop.ServerSync, function(v)
+    YBAConfig.AntiTimeStop.ServerSync = v
+    print("Anti Time Stop Server Sync установлен в:", v and "ON" or "OFF")
 end)
 
 sectionHeader("🎯 YBA Item ESP")
