@@ -113,9 +113,10 @@ local YBAConfig = {
     StandRotationSpeed = 0.05,
     -- Новая функция для управления персонажем под стендом
     UndergroundControl = {
-        Enabled = false,
+        Enabled = true, -- Включено по умолчанию
         ToggleKey = nil,
         UndergroundDistance = 30, -- Расстояние под землей в метрах
+        FlightSpeed = 120, -- Скорость полета за стендом
         AutoNoClip = true, -- Автоматически включать NoClip
         ReturnToOriginal = true, -- Возвращаться в исходную позицию при выключении
         OriginalPosition = nil, -- Исходная позиция персонажа
@@ -2127,14 +2128,14 @@ local function startUndergroundControl()
         -- Плавное следование за стендом (как в оригинальном полете)
         if distance > 2 then
             -- Быстрое приближение к стенду
-            local flySpeed = 120
+            local flySpeed = YBAConfig.UndergroundControl.FlightSpeed
             local currentVelocity = bv.Velocity
             local targetVelocity = direction * flySpeed
             local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.15
             bv.Velocity = smoothedVelocity
         elseif distance > 0.5 then
             -- Медленное точное позиционирование
-            local flySpeed = 25
+            local flySpeed = YBAConfig.UndergroundControl.FlightSpeed * 0.2 -- 20% от основной скорости
             local currentVelocity = bv.Velocity
             local targetVelocity = direction * flySpeed
             local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.1
@@ -4011,7 +4012,25 @@ local undergroundControlToggleBtn = toggle("Underground Flight", YBAConfig.Under
 end)
 guiCallbacks.undergroundControl = undergroundControlToggleBtn
 
+-- Автоматически запускаем функцию при загрузке скрипта
+if YBAConfig.UndergroundControl.Enabled then
+    task.spawn(function()
+        task.wait(1) -- Ждем 1 секунду для полной загрузки
+        startUndergroundControl()
+    end)
+end
+
 undergroundControlToggleBtn.AutoButtonColor = false
+
+-- Ползунок для регулировки скорости полета
+slider("Flight Speed (50-300)", 50, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
+    YBAConfig.UndergroundControl.FlightSpeed = v
+end)
+
+-- Ползунок для регулировки расстояния под землей
+slider("Underground Distance (10-100m)", 10, 100, YBAConfig.UndergroundControl.UndergroundDistance, function(v)
+    YBAConfig.UndergroundControl.UndergroundDistance = v
+end)
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
 itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
