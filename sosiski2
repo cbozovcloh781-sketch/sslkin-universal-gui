@@ -2074,28 +2074,63 @@ local function findYBAItems()
         return items 
     end
 
-    local itemFolder = workspace:FindFirstChild("Item_Spawns") or workspace:FindFirstChild("item_spawns")
+    -- Проверяем все возможные варианты папок
+    print("YBA Item ESP: Ищем папки с предметами...")
+    local possibleFolders = {
+        workspace:FindFirstChild("Item_Spawns"),
+        workspace:FindFirstChild("item_spawns"),
+        workspace:FindFirstChild("Items"),
+        workspace:FindFirstChild("items"),
+        workspace:FindFirstChild("ItemSpawns"),
+        workspace:FindFirstChild("itemspawns")
+    }
+    
+    local itemFolder = nil
+    for _, folder in ipairs(possibleFolders) do
+        if folder then
+            print("YBA Item ESP: Найдена папка:", folder.Name)
+            itemFolder = folder
+            break
+        end
+    end
+    
     if not itemFolder then 
-        print("YBA Item ESP: Папка Item_Spawns не найдена")
+        print("YBA Item ESP: Папка с предметами не найдена!")
+        print("YBA Item ESP: Доступные папки в workspace:")
+        for _, child in ipairs(workspace:GetChildren()) do
+            if child:IsA("Folder") then
+                print("  -", child.Name)
+            end
+        end
         return items 
     end
-    local itemsFolder = itemFolder:FindFirstChild("Items") or itemFolder:FindFirstChild("items")
-    if not itemsFolder then 
-        print("YBA Item ESP: Папка Items не найдена")
-        return items 
+    
+    -- Ищем папку Items внутри найденной папки
+    local itemsFolder = itemFolder:FindFirstChild("Items") or 
+                       itemFolder:FindFirstChild("items") or 
+                       itemFolder:FindFirstChild("Item") or
+                       itemFolder
+    
+    print("YBA Item ESP: Используем папку:", itemsFolder.Name)
+    print("YBA Item ESP: Содержимое папки:")
+    for _, child in ipairs(itemsFolder:GetChildren()) do
+        print("  -", child.Name, "(" .. child.ClassName .. ")")
     end
 
     local foundCount = 0
 
     for _, model in ipairs(itemsFolder:GetChildren()) do
         if model:IsA("Model") then
+            print("YBA Item ESP: Проверяем Model:", model.Name, "В списке:", YBA_ITEM_NAMES[model.Name] and "ДА" or "НЕТ")
             if YBA_ITEM_NAMES[model.Name] then
                 -- Ищем первый MeshPart в Model (визуальная часть предмета)
                 for _, part in ipairs(model:GetDescendants()) do
                     if part:IsA("MeshPart") then
                         local distance = (part.Position - playerRoot.Position).Magnitude
+                        print("YBA Item ESP: Найден MeshPart в", model.Name, "на расстоянии", math.floor(distance), "м")
                         if distance <= YBAConfig.ItemESP.MaxDistance then
                             foundCount = foundCount + 1
+                            print("YBA Item ESP: Добавляем предмет", model.Name)
                             table.insert(items, {
                                 Object = part,
                                 Root = part,
@@ -2104,6 +2139,8 @@ local function findYBAItems()
                                 Type = "YBA_Item"
                             })
                             break -- Берем только первый MeshPart из Model
+                        else
+                            print("YBA Item ESP: Предмет", model.Name, "слишком далеко:", math.floor(distance), "м >", YBAConfig.ItemESP.MaxDistance, "м")
                         end
                     end
                 end
@@ -2111,6 +2148,7 @@ local function findYBAItems()
         end
     end
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    print("YBA Item ESP: Всего найдено предметов:", foundCount)
     return items
 end
 
