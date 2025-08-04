@@ -153,6 +153,8 @@ local YBAConfig = {
             ["Steel Ball"] = true,
             ["Clackers"] = true,
             ["Zeppeli's Headband"] = true,
+            ["Zeppeli's Hat"] = true,
+            ["Zeppeli's Scarf"] = true,
             ["Ancient Scroll"] = true,
             ["Quinton's Glove"] = true,
             ["Stone Mask"] = true,
@@ -2087,6 +2089,8 @@ local YBA_ITEM_NAMES = {
     ["Steel Ball"] = true,
     ["Clackers"] = true,
     ["Zeppeli's Headband"] = true,
+    ["Zeppeli's Hat"] = true,
+    ["Zeppeli's Scarf"] = true,
     ["Ancient Scroll"] = true,
     ["Quinton's Glove"] = true,
     ["Stone Mask"] = true,
@@ -3740,6 +3744,10 @@ createItemToggle("Diamond", YBAConfig.ItemESP.Items["Diamond"])
 createItemToggle("Gold Coin", YBAConfig.ItemESP.Items["Gold Coin"])
 createItemToggle("Steel Ball", YBAConfig.ItemESP.Items["Steel Ball"])
 createItemToggle("Clackers", YBAConfig.ItemESP.Items["Clackers"])
+createItemToggle("Zeppeli's Headband", YBAConfig.ItemESP.Items["Zeppeli's Headband"])
+createItemToggle("Zeppeli's Hat", YBAConfig.ItemESP.Items["Zeppeli's Hat"])
+createItemToggle("Zeppeli's Scarf", YBAConfig.ItemESP.Items["Zeppeli's Scarf"])
+createItemToggle("Quinton's Glove", YBAConfig.ItemESP.Items["Quinton's Glove"])
 createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
 
 -- Части трупа святого
@@ -3817,7 +3825,8 @@ selectBasicBtn.MouseButton1Click:Connect(function()
     -- Включаем только основные предметы
     local basicItems = {
         "Mysterious Arrow", "Rokakaka", "Pure Rokakaka", "Diamond", 
-        "Gold Coin", "Steel Ball", "Clackers", "Lucky Arrow"
+        "Gold Coin", "Steel Ball", "Clackers", "Zeppeli's Headband", 
+        "Zeppeli's Hat", "Zeppeli's Scarf", "Quinton's Glove", "Lucky Arrow"
     }
     
     for _, itemName in ipairs(basicItems) do
