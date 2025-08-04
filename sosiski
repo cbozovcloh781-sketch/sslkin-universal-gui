@@ -112,7 +112,7 @@ local YBAConfig = {
     CameraFollowHeight = 6.1,
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
-    -- Анти тайм стоп функция (обновленная версия из sosiski2)
+    -- Анти тайм стоп функция (новая версия из sosiski2)
     AntiTimeStop = {
         MovementSpeed = 50,
         JumpPower = 100,
@@ -245,7 +245,7 @@ local itemESPConnections = {}
 local itemESPElements = {}
 local itemESPEnabled = false
 
--- Глобальные переменные для новой системы анти тайм стопа
+-- Глобальные переменные для анти тайм стопа (новая версия из sosiski2)
 local isAntiTimeStopEnabled = false
 local antiTimeStopConnections = {}
 local originalAntiTimeStopWalkSpeed = 16
@@ -1481,7 +1481,7 @@ local function unfreezePlayer()
     end
 end
 
--- Функции для анти тайм стоп (обновленная версия из sosiski2)
+-- Функции для анти тайм стоп (новая версия из sosiski2)
 local function detectTimeStop()
     if not YBAConfig.AntiTimeStop.AutoActivate then return end
     
@@ -1517,6 +1517,9 @@ local function createAntiTimeStopEffect()
     local player = Players.LocalPlayer
     if not player or not player.Character then return end
     
+    local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
     -- Создаем визуальный эффект
     local effect = Instance.new("Part")
     effect.Size = Vector3.new(1, 1, 1)
@@ -1525,6 +1528,7 @@ local function createAntiTimeStopEffect()
     effect.BrickColor = BrickColor.new("Really blue")
     effect.Anchored = true
     effect.CanCollide = false
+    effect.CFrame = rootPart.CFrame
     effect.Parent = workspace
     
     -- Анимация эффекта
@@ -1574,7 +1578,7 @@ local function startAntiTimeStop()
     humanoid.WalkSpeed = YBAConfig.AntiTimeStop.WalkSpeed
     humanoid.JumpPower = YBAConfig.AntiTimeStop.JumpPower
     
-    -- Анти-заморозка
+    -- Анти-заморозка с агрессивными настройками
     if YBAConfig.AntiTimeStop.AntiFreeze then
         local bodyVelocity = Instance.new("BodyVelocity")
         bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
@@ -1592,9 +1596,8 @@ local function startAntiTimeStop()
         table.insert(antiTimeStopConnections, bodyGyro)
     end
     
-    -- Обход тайм стопа
+    -- Обход тайм стопа с принудительным движением
     if YBAConfig.AntiTimeStop.TimeStopBypass then
-        -- Принудительное движение
         spawn(function()
             while YBAConfig.AntiTimeStop.IsActive do
                 if rootPart and humanoid then
