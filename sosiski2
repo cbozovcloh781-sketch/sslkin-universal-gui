@@ -1966,7 +1966,7 @@ end
 local function startYBA()
     if isYBAEnabled then return end
     
-    print("Запуск YBA Stand Range...")
+               print("Запуск Stand Range Hack...")
     
     isYBAEnabled = true
     YBAConfig.Enabled = true
@@ -1998,14 +1998,14 @@ local function startYBA()
     end
     
     -- Автоматически запускаем подземный полет через 5 секунд после включения Stand Range
-    print("Stand Range активирован")
+               print("Stand Range Hack активирован")
     print("Underground Flight будет активирован через 5 секунд...")
     
     -- Добавляем обработчик смерти
     local humanoid = char and char:FindFirstChild("Humanoid")
     if humanoid then
         local deathConnection = humanoid.Died:Connect(function()
-            print("Игрок умер, отключаем Stand Range...")
+                           print("Игрок умер, отключаем Stand Range Hack...")
             stopYBA()
         end)
         table.insert(standControlConnections, deathConnection)
@@ -2016,7 +2016,7 @@ local function startYBA()
         
         -- Проверяем, что Stand Range все еще включен
         if not isYBAEnabled then
-            print("Stand Range был отключен, Underground Flight не активируется")
+                           print("Stand Range Hack был отключен, Underground Flight не активируется")
             return
         end
         
@@ -2051,7 +2051,7 @@ local function stopYBA()
     controlledStand = nil
     
     -- Останавливаем подземный полет при выключении Stand Range
-    print("Stand Range деактивирован")
+               print("Stand Range Hack деактивирован")
     print("Автоматически отключаем Underground Flight...")
     if stopUndergroundControl then
         stopUndergroundControl()
@@ -2433,7 +2433,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             end
             
             if guiCallbacks.yba then
-                guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+                guiCallbacks.yba.Text = "Stand Range Hack: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
 
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
@@ -4083,7 +4083,7 @@ standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 standRangeLabel.BackgroundTransparency = 1
 standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+local ybaToggleBtn = toggle("Stand Range Hack", YBAConfig.Enabled, function(v)
     YBAConfig.Enabled = v
     if v then 
         startYBA() 
@@ -4091,7 +4091,7 @@ local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
         stopYBA() 
     end
     if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+        guiCallbacks.yba.Text = "Stand Range Hack: " .. (v and "ON" or "OFF")
     end
 end)
 guiCallbacks.yba = ybaToggleBtn
@@ -4115,6 +4115,56 @@ slider("Flight & Stand Speed (25-300)", 25, 300, YBAConfig.UndergroundControl.Fl
     YBAConfig.UndergroundControl.FlightSpeed = wholeNumber
     print("Скорость полета и стенда установлена:", wholeNumber)
 end)
+
+local dividerAntiTimeStop = Instance.new("Frame", innerContainer)
+dividerAntiTimeStop.Size = UDim2.new(1, -10, 0, 2)
+dividerAntiTimeStop.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+dividerAntiTimeStop.BorderSizePixel = 0
+
+local antiTimeStopLabel = Instance.new("TextLabel", innerContainer)
+antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
+antiTimeStopLabel.Text = "anti time stop"
+antiTimeStopLabel.Font = Enum.Font.Gotham
+antiTimeStopLabel.TextSize = 12
+antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+antiTimeStopLabel.BackgroundTransparency = 1
+antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
+    -- Игнорируем значение v, так как теперь это временная активация
+    if not isAntiTimeStopEnabled then
+        -- Включаем Anti Time Stop
+        AntiTimeStopConfig.Enabled = true
+        startAntiTimeStop()
+        
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
+        end
+        
+        -- Асинхронно ждем 0.5 секунды и выключаем
+        spawn(function()
+            task.wait(0.5)
+            
+            -- Выключаем Anti Time Stop
+            AntiTimeStopConfig.Enabled = false
+            stopAntiTimeStop()
+            
+            if guiCallbacks.antiTimeStop then
+                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+            end
+        end)
+    else
+        -- Если уже активно, показываем сообщение
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
+            spawn(function()
+                task.wait(1)
+                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+            end)
+        end
+    end
+end)
+guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
 itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -4190,55 +4240,7 @@ createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"]
 createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
 createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
 
-local divider7 = Instance.new("Frame", innerContainer)
-divider7.Size = UDim2.new(1, -10, 0, 2)
-divider7.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider7.BorderSizePixel = 0
 
-local antiTimeStopLabel = Instance.new("TextLabel", innerContainer)
-antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
-antiTimeStopLabel.Text = "anti time stop"
-antiTimeStopLabel.Font = Enum.Font.Gotham
-antiTimeStopLabel.TextSize = 12
-antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-antiTimeStopLabel.BackgroundTransparency = 1
-antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
-    -- Игнорируем значение v, так как теперь это временная активация
-    if not isAntiTimeStopEnabled then
-        -- Включаем Anti Time Stop
-        AntiTimeStopConfig.Enabled = true
-        startAntiTimeStop()
-        
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
-        end
-        
-        -- Асинхронно ждем 0.5 секунды и выключаем
-        spawn(function()
-            task.wait(0.5)
-            
-            -- Выключаем Anti Time Stop
-            AntiTimeStopConfig.Enabled = false
-            stopAntiTimeStop()
-            
-            if guiCallbacks.antiTimeStop then
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end
-        end)
-    else
-        -- Если уже активно, показываем сообщение
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-            spawn(function()
-                task.wait(1)
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end)
-        end
-    end
-end)
-guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
 
 
 
