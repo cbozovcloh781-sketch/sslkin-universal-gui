@@ -2098,7 +2098,7 @@ local YBA_ITEM_NAMES = {
     ["Lucky Stone Mask"] = true,
 }
 
--- Функция для поиска предметов YBA только в workspace.Item_Spawns.Items
+-- Функция для поиска предметов YBA через MeshPart в workspace.Item_Spawns.Items
 local function findYBAItems()
     local items = {}
     local player = Players.LocalPlayer
@@ -2112,21 +2112,20 @@ local function findYBAItems()
     if not itemsFolder then return items end
 
     for _, model in ipairs(itemsFolder:GetChildren()) do
-        if model:IsA("Model") then
-            -- Ищем BasePart с ProximityPrompt
+        if model:IsA("Model") and YBA_ITEM_NAMES[model.Name] then
+            -- Ищем первый MeshPart в Model (визуальная часть предмета)
             for _, part in ipairs(model:GetDescendants()) do
-                if part:IsA("BasePart") and part:FindFirstChildOfClass("ProximityPrompt") then
-                    if YBA_ITEM_NAMES[part.Name] or YBA_ITEM_NAMES[model.Name] then
-                        local distance = (part.Position - playerRoot.Position).Magnitude
-                        if distance <= YBAConfig.ItemESP.MaxDistance then
-                            table.insert(items, {
-                                Object = part,
-                                Root = part,
-                                Distance = distance,
-                                Name = part.Name,
-                                Type = "YBA_Item"
-                            })
-                        end
+                if part:IsA("MeshPart") then
+                    local distance = (part.Position - playerRoot.Position).Magnitude
+                    if distance <= YBAConfig.ItemESP.MaxDistance then
+                        table.insert(items, {
+                            Object = part,
+                            Root = part,
+                            Distance = distance,
+                            Name = model.Name,
+                            Type = "YBA_Item"
+                        })
+                        break -- Берем только первый MeshPart из Model
                     end
                 end
             end
