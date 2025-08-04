@@ -1342,7 +1342,7 @@ local function findStands()
         return stands 
     end
     
-    print("YBA: Поиск стендов в радиусе " .. YBAConfig.MaxStandDistance .. " (без ограничений дистанции)")
+    print("YBA: Поиск стендов в радиусе 20 метров")
     
     -- Поиск стендов в YBA (различные варианты названий)
     local standNames = {
@@ -1370,7 +1370,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance then -- Бесконечная привязка к стенду
+                    if distance <= 20 then -- Ограничение радиуса 20 метров
                         foundCount = foundCount + 1
                         print("YBA: Найден стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
@@ -1395,7 +1395,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance then -- Бесконечная привязка к стенду
+                    if distance <= 20 then -- Ограничение радиуса 20 метров
                         print("YBA: Найден альтернативный стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
                             Model = obj,
@@ -1618,8 +1618,8 @@ local function startYBA()
     print("YBA: Найдено стендов: " .. #stands)
     
     if #stands == 0 then
-        print("YBA: Стенды не найдены в радиусе " .. YBAConfig.MaxStandDistance)
-        print("YBA: Попробуйте увеличить Stand Range в настройках")
+        print("YBA: Стенды не найдены в радиусе 20 метров")
+        print("YBA: Подойдите ближе к стенду")
         return
     end
     
@@ -3740,84 +3740,7 @@ createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
 
 
 
--- Кнопки для быстрого управления
-sectionHeader("⚡ Quick Controls")
 
-local selectAllBtn = Instance.new("TextButton", innerContainer)
-selectAllBtn.Size = UDim2.new(1, -10, 0, 28)
-selectAllBtn.Text = "SELECT ALL ITEMS"
-selectAllBtn.Font = Enum.Font.GothamBold
-selectAllBtn.TextSize = 14
-selectAllBtn.TextColor3 = Color3.new(1,1,1)
-selectAllBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-selectAllBtn.AutoButtonColor = false
-Instance.new("UICorner", selectAllBtn).CornerRadius = UDim.new(0,6)
-
-selectAllBtn.MouseButton1Click:Connect(function()
-    for itemName, _ in pairs(YBAConfig.ItemESP.Items) do
-        YBAConfig.ItemESP.Items[itemName] = true
-    end
-    print("YBA Item ESP: Все предметы включены")
-    selectAllBtn.Text = "ALL SELECTED!"
-    task.wait(2)
-    selectAllBtn.Text = "SELECT ALL ITEMS"
-end)
-
-local deselectAllBtn = Instance.new("TextButton", innerContainer)
-deselectAllBtn.Size = UDim2.new(1, -10, 0, 28)
-deselectAllBtn.Text = "DESELECT ALL ITEMS"
-deselectAllBtn.Font = Enum.Font.GothamBold
-deselectAllBtn.TextSize = 14
-deselectAllBtn.TextColor3 = Color3.new(1,1,1)
-deselectAllBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-deselectAllBtn.AutoButtonColor = false
-Instance.new("UICorner", deselectAllBtn).CornerRadius = UDim.new(0,6)
-
-deselectAllBtn.MouseButton1Click:Connect(function()
-    for itemName, _ in pairs(YBAConfig.ItemESP.Items) do
-        YBAConfig.ItemESP.Items[itemName] = false
-    end
-    print("YBA Item ESP: Все предметы отключены")
-    deselectAllBtn.Text = "ALL DESELECTED!"
-    task.wait(2)
-    deselectAllBtn.Text = "DESELECT ALL ITEMS"
-end)
-
-local selectBasicBtn = Instance.new("TextButton", innerContainer)
-selectBasicBtn.Size = UDim2.new(1, -10, 0, 28)
-selectBasicBtn.Text = "SELECT BASIC ITEMS ONLY"
-selectBasicBtn.Font = Enum.Font.GothamBold
-selectBasicBtn.TextSize = 14
-selectBasicBtn.TextColor3 = Color3.new(1,1,1)
-selectBasicBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-selectBasicBtn.AutoButtonColor = false
-Instance.new("UICorner", selectBasicBtn).CornerRadius = UDim.new(0,6)
-
-selectBasicBtn.MouseButton1Click:Connect(function()
-    -- Сначала отключаем все
-    for itemName, _ in pairs(YBAConfig.ItemESP.Items) do
-        YBAConfig.ItemESP.Items[itemName] = false
-    end
-    
-    -- Включаем только основные предметы
-    local basicItems = {
-        "Mysterious Arrow", "Rokakaka", "Pure Rokakaka", "Diamond", 
-        "Gold Coin", "Steel Ball", "Clackers", "Zeppeli's Headband", 
-        "Zeppeli's Hat", "Zeppeli's Scarf", "Quinton's Glove", "Stone Mask",
-        "Rib Cage of The Saint's Corpse", "Lucky Arrow"
-    }
-    
-    for _, itemName in ipairs(basicItems) do
-        if YBAConfig.ItemESP.Items[itemName] ~= nil then
-            YBAConfig.ItemESP.Items[itemName] = true
-        end
-    end
-    
-    print("YBA Item ESP: Только основные предметы включены")
-    selectBasicBtn.Text = "BASIC SELECTED!"
-    task.wait(2)
-    selectBasicBtn.Text = "SELECT BASIC ITEMS ONLY"
-end)
 
 sectionHeader("🟩 Teleport Settings")
 
