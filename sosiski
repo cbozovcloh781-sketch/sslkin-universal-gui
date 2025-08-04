@@ -80,7 +80,7 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil,
     UseStealthMode = true,
-    TeleportSpeed = 800,
+    TeleportSpeed = 1200,
     ReturnSpeed = 2000,
     BehindPlayerDistance = 3.0,
     StabilizationTime = 0.5,
@@ -1389,13 +1389,14 @@ local function createStealthTeleport()
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
 
-            if lastTeleportPosition then
-                local targetMovement = (targetPos - lastTeleportPosition).Magnitude
-                if targetMovement > 5 then
-                    task.wait(0.05)
-                end
+                    -- Более частое обновление для движущихся целей
+        if lastTeleportPosition then
+            local targetMovement = (targetPos - lastTeleportPosition).Magnitude
+            if targetMovement > 3 then
+                task.wait(0.02) -- Уменьшаем задержку для быстрых целей
             end
-            lastTeleportPosition = targetPos
+        end
+        lastTeleportPosition = targetPos
             
             -- Улучшенная логика позиционирования за спиной
             local targetCFrame = currentTargetRoot.CFrame
@@ -1422,28 +1423,58 @@ local function createStealthTeleport()
             local targetLookVector = targetCFrame.LookVector
             bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetLookVector)
             
-            -- Упрощенная логика движения
-            if behindDistance > 2 then
-                -- Движение к позиции за спиной
-                local direction = (behindPosition.Position - currentPos).Unit
-                local speed = TeleportConfig.TeleportSpeed
-                
-                -- Плавное ускорение
+            -- Улучшенная логика следования за движущейся целью
+            local targetVelocity = currentTargetRoot.Velocity
+            local targetSpeed = targetVelocity.Magnitude
+            
+            -- Предсказание позиции цели с учетом её скорости
+            local predictionTime = 0.1 -- Время предсказания
+            local predictedPosition = behindPosition.Position + (targetVelocity * predictionTime)
+            local predictedDistance = (predictedPosition - currentPos).Magnitude
+            
+            -- Адаптивная скорость в зависимости от скорости цели
+            local adaptiveSpeed = TeleportConfig.TeleportSpeed
+            if targetSpeed > 80 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0 -- Максимальная скорость для очень быстрых целей
+            elseif targetSpeed > 50 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.5 -- Увеличиваем скорость для быстрых целей
+            elseif targetSpeed > 20 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.2
+            end
+            
+            if predictedDistance > 1.5 then
+                -- Быстрое движение к предсказанной позиции
+                local direction = (predictedPosition - currentPos).Unit
                 local currentVelocity = bv.Velocity
-                local targetVelocity = direction * speed
+                local targetVelocity = direction * adaptiveSpeed
+                
+                -- Более агрессивное ускорение для быстрых целей
+                local accelerationFactor = 0.15
+                if targetSpeed > 80 then
+                    accelerationFactor = 0.5 -- Максимальное ускорение для очень быстрых целей
+                elseif targetSpeed > 50 then
+                    accelerationFactor = 0.4
+                elseif targetSpeed > 30 then
+                    accelerationFactor = 0.3
+                end
                 local velocityDiff = targetVelocity - currentVelocity
-                local acceleration = velocityDiff * 0.1
+                local acceleration = velocityDiff * accelerationFactor
                 
                 bv.Velocity = currentVelocity + acceleration
             else
-                -- Точное позиционирование за спиной
-                local direction = (behindPosition.Position - currentPos).Unit
-                local correctionSpeed = math.min(behindDistance * 10, 20)
+                -- Точное следование за целью
+                local direction = (predictedPosition - currentPos).Unit
+                local correctionSpeed = math.min(predictedDistance * 15, 30)
+                
+                -- Увеличиваем скорость коррекции для движущихся целей
+                if targetSpeed > 10 then
+                    correctionSpeed = correctionSpeed * 1.5
+                end
                 
                 bv.Velocity = direction * correctionSpeed
                 
-                -- Если очень близко, останавливаемся
-                if behindDistance < 0.5 then
+                -- Останавливаемся только если очень близко и цель не движется быстро
+                if predictedDistance < 0.3 and targetSpeed < 5 then
                     bv.Velocity = Vector3.new(0, 0, 0)
                 end
             end
