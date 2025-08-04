@@ -3906,27 +3906,7 @@ local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
 end)
 guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
 
-local antiTimeStopKeyBtn = Instance.new("TextButton", innerContainer)
-antiTimeStopKeyBtn.Size = UDim2.new(1, -10, 0, 24)
-antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey (0.5s): [" .. (AntiTimeStopConfig.ToggleKey and tostring(AntiTimeStopConfig.ToggleKey.Name) or "None") .. "]"
-antiTimeStopKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-antiTimeStopKeyBtn.TextColor3 = Color3.new(1,1,1)
-antiTimeStopKeyBtn.Font = Enum.Font.Gotham
-antiTimeStopKeyBtn.TextSize = 13
-antiTimeStopKeyBtn.AutoButtonColor = false
-Instance.new("UICorner", antiTimeStopKeyBtn).CornerRadius = UDim.new(0,6)
 
-antiTimeStopKeyBtn.MouseButton1Click:Connect(function()
-    antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey (0.5s): [Press any key]"
-    local conn
-    conn = UserInputService.InputBegan:Connect(function(input, gp)
-        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
-            conn:Disconnect()
-            AntiTimeStopConfig.ToggleKey = input.KeyCode
-            antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey (0.5s): [" .. tostring(input.KeyCode.Name) .. "]"
-        end
-    end)
-end)
 
 local divider8 = Instance.new("Frame", innerContainer)
 divider8.Size = UDim2.new(1, -10, 0, 2)
