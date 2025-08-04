@@ -331,9 +331,10 @@ local YBAFreeCamera = {} do
         
         local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
 
-        local bv = standRoot:FindFirstChild("BodyVelocity")
+        local bv = standRoot:FindFirstChild("YBAStandVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", standRoot)
+            bv.Name = "YBAStandVelocity"
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
         
@@ -341,6 +342,19 @@ local YBAFreeCamera = {} do
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
             bv.Velocity = worldMove * 50 -- Нормальная скорость движения стенда
+
+            -- Проверяем расстояние между игроком и стендом
+            local player = Players.LocalPlayer
+            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local playerRoot = player.Character.HumanoidRootPart
+                local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                
+                -- Если стенд уходит слишком далеко, телепортируем игрока к нему
+                if distance > 100 then
+                    print("YBA Debug: Стенд слишком далеко, телепортируем игрока")
+                    playerRoot.CFrame = CFrame.new(standRoot.Position + Vector3.new(0, 0, 10))
+                end
+            end
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -366,8 +380,9 @@ local YBAFreeCamera = {} do
             local humanoid = player.Character:FindFirstChild("Humanoid")
             
             if humanoid then
-                local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
-                playerRoot.CFrame = targetCFrame
+                -- Убираем принудительное изменение позиции игрока для увеличения дальности
+                -- local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
+                -- playerRoot.CFrame = targetCFrame
 
                 humanoid.AutoRotate = false
             end
@@ -405,12 +420,54 @@ local YBAFreeCamera = {} do
             if humanoid then
                 humanoid.AutoRotate = false 
             end
+            
+            -- Попробуем отключить все ограничения расстояния для стенда
+            local standModel = stand.Model
+            if standModel then
+                -- Отключаем все BodyVelocity и BodyGyro, которые могут ограничивать движение
+                for _, part in pairs(standModel:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        local bv = part:FindFirstChild("BodyVelocity")
+                        if bv then
+                            bv:Destroy()
+                        end
+                        local bg = part:FindFirstChild("BodyGyro")
+                        if bg then
+                            bg:Destroy()
+                        end
+                    end
+                end
+            end
         end
         
         Camera.CameraType = Enum.CameraType.Scriptable
         RunService:BindToRenderStep("YBAFreecam", Enum.RenderPriority.Camera.Value, stepFreecam)
         startInput()
         fcRunning = true
+        
+        -- Запускаем цикл для принудительного разрыва связи между игроком и стендом
+        spawn(function()
+            while fcRunning and targetStand and targetStand.Root do
+                task.wait(0.1) -- Проверяем каждые 0.1 секунды
+                
+                -- Принудительно отключаем все ограничения расстояния
+                local standModel = targetStand.Model
+                if standModel then
+                    for _, part in pairs(standModel:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            local bv = part:FindFirstChild("BodyVelocity")
+                            if bv and bv.Name ~= "YBAStandVelocity" then
+                                bv:Destroy()
+                            end
+                            local bg = part:FindFirstChild("BodyGyro")
+                            if bg and bg.Name ~= "YBAStandGyro" then
+                                bg:Destroy()
+                            end
+                        end
+                    end
+                end
+            end
+        end)
         
         print("YBA: Управление стендом активировано: " .. stand.Name)
         return true
@@ -1800,17 +1857,19 @@ local function freezePlayer()
         originalPlayerCFrame = root.CFrame
         
         -- Создаем BodyVelocity для заморозки
-        local bv = root:FindFirstChild("BodyVelocity")
+        local bv = root:FindFirstChild("YBAFreezeVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", root)
+            bv.Name = "YBAFreezeVelocity"
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
         bv.Velocity = Vector3.new(0, 0, 0)
         
         -- Дополнительно отключаем все движения персонажа
-        local gyro = root:FindFirstChild("BodyGyro")
+        local gyro = root:FindFirstChild("YBAFreezeGyro")
         if not gyro then
             gyro = Instance.new("BodyGyro", root)
+            gyro.Name = "YBAFreezeGyro"
             gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
         end
         gyro.CFrame = root.CFrame
@@ -1843,12 +1902,12 @@ local function unfreezePlayer()
     local humanoid = char:FindFirstChild("Humanoid")
     
     if root then
-        local bv = root:FindFirstChild("BodyVelocity")
+        local bv = root:FindFirstChild("YBAFreezeVelocity")
         if bv then
             bv:Destroy()
         end
         
-        local gyro = root:FindFirstChild("BodyGyro")
+        local gyro = root:FindFirstChild("YBAFreezeGyro")
         if gyro then
             gyro:Destroy()
         end
@@ -1926,12 +1985,12 @@ local function disableFreeCamera()
 
         local root = player.Character:FindFirstChild("HumanoidRootPart")
         if root then
-            local bv = root:FindFirstChild("BodyVelocity")
+            local bv = root:FindFirstChild("YBAFreezeVelocity")
             if bv then
                 bv:Destroy()
             end
             
-            local gyro = root:FindFirstChild("BodyGyro")
+            local gyro = root:FindFirstChild("YBAFreezeGyro")
             if gyro then
                 gyro:Destroy()
             end
@@ -2096,6 +2155,27 @@ local function attackWithStand(stand)
     
     print("YBA Debug: Попытка атаки стендом:", stand.Name)
     print("YBA Debug: Позиция стенда:", stand.Root.Position)
+    
+    -- Принудительно разрываем все связи между игроком и стендом
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local playerRoot = player.Character:FindFirstChild("HumanoidRootPart")
+        if playerRoot then
+            -- Отключаем все BodyVelocity и BodyGyro у игрока
+            for _, part in pairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    local bv = part:FindFirstChild("BodyVelocity")
+                    if bv and bv.Name ~= "YBAFreezeVelocity" then
+                        bv:Destroy()
+                    end
+                    local bg = part:FindFirstChild("BodyGyro")
+                    if bg and bg.Name ~= "YBAFreezeGyro" then
+                        bg:Destroy()
+                    end
+                end
+            end
+        end
+    end
     
     -- Сначала телепортируем стенд к ближайшему игроку
     if teleportStandToNearestPlayer(stand) then
