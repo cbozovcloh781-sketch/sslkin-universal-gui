@@ -2077,180 +2077,53 @@ local itemESPEnabled = false
 local itemESPConnections = {}
 local itemESPElements = {}
 
--- Список предметов YBA, которые можно подобрать
-local YBA_ITEMS = {
-    -- Стрелы и связанные предметы
-    "Arrow", "arrows", "Stand Arrow", "StandArrow", "ArrowPart", "ArrowModel",
-    "Rokakaka", "RokakakaPart", "RokakakaModel", "RokakakaFruit", "RokakakaFruitPart",
-    "Diamond", "DiamondPart", "DiamondModel", "DiamondGem", "DiamondGemPart",
-    
-    -- Другие важные предметы
-    "Corpse", "CorpsePart", "CorpseModel", "CorpseBody", "CorpseBodyPart",
-    "Heart", "HeartPart", "HeartModel", "HeartContainer", "HeartContainerPart",
-    "Ribcage", "RibcagePart", "RibcageModel", "RibcageContainer", "RibcageContainerPart",
-    "Pelvis", "PelvisPart", "PelvisModel", "PelvisContainer", "PelvisContainerPart",
-    "Hand", "HandPart", "HandModel", "HandContainer", "HandContainerPart",
-    "Eye", "EyePart", "EyeModel", "EyeContainer", "EyeContainerPart",
-    "Brain", "BrainPart", "BrainModel", "BrainContainer", "BrainContainerPart",
-    "Lung", "LungPart", "LungModel", "LungContainer", "LungContainerPart",
-    "Liver", "LiverPart", "LiverModel", "LiverContainer", "LiverContainerPart",
-    "Stomach", "StomachPart", "StomachModel", "StomachContainer", "StomachContainerPart",
-    
-    -- Предметы для стендов
-    "Stand Disc", "StandDisc", "StandDiscPart", "StandDiscModel",
-    "Stand Arrow", "StandArrow", "StandArrowPart", "StandArrowModel",
-    "Requiem Arrow", "RequiemArrow", "RequiemArrowPart", "RequiemArrowModel",
-    
-    -- Другие предметы
-    "Item", "ItemPart", "ItemModel", "Pickup", "PickupPart", "PickupModel",
-    "Collectible", "CollectiblePart", "CollectibleModel", "CollectibleItem",
-    "Drop", "DropPart", "DropModel", "DroppedItem", "DroppedItemPart",
-    "Loot", "LootPart", "LootModel", "LootItem", "LootItemPart",
-    "Treasure", "TreasurePart", "TreasureModel", "TreasureItem", "TreasureItemPart",
-    
-    -- Специфичные предметы YBA
-    "Mysterious Arrow", "MysteriousArrow", "MysteriousArrowPart",
-    "Ancient Scroll", "AncientScroll", "AncientScrollPart",
-    "Stand Disc", "StandDisc", "StandDiscPart",
-    "Requiem Arrow", "RequiemArrow", "RequiemArrowPart",
-    "Heaven's Door", "HeavensDoor", "HeavensDoorPart",
-    "Made in Heaven", "MadeInHeaven", "MadeInHeavenPart",
-    "Gold Experience Requiem", "GoldExperienceRequiem", "GoldExperienceRequiemPart",
-    
-    -- Альтернативные названия
-    "Part", "Model", "Container", "Box", "Chest", "Bag", "Pouch",
-    "Gem", "Crystal", "Stone", "Rock", "Metal", "Wood", "Fabric",
-    "Scroll", "Book", "Document", "Paper", "Note", "Letter",
-    "Tool", "Weapon", "Armor", "Shield", "Helmet", "Boots", "Gloves",
-    "Potion", "Elixir", "Medicine", "Herb", "Plant", "Flower", "Seed",
-    "Coin", "Money", "Gold", "Silver", "Bronze", "Jewel", "Ring", "Necklace"
+-- Новый список реальных предметов YBA, которые спавнятся на карте и подбираются через E
+local YBA_ITEM_NAMES = {
+    ["Mysterious Arrow"] = true,
+    ["Rokakaka"] = true,
+    ["Pure Rokakaka"] = true,
+    ["Diamond"] = true,
+    ["Gold Coin"] = true,
+    ["Steel Ball"] = true,
+    ["Zeppeli's Headband"] = true,
+    ["Ancient Scroll"] = true,
+    ["Quinton's Glove"] = true,
+    ["Stone Mask"] = true,
+    ["Rib Cage of The Saint's Corpse"] = true,
+    ["Left Arm of The Saint's Corpse"] = true,
+    ["Heart of The Saint's Corpse"] = true,
+    ["Pelvis of The Saint's Corpse"] = true,
+    ["DIO's Diary"] = true,
+    ["Lucky Arrow"] = true,
+    ["Lucky Stone Mask"] = true,
 }
 
--- Функция для проверки, является ли объект предметом YBA
-local function isYBAItem(obj)
-    if not obj then return false end
-    
-    local objName = obj.Name:lower()
-    
-    -- Проверяем по списку известных предметов
-    for _, itemName in ipairs(YBA_ITEMS) do
-        if objName:find(itemName:lower()) then
-            return true
-        end
-    end
-    
-    -- Дополнительные проверки для специфичных объектов
-    if obj:IsA("BasePart") then
-        -- Проверяем размер объекта (предметы обычно небольшие)
-        local size = obj.Size
-        if size.X <= 5 and size.Y <= 5 and size.Z <= 5 then
-            -- Проверяем, есть ли у объекта специальные свойства
-            if obj:FindFirstChild("ClickDetector") or 
-               obj:FindFirstChild("TouchTransmitter") or
-               obj:FindFirstChild("ProximityPrompt") then
-                return true
-            end
-            
-            -- Проверяем материал (предметы часто имеют особые материалы)
-            local material = obj.Material
-            if material == Enum.Material.Neon or 
-               material == Enum.Material.Glass or
-               material == Enum.Material.Metal or
-               material == Enum.Material.Plastic then
-                return true
-            end
-        end
-    end
-    
-    -- Проверяем, является ли объект Model с определенными характеристиками
-    if obj:IsA("Model") then
-        local primaryPart = obj.PrimaryPart
-        if primaryPart then
-            -- Рекурсивно проверяем PrimaryPart
-            return isYBAItem(primaryPart)
-        end
-        
-        -- Проверяем все части модели
-        for _, child in pairs(obj:GetChildren()) do
-            if child:IsA("BasePart") and isYBAItem(child) then
-                return true
-            end
-        end
-    end
-    
-    return false
-end
-
--- Улучшенная функция для поиска всех предметов YBA в workspace
+-- Функция для поиска только подбираемых предметов YBA
 local function findYBAItems()
     local items = {}
     local player = Players.LocalPlayer
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    
-    if not playerRoot then 
-        print("YBA Item ESP: Игрок не найден")
-        return items 
-    end
-    
-    print("YBA Item ESP: Поиск предметов YBA в радиусе " .. YBAConfig.ItemESP.MaxDistance .. " метров...")
-    
-    local foundCount = 0
-    local checkedCount = 0
-    
-    -- Рекурсивная функция для поиска в объектах
-    local function searchInObject(obj, depth)
-        if depth > 5 then return end -- Ограничиваем глубину поиска
-        if not obj or not obj.Parent then return end
-        
-        checkedCount = checkedCount + 1
-        
-        -- Проверяем текущий объект
-        if isYBAItem(obj) then
-            local itemRoot = obj
-            
-            -- Для Model ищем корневую часть
-            if obj:IsA("Model") then
-                itemRoot = obj.PrimaryPart or 
-                           obj:FindFirstChild("RootPart") or 
-                           obj:FindFirstChild("Main") or
-                           obj:FindFirstChild("Part") or
-                           obj:FindFirstChild("HumanoidRootPart") or
-                           obj:FindFirstChildOfClass("BasePart")
-            end
-            
-            if itemRoot then
-                local distance = (itemRoot.Position - playerRoot.Position).Magnitude
-                if distance <= YBAConfig.ItemESP.MaxDistance then
-                    foundCount = foundCount + 1
-                    print("YBA Item ESP: Найден предмет '" .. obj.Name .. "' на расстоянии " .. math.floor(distance) .. "м")
-                    
-                    table.insert(items, {
-                        Object = obj,
-                        Root = itemRoot,
-                        Distance = distance,
-                        Name = obj.Name,
-                        Type = "YBA_Item"
-                    })
-                end
+    if not playerRoot then return items end
+
+    -- Перебираем все объекты в workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        -- Проверяем точное имя и наличие ProximityPrompt
+        if YBA_ITEM_NAMES[obj.Name] and obj:IsA("BasePart") and obj:FindFirstChildOfClass("ProximityPrompt") then
+            local distance = (obj.Position - playerRoot.Position).Magnitude
+            if distance <= YBAConfig.ItemESP.MaxDistance then
+                table.insert(items, {
+                    Object = obj,
+                    Root = obj,
+                    Distance = distance,
+                    Name = obj.Name,
+                    Type = "YBA_Item"
+                })
             end
         end
-        
-        -- Рекурсивно проверяем дочерние объекты
-        for _, child in pairs(obj:GetChildren()) do
-            searchInObject(child, depth + 1)
-        end
     end
-    
-    -- Начинаем поиск с workspace
-    searchInObject(workspace, 0)
-    
     -- Сортируем по расстоянию
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    print("YBA Item ESP: Проверено объектов: " .. checkedCount)
-    print("YBA Item ESP: Найдено предметов YBA: " .. foundCount)
-    
     return items
 end
 
