@@ -789,7 +789,35 @@ local function startAntiTimeStop()
             
             print("Всего найдено игроков с ResistTimeStop:", #foundPlayers)
             
-            -- Анализируем каждый найденный модуль
+            -- Сначала анализируем наш собственный ResistTimeStop
+            local myPlayerModule = living:FindFirstChild(Players.LocalPlayer.Name)
+            if myPlayerModule then
+                local myResistTimeStop = myPlayerModule:FindFirstChild("ResistTimeStop")
+                if myResistTimeStop then
+                    print("\n=== Анализ нашего NumberValue ResistTimeStop ===")
+                    print("Тип объекта:", typeof(myResistTimeStop))
+                    print("Наше значение сопротивления:", myResistTimeStop.Value)
+                    local myObjectPath = "workspace.Living." .. Players.LocalPlayer.Name .. ".ResistTimeStop"
+                    print("Путь к нашему объекту для Dex Explorer:")
+                    print(myObjectPath)
+                    
+                    -- Если включен режим открытия в Dex Explorer
+                    if AntiTimeStopConfig.OpenInDex then
+                        print("=== ИНСТРУКЦИЯ ДЛЯ ИЗУЧЕНИЯ НАШЕГО СОПРОТИВЛЕНИЯ В DEX EXPLORER ===")
+                        print("1. Откройте Dex Explorer")
+                        print("2. Перейдите по пути: " .. myObjectPath)
+                        print("3. Кликните на объект ResistTimeStop (NumberValue)")
+                        print("4. В правой панели изучите значение свойства 'Value'")
+                        print("5. Это наше текущее сопротивление остановке времени")
+                        print("=== КОНЕЦ ИНСТРУКЦИИ ===")
+                    end
+                else
+                    print("\n=== У нас нет ResistTimeStop ===")
+                    print("Нам нужно создать собственный NumberValue ResistTimeStop")
+                end
+            end
+            
+            -- Анализируем каждый найденный модуль других игроков
             for i, playerData in ipairs(foundPlayers) do
                 local playerName = playerData.PlayerName
                 local resistTimeStop = playerData.Module
@@ -907,97 +935,63 @@ local function startAntiTimeStop()
                 end
             end
             
-            -- Если нашли игроков с ResistTimeStop, изучаем их механизм
-            if #foundResistPlayers > 0 then
-                for _, playerData in ipairs(foundResistPlayers) do
-                    local resistTimeStop = playerData.Module
+            -- Работаем с нашим собственным ResistTimeStop
+            local myPlayerModule = living:FindFirstChild(Players.LocalPlayer.Name)
+            if myPlayerModule then
+                local myResistTimeStop = myPlayerModule:FindFirstChild("ResistTimeStop")
+                if myResistTimeStop then
+                    print("Найден наш ResistTimeStop с текущим значением:", myResistTimeStop.Value)
                     
-                    -- Пытаемся активировать сопротивление остановке времени
-                    if typeof(resistTimeStop) == "ModuleScript" then
-                        -- Пытаемся вызвать функции модуля
-                        local success, result = pcall(function()
-                            -- Пытаемся получить доступ к функциям модуля
-                            local moduleFunctions = require(resistTimeStop)
-                            if moduleFunctions and typeof(moduleFunctions) == "table" then
-                                -- Пытаемся вызвать функции сопротивления
-                                if moduleFunctions.Resist then
-                                    moduleFunctions.Resist()
-                                elseif moduleFunctions.Activate then
-                                    moduleFunctions.Activate()
-                                elseif moduleFunctions.Enable then
-                                    moduleFunctions.Enable()
-                                elseif moduleFunctions.Start then
-                                    moduleFunctions.Start()
-                                elseif moduleFunctions.Begin then
-                                    moduleFunctions.Begin()
-                                elseif moduleFunctions.Toggle then
-                                    moduleFunctions.Toggle()
-                                elseif moduleFunctions.Trigger then
-                                    moduleFunctions.Trigger()
-                                end
+                    -- Устанавливаем максимальное значение сопротивления для себя
+                    myResistTimeStop.Value = 999999
+                    print("Установлено максимальное сопротивление для себя:", myResistTimeStop.Value)
+                    
+                    -- Также проверяем дочерние элементы, если они есть
+                    for _, child in pairs(myResistTimeStop:GetDescendants()) do
+                        if child:IsA("BoolValue") then
+                            -- Активируем все BoolValue, которые могут быть связаны с сопротивлением
+                            if child.Name:lower():find("resist") or 
+                               child.Name:lower():find("active") or 
+                               child.Name:lower():find("enabled") or 
+                               child.Name:lower():find("start") or 
+                               child.Name:lower():find("begin") or 
+                               child.Name:lower():find("toggle") or 
+                               child.Name:lower():find("trigger") or
+                               child.Name:lower():find("time") or
+                               child.Name:lower():find("stop") then
+                                child.Value = true
+                                print("Активирован наш BoolValue:", child.Name, "=", child.Value)
                             end
-                        end)
-                        
-                        if not success then
-                            -- Если не удалось вызвать функции, пытаемся изменить свойства
-                            for _, child in pairs(resistTimeStop:GetDescendants()) do
-                                if child:IsA("BoolValue") and child.Name:lower():find("resist") then
-                                    child.Value = true
-                                elseif child:IsA("BoolValue") and child.Name:lower():find("active") then
-                                    child.Value = true
-                                elseif child:IsA("BoolValue") and child.Name:lower():find("enabled") then
-                                    child.Value = true
-                                elseif child:IsA("BoolValue") and child.Name:lower():find("start") then
-                                    child.Value = true
-                                elseif child:IsA("BoolValue") and child.Name:lower():find("begin") then
-                                    child.Value = true
-                                elseif child:IsA("BoolValue") and child.Name:lower():find("toggle") then
-                                    child.Value = true
-                                elseif child:IsA("BoolValue") and child.Name:lower():find("trigger") then
-                                    child.Value = true
-                                end
-                            end
-                        end
-                    else
-                        -- ResistTimeStop является NumberValue
-                        print("ResistTimeStop является NumberValue с текущим значением:", resistTimeStop.Value)
-                        
-                        -- Сохраняем оригинальное значение для восстановления
-                        local originalValue = resistTimeStop.Value
-                        
-                        -- Устанавливаем максимальное значение для сопротивления остановке времени
-                        resistTimeStop.Value = 999999
-                        print("Установлено максимальное значение сопротивления:", resistTimeStop.Value)
-                        
-                        -- Также проверяем дочерние элементы, если они есть
-                        for _, child in pairs(resistTimeStop:GetDescendants()) do
-                            if child:IsA("BoolValue") then
-                                -- Активируем все BoolValue, которые могут быть связаны с сопротивлением
-                                if child.Name:lower():find("resist") or 
-                                   child.Name:lower():find("active") or 
-                                   child.Name:lower():find("enabled") or 
-                                   child.Name:lower():find("start") or 
-                                   child.Name:lower():find("begin") or 
-                                   child.Name:lower():find("toggle") or 
-                                   child.Name:lower():find("trigger") or
-                                   child.Name:lower():find("time") or
-                                   child.Name:lower():find("stop") then
-                                    child.Value = true
-                                    print("Активирован BoolValue:", child.Name, "=", child.Value)
-                                end
-                            elseif child:IsA("NumberValue") then
-                                -- Устанавливаем высокие значения для NumberValue, связанных с сопротивлением
-                                if child.Name:lower():find("resist") or 
-                                   child.Name:lower():find("power") or 
-                                   child.Name:lower():find("strength") or
-                                   child.Name:lower():find("time") then
-                                    child.Value = 999999
-                                    print("Установлено NumberValue:", child.Name, "=", child.Value)
-                                end
+                        elseif child:IsA("NumberValue") then
+                            -- Устанавливаем высокие значения для NumberValue, связанных с сопротивлением
+                            if child.Name:lower():find("resist") or 
+                               child.Name:lower():find("power") or 
+                               child.Name:lower():find("strength") or
+                               child.Name:lower():find("time") then
+                                child.Value = 999999
+                                print("Установлено наше NumberValue:", child.Name, "=", child.Value)
                             end
                         end
                     end
+                else
+                    -- Если у нас нет ResistTimeStop, создаем его
+                    print("У нас нет ResistTimeStop, создаем собственный NumberValue")
+                    local newResistTimeStop = Instance.new("NumberValue", myPlayerModule)
+                    newResistTimeStop.Name = "ResistTimeStop"
+                    newResistTimeStop.Value = 999999 -- Максимальное значение сопротивления
+                    print("Создан наш собственный NumberValue ResistTimeStop со значением:", newResistTimeStop.Value)
                 end
+            end
+            
+            -- Анализируем значения сопротивления у других игроков (только для информации)
+            if #foundResistPlayers > 0 then
+                print("\n=== Анализ сопротивления у других игроков (только для информации) ===")
+                for _, playerData in ipairs(foundResistPlayers) do
+                    local playerName = playerData.PlayerName
+                    local resistTimeStop = playerData.Module
+                    print("Игрок", playerName, "имеет сопротивление:", resistTimeStop.Value)
+                end
+            end
             else
                 -- Если игроков с ResistTimeStop нет, пытаемся создать собственный модуль
                 print("Игроки с модулем ResistTimeStop не найдены, пытаемся создать собственный модуль")
@@ -4246,7 +4240,7 @@ end)
 -- Информационная панель
 local antiTimeStopInfo = Instance.new("TextLabel", innerContainer)
 antiTimeStopInfo.Size = UDim2.new(1, -10, 0, 40)
-antiTimeStopInfo.Text = "Anti Time Stop ищет игроков с NumberValue ResistTimeStop и устанавливает максимальное значение сопротивления (999999). Включите Debug Mode для анализа значений сопротивления у всех игроков."
+anti Time Stop устанавливает максимальное сопротивление (999999) в вашем собственном NumberValue ResistTimeStop. Включите Debug Mode для анализа вашего сопротивления и сравнения с другими игроками."
 antiTimeStopInfo.Font = Enum.Font.Gotham
 antiTimeStopInfo.TextSize = 12
 antiTimeStopInfo.TextColor3 = Color3.fromRGB(200,200,200)
