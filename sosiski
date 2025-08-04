@@ -447,6 +447,7 @@ local function startFly()
     
     if not hum or not root then return end
     
+    local characterType = detectCharacterType()
     isFlying = true
     
     local flyOriginalJumpPower = hum.JumpPower
@@ -454,10 +455,18 @@ local function startFly()
     local flyOriginalGravity = workspace.Gravity
     local flyOriginalHipHeight = hum.HipHeight
     
-    hum.JumpPower = 0
-    hum.JumpHeight = 0
-    workspace.Gravity = 0
-    hum.HipHeight = 0
+    -- Разные настройки для R6 и R15
+    if characterType == "R15" then
+        hum.JumpPower = 0
+        hum.JumpHeight = 0
+        workspace.Gravity = 0
+        hum.HipHeight = 0
+    else
+        hum.JumpPower = 0
+        hum.JumpHeight = 0
+        workspace.Gravity = 0
+        hum.HipHeight = 0
+    end
     
     local ctrl = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
     
@@ -538,12 +547,19 @@ local function stopFly()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local root = char and char:FindFirstChild("HumanoidRootPart")
+    local characterType = detectCharacterType()
     
     if hum then
-        
-        hum.JumpPower = 50
-        hum.JumpHeight = 7.2
-        hum.HipHeight = 2
+        -- Восстанавливаем настройки с учетом типа персонажа
+        if characterType == "R15" then
+            hum.JumpPower = 50
+            hum.JumpHeight = 7.2
+            hum.HipHeight = 2
+        else
+            hum.JumpPower = 50
+            hum.JumpHeight = 7.2
+            hum.HipHeight = 2
+        end
     end
     
     workspace.Gravity = 196.2
@@ -650,22 +666,42 @@ local function startSpeedHack()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
     
+    local characterType = detectCharacterType()
     isSpeedHacking = true
     originalWalkSpeed = hum.WalkSpeed
     originalJumpPower = hum.JumpPower
     
-    hum.WalkSpeed = SpeedHackConfig.Speed * 16
-    
-    if SpeedHackConfig.UseJumpPower then
-        hum.JumpPower = SpeedHackConfig.Speed * 50
+    -- Разные настройки скорости для R6 и R15
+    if characterType == "R15" then
+        -- Более консервативные настройки для R15
+        hum.WalkSpeed = math.min(SpeedHackConfig.Speed * 14, 25)
+        
+        if SpeedHackConfig.UseJumpPower then
+            hum.JumpPower = math.min(SpeedHackConfig.Speed * 45, 80)
+        end
+    else
+        -- Стандартные настройки для R6
+        hum.WalkSpeed = SpeedHackConfig.Speed * 16
+        
+        if SpeedHackConfig.UseJumpPower then
+            hum.JumpPower = SpeedHackConfig.Speed * 50
+        end
     end
     
     local function onCharacterAdded(newChar)
         local newHum = newChar:WaitForChild("Humanoid")
         if isSpeedHacking then
-            newHum.WalkSpeed = SpeedHackConfig.Speed * 16
-            if SpeedHackConfig.UseJumpPower then
-                newHum.JumpPower = SpeedHackConfig.Speed * 50
+            local newCharacterType = detectCharacterType()
+            if newCharacterType == "R15" then
+                newHum.WalkSpeed = math.min(SpeedHackConfig.Speed * 14, 25)
+                if SpeedHackConfig.UseJumpPower then
+                    newHum.JumpPower = math.min(SpeedHackConfig.Speed * 45, 80)
+                end
+            else
+                newHum.WalkSpeed = SpeedHackConfig.Speed * 16
+                if SpeedHackConfig.UseJumpPower then
+                    newHum.JumpPower = SpeedHackConfig.Speed * 50
+                end
             end
         end
     end
@@ -680,12 +716,23 @@ local function startSpeedHack()
         local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
         
         if currentHum then
-            if currentHum.WalkSpeed ~= SpeedHackConfig.Speed * 16 then
-                currentHum.WalkSpeed = SpeedHackConfig.Speed * 16
+            local currentCharacterType = detectCharacterType()
+            local targetWalkSpeed, targetJumpPower
+            
+            if currentCharacterType == "R15" then
+                targetWalkSpeed = math.min(SpeedHackConfig.Speed * 14, 25)
+                targetJumpPower = SpeedHackConfig.UseJumpPower and math.min(SpeedHackConfig.Speed * 45, 80) or currentHum.JumpPower
+            else
+                targetWalkSpeed = SpeedHackConfig.Speed * 16
+                targetJumpPower = SpeedHackConfig.UseJumpPower and SpeedHackConfig.Speed * 50 or currentHum.JumpPower
             end
             
-            if SpeedHackConfig.UseJumpPower and currentHum.JumpPower ~= SpeedHackConfig.Speed * 50 then
-                currentHum.JumpPower = SpeedHackConfig.Speed * 50
+            if currentHum.WalkSpeed ~= targetWalkSpeed then
+                currentHum.WalkSpeed = targetWalkSpeed
+            end
+            
+            if SpeedHackConfig.UseJumpPower and currentHum.JumpPower ~= targetJumpPower then
+                currentHum.JumpPower = targetJumpPower
             end
         end
     end)
@@ -1275,38 +1322,100 @@ local function stopTeleport()
     end
 end
 
-local function getStandRangeByType(standName)
-    -- Безопасные дистанции для разных типов стендов
-    local standRanges = {
-        ["Star Platinum"] = 5,
-        ["The World"] = 5,
-        ["Hierophant Green"] = 20,
-        ["Magician's Red"] = 8,
-        ["Hermit Purple"] = 15,
-        ["Silver Chariot"] = 3,
-        ["Tower of Gray"] = 4,
-        ["Dark Blue Moon"] = 6,
-        ["Strength"] = 10,
-        ["Wheel of Fortune"] = 12,
-        ["Hanged Man"] = 25,
-        ["Emperor"] = 30,
-        ["Empress"] = 7,
-        ["Judgment"] = 8,
-        ["High Priestess"] = 15,
-        ["Death Thirteen"] = 20,
-        ["Lovers"] = 10,
-        ["Sun"] = 15,
-        ["Bastet"] = 8,
-        ["Thunder McQueen"] = 12,
-        ["Anubis"] = 6,
-        ["Khnum"] = 8,
-        ["Tohth"] = 10,
-        ["Horus"] = 12,
-        ["Atum"] = 8,
-        ["Osiris"] = 15
+local function detectCharacterType()
+    local player = Players.LocalPlayer
+    local character = player and player.Character
+    if not character then return "Unknown" end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return "Unknown" end
+    
+    -- Проверяем тип персонажа по количеству частей тела
+    local bodyParts = {
+        character:FindFirstChild("Head"),
+        character:FindFirstChild("Torso"),
+        character:FindFirstChild("Left Arm"),
+        character:FindFirstChild("Right Arm"),
+        character:FindFirstChild("Left Leg"),
+        character:FindFirstChild("Right Leg")
     }
     
-    for standType, range in pairs(standRanges) do
+    local r6Parts = 0
+    for _, part in ipairs(bodyParts) do
+        if part then r6Parts = r6Parts + 1 end
+    end
+    
+    if r6Parts >= 6 then
+        return "R6"
+    else
+        return "R15"
+    end
+end
+
+local function getStandRangeByType(standName, characterType)
+    -- Безопасные дистанции для разных типов стендов с учетом типа персонажа
+    local standRanges = {
+        R6 = {
+            ["Star Platinum"] = 5,
+            ["The World"] = 5,
+            ["Hierophant Green"] = 20,
+            ["Magician's Red"] = 8,
+            ["Hermit Purple"] = 15,
+            ["Silver Chariot"] = 3,
+            ["Tower of Gray"] = 4,
+            ["Dark Blue Moon"] = 6,
+            ["Strength"] = 10,
+            ["Wheel of Fortune"] = 12,
+            ["Hanged Man"] = 25,
+            ["Emperor"] = 30,
+            ["Empress"] = 7,
+            ["Judgment"] = 8,
+            ["High Priestess"] = 15,
+            ["Death Thirteen"] = 20,
+            ["Lovers"] = 10,
+            ["Sun"] = 15,
+            ["Bastet"] = 8,
+            ["Thunder McQueen"] = 12,
+            ["Anubis"] = 6,
+            ["Khnum"] = 8,
+            ["Tohth"] = 10,
+            ["Horus"] = 12,
+            ["Atum"] = 8,
+            ["Osiris"] = 15
+        },
+        R15 = {
+            ["Star Platinum"] = 4,
+            ["The World"] = 4,
+            ["Hierophant Green"] = 18,
+            ["Magician's Red"] = 7,
+            ["Hermit Purple"] = 13,
+            ["Silver Chariot"] = 2,
+            ["Tower of Gray"] = 3,
+            ["Dark Blue Moon"] = 5,
+            ["Strength"] = 9,
+            ["Wheel of Fortune"] = 11,
+            ["Hanged Man"] = 22,
+            ["Emperor"] = 27,
+            ["Empress"] = 6,
+            ["Judgment"] = 7,
+            ["High Priestess"] = 13,
+            ["Death Thirteen"] = 18,
+            ["Lovers"] = 9,
+            ["Sun"] = 13,
+            ["Bastet"] = 7,
+            ["Thunder McQueen"] = 11,
+            ["Anubis"] = 5,
+            ["Khnum"] = 7,
+            ["Tohth"] = 9,
+            ["Horus"] = 11,
+            ["Atum"] = 7,
+            ["Osiris"] = 13
+        }
+    }
+    
+    local ranges = standRanges[characterType] or standRanges.R6
+    
+    for standType, range in pairs(ranges) do
         if string.find(standName, standType) then
             -- Добавляем небольшую случайность (±1-2 единицы) для маскировки
             local randomOffset = math.random(-2, 2)
@@ -1314,7 +1423,8 @@ local function getStandRangeByType(standName)
         end
     end
     
-    return 8 -- Дефолтная безопасная дистанция
+    -- Дефолтные значения для разных типов персонажей
+    return characterType == "R15" and 7 or 8
 end
 
 local function findStands()
@@ -1394,6 +1504,7 @@ local function freezePlayer()
     local char = player.Character
     if not char then return end
     
+    local characterType = detectCharacterType()
     local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
     
@@ -1401,11 +1512,16 @@ local function freezePlayer()
         originalPlayerPosition = root.Position
         originalPlayerCFrame = root.CFrame
         
-        -- Создаем BodyVelocity для заморозки
+        -- Создаем BodyVelocity для заморозки с учетом типа персонажа
         local bv = root:FindFirstChild("BodyVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", root)
-            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            -- Разные настройки для R6 и R15
+            if characterType == "R15" then
+                bv.MaxForce = Vector3.new(1e5, 1e5, 1e5) -- Меньшая сила для R15
+            else
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6) -- Стандартная сила для R6
+            end
         end
         bv.Velocity = Vector3.new(0, 0, 0)
         
@@ -1413,7 +1529,12 @@ local function freezePlayer()
         local gyro = root:FindFirstChild("BodyGyro")
         if not gyro then
             gyro = Instance.new("BodyGyro", root)
-            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            -- Разные настройки для R6 и R15
+            if characterType == "R15" then
+                gyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+            else
+                gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            end
         end
         gyro.CFrame = root.CFrame
         
@@ -1427,13 +1548,22 @@ local function freezePlayer()
     if humanoid then
         originalYBAWalkSpeed = humanoid.WalkSpeed
         originalYBAJumpPower = humanoid.JumpPower
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
+        
+        -- Разные настройки скорости для R6 и R15
+        if characterType == "R15" then
+            humanoid.WalkSpeed = 0
+            humanoid.JumpPower = 0
+        else
+            humanoid.WalkSpeed = 0
+            humanoid.JumpPower = 0
+        end
         
         -- Отключаем все действия персонажа
         humanoid.AutoRotate = false
         humanoid.AutoJumpEnabled = false
     end
+    
+    print("YBA: Персонаж заморожен (тип:", characterType, ")")
 end
 
 local function unfreezePlayer()
@@ -1441,6 +1571,7 @@ local function unfreezePlayer()
     local char = player.Character
     if not char then return end
     
+    local characterType = detectCharacterType()
     local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
     
@@ -1457,13 +1588,21 @@ local function unfreezePlayer()
     end
     
     if humanoid then
-        humanoid.WalkSpeed = originalYBAWalkSpeed
-        humanoid.JumpPower = originalYBAJumpPower
+        -- Восстанавливаем настройки с учетом типа персонажа
+        if characterType == "R15" then
+            humanoid.WalkSpeed = math.min(originalYBAWalkSpeed, 20) -- Ограничиваем для R15
+            humanoid.JumpPower = math.min(originalYBAJumpPower, 60)
+        else
+            humanoid.WalkSpeed = originalYBAWalkSpeed
+            humanoid.JumpPower = originalYBAJumpPower
+        end
         
         -- Восстанавливаем стандартные настройки персонажа
         humanoid.AutoRotate = true
         humanoid.AutoJumpEnabled = true
     end
+    
+    print("YBA: Персонаж разморожен (тип:", characterType, ")")
 end
 
 local function activateFreeCamera(stand)
@@ -1472,7 +1611,8 @@ local function activateFreeCamera(stand)
         return false
     end
     
-    print("YBA: Активируем управление стендом: " .. stand.Name)
+    local characterType = detectCharacterType()
+    print("YBA: Активируем управление стендом: " .. stand.Name .. " (тип персонажа: " .. characterType .. ")")
 
     if YBAConfig.FreezePlayer then
         print("YBA: Замораживаем игрока...")
@@ -1482,8 +1622,21 @@ local function activateFreeCamera(stand)
     freeCameraActive = true
     freeCameraTarget = stand
 
+    -- Адаптируем настройки камеры для разных типов персонажей
+    if characterType == "R15" then
+        -- Более консервативные настройки для R15
+        YBAConfig.CameraDistance = math.min(YBAConfig.CameraDistance, 12)
+        YBAConfig.CameraHeight = math.min(YBAConfig.CameraHeight, 4)
+        YBAConfig.StandControlSpeed = math.min(YBAConfig.StandControlSpeed, 0.8)
+    else
+        -- Стандартные настройки для R6
+        YBAConfig.CameraDistance = 15
+        YBAConfig.CameraHeight = 5
+        YBAConfig.StandControlSpeed = 1.0
+    end
+
     if YBAFreeCamera.Start(stand) then
-        print("YBA: Управление стендом активировано от третьего лица")
+        print("YBA: Управление стендом активировано от третьего лица (тип: " .. characterType .. ")")
         return true
     else
         print("YBA: Не удалось активировать управление стендом")
@@ -1494,7 +1647,8 @@ end
 local function disableFreeCamera()
     if not freeCameraActive then return end
     
-    print("YBA: Отключаем управление стендом")
+    local characterType = detectCharacterType()
+    print("YBA: Отключаем управление стендом (тип персонажа: " .. characterType .. ")")
     
     freeCameraActive = false
     freeCameraTarget = nil
@@ -1522,8 +1676,14 @@ local function disableFreeCamera()
     if player and player.Character then
         local humanoid = player.Character:FindFirstChild("Humanoid")
         if humanoid then
-            humanoid.WalkSpeed = originalYBAWalkSpeed
-            humanoid.JumpPower = originalYBAJumpPower
+            -- Восстанавливаем настройки с учетом типа персонажа
+            if characterType == "R15" then
+                humanoid.WalkSpeed = math.min(originalYBAWalkSpeed, 20)
+                humanoid.JumpPower = math.min(originalYBAJumpPower, 60)
+            else
+                humanoid.WalkSpeed = originalYBAWalkSpeed
+                humanoid.JumpPower = originalYBAJumpPower
+            end
         end
 
         local root = player.Character:FindFirstChild("HumanoidRootPart")
@@ -1567,6 +1727,31 @@ local function startYBA()
         return
     end
     
+    -- Определяем тип персонажа
+    local characterType = detectCharacterType()
+    
+    -- Дополнительные проверки для R15
+    if characterType == "R15" then
+        -- Увеличиваем задержку для R15
+        if currentTime - lastYBAUse < ybaCooldown * 1.5 then
+            print("YBA: R15 персонаж - увеличенная задержка:", math.ceil(ybaCooldown * 1.5 - (currentTime - lastYBAUse)), "секунд")
+            return
+        end
+        
+        -- Проверяем, не слишком ли часто используется функция
+        local recentUses = 0
+        for i = 1, 10 do
+            if currentTime - lastYBAUse < i * 10 then
+                recentUses = recentUses + 1
+            end
+        end
+        
+        if recentUses > 3 then
+            print("YBA: R15 персонаж - слишком частое использование, подождите")
+            return
+        end
+    end
+    
     lastYBAUse = currentTime
     isYBAEnabled = true
     YBAConfig.Enabled = true
@@ -1580,9 +1765,11 @@ local function startYBA()
     
     local targetStand = stands[1]
     
-    -- Определяем безопасную дистанцию для конкретного стенда
-    local safeRange = getStandRangeByType(targetStand.Name)
-    print("YBA: Используем безопасную дистанцию для", targetStand.Name, ":", safeRange)
+    print("YBA: Обнаружен тип персонажа:", characterType)
+    
+    -- Определяем безопасную дистанцию для конкретного стенда с учетом типа персонажа
+    local safeRange = getStandRangeByType(targetStand.Name, characterType)
+    print("YBA: Используем безопасную дистанцию для", targetStand.Name, "(", characterType, "):", safeRange)
     
     -- Плавно увеличиваем дистанцию вместо резкого скачка
     local originalRange = YBAConfig.StandRange
@@ -1601,7 +1788,7 @@ local function startYBA()
     
     -- Восстанавливаем оригинальную дистанцию через некоторое время
     task.spawn(function()
-        task.wait(2)
+        task.wait(characterType == "R15" and 3 or 2) -- Больше времени для R15
         YBAConfig.StandRange = originalRange
     end)
 end
@@ -3338,6 +3525,41 @@ slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
 end)
 
 sectionHeader("🟪 YBA Hacks")
+
+-- Добавляем информацию о типе персонажа
+local characterTypeLabel = Instance.new("TextLabel", innerContainer)
+characterTypeLabel.Size = UDim2.new(1, -10, 0, 24)
+characterTypeLabel.Text = "Тип персонажа: Определяется автоматически"
+characterTypeLabel.Font = Enum.Font.GothamBold
+characterTypeLabel.TextSize = 12
+characterTypeLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+characterTypeLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+characterTypeLabel.BorderSizePixel = 1
+characterTypeLabel.BorderColor3 = Color3.fromRGB(100, 100, 120)
+characterTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", characterTypeLabel).CornerRadius = UDim.new(0,4)
+
+-- Обновляем информацию о типе персонажа
+local function updateCharacterTypeInfo()
+    local characterType = detectCharacterType()
+    characterTypeLabel.Text = "Тип персонажа: " .. characterType .. " (автоопределение)"
+    
+    if characterType == "R15" then
+        characterTypeLabel.TextColor3 = Color3.fromRGB(255, 150, 150)
+        characterTypeLabel.BackgroundColor3 = Color3.fromRGB(50, 30, 30)
+    else
+        characterTypeLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
+        characterTypeLabel.BackgroundColor3 = Color3.fromRGB(30, 50, 30)
+    end
+end
+
+-- Обновляем информацию каждые 5 секунд
+task.spawn(function()
+    while true do
+        updateCharacterTypeInfo()
+        task.wait(5)
+    end
+end)
 
 local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
     YBAConfig.Enabled = v
