@@ -2098,7 +2098,7 @@ local YBA_ITEM_NAMES = {
     ["Lucky Stone Mask"] = true,
 }
 
--- Функция для поиска только подбираемых предметов YBA
+-- Функция для поиска предметов YBA только в workspace.Item_Spawns.Items
 local function findYBAItems()
     local items = {}
     local player = Players.LocalPlayer
@@ -2106,23 +2106,32 @@ local function findYBAItems()
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     if not playerRoot then return items end
 
-    -- Перебираем все объекты в workspace
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        -- Проверяем точное имя и наличие ProximityPrompt
-        if YBA_ITEM_NAMES[obj.Name] and obj:IsA("BasePart") and obj:FindFirstChildOfClass("ProximityPrompt") then
-            local distance = (obj.Position - playerRoot.Position).Magnitude
-            if distance <= YBAConfig.ItemESP.MaxDistance then
-                table.insert(items, {
-                    Object = obj,
-                    Root = obj,
-                    Distance = distance,
-                    Name = obj.Name,
-                    Type = "YBA_Item"
-                })
+    local itemFolder = workspace:FindFirstChild("Item_Spawns") or workspace:FindFirstChild("item_spawns")
+    if not itemFolder then return items end
+    local itemsFolder = itemFolder:FindFirstChild("Items") or itemFolder:FindFirstChild("items")
+    if not itemsFolder then return items end
+
+    for _, model in ipairs(itemsFolder:GetChildren()) do
+        if model:IsA("Model") then
+            -- Ищем BasePart с ProximityPrompt
+            for _, part in ipairs(model:GetDescendants()) do
+                if part:IsA("BasePart") and part:FindFirstChildOfClass("ProximityPrompt") then
+                    if YBA_ITEM_NAMES[part.Name] or YBA_ITEM_NAMES[model.Name] then
+                        local distance = (part.Position - playerRoot.Position).Magnitude
+                        if distance <= YBAConfig.ItemESP.MaxDistance then
+                            table.insert(items, {
+                                Object = part,
+                                Root = part,
+                                Distance = distance,
+                                Name = part.Name,
+                                Type = "YBA_Item"
+                            })
+                        end
+                    end
+                end
             end
         end
     end
-    -- Сортируем по расстоянию
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
     return items
 end
