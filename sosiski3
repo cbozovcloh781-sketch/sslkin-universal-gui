@@ -152,7 +152,7 @@ local YBAConfig = {
             ["Gold Coin"] = true,
             ["Steel Ball"] = true,
             ["Clackers"] = true,
-            ["Zeppeli's Headband"] = true,
+            ["Caesar's Headband"] = true,
             ["Zeppeli's Hat"] = true,
             ["Zeppeli's Scarf"] = true,
             ["Ancient Scroll"] = true,
@@ -2038,7 +2038,7 @@ local YBA_ITEM_NAMES = {
     ["Gold Coin"] = true,
     ["Steel Ball"] = true,
     ["Clackers"] = true,
-    ["Zeppeli's Headband"] = true,
+    ["Caesar's Headband"] = true,
     ["Zeppeli's Hat"] = true,
     ["Zeppeli's Scarf"] = true,
     ["Ancient Scroll"] = true,
@@ -2050,94 +2050,11 @@ local YBA_ITEM_NAMES = {
     -- Части трупа святого (только грудная клетка)
     ["Rib Cage of The Saint's Corpse"] = true,
     
-    -- Дополнительные предметы
+    ["Ancient Scroll"] = true,
     ["DIO's Diary"] = true,
     ["DIO's Bone"] = true,
     ["DIO's Diary Page"] = true,
-    ["Ancient Scroll"] = true,
-    ["Zeppeli's Headband"] = true,
-    ["Quinton's Glove"] = true,
-    ["Stone Mask"] = true,
     ["Lucky Stone Mask"] = true,
-    ["Pure Rokakaka"] = true,
-    ["Rokakaka"] = true,
-    ["Mysterious Arrow"] = true,
-    ["Lucky Arrow"] = true,
-    ["Steel Ball"] = true,
-    ["Diamond"] = true,
-    ["Gold Coin"] = true,
-    
-
-    ["Terence T. D'Arby's Disc"] = true,
-    ["Kenny G's Disc"] = true,
-    ["Nukesaku's Disc"] = true,
-    ["Rubber Soul's Disc"] = true,
-    ["J. Geil's Disc"] = true,
-    ["Centerfold's Disc"] = true,
-    ["Enya the Hag's Disc"] = true,
-    ["Steely Dan's Disc"] = true,
-    ["Arabia Fats's Disc"] = true,
-    ["Mannish Boy's Disc"] = true,
-    ["Cameo's Disc"] = true,
-    ["Midler's Disc"] = true,
-    ["Nena's Disc"] = true,
-    ["ZZ's Disc"] = true,
-    ["Donovan's Disc"] = true,
-    ["Forever's Disc"] = true,
-    ["Devo's Disc"] = true,
-    ["Captain Tenille's Disc"] = true,
-    ["Tower of Gray's Disc"] = true,
-    ["Dark Blue Moon's Disc"] = true,
-    ["Strength's Disc"] = true,
-    ["Ebony Devil's Disc"] = true,
-    ["Yellow Temperance's Disc"] = true,
-    ["Hanged Man's Disc"] = true,
-    ["Emperor's Disc"] = true,
-    ["Empress's Disc"] = true,
-    ["Wheel of Fortune's Disc"] = true,
-    ["Justice's Disc"] = true,
-    ["Lovers's Disc"] = true,
-    ["Sun's Disc"] = true,
-    ["Death Thirteen's Disc"] = true,
-    ["Judgment's Disc"] = true,
-    ["High Priestess's Disc"] = true,
-    ["Geb's Disc"] = true,
-    ["Khnum's Disc"] = true,
-    ["Tohth's Disc"] = true,
-    ["Anubis's Disc"] = true,
-    ["Bastet's Disc"] = true,
-    ["Sethan's Disc"] = true,
-    ["Osiris's Disc"] = true,
-    ["Horus's Disc"] = true,
-    ["Atum's Disc"] = true,
-    ["Tenore Sax's Disc"] = true,
-    ["Cream's Disc"] = true,
-    ["Vanilla Ice's Disc"] = true,
-    ["Pet Shop's Disc"] = true,
-    ["N'Doul's Disc"] = true,
-    ["Oingo's Disc"] = true,
-    ["Boingo's Disc"] = true,
-    ["Chaka's Disc"] = true,
-    ["Khan's Disc"] = true,
-    ["Alessi's Disc"] = true,
-    ["Daniel J. D'Arby's Disc"] = true,
-    ["Terence T. D'Arby's Disc"] = true,
-    ["Kenny G's Disc"] = true,
-    ["Nukesaku's Disc"] = true,
-    ["Rubber Soul's Disc"] = true,
-    ["J. Geil's Disc"] = true,
-    ["Centerfold's Disc"] = true,
-    ["Enya the Hag's Disc"] = true,
-    ["Steely Dan's Disc"] = true,
-    ["Arabia Fats's Disc"] = true,
-    ["Cameo's Disc"] = true,
-    ["Midler's Disc"] = true,
-    ["Nena's Disc"] = true,
-    ["ZZ's Disc"] = true,
-    ["Donovan's Disc"] = true,
-    ["Forever's Disc"] = true,
-    ["Devo's Disc"] = true,
-    ["Captain Tenille's Disc"] = true,
 }
 
 local function findYBAItems()
@@ -3591,12 +3508,17 @@ createItemToggle("Diamond", YBAConfig.ItemESP.Items["Diamond"])
 createItemToggle("Gold Coin", YBAConfig.ItemESP.Items["Gold Coin"])
 createItemToggle("Steel Ball", YBAConfig.ItemESP.Items["Steel Ball"])
 createItemToggle("Clackers", YBAConfig.ItemESP.Items["Clackers"])
-createItemToggle("Zeppeli's Headband", YBAConfig.ItemESP.Items["Zeppeli's Headband"])
+createItemToggle("Caesar's Headband", YBAConfig.ItemESP.Items["Caesar's Headband"])
 createItemToggle("Zeppeli's Hat", YBAConfig.ItemESP.Items["Zeppeli's Hat"])
 createItemToggle("Zeppeli's Scarf", YBAConfig.ItemESP.Items["Zeppeli's Scarf"])
 createItemToggle("Quinton's Glove", YBAConfig.ItemESP.Items["Quinton's Glove"])
 createItemToggle("Stone Mask", YBAConfig.ItemESP.Items["Stone Mask"])
 createItemToggle("Rib Cage of The Saint's Corpse", YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
+createItemToggle("Ancient Scroll", YBAConfig.ItemESP.Items["Ancient Scroll"])
+createItemToggle("DIO's Diary", YBAConfig.ItemESP.Items["DIO's Diary"])
+createItemToggle("DIO's Bone", YBAConfig.ItemESP.Items["DIO's Bone"])
+createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"])
+createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
 createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
 
 
