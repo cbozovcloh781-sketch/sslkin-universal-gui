@@ -114,28 +114,28 @@ local YBAConfig = {
     -- Item ESP Configuration
     ItemESP = {
         Enabled = false,
-        ToggleKey = Enum.KeyCode.I, -- Клавиша I по умолчанию для активации Item ESP
+        ToggleKey = nil, -- Убрана клавиша I по умолчанию
         MaxDistance = 1000, -- Дистанция для поиска предметов
         MaxRenderDistance = 5000, -- Максимальная дистанция рендеринга ESP
         UpdateInterval = 0.3, -- Интервал обновления в секундах
         
-        -- Настройки отображения
+        -- Настройки отображения (все включены по умолчанию)
         ShowOutline = true,
         ShowText = true,
         ShowFill = true,
         
-        -- Цвета
+        -- Цвета (фиксированные)
         FillColor = Color3.fromRGB(255, 215, 0), -- Цвет заполнения предмета
         OutlineColor = Color3.fromRGB(255, 255, 0), -- Цвет обводки предмета
         TextColor = Color3.fromRGB(255, 255, 255), -- Цвет текста
         TextBackgroundColor = Color3.fromRGB(0, 0, 0), -- Цвет фона текста
         
-        -- Прозрачность
+        -- Прозрачность (фиксированная)
         FillTransparency = 0.3, -- Прозрачность заполнения
         OutlineTransparency = 0.1, -- Прозрачность обводки
         TextBackgroundTransparency = 0.3, -- Прозрачность фона текста
         
-        -- Размеры текста
+        -- Размеры текста (фиксированные)
         TextSize = 10, -- Размер основного текста
         DistanceTextSize = 9, -- Размер текста расстояния
         
@@ -1773,17 +1773,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
-        elseif YBAConfig.ItemESP.ToggleKey and input.KeyCode == YBAConfig.ItemESP.ToggleKey then
-            YBAConfig.ItemESP.Enabled = not YBAConfig.ItemESP.Enabled
-            if YBAConfig.ItemESP.Enabled then
-                startItemESP()
-            else
-                stopItemESP()
-            end
-            
-            if guiCallbacks.itemESP then
-                guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
-            end
+        -- Удален обработчик клавиши I для Item ESP
         end
     end
 end)
@@ -2041,14 +2031,7 @@ UserInputService.InputBegan:Connect(function(inp, gp)
         elseif Config.Aimbot.ToggleKey and inp.KeyCode == Config.Aimbot.ToggleKey then
             Config.Aimbot.Enabled = not Config.Aimbot.Enabled
             print("Aimbot toggled:", Config.Aimbot.Enabled)
-        elseif YBAConfig.ItemESP.ToggleKey and inp.KeyCode == YBAConfig.ItemESP.ToggleKey then
-            YBAConfig.ItemESP.Enabled = not YBAConfig.ItemESP.Enabled
-            if YBAConfig.ItemESP.Enabled then
-                startItemESP()
-            else
-                stopItemESP()
-            end
-            print("YBA Item ESP toggled:", YBAConfig.ItemESP.Enabled)
+        -- Удален второй обработчик клавиши I для Item ESP
         end
     end
 end)
@@ -2731,13 +2714,13 @@ local function createItemESP(item)
         end
     end
     
-    -- Создаем улучшенный BillboardGui с иконками
+    -- Создаем улучшенный BillboardGui с иконками (уменьшенное пространство)
     if YBAConfig.ItemESP.ShowText then
         local success, billboard = pcall(function()
             local bg = Instance.new("BillboardGui")
             bg.AlwaysOnTop = true
-            bg.Size = UDim2.new(0, 300, 0, 80)
-            bg.StudsOffset = Vector3.new(0, 5, 0)
+            bg.Size = UDim2.new(0, 200, 0, 50) -- Уменьшены размеры
+            bg.StudsOffset = Vector3.new(0, 3, 0) -- Уменьшено смещение
             bg.Parent = item.Object
             
             -- Фон с градиентом
@@ -2750,7 +2733,7 @@ local function createItemESP(item)
             background.ZIndex = 1
             
             local corner = Instance.new("UICorner", background)
-            corner.CornerRadius = UDim.new(0, 8)
+            corner.CornerRadius = UDim.new(0, 6) -- Уменьшен радиус
             
             -- Граница с цветом предмета
             local border = Instance.new("Frame", bg)
@@ -2761,12 +2744,12 @@ local function createItemESP(item)
             border.ZIndex = 0
             
             local borderCorner = Instance.new("UICorner", border)
-            borderCorner.CornerRadius = UDim.new(0, 10)
+            borderCorner.CornerRadius = UDim.new(0, 8) -- Уменьшен радиус
             
             -- Основной текст
             local tl = Instance.new("TextLabel", bg)
-            tl.Size = UDim2.new(1, -10, 0.6, 0)
-            tl.Position = UDim2.new(0, 5, 0, 5)
+            tl.Size = UDim2.new(1, -6, 0.6, 0) -- Уменьшены отступы
+            tl.Position = UDim2.new(0, 3, 0, 2) -- Уменьшены отступы
             tl.BackgroundTransparency = 1
             tl.Font = YBAConfig.ItemESP.Font
             tl.TextSize = YBAConfig.ItemESP.TextSize
@@ -2778,15 +2761,15 @@ local function createItemESP(item)
             
             -- Информация о расстоянии
             local distanceLabel = Instance.new("TextLabel", bg)
-            distanceLabel.Size = UDim2.new(1, -10, 0.4, 0)
-            distanceLabel.Position = UDim2.new(0, 5, 0.6, 0)
+            distanceLabel.Size = UDim2.new(1, -6, 0.4, 0) -- Уменьшены отступы
+            distanceLabel.Position = UDim2.new(0, 3, 0.6, 0) -- Уменьшены отступы
             distanceLabel.BackgroundTransparency = 1
             distanceLabel.Font = Enum.Font.Gotham
             distanceLabel.TextSize = YBAConfig.ItemESP.DistanceTextSize
             distanceLabel.TextColor3 = YBAConfig.ItemESP.TextColor
             distanceLabel.TextXAlignment = Enum.TextXAlignment.Center
             distanceLabel.TextYAlignment = Enum.TextYAlignment.Center
-            distanceLabel.Text = string.format("📏 %dm | 📁 %s", math.floor(item.Distance), item.Folder or "Unknown")
+            distanceLabel.Text = string.format("📏 %dm", math.floor(item.Distance)) -- Убрана информация о папке
             distanceLabel.ZIndex = 3
             
             return {
@@ -2874,7 +2857,7 @@ local function updateItemESP(item)
     -- Обновляем информацию о расстоянии
     if esp.distanceLabel and esp.distanceLabel.Parent then
         pcall(function()
-            esp.distanceLabel.Text = string.format("📏 %dm | 📁 %s", math.floor(item.Distance), item.Folder or "Unknown")
+            esp.distanceLabel.Text = string.format("📏 %dm", math.floor(item.Distance)) -- Убрана информация о папке
         end)
     end
     
@@ -3406,9 +3389,7 @@ keyBindButton("YBA Stand Range", YBAConfig.ToggleKey, function(newKey)
     YBAConfig.ToggleKey = newKey
 end)
 
-keyBindButton("YBA Item ESP", YBAConfig.ItemESP.ToggleKey, function(newKey)
-    YBAConfig.ItemESP.ToggleKey = newKey
-end)
+-- Удалена кнопка привязки клавиши для YBA Item ESP
 
 
 
@@ -4062,7 +4043,7 @@ sectionHeader("🎯 YBA Item ESP")
 -- Информация о новой системе Item ESP
 local itemESPInfo = Instance.new("TextLabel", innerContainer)
 itemESPInfo.Size = UDim2.new(1, -10, 0, 80)
-itemESPInfo.Text = "🔍 Улучшенная система поиска предметов YBA:\n• Автоматически находит Arrow, Rokakaka, Diamond\n• Ищет Corpse Parts, Stand Discs, Requiem Arrows\n• Подсвечивает все подбираемые предметы\n• Работает на всей карте (до 1000м)\n• Цветовая кодировка по типам предметов\n• Нажмите клавишу I для быстрого включения/выключения"
+itemESPInfo.Text = "🔍 Улучшенная система поиска предметов YBA:\n• Автоматически находит Arrow, Rokakaka, Diamond\n• Ищет Corpse Parts, Stand Discs, Requiem Arrows\n• Подсвечивает все подбираемые предметы\n• Работает на всей карте (до 1000м)\n• Цветовая кодировка по типам предметов\n• Компактные таблички с уменьшенным пространством"
 itemESPInfo.Font = Enum.Font.Gotham
 itemESPInfo.TextSize = 10
 itemESPInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -4089,64 +4070,4 @@ guiCallbacks.itemESP = itemESPToggleBtn
 -- Отключаем навигацию для кнопки Item ESP
 itemESPToggleBtn.AutoButtonColor = false
 
--- Настройки Item ESP
--- Настройки отображения
-toggle("Show Fill", YBAConfig.ItemESP.ShowFill, function(v)
-    YBAConfig.ItemESP.ShowFill = v
-end)
-
-toggle("Show Outline", YBAConfig.ItemESP.ShowOutline, function(v)
-    YBAConfig.ItemESP.ShowOutline = v
-end)
-
-toggle("Show Text", YBAConfig.ItemESP.ShowText, function(v) 
-    YBAConfig.ItemESP.ShowText = v 
-end)
-
--- Настройки дистанции
-slider("Max Distance", 100, 1000, YBAConfig.ItemESP.MaxDistance, function(v)
-    YBAConfig.ItemESP.MaxDistance = v
-end)
-
-slider("Max Render Distance", 1000, 10000, YBAConfig.ItemESP.MaxRenderDistance, function(v)
-    YBAConfig.ItemESP.MaxRenderDistance = v
-end)
-
--- Настройки размеров текста
-slider("Text Size", 6, 14, YBAConfig.ItemESP.TextSize, function(v)
-    YBAConfig.ItemESP.TextSize = v
-end)
-
-slider("Distance Text Size", 5, 12, YBAConfig.ItemESP.DistanceTextSize, function(v)
-    YBAConfig.ItemESP.DistanceTextSize = v
-end)
-
--- Настройки прозрачности
-slider("Fill Transparency", 0, 1, YBAConfig.ItemESP.FillTransparency, function(v)
-    YBAConfig.ItemESP.FillTransparency = v
-end)
-
-slider("Outline Transparency", 0, 1, YBAConfig.ItemESP.OutlineTransparency, function(v)
-    YBAConfig.ItemESP.OutlineTransparency = v
-end)
-
-slider("Text Background Transparency", 0, 1, YBAConfig.ItemESP.TextBackgroundTransparency, function(v)
-    YBAConfig.ItemESP.TextBackgroundTransparency = v
-end)
-
--- Настройки цветов
-colorPicker("Fill Color", YBAConfig.ItemESP.FillColor, function(c)
-    YBAConfig.ItemESP.FillColor = c
-end)
-
-colorPicker("Outline Color", YBAConfig.ItemESP.OutlineColor, function(c)
-    YBAConfig.ItemESP.OutlineColor = c
-end)
-
-colorPicker("Text Color", YBAConfig.ItemESP.TextColor, function(c)
-    YBAConfig.ItemESP.TextColor = c
-end)
-
-colorPicker("Text Background Color", YBAConfig.ItemESP.TextBackgroundColor, function(c)
-    YBAConfig.ItemESP.TextBackgroundColor = c
-end)
+-- Настройки Item ESP удалены - все настройки фиксированные
