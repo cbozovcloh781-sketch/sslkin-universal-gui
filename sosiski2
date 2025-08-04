@@ -2111,21 +2111,64 @@ local function startYBA()
                 -- Модифицируем данные атаки для отправки от имени стенда
                 local standRoot = controlledStand.Root
                 local standPosition = standRoot.Position
+                local playerRoot = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local playerPosition = playerRoot and playerRoot.Position or Vector3.new(0,0,0)
                 
-                -- Добавляем позицию стенда к данным атаки
-                if args[1] and type(args[1]) == "table" then
-                    args[1].StandPosition = standPosition
-                    args[1].FromStand = true
-                    args[1].StandName = controlledStand.Name
-                elseif args[1] then
-                    -- Если данные не в таблице, создаем новую структуру
-                    local originalData = args[1]
-                    args[1] = {
-                        OriginalData = originalData,
-                        StandPosition = standPosition,
-                        FromStand = true,
-                        StandName = controlledStand.Name
-                    }
+                -- Вычисляем расстояние между стендом и игроком
+                local distance = (standPosition - playerPosition).Magnitude
+                
+                -- Если стенд находится дальше 50 метров, обманываем сервер
+                if distance > 50 then
+                    print("YBA: Стенд находится на расстоянии", math.floor(distance), "м. Обманываем сервер...")
+                    
+                    -- Временно перемещаем стенд ближе к игроку для атаки
+                    local originalStandPosition = standRoot.Position
+                    local fakePosition = playerPosition + (standPosition - playerPosition).Unit * 45 -- 45 метров от игрока
+                    
+                    -- Перемещаем стенд на фальшивую позицию
+                    standRoot.CFrame = CFrame.new(fakePosition)
+                    
+                    -- Отправляем атаку с фальшивой позиции
+                    if args[1] and type(args[1]) == "table" then
+                        args[1].StandPosition = fakePosition
+                        args[1].FromStand = true
+                        args[1].StandName = controlledStand.Name
+                        args[1].FakePosition = true
+                    elseif args[1] then
+                        local originalData = args[1]
+                        args[1] = {
+                            OriginalData = originalData,
+                            StandPosition = fakePosition,
+                            FromStand = true,
+                            StandName = controlledStand.Name,
+                            FakePosition = true
+                        }
+                    end
+                    
+                    -- Возвращаем стенд на оригинальную позицию после небольшой задержки
+                    spawn(function()
+                        task.wait(0.1)
+                        if standRoot and standRoot.Parent then
+                            standRoot.CFrame = CFrame.new(originalStandPosition)
+                        end
+                    end)
+                    
+                    print("YBA: Атака отправлена с фальшивой позиции для обхода ограничения")
+                else
+                    -- Если стенд в пределах 50 метров, отправляем нормально
+                    if args[1] and type(args[1]) == "table" then
+                        args[1].StandPosition = standPosition
+                        args[1].FromStand = true
+                        args[1].StandName = controlledStand.Name
+                    elseif args[1] then
+                        local originalData = args[1]
+                        args[1] = {
+                            OriginalData = originalData,
+                            StandPosition = standPosition,
+                            FromStand = true,
+                            StandName = controlledStand.Name
+                        }
+                    end
                 end
                 
                 print("YBA: Атака перенаправлена через стенд:", controlledStand.Name)
@@ -2137,7 +2180,98 @@ local function startYBA()
     
     setreadonly(mt, true)
     
-    print("YBA: Перехватчик RemoteEvents активирован")
+    print("YBA: Перехватчик RemoteEvents с обходом ограничений активирован")
+    
+    -- Создаем систему призрачного стенда для атак на больших расстояниях
+    local ghostStand = nil
+    
+    local function createGhostStand()
+        if ghostStand then
+            ghostStand:Destroy()
+        end
+        
+        -- Создаем призрачный стенд для атак
+        ghostStand = Instance.new("Part")
+        ghostStand.Name = "GhostStand"
+        ghostStand.Anchored = true
+        ghostStand.CanCollide = false
+        ghostStand.Transparency = 1 -- Полностью прозрачный
+        ghostStand.Size = Vector3.new(1, 1, 1)
+        ghostStand.Parent = workspace
+        
+        print("YBA: Призрачный стенд создан для атак на больших расстояниях")
+        return ghostStand
+    end
+    
+    -- Функция для атаки через призрачный стенд
+    local function attackThroughGhostStand(attackType, targetPosition)
+        if not ghostStand then
+            ghostStand = createGhostStand()
+        end
+        
+        local playerRoot = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local playerPosition = playerRoot and playerRoot.Position or Vector3.new(0,0,0)
+        
+        -- Размещаем призрачный стенд в пределах 50 метров от игрока, но направляем атаку на цель
+        local direction = (targetPosition - playerPosition).Unit
+        local ghostPosition = playerPosition + direction * 45 -- 45 метров от игрока
+        
+        ghostStand.Position = ghostPosition
+        
+        -- Создаем RemoteEvent для атаки через призрачный стенд
+        local ghostAttackEvent = game:GetService("ReplicatedStorage"):FindFirstChild("GhostStandAttack")
+        if not ghostAttackEvent then
+            ghostAttackEvent = Instance.new("RemoteEvent")
+            ghostAttackEvent.Name = "GhostStandAttack"
+            ghostAttackEvent.Parent = game:GetService("ReplicatedStorage")
+        end
+        
+        -- Отправляем атаку через призрачный стенд
+        local attackData = {
+            AttackType = attackType,
+            StandPosition = ghostPosition,
+            TargetPosition = targetPosition,
+            StandName = "GhostStand",
+            FromGhostStand = true,
+            OriginalStandName = controlledStand.Name,
+            Timestamp = tick()
+        }
+        
+        ghostAttackEvent:FireServer(attackData)
+        print("YBA: Атака отправлена через призрачный стенд на цель:", targetPosition)
+    end
+    
+    -- Добавляем обработчик для атак через призрачный стенд
+    local ghostAttackHandler = UserInputService.InputBegan:Connect(function(input, gp)
+        if not gp and isYBAEnabled and controlledStand and controlledStand.Root then
+            local attackType = nil
+            local keyPressed = input.KeyCode.Name
+            
+            if keyPressed == "F" then attackType = "LightAttack"
+            elseif keyPressed == "E" then attackType = "HeavyAttack"
+            elseif keyPressed == "R" then attackType = "SpecialAttack"
+            elseif keyPressed == "T" then attackType = "UltimateAttack"
+            elseif keyPressed == "Y" then attackType = "BarrageAttack"
+            elseif keyPressed == "Q" then attackType = "StandAbility"
+            end
+            
+            if attackType then
+                local standRoot = controlledStand.Root
+                local standPosition = standRoot.Position
+                local playerRoot = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local playerPosition = playerRoot and playerRoot.Position or Vector3.new(0,0,0)
+                
+                local distance = (standPosition - playerPosition).Magnitude
+                
+                if distance > 50 then
+                    print("YBA: Используем призрачный стенд для атаки на расстоянии", math.floor(distance), "м")
+                    attackThroughGhostStand(attackType, standPosition)
+                end
+            end
+        end
+    end)
+    
+    table.insert(standControlConnections, ghostAttackHandler)
 end
 
 local function stopYBA()
@@ -2164,6 +2298,13 @@ local function stopYBA()
         mt.__namecall = mt.__namecall -- Восстанавливаем оригинальный метод
         setreadonly(mt, true)
         print("YBA: Перехватчик RemoteEvents отключен")
+    end
+    
+    -- Удаляем призрачный стенд
+    local ghostStand = workspace:FindFirstChild("GhostStand")
+    if ghostStand then
+        ghostStand:Destroy()
+        print("YBA: Призрачный стенд удален")
     end
 end
 
