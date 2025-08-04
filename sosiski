@@ -80,9 +80,9 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil,
     UseStealthMode = true,
-    TeleportSpeed = 800,
+    TeleportSpeed = 1200,
     ReturnSpeed = 2000,
-    BehindPlayerDistance = 2.5,
+    BehindPlayerDistance = 3.0,
     StabilizationTime = 0.5,
     MaxSpeedResetTime = 2.0,
     SpeedResetThreshold = 50,
@@ -1319,10 +1319,8 @@ local function createStealthTeleport()
     end
     
     isTeleporting = true
-    isStabilizing = false
     speedResetTimer = 0
     lastSpeedCheck = tick()
-    lastBehindDistance = 0
     
     
     if not TeleportConfig.OriginalPosition then
@@ -1371,21 +1369,17 @@ local function createStealthTeleport()
         speedResetTimer = speedResetTimer + (currentTime - lastSpeedCheck)
         lastSpeedCheck = currentTime
         
-        -- Плавный сброс скорости
+        -- Улучшенный сброс скорости (только если не близко к цели)
         if speedResetTimer >= TeleportConfig.MaxSpeedResetTime then
             speedResetTimer = 0
             
             local bv = root:FindFirstChild("BodyVelocity")
-            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold then
-                bv.Velocity = bv.Velocity * 0.7
-                task.wait(0.1)
-                if bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold * 0.5 then
-                    bv.Velocity = bv.Velocity * 0.5
-                end
+            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold and distance > 5 then
+                bv.Velocity = bv.Velocity * 0.8
             end
 
-            if humanoid and humanoid.WalkSpeed > 16 then
-                humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 2, 16)
+            if humanoid and humanoid.WalkSpeed > 16 and distance > 5 then
+                humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 1, 16)
             end
         end
         
@@ -1395,16 +1389,17 @@ local function createStealthTeleport()
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
 
-            if lastTeleportPosition then
-                local targetMovement = (targetPos - lastTeleportPosition).Magnitude
-                if targetMovement > 5 then
-                    task.wait(0.05)
-                end
+                    -- Более частое обновление для движущихся целей
+        if lastTeleportPosition then
+            local targetMovement = (targetPos - lastTeleportPosition).Magnitude
+            if targetMovement > 3 then
+                task.wait(0.02) -- Уменьшаем задержку для быстрых целей
             end
-            lastTeleportPosition = targetPos
+        end
+        lastTeleportPosition = targetPos
             
+            -- Улучшенная логика позиционирования за спиной
             local targetCFrame = currentTargetRoot.CFrame
-            local targetLookVector = targetCFrame.LookVector
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
             local behindDistance = (behindPosition.Position - currentPos).Magnitude
             
@@ -1412,78 +1407,75 @@ local function createStealthTeleport()
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
                 bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                -- Плавное начало движения
                 bv.Velocity = Vector3.new(0, 0, 0)
             end
             
-
-            if behindDistance < TeleportConfig.StabilizationThreshold and not isStabilizing then
-                isStabilizing = true
-                stabilizationStartTime = tick()
-                lastTeleportPosition = behindPosition.Position
-
-                bv.Velocity = bv.Velocity * 0.5
-                task.wait(0.05)
-                bv.Velocity = Vector3.new(0, 0, 0)
+            -- BodyGyro для стабильного поворота
+            local bg = root:FindFirstChild("BodyGyro")
+            if not bg then
+                bg = Instance.new("BodyGyro", root)
+                bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+                bg.D = 50
+                bg.P = 1000
             end
             
-            if isStabilizing then
-                local stabilizationTime = tick() - stabilizationStartTime
-                
-                if stabilizationTime < TeleportConfig.StabilizationTime then
-                    local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
-                    local correctionDirection = (newBehindPosition.Position - currentPos)
-                    local correctionMagnitude = correctionDirection.Magnitude
-
-                    if correctionMagnitude > 0.3 then
-                        local correctionSpeed = math.min(correctionMagnitude * TeleportConfig.MaxCorrectionSpeed, TeleportConfig.MaxCorrectionSpeed)
-                        bv.Velocity = correctionDirection.Unit * correctionSpeed
-                    else
-                        bv.Velocity = bv.Velocity * (1 - TeleportConfig.SmoothingFactor)
-                        if bv.Velocity.Magnitude < 5 then
-                            bv.Velocity = Vector3.new(0, 0, 0)
-                        end
-                    end
-                else
-                    isStabilizing = false
-                    stabilizationStartTime = nil
-                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                end
-            else
+            -- Поворот персонажа в ту же сторону, что и цель
+            local targetLookVector = targetCFrame.LookVector
+            bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetLookVector)
+            
+            -- Улучшенная логика следования за движущейся целью
+            local targetVelocity = currentTargetRoot.Velocity
+            local targetSpeed = targetVelocity.Magnitude
+            
+            -- Предсказание позиции цели с учетом её скорости
+            local predictionTime = 0.1 -- Время предсказания
+            local predictedPosition = behindPosition.Position + (targetVelocity * predictionTime)
+            local predictedDistance = (predictedPosition - currentPos).Magnitude
+            
+            -- Адаптивная скорость в зависимости от скорости цели
+            local adaptiveSpeed = TeleportConfig.TeleportSpeed
+            if targetSpeed > 80 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0 -- Максимальная скорость для очень быстрых целей
+            elseif targetSpeed > 50 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.5 -- Увеличиваем скорость для быстрых целей
+            elseif targetSpeed > 20 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.2
+            end
+            
+            if predictedDistance > 1.5 then
+                -- Быстрое движение к предсказанной позиции
+                local direction = (predictedPosition - currentPos).Unit
                 local currentVelocity = bv.Velocity
-                local newDirection = (behindPosition.Position - currentPos).Unit
-                local targetSpeed = 0
+                local targetVelocity = direction * adaptiveSpeed
                 
-                if distance > 10 then
-                    targetSpeed = TeleportConfig.TeleportSpeed
-                elseif distance > 4 then
-                    targetSpeed = TeleportConfig.TeleportSpeed * 0.6
-                elseif distance > 2 then
-                    targetSpeed = TeleportConfig.TeleportSpeed * 0.4
-                else
-                    targetSpeed = TeleportConfig.TeleportSpeed * 0.2
+                -- Более агрессивное ускорение для быстрых целей
+                local accelerationFactor = 0.15
+                if targetSpeed > 80 then
+                    accelerationFactor = 0.5 -- Максимальное ускорение для очень быстрых целей
+                elseif targetSpeed > 50 then
+                    accelerationFactor = 0.4
+                elseif targetSpeed > 30 then
+                    accelerationFactor = 0.3
                 end
-
-                local currentSpeed = currentVelocity.Magnitude
-                local speedDiff = targetSpeed - currentSpeed
-                local acceleration = math.sign(speedDiff) * math.min(math.abs(speedDiff), TeleportConfig.TeleportSpeed * 0.1)
-
-                if math.abs(speedDiff) < 10 and currentSpeed > 0 then
-                    targetSpeed = currentSpeed
+                local velocityDiff = targetVelocity - currentVelocity
+                local acceleration = velocityDiff * accelerationFactor
+                
+                bv.Velocity = currentVelocity + acceleration
+            else
+                -- Точное следование за целью
+                local direction = (predictedPosition - currentPos).Unit
+                local correctionSpeed = math.min(predictedDistance * 15, 30)
+                
+                -- Увеличиваем скорость коррекции для движущихся целей
+                if targetSpeed > 10 then
+                    correctionSpeed = correctionSpeed * 1.5
                 end
                 
-                if currentVelocity.Magnitude > 0 then
-                    local currentDirection = currentVelocity.Unit
-                    local directionDot = currentDirection:Dot(newDirection)
-                    
-                    if directionDot < 0.5 then
-                        bv.Velocity = newDirection * (currentSpeed * 0.8)
-                    else
-                        local smoothedDirection = (currentDirection + newDirection).Unit
-                        bv.Velocity = smoothedDirection * (currentSpeed + acceleration)
-                    end
-                else
-                    bv.Velocity = newDirection * targetSpeed
+                bv.Velocity = direction * correctionSpeed
+                
+                -- Останавливаемся только если очень близко и цель не движется быстро
+                if predictedDistance < 0.3 and targetSpeed < 5 then
+                    bv.Velocity = Vector3.new(0, 0, 0)
                 end
             end
         end
@@ -1510,12 +1502,9 @@ local function startTeleport()
     end
     
     isTeleporting = true
-    isStabilizing = false
-    stabilizationStartTime = nil
     lastTeleportPosition = nil
     speedResetTimer = 0
     lastSpeedCheck = tick()
-    lastBehindDistance = 0
     
     
     TeleportConfig.OriginalPosition = root.Position
@@ -1575,11 +1564,8 @@ end
 
 local function stopTeleport()
     isTeleporting = false
-    isStabilizing = false
-    stabilizationStartTime = nil
     lastTeleportPosition = nil
     speedResetTimer = 0
-    lastBehindDistance = 0
     TeleportConfig.Enabled = false
     
     local char = Players.LocalPlayer.Character
@@ -1607,6 +1593,11 @@ local function stopTeleport()
         bv.Velocity = Vector3.new(0, 0, 0)
         task.wait(0.1) 
         bv:Destroy()
+    end
+    
+    local bg = root and root:FindFirstChild("BodyGyro")
+    if bg then
+        bg:Destroy()
     end
     
     
@@ -1654,6 +1645,11 @@ local function stopTeleport()
                     returnBv.Velocity = Vector3.new(0, 0, 0)
                     task.wait(0.5) 
                     returnBv:Destroy()
+                end
+                
+                local returnBg = root:FindFirstChild("BodyGyro")
+                if returnBg then
+                    returnBg:Destroy()
                 end
                 
                 
@@ -2121,7 +2117,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
-            -- Временная активация Anti Time Stop
+            -- Временная активация Anti Time Stop (как кнопка)
             if not isAntiTimeStopEnabled then
                 -- Включаем Anti Time Stop
                 AntiTimeStopConfig.Enabled = true
@@ -2131,22 +2127,26 @@ UserInputService.InputBegan:Connect(function(input, gp)
                     guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
                 end
                 
-                -- Ждем 0.5 секунды и выключаем
-                task.wait(0.5)
-                
-                -- Выключаем Anti Time Stop
-                AntiTimeStopConfig.Enabled = false
-                stopAntiTimeStop()
-                
-                if guiCallbacks.antiTimeStop then
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-                end
+                -- Асинхронно ждем 0.5 секунды и выключаем
+                spawn(function()
+                    task.wait(0.5)
+                    
+                    -- Выключаем Anti Time Stop
+                    AntiTimeStopConfig.Enabled = false
+                    stopAntiTimeStop()
+                    
+                    if guiCallbacks.antiTimeStop then
+                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+                    end
+                end)
             else
                 -- Если уже активно, показываем сообщение
                 if guiCallbacks.antiTimeStop then
                     guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-                    task.wait(1)
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+                    spawn(function()
+                        task.wait(1)
+                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+                    end)
                 end
             end
         -- Удален обработчик клавиши I для Item ESP
@@ -3877,48 +3877,32 @@ local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
             guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
         end
         
-        -- Ждем 0.5 секунды и выключаем
-        task.wait(0.5)
-        
-        -- Выключаем Anti Time Stop
-        AntiTimeStopConfig.Enabled = false
-        stopAntiTimeStop()
-        
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-        end
+        -- Асинхронно ждем 0.5 секунды и выключаем
+        spawn(function()
+            task.wait(0.5)
+            
+            -- Выключаем Anti Time Stop
+            AntiTimeStopConfig.Enabled = false
+            stopAntiTimeStop()
+            
+            if guiCallbacks.antiTimeStop then
+                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+            end
+        end)
     else
         -- Если уже активно, показываем сообщение
         if guiCallbacks.antiTimeStop then
             guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-            task.wait(1)
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+            spawn(function()
+                task.wait(1)
+                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+            end)
         end
     end
 end)
 guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
 
-local antiTimeStopKeyBtn = Instance.new("TextButton", innerContainer)
-antiTimeStopKeyBtn.Size = UDim2.new(1, -10, 0, 24)
-antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey (0.5s): [" .. (AntiTimeStopConfig.ToggleKey and tostring(AntiTimeStopConfig.ToggleKey.Name) or "None") .. "]"
-antiTimeStopKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-antiTimeStopKeyBtn.TextColor3 = Color3.new(1,1,1)
-antiTimeStopKeyBtn.Font = Enum.Font.Gotham
-antiTimeStopKeyBtn.TextSize = 13
-antiTimeStopKeyBtn.AutoButtonColor = false
-Instance.new("UICorner", antiTimeStopKeyBtn).CornerRadius = UDim.new(0,6)
 
-antiTimeStopKeyBtn.MouseButton1Click:Connect(function()
-    antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey (0.5s): [Press any key]"
-    local conn
-    conn = UserInputService.InputBegan:Connect(function(input, gp)
-        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
-            conn:Disconnect()
-            AntiTimeStopConfig.ToggleKey = input.KeyCode
-            antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey (0.5s): [" .. tostring(input.KeyCode.Name) .. "]"
-        end
-    end)
-end)
 
 local divider8 = Instance.new("Frame", innerContainer)
 divider8.Size = UDim2.new(1, -10, 0, 2)
