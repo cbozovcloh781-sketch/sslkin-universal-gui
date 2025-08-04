@@ -178,6 +178,15 @@ local speedHackConnections = {}
 local originalWalkSpeed = 16
 local originalJumpPower = 50
 
+local AntiTimeStopConfig = {
+    Enabled = false,
+    ToggleKey = nil,
+    ForceMovement = true,
+    BypassMethod = "Velocity", -- "Velocity", "CFrame", "Tween"
+    MovementSpeed = 2.0,
+    UpdateInterval = 0.01,
+}
+
 local isLongJumping = false
 local longJumpConnections = {}
 local originalLongJumpPower = 50
@@ -713,6 +722,143 @@ local function stopSpeedHack()
         end
     end
     speedHackConnections = {}
+end
+
+-- Anti Time Stop Functions
+local isAntiTimeStopActive = false
+local antiTimeStopConnections = {}
+
+local function startAntiTimeStop()
+    local plr = Players.LocalPlayer
+    local char = plr.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if not hum or not root then return end
+    
+    isAntiTimeStopActive = true
+    
+    -- Сохраняем оригинальные значения
+    local originalWalkSpeed = hum.WalkSpeed
+    local originalJumpPower = hum.JumpPower
+    local originalGravity = workspace.Gravity
+    
+    -- Функция для обхода остановки времени
+    local function bypassTimeStop()
+        if not isAntiTimeStopActive or not char or not char.Parent then
+            return
+        end
+        
+        local currentHum = char:FindFirstChildOfClass("Humanoid")
+        local currentRoot = char:FindFirstChild("HumanoidRootPart")
+        
+        if not currentHum or not currentRoot then return end
+        
+        -- Проверяем, находится ли игрок в остановленном времени
+        local isTimeStopped = false
+        
+        -- Проверяем различные признаки остановки времени
+        if currentHum.WalkSpeed == 0 or 
+           currentHum.JumpPower == 0 or 
+           workspace.Gravity == 0 or
+           (currentRoot.Velocity.Magnitude < 0.1 and currentHum.MoveDirection.Magnitude > 0) then
+            isTimeStopped = true
+        end
+        
+        if isTimeStopped and AntiTimeStopConfig.ForceMovement then
+            -- Метод Velocity - принудительно устанавливаем скорость
+            if AntiTimeStopConfig.BypassMethod == "Velocity" then
+                local bv = currentRoot:FindFirstChild("BodyVelocity")
+                if not bv then
+                    bv = Instance.new("BodyVelocity", currentRoot)
+                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                end
+                
+                -- Получаем направление движения от пользователя
+                local moveDirection = currentHum.MoveDirection
+                if moveDirection.Magnitude > 0 then
+                    local targetVelocity = moveDirection.Unit * (AntiTimeStopConfig.MovementSpeed * 16)
+                    bv.Velocity = targetVelocity
+                else
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                end
+                
+            -- Метод CFrame - принудительно изменяем позицию
+            elseif AntiTimeStopConfig.BypassMethod == "CFrame" then
+                local moveDirection = currentHum.MoveDirection
+                if moveDirection.Magnitude > 0 then
+                    local newCFrame = currentRoot.CFrame + (moveDirection.Unit * AntiTimeStopConfig.MovementSpeed)
+                    currentRoot.CFrame = newCFrame
+                end
+                
+            -- Метод Tween - плавное перемещение
+            elseif AntiTimeStopConfig.BypassMethod == "Tween" then
+                local moveDirection = currentHum.MoveDirection
+                if moveDirection.Magnitude > 0 then
+                    local targetPosition = currentRoot.Position + (moveDirection.Unit * AntiTimeStopConfig.MovementSpeed)
+                    local tweenInfo = TweenInfo.new(AntiTimeStopConfig.UpdateInterval, Enum.EasingStyle.Linear)
+                    local tween = TweenService:Create(currentRoot, tweenInfo, {CFrame = CFrame.new(targetPosition)})
+                    tween:Play()
+                end
+            end
+            
+            -- Восстанавливаем нормальные значения
+            currentHum.WalkSpeed = originalWalkSpeed
+            currentHum.JumpPower = originalJumpPower
+            workspace.Gravity = originalGravity
+        else
+            -- Если время не остановлено, убираем BodyVelocity
+            local bv = currentRoot:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+        end
+    end
+    
+    -- Основной цикл обхода остановки времени
+    local antiTimeStopLoop = RunService.Heartbeat:Connect(function()
+        bypassTimeStop()
+    end)
+    
+    table.insert(antiTimeStopConnections, antiTimeStopLoop)
+    
+    -- Обработчик добавления нового персонажа
+    local function onCharacterAdded(newChar)
+        task.wait(1) -- Ждем загрузки персонажа
+        if isAntiTimeStopActive then
+            startAntiTimeStop()
+        end
+    end
+    
+    local characterAddedConnection = plr.CharacterAdded:Connect(onCharacterAdded)
+    table.insert(antiTimeStopConnections, characterAddedConnection)
+end
+
+local function stopAntiTimeStop()
+    isAntiTimeStopActive = false
+    
+    local char = Players.LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    -- Убираем BodyVelocity если он был создан
+    if root then
+        local bv = root:FindFirstChild("BodyVelocity")
+        if bv then
+            bv:Destroy()
+        end
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(antiTimeStopConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    antiTimeStopConnections = {}
 end
 
 
@@ -1747,6 +1893,17 @@ UserInputService.InputBegan:Connect(function(input, gp)
             
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+            end
+        elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
+            AntiTimeStopConfig.Enabled = not AntiTimeStopConfig.Enabled
+            if AntiTimeStopConfig.Enabled then 
+                startAntiTimeStop() 
+            else 
+                stopAntiTimeStop() 
+            end
+            
+            if guiCallbacks.antiTimeStop then
+                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (AntiTimeStopConfig.Enabled and "ON" or "OFF")
             end
         -- Удален обработчик клавиши I для Item ESP
         end
@@ -3133,6 +3290,9 @@ local function updateStatusDisplay()
     if guiCallbacks.itemESP then
         guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
     end
+    if guiCallbacks.antiTimeStop then
+        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (AntiTimeStopConfig.Enabled and "ON" or "OFF")
+    end
 end
 
 RunService.Heartbeat:Connect(function()
@@ -3688,6 +3848,10 @@ local function updatePlayerList()
                not child.Text:find("Hotkey:") and 
                not child.Text:find("YBA Stand Range") and 
                not child.Text:find("Item ESP") and 
+               not child.Text:find("Anti Time Stop") and 
+               not child.Text:find("Movement Speed") and 
+               not child.Text:find("Bypass Method") and 
+               not child.Text:find("Anti Time Stop Hotkey") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
             end
@@ -3736,4 +3900,90 @@ task.spawn(function()
         updatePlayerList()
     end
 end)
+
+-- Anti Time Stop Settings
+local dividerAntiTimeStop = Instance.new("Frame", innerContainer)
+dividerAntiTimeStop.Size = UDim2.new(1, -10, 0, 2)
+dividerAntiTimeStop.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+dividerAntiTimeStop.BorderSizePixel = 0
+
+sectionHeader("⏰ Anti Time Stop Settings")
+
+local antiTimeStopToggleBtn = toggle("Anti Time Stop", AntiTimeStopConfig.Enabled, function(v)
+    AntiTimeStopConfig.Enabled = v
+    if v then startAntiTimeStop() else stopAntiTimeStop() end
+    
+    if guiCallbacks.antiTimeStop then
+        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
+
+slider("Movement Speed", 0.5, 5.0, AntiTimeStopConfig.MovementSpeed, function(v)
+    AntiTimeStopConfig.MovementSpeed = v
+end)
+
+speedInput("Custom Movement Speed", AntiTimeStopConfig.MovementSpeed, function(v)
+    AntiTimeStopConfig.MovementSpeed = v
+end)
+
+-- Метод обхода
+local bypassMethodBtn = Instance.new("TextButton", innerContainer)
+bypassMethodBtn.Size = UDim2.new(1, -10, 0, 28)
+bypassMethodBtn.Text = "Bypass Method: " .. AntiTimeStopConfig.BypassMethod
+bypassMethodBtn.Font = Enum.Font.Gotham
+bypassMethodBtn.TextSize = 14
+bypassMethodBtn.TextColor3 = Color3.new(1,1,1)
+bypassMethodBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+bypassMethodBtn.AutoButtonColor = false
+Instance.new("UICorner", bypassMethodBtn).CornerRadius = UDim.new(0,6)
+
+bypassMethodBtn.MouseButton1Click:Connect(function()
+    if AntiTimeStopConfig.BypassMethod == "Velocity" then
+        AntiTimeStopConfig.BypassMethod = "CFrame"
+    elseif AntiTimeStopConfig.BypassMethod == "CFrame" then
+        AntiTimeStopConfig.BypassMethod = "Tween"
+    else
+        AntiTimeStopConfig.BypassMethod = "Velocity"
+    end
+    bypassMethodBtn.Text = "Bypass Method: " .. AntiTimeStopConfig.BypassMethod
+end)
+
+-- Кнопка настройки горячих клавиш
+local antiTimeStopKeyBtn = Instance.new("TextButton", innerContainer)
+antiTimeStopKeyBtn.Size = UDim2.new(1, -10, 0, 24)
+antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [" .. (AntiTimeStopConfig.ToggleKey and tostring(AntiTimeStopConfig.ToggleKey.Name) or "None") .. "]"
+antiTimeStopKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+antiTimeStopKeyBtn.TextColor3 = Color3.new(1,1,1)
+antiTimeStopKeyBtn.Font = Enum.Font.Gotham
+antiTimeStopKeyBtn.TextSize = 13
+antiTimeStopKeyBtn.AutoButtonColor = false
+Instance.new("UICorner", antiTimeStopKeyBtn).CornerRadius = UDim.new(0,6)
+
+antiTimeStopKeyBtn.MouseButton1Click:Connect(function()
+    antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [Press any key]"
+    local conn
+    conn = UserInputService.InputBegan:Connect(function(input, gp)
+        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
+            conn:Disconnect()
+            AntiTimeStopConfig.ToggleKey = input.KeyCode
+            antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+        end
+    end)
+end)
+
+-- Информационная панель
+local antiTimeStopInfo = Instance.new("TextLabel", innerContainer)
+antiTimeStopInfo.Size = UDim2.new(1, -10, 0, 40)
+antiTimeStopInfo.Text = "Anti Time Stop позволяет двигаться во время остановки времени другими игроками/NPC. Работает с любым стендом."
+antiTimeStopInfo.Font = Enum.Font.Gotham
+antiTimeStopInfo.TextSize = 12
+antiTimeStopInfo.TextColor3 = Color3.fromRGB(200,200,200)
+antiTimeStopInfo.BackgroundColor3 = Color3.fromRGB(30,30,40)
+antiTimeStopInfo.BorderSizePixel = 1
+antiTimeStopInfo.BorderColor3 = Color3.fromRGB(100,100,120)
+antiTimeStopInfo.TextWrapped = true
+antiTimeStopInfo.TextXAlignment = Enum.TextXAlignment.Left
+antiTimeStopInfo.TextYAlignment = Enum.TextYAlignment.Top
+Instance.new("UICorner", antiTimeStopInfo).CornerRadius = UDim.new(0,4)
 
