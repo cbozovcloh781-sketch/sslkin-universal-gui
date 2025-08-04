@@ -3757,6 +3757,8 @@ divider6.Size = UDim2.new(1, -10, 0, 2)
 divider6.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider6.BorderSizePixel = 0
 
+sectionHeader("🟪 YBA Hacks")
+
 local standRangeLabel = Instance.new("TextLabel", innerContainer)
 standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
 standRangeLabel.Text = "stand range hack"
