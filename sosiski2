@@ -2027,9 +2027,11 @@ local function startUndergroundControl()
         return
     end
     
-    controlledStandForUnderground = stands[1]
+    controlledStandForUnderground = stands[1].Root
     isUndergroundControlEnabled = true
     YBAConfig.UndergroundControl.Enabled = true
+    
+    print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
     
     -- Сохраняем исходную позицию
     if not YBAConfig.UndergroundControl.OriginalPosition then
@@ -2052,9 +2054,15 @@ local function startUndergroundControl()
     workspace.Gravity = 0
     hum.HipHeight = 0
     
+    -- Сразу переносим персонажа под стенд
+    local standPos = controlledStandForUnderground.Position
+    local undergroundPos = Vector3.new(standPos.X, standPos.Y - YBAConfig.UndergroundControl.UndergroundDistance, standPos.Z)
+    root.CFrame = CFrame.new(undergroundPos)
+    
     -- Основной цикл полета под землей за стендом
     local undergroundFlyLoop = RunService.RenderStepped:Connect(function()
         if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
+            print("Отключаем подземный полет - стенд не найден")
             -- Восстанавливаем настройки персонажа
             if hum then
                 hum.JumpPower = flyOriginalJumpPower
@@ -2080,10 +2088,6 @@ local function startUndergroundControl()
         local standPos = controlledStandForUnderground.Position
         local targetPos = Vector3.new(standPos.X, standPos.Y - YBAConfig.UndergroundControl.UndergroundDistance, standPos.Z)
         
-        -- Вычисляем направление движения к стенду
-        local direction = (targetPos - root.Position).Unit
-        local distance = (targetPos - root.Position).Magnitude
-        
         -- Создаем BodyVelocity для полета
         local bv = root:FindFirstChild("BodyVelocity")
         if not bv then
@@ -2091,25 +2095,31 @@ local function startUndergroundControl()
             bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
         end
         
-        if distance > 2 then
-            -- Летим к стенду с той же скоростью, что и стенд
-            local standVelocity = Vector3.new(0, 0, 0)
-            local standRoot = controlledStandForUnderground:FindFirstChild("HumanoidRootPart")
-            if standRoot then
-                standVelocity = standRoot.Velocity
+        -- Вычисляем направление движения к стенду
+        local direction = (targetPos - root.Position).Unit
+        local distance = (targetPos - root.Position).Magnitude
+        
+        -- Отладочная информация (можно убрать позже)
+        if tick() % 2 < 0.1 then -- Выводим каждые 2 секунды
+            print("=== ОТЛАДКА ПОДЗЕМНОГО ПОЛЕТА ===")
+            print("Стенд позиция:", standPos)
+            print("Целевая позиция:", targetPos)
+            print("Позиция персонажа:", root.Position)
+            print("Расстояние:", distance)
+            print("BodyVelocity существует:", bv ~= nil)
+            if bv then
+                print("BodyVelocity скорость:", bv.Velocity)
             end
-            
-            -- Используем скорость стенда или стандартную скорость полета
-            local flySpeed = standVelocity.Magnitude > 0 and standVelocity.Magnitude or (FlyConfig.Speed * 10)
-            
-            -- Добавляем небольшое сглаживание для более плавного полета
-            local currentVelocity = bv.Velocity
-            local targetVelocity = direction * flySpeed
-            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.1
-            
-            bv.Velocity = smoothedVelocity
+            print("================================")
+        end
+        
+        if distance > 1 then
+            -- Летим к стенду с высокой скоростью
+            local flySpeed = 200 -- Увеличиваем скорость для быстрого следования
+            bv.Velocity = direction * flySpeed
         else
-            -- Останавливаемся когда достигли позиции под стендом
+            -- Когда близко к цели, просто телепортируемся точно под стенд
+            root.CFrame = CFrame.new(targetPos)
             bv.Velocity = Vector3.new(0, 0, 0)
         end
     end)
@@ -2117,7 +2127,7 @@ local function startUndergroundControl()
     table.insert(undergroundControlConnections, undergroundFlyLoop)
     
     print("Полет под землей за стендом активирован!")
-    print("Персонаж будет летать за стендом на расстоянии " .. YBAConfig.UndergroundControl.UndergroundDistance .. " метров под землей")
+    print("Персонаж перенесен под стенд на расстоянии " .. YBAConfig.UndergroundControl.UndergroundDistance .. " метров под землей")
 end
 
 -- Функция для остановки управления персонажем под стендом
