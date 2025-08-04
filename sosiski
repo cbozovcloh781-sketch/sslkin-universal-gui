@@ -95,17 +95,75 @@ local TeleportConfig = {
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
-    StandRange = 50,
+    StandRange = 100000, -- Увеличена дистанция ударов стенда
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
     AutoFindStands = true,
-    MaxStandDistance = 100,
+    MaxStandDistance = 10000, -- Увеличена дистанция захвата стенда
     CameraDistance = 15,
     CameraHeight = 5,
     StandControlSpeed = 1.0,
     StandControlSmoothing = 0.1,
     MouseSensitivity = 0.01,
+    CameraSmoothing = 0.08,
+    CameraFollowDistance = 20.2,
+    CameraFollowHeight = 6.1,
+    MouseLookSensitivity = 0.003,
+    StandRotationSpeed = 0.05,
+    -- Item ESP Configuration
+    ItemESP = {
+        Enabled = false,
+        ToggleKey = nil,
+        MaxDistance = 1000, 
+        MaxRenderDistance = 5000,
+        UpdateInterval = 0.3,
+        
+        ShowOutline = true,
+        ShowText = true,
+        ShowFill = true,
+        
+        FillColor = Color3.fromRGB(255, 215, 0), -- Цвет заполнения предмета
+        OutlineColor = Color3.fromRGB(255, 255, 0), -- Цвет обводки предмета
+        TextColor = Color3.fromRGB(255, 255, 255), -- Цвет текста
+        TextBackgroundColor = Color3.fromRGB(0, 0, 0), -- Цвет фона текста
+        
+        FillTransparency = 0.3, -- Прозрачность заполнения
+        OutlineTransparency = 0.1, -- Прозрачность обводки
+        TextBackgroundTransparency = 0.3, -- Прозрачность фона текста
+        
+        TextSize = 10, -- Размер основного текста
+        DistanceTextSize = 9, -- Размер текста расстояния
+        
+        Font = Enum.Font.GothamBold,
+        
+        Items = {
+            -- Основные предметы
+            ["Mysterious Arrow"] = true,
+            ["Rokakaka"] = true,
+            ["Pure Rokakaka"] = true,
+            ["Diamond"] = true,
+            ["Gold Coin"] = true,
+            ["Steel Ball"] = true,
+            ["Clackers"] = true,
+            ["Caesar's Headband"] = true,
+            ["Zeppeli's Hat"] = true,
+            ["Zeppeli's Scarf"] = true,
+            ["Ancient Scroll"] = true,
+            ["Quinton's Glove"] = true,
+            ["Stone Mask"] = true,
+            ["Lucky Arrow"] = true,
+            ["Lucky Stone Mask"] = true,
+            
+            ["Rib Cage of The Saint's Corpse"] = true,
+            
+            ["DIO's Diary"] = true,
+            ["DIO's Bone"] = true,
+            ["DIO's Diary Page"] = true,
+            
+
+        }
+    }
 }
 
 local isFlying = false
@@ -138,7 +196,6 @@ local speedResetTimer = 0
 local lastSpeedCheck = tick()
 local lastBehindDistance = 0
 
--- YBA Stand Control Variables
 local isYBAEnabled = false
 local ybaConnections = {}
 local originalPlayerPosition = nil
@@ -147,8 +204,238 @@ local originalCameraCFrame = nil
 local controlledStand = nil
 local standControlConnections = {}
 local originalGravity = workspace.Gravity
-local originalWalkSpeed = 16
-local originalJumpPower = 50
+local originalYBAWalkSpeed = 16
+local originalYBAJumpPower = 50
+
+local isStandControlActive = false
+local currentControlledStand = nil
+local standCameraConnections = {}
+local originalStandCameraCFrame = nil
+local standControlActive = false
+
+local freeCameraActive = false
+local freeCameraConnections = {}
+local freeCameraRotation = Vector2.new(0, 0)
+local freeCameraDistance = 10
+local freeCameraHeight = 5
+local freeCameraTarget = nil
+local freeCameraLastMousePos = Vector2.new(0, 0)
+local lastCameraUpdate = nil
+
+local itemESPConnections = {}
+local itemESPElements = {}
+local itemESPEnabled = false
+
+local YBAFreeCamera = {} do
+    local RunService = game:GetService("RunService")
+    local UserInputService = game:GetService("UserInputService")
+    local ContextActionService = game:GetService("ContextActionService")
+    local Camera = workspace.CurrentCamera
+
+    local fcRunning = false
+    local INPUT_PRIORITY = Enum.ContextActionPriority.High.Value
+
+    local cameraPos = Vector3.new()
+    local cameraRot = Vector2.new()
+    local cameraFov = 70
+    local targetStand = nil
+    local originalCameraCFrame = nil
+    local cameraDistance = 10 -- Расстояние от камеры до стенда
+    local cameraHeight = 5   -- Высота камеры над стендом
+
+    local NAV_SPEED = 1
+    local SHIFT_MUL = 0.25
+
+    local input = {
+        W = 0, A = 0, S = 0, D = 0,
+        Space = 0, LeftControl = 0,
+        Up = 0, Down = 0,
+        MouseDelta = Vector2.new(),
+        MouseWheel = 0
+    }
+
+    local function onKey(actionName, inputState, inputObj)
+        input[inputObj.KeyCode.Name] = (inputState == Enum.UserInputState.Begin) and 1 or 0
+        return Enum.ContextActionResult.Sink
+    end
+
+    local function onMouse(actionName, inputState, inputObj)
+        input.MouseDelta = Vector2.new(-inputObj.Delta.y, -inputObj.Delta.x)
+        return Enum.ContextActionResult.Sink
+    end
+
+    local function onMouseWheel(actionName, inputState, inputObj)
+        if inputObj.UserInputType == Enum.UserInputType.MouseWheel then
+            input.MouseWheel = -inputObj.Position.Z
+        end
+        return Enum.ContextActionResult.Sink
+    end
+
+    local function startInput()
+        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
+            ContextActionService:BindActionAtPriority("FreecamKey_"..key, onKey, false, INPUT_PRIORITY, Enum.KeyCode[key])
+        end
+        ContextActionService:BindActionAtPriority("FreecamMouse", onMouse, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
+        ContextActionService:BindActionAtPriority("FreecamMouseWheel", onMouseWheel, false, INPUT_PRIORITY, Enum.UserInputType.MouseWheel)
+    end
+
+    local function stopInput()
+        for k in pairs(input) do
+            if typeof(input[k]) == "number" then input[k] = 0 end
+        end
+        input.MouseDelta = Vector2.new()
+        input.MouseWheel = 0
+        ContextActionService:UnbindAction("FreecamMouse")
+        ContextActionService:UnbindAction("FreecamMouseWheel")
+        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
+            ContextActionService:UnbindAction("FreecamKey_"..key)
+        end
+    end
+
+    local function stepFreecam(dt)
+        if not targetStand or not targetStand.Root or not targetStand.Root.Parent then
+            return
+        end
+
+        local standRoot = targetStand.Root
+        local standPosition = standRoot.Position
+
+        local moveX = input.D - input.A
+        local moveZ = input.S - input.W
+        local moveY = input.Space - input.LeftControl -- Включено управление высотой стенда
+        
+        local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            move = move * SHIFT_MUL
+        end
+
+        local bv = standRoot:FindFirstChild("BodyVelocity")
+        if not bv then
+            bv = Instance.new("BodyVelocity", standRoot)
+            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        end
+        
+        if move.Magnitude > 0 then
+            local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
+            local worldMove = cameraCFrame:VectorToWorldSpace(move)
+            bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
+
+            if moveY ~= 0 then
+                print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
+            end
+        else
+            bv.Velocity = Vector3.new(0, 0, 0)
+        end
+
+        local pan = input.MouseDelta * math.rad(0.8) -- Уменьшена чувствительность для плавности
+        input.MouseDelta = Vector2.new()
+
+        if input.MouseWheel ~= 0 then
+            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 20)
+            input.MouseWheel = 0
+        end
+
+        cameraRot = cameraRot + pan
+        cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
+
+        local player = Players.LocalPlayer
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local playerRoot = player.Character.HumanoidRootPart
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            
+            if humanoid then
+                local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
+                playerRoot.CFrame = targetCFrame
+
+                humanoid.AutoRotate = false
+            end
+        end
+
+        local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
+        local cameraOffset = Vector3.new(0, cameraHeight - 2, cameraDistance) 
+        local cf = CFrame.new(standPosition) * rot * CFrame.new(cameraOffset)
+
+        cameraPos = cf.Position
+        Camera.CFrame = cf
+    end
+
+    function YBAFreeCamera.Start(stand)
+        if fcRunning then 
+            YBAFreeCamera.Stop() 
+        end
+        
+        if not stand or not stand.Root then
+            print("YBA: Ошибка - стенд не найден")
+            return false
+        end
+        
+        targetStand = stand
+        originalCameraCFrame = Camera.CFrame
+        
+        local standPosition = stand.Root.Position
+        cameraPos = standPosition + Vector3.new(0, cameraHeight - 2, cameraDistance) 
+        cameraRot = Vector2.new()
+        cameraFov = Camera.FieldOfView
+
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = false 
+            end
+        end
+        
+        Camera.CameraType = Enum.CameraType.Scriptable
+        RunService:BindToRenderStep("YBAFreecam", Enum.RenderPriority.Camera.Value, stepFreecam)
+        startInput()
+        fcRunning = true
+        
+        print("YBA: Управление стендом активировано: " .. stand.Name)
+        return true
+    end
+
+    function YBAFreeCamera.Stop()
+        if not fcRunning then return end
+        stopInput()
+        RunService:UnbindFromRenderStep("YBAFreecam")
+        Camera.CameraType = Enum.CameraType.Custom
+
+        if targetStand and targetStand.Root then
+            local bv = targetStand.Root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+        end
+
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = true
+            end
+        end
+        
+        if originalCameraCFrame then
+            Camera.CFrame = originalCameraCFrame
+        end
+        
+        targetStand = nil
+        originalCameraCFrame = nil
+        fcRunning = false
+        
+        print("YBA: Управление стендом отключено")
+    end
+
+    function YBAFreeCamera.Toggle(stand)
+        if fcRunning then
+            YBAFreeCamera.Stop()
+            return false
+        else
+            return YBAFreeCamera.Start(stand)
+        end
+    end
+end
 
 local function startFly()
     local plr = Players.LocalPlayer
@@ -160,10 +447,10 @@ local function startFly()
     
     isFlying = true
     
-    local originalJumpPower = hum.JumpPower
-    local originalJumpHeight = hum.JumpHeight
-    local originalGravity = workspace.Gravity
-    local originalHipHeight = hum.HipHeight
+    local flyOriginalJumpPower = hum.JumpPower
+    local flyOriginalJumpHeight = hum.JumpHeight
+    local flyOriginalGravity = workspace.Gravity
+    local flyOriginalHipHeight = hum.HipHeight
     
     hum.JumpPower = 0
     hum.JumpHeight = 0
@@ -195,12 +482,12 @@ local function startFly()
     local renderConnection = RunService.RenderStepped:Connect(function()
         if not isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
             if hum then
-                hum.JumpPower = originalJumpPower
-                hum.JumpHeight = originalJumpHeight
-                hum.HipHeight = originalHipHeight
+                hum.JumpPower = flyOriginalJumpPower
+                hum.JumpHeight = flyOriginalJumpHeight
+                hum.HipHeight = flyOriginalHipHeight
             end
             if not isNoClipping then
-                workspace.Gravity = originalGravity
+                workspace.Gravity = flyOriginalGravity
             end
             
             inputDown:Disconnect()
@@ -651,15 +938,13 @@ local function createStealthTeleport()
             
             local bv = root:FindFirstChild("BodyVelocity")
             if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold then
-                -- Плавное снижение скорости вместо резкого сброса
                 bv.Velocity = bv.Velocity * 0.7
                 task.wait(0.1)
                 if bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold * 0.5 then
                     bv.Velocity = bv.Velocity * 0.5
                 end
             end
-            
-            -- Плавное восстановление скорости ходьбы
+
             if humanoid and humanoid.WalkSpeed > 16 then
                 humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 2, 16)
             end
@@ -670,12 +955,10 @@ local function createStealthTeleport()
             local targetPos = currentTargetRoot.Position
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
-            
-            -- Предотвращение рывков при резких изменениях позиции цели
+
             if lastTeleportPosition then
                 local targetMovement = (targetPos - lastTeleportPosition).Magnitude
                 if targetMovement > 5 then
-                    -- Если цель резко переместилась, плавно адаптируемся
                     task.wait(0.05)
                 end
             end
@@ -694,14 +977,12 @@ local function createStealthTeleport()
                 bv.Velocity = Vector3.new(0, 0, 0)
             end
             
-            
-            -- Плавная стабилизация за игроком
+
             if behindDistance < TeleportConfig.StabilizationThreshold and not isStabilizing then
                 isStabilizing = true
                 stabilizationStartTime = tick()
                 lastTeleportPosition = behindPosition.Position
-                
-                -- Плавно останавливаем движение
+
                 bv.Velocity = bv.Velocity * 0.5
                 task.wait(0.05)
                 bv.Velocity = Vector3.new(0, 0, 0)
@@ -714,13 +995,11 @@ local function createStealthTeleport()
                     local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
                     local correctionDirection = (newBehindPosition.Position - currentPos)
                     local correctionMagnitude = correctionDirection.Magnitude
-                    
-                    -- Плавная коррекция позиции
+
                     if correctionMagnitude > 0.3 then
                         local correctionSpeed = math.min(correctionMagnitude * TeleportConfig.MaxCorrectionSpeed, TeleportConfig.MaxCorrectionSpeed)
                         bv.Velocity = correctionDirection.Unit * correctionSpeed
                     else
-                        -- Плавное затухание скорости
                         bv.Velocity = bv.Velocity * (1 - TeleportConfig.SmoothingFactor)
                         if bv.Velocity.Magnitude < 5 then
                             bv.Velocity = Vector3.new(0, 0, 0)
@@ -732,7 +1011,6 @@ local function createStealthTeleport()
                     bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
                 end
             else
-                -- Плавное движение к цели
                 local currentVelocity = bv.Velocity
                 local newDirection = (behindPosition.Position - currentPos).Unit
                 local targetSpeed = 0
@@ -746,15 +1024,12 @@ local function createStealthTeleport()
                 else
                     targetSpeed = TeleportConfig.TeleportSpeed * 0.2
                 end
-                
-                -- Плавное изменение скорости
+
                 local currentSpeed = currentVelocity.Magnitude
                 local speedDiff = targetSpeed - currentSpeed
                 local acceleration = math.sign(speedDiff) * math.min(math.abs(speedDiff), TeleportConfig.TeleportSpeed * 0.1)
-                
-                -- Предотвращение слишком частых изменений скорости
+
                 if math.abs(speedDiff) < 10 and currentSpeed > 0 then
-                    -- Если изменение скорости небольшое, сохраняем текущую скорость
                     targetSpeed = currentSpeed
                 end
                 
@@ -763,10 +1038,8 @@ local function createStealthTeleport()
                     local directionDot = currentDirection:Dot(newDirection)
                     
                     if directionDot < 0.5 then
-                        -- Резкий поворот с плавным снижением скорости
                         bv.Velocity = newDirection * (currentSpeed * 0.8)
                     else
-                        -- Плавный поворот
                         local smoothedDirection = (currentDirection + newDirection).Unit
                         bv.Velocity = smoothedDirection * (currentSpeed + acceleration)
                     end
@@ -1000,16 +1273,16 @@ local function stopTeleport()
     end
 end
 
--- YBA Stand Control Functions
 local function findStands()
     local stands = {}
     local player = Players.LocalPlayer
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
-    if not playerRoot then return stands end
+    if not playerRoot then 
+        return stands 
+    end
     
-    -- Поиск стендов в YBA (различные варианты названий)
     local standNames = {
         "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
         "Star Platinum", "The World", "Hierophant Green", "Magician's Red",
@@ -1020,6 +1293,7 @@ local function findStands()
         "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth"
     }
     
+    local foundCount = 0
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") then
             local isStand = false
@@ -1034,7 +1308,8 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance then
+                    if distance <= 20 then
+                        foundCount = foundCount + 1
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1047,14 +1322,13 @@ local function findStands()
         end
     end
     
-    -- Если стенды не найдены, ищем по другим критериям
     if #stands == 0 then
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance and distance > 5 then -- Исключаем самого игрока
+                    if distance <= 20 then
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1067,7 +1341,6 @@ local function findStands()
         end
     end
     
-    -- Сортируем по расстоянию
     table.sort(stands, function(a, b) return a.Distance < b.Distance end)
     return stands
 end
@@ -1091,13 +1364,31 @@ local function freezePlayer()
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
         bv.Velocity = Vector3.new(0, 0, 0)
+        
+        -- Дополнительно отключаем все движения персонажа
+        local gyro = root:FindFirstChild("BodyGyro")
+        if not gyro then
+            gyro = Instance.new("BodyGyro", root)
+            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        end
+        gyro.CFrame = root.CFrame
+        
+        -- Принудительно отключаем камеру от персонажа
+        local camera = workspace.CurrentCamera
+        if camera then
+            camera.CameraType = Enum.CameraType.Scriptable
+        end
     end
     
     if humanoid then
-        originalWalkSpeed = humanoid.WalkSpeed
-        originalJumpPower = humanoid.JumpPower
+        originalYBAWalkSpeed = humanoid.WalkSpeed
+        originalYBAJumpPower = humanoid.JumpPower
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
+        
+        -- Отключаем все действия персонажа
+        humanoid.AutoRotate = false
+        humanoid.AutoJumpEnabled = false
     end
 end
 
@@ -1114,183 +1405,112 @@ local function unfreezePlayer()
         if bv then
             bv:Destroy()
         end
+        
+        local gyro = root:FindFirstChild("BodyGyro")
+        if gyro then
+            gyro:Destroy()
+        end
     end
     
     if humanoid then
-        humanoid.WalkSpeed = originalWalkSpeed
-        humanoid.JumpPower = originalJumpPower
+        humanoid.WalkSpeed = originalYBAWalkSpeed
+        humanoid.JumpPower = originalYBAJumpPower
+        
+        -- Восстанавливаем стандартные настройки персонажа
+        humanoid.AutoRotate = true
+        humanoid.AutoJumpEnabled = true
     end
 end
 
-local function switchCameraToStand(stand)
-    if not stand or not stand.Root then return end
+local function activateFreeCamera(stand)
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return false
+    end
     
-    local camera = workspace.CurrentCamera
-    if not camera then return end
-    
-    originalCameraCFrame = camera.CFrame
-    
-    -- Переключаем камеру на стенд, но сохраняем возможность поворота
-    local standPos = stand.Root.Position
-    local cameraPos = standPos + Vector3.new(YBAConfig.CameraDistance, YBAConfig.CameraHeight, 0)
-    
-    -- Сохраняем текущий поворот камеры
-    local currentLookVector = camera.CFrame.LookVector
-    camera.CFrame = CFrame.new(cameraPos, cameraPos + currentLookVector)
+    print("YBA: Активируем управление стендом: " .. stand.Name)
+
+    if YBAConfig.FreezePlayer then
+        print("YBA: Замораживаем игрока...")
+        freezePlayer()
+    end
+
+    freeCameraActive = true
+    freeCameraTarget = stand
+
+    if YBAFreeCamera.Start(stand) then
+        print("YBA: Управление стендом активировано от третьего лица")
+        return true
+    else
+        print("YBA: Не удалось активировать управление стендом")
+        return false
+    end
 end
 
-local function restoreCamera()
-    local camera = workspace.CurrentCamera
-    if camera and originalCameraCFrame then
-        camera.CFrame = originalCameraCFrame
+local function disableFreeCamera()
+    if not freeCameraActive then return end
+    
+    print("YBA: Отключаем управление стендом")
+    
+    freeCameraActive = false
+    freeCameraTarget = nil
+
+    YBAFreeCamera.Stop()
+
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.AutoRotate = true
+        end
+    end
+
+    for _, connection in ipairs(freeCameraConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    freeCameraConnections = {}
+    
+    print("YBA: Управление стендом отключено")
+
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = originalYBAWalkSpeed
+            humanoid.JumpPower = originalYBAJumpPower
+        end
+
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+            
+            local gyro = root:FindFirstChild("BodyGyro")
+            if gyro then
+                gyro:Destroy()
+            end
+        end
     end
 end
 
 local function controlStand(stand)
-    if not stand or not stand.Root then return end
+    if not stand or not stand.Root then 
+        print("YBA: Ошибка - стенд или его Root не найден")
+        return 
+    end
     
+    print("YBA: Начинаем управление стендом: " .. stand.Name)
     controlledStand = stand
-    
-    -- Переменные для управления камерой
-    local cameraRotation = Vector2.new(0, 0)
-    local lastMousePos = Vector2.new(0, 0)
-    local isMouseDown = false
-    
-    -- Обработка мыши для поворота камеры
-    local mouseConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isMouseDown = true
-            lastMousePos = UserInputService:GetMouseLocation()
-        end
-    end)
-    
-    local mouseEndConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isMouseDown = false
-        end
-    end)
-    
-    -- Создаем соединение для управления стендом
-    local controlConnection = RunService.Heartbeat:Connect(function()
-        if not isYBAEnabled or not controlledStand or not controlledStand.Root or not controlledStand.Root.Parent then
-            return
-        end
-        
-        local camera = workspace.CurrentCamera
-        if not camera then return end
-        
-        -- Получаем ввод пользователя
-        local moveVector = Vector3.new(0, 0, 0)
-        
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveVector = moveVector + camera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveVector = moveVector - camera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveVector = moveVector - camera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveVector = moveVector + camera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            moveVector = moveVector + Vector3.new(0, 1, 0)
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            moveVector = moveVector - Vector3.new(0, 1, 0)
-        end
-        
-        if moveVector.Magnitude > 0 then
-            moveVector = moveVector.Unit * (YBAConfig.StandControlSpeed * 50)
-            
-            -- Применяем движение к стенду
-            local standRoot = controlledStand.Root
-            local bv = standRoot:FindFirstChild("BodyVelocity")
-            if not bv then
-                bv = Instance.new("BodyVelocity", standRoot)
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-            end
-            
-            -- Плавное движение с предотвращением рывков
-            if bv.Velocity.Magnitude > 0 then
-                local currentVel = bv.Velocity
-                local targetVel = moveVector
-                local smoothedVel = currentVel:Lerp(targetVel, YBAConfig.StandControlSmoothing)
-                
-                -- Ограничиваем максимальное изменение скорости
-                local maxSpeedChange = YBAConfig.StandControlSpeed * 10
-                local speedDiff = (smoothedVel - currentVel).Magnitude
-                if speedDiff > maxSpeedChange then
-                    smoothedVel = currentVel + (smoothedVel - currentVel).Unit * maxSpeedChange
-                end
-                
-                bv.Velocity = smoothedVel
-            else
-                bv.Velocity = moveVector
-            end
-        else
-            -- Плавная остановка
-            local standRoot = controlledStand.Root
-            local bv = standRoot:FindFirstChild("BodyVelocity")
-            if bv and bv.Velocity.Magnitude > 0 then
-                bv.Velocity = bv.Velocity * (1 - YBAConfig.StandControlSmoothing)
-                if bv.Velocity.Magnitude < 1 then
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                end
-            end
-        end
-        
-        -- Обновляем позицию камеры для следования за стендом с возможностью поворота
-        if YBAConfig.SwitchCamera and controlledStand.Root then
-            local standPos = controlledStand.Root.Position
-            
-            -- Обработка поворота камеры мышью
-            if isMouseDown then
-                local currentMousePos = UserInputService:GetMouseLocation()
-                local mouseDelta = currentMousePos - lastMousePos
-                
-                -- Обновляем поворот камеры
-                cameraRotation = cameraRotation + Vector2.new(mouseDelta.X * YBAConfig.MouseSensitivity, mouseDelta.Y * YBAConfig.MouseSensitivity)
-                
-                -- Ограничиваем вертикальный поворот
-                cameraRotation.Y = math.clamp(cameraRotation.Y, -1.5, 1.5)
-                
-                lastMousePos = currentMousePos
-            end
-            
-            -- Вычисляем позицию камеры с учетом поворота
-            local cameraOffset = Vector3.new(
-                math.sin(cameraRotation.X) * YBAConfig.CameraDistance,
-                YBAConfig.CameraHeight + math.sin(cameraRotation.Y) * 10,
-                math.cos(cameraRotation.X) * YBAConfig.CameraDistance
-            )
-            
-            local cameraPos = standPos + cameraOffset
-            local lookAtPos = standPos + Vector3.new(0, 2, 0) -- Смотрим немного выше стенда
-            
-            -- Плавно перемещаем камеру
-            local currentCameraPos = camera.CFrame.Position
-            local cameraMoveDirection = (cameraPos - currentCameraPos)
-            
-            if cameraMoveDirection.Magnitude > 1 then
-                -- Плавное перемещение камеры
-                local smoothedCameraPos = currentCameraPos:Lerp(cameraPos, 0.1)
-                camera.CFrame = CFrame.new(smoothedCameraPos, lookAtPos)
-            else
-                -- Если камера уже близко к цели, просто обновляем позицию
-                camera.CFrame = CFrame.new(cameraPos, lookAtPos)
-            end
-        end
-    end)
-    
-    table.insert(standControlConnections, controlConnection)
-    table.insert(standControlConnections, mouseConnection)
-    table.insert(standControlConnections, mouseEndConnection)
+
+    if activateFreeCamera(stand) then
+        print("YBA: Свободная камера активирована для стенда: " .. stand.Name)
+    else
+        print("YBA: Не удалось активировать свободную камеру для стенда: " .. stand.Name)
+    end
 end
 
 local function startYBA()
@@ -1299,32 +1519,24 @@ local function startYBA()
     isYBAEnabled = true
     YBAConfig.Enabled = true
     
-    -- Находим ближайший стенд
     local stands = findStands()
+    
     if #stands == 0 then
-        print("YBA: Стенды не найдены в радиусе " .. YBAConfig.MaxStandDistance)
         return
     end
     
-    local targetStand = stands[1] -- Берем ближайший стенд
-    print("YBA: Найден стенд - " .. targetStand.Name .. " на расстоянии " .. math.floor(targetStand.Distance))
+    local targetStand = stands[1]
     
-    -- Замораживаем игрока
     if YBAConfig.FreezePlayer then
         freezePlayer()
     end
     
-    -- Переключаем камеру
     if YBAConfig.SwitchCamera then
-        switchCameraToStand(targetStand)
     end
     
-    -- Передаем управление стенду
     if YBAConfig.TransferControl then
-        controlStand(targetStand)
+        activateFreeCamera(targetStand)
     end
-    
-    print("YBA: Stand Range Hack активирован!")
 end
 
 local function stopYBA()
@@ -1333,13 +1545,9 @@ local function stopYBA()
     isYBAEnabled = false
     YBAConfig.Enabled = false
     
-    -- Восстанавливаем управление игроком
+    disableFreeCamera()
     unfreezePlayer()
     
-    -- Восстанавливаем камеру
-    restoreCamera()
-    
-    -- Останавливаем управление стендом
     for _, connection in ipairs(standControlConnections) do
         if connection then
             pcall(function() connection:Disconnect() end)
@@ -1347,70 +1555,39 @@ local function stopYBA()
     end
     standControlConnections = {}
     controlledStand = nil
-    
-    print("YBA: Stand Range Hack деактивирован!")
 end
 
 local function getAlivePlayers()
     local alivePlayers = {}
     
-    print("=== ПОИСК ЖИВЫХ ИГРОКОВ ===")
-    
-    
     if not Players then
-        print("Players сервис не найден!")
         return alivePlayers
     end
     
     if not Players.LocalPlayer then
-        print("LocalPlayer не найден!")
         return alivePlayers
     end
     
     local allPlayers = Players:GetPlayers()
     if not allPlayers then
-        print("Не удалось получить список игроков!")
         return alivePlayers
     end
     
-    print("Всего игроков на сервере: " .. #allPlayers)
-    print("Локальный игрок: " .. Players.LocalPlayer.Name)
-    
     for i, player in ipairs(allPlayers) do
         if player then
-            print("Проверяем игрока " .. i .. ": " .. player.Name)
-            
             if player ~= Players.LocalPlayer then
-                print("  - Это не локальный игрок")
-                
                 if player.Character then
-                    print("  - У игрока есть персонаж")
-                    
                     local humanoid = player.Character:FindFirstChild("Humanoid")
                     if humanoid then
-                        print("  - У игрока есть Humanoid, здоровье: " .. humanoid.Health)
-                        
                         if humanoid.Health > 0 then
-                            print("  - Игрок жив, добавляем в список")
                             table.insert(alivePlayers, player)
-                        else
-                            print("  - Игрок мертв")
                         end
-                    else
-                        print("  - У игрока нет Humanoid")
                     end
-                else
-                    print("  - У игрока нет персонажа")
                 end
-            else
-                print("  - Это локальный игрок, пропускаем")
             end
-        else
-            print("Игрок " .. i .. " равен nil")
         end
     end
     
-    print("Найдено живых игроков: " .. #alivePlayers)
     return alivePlayers
 end
 
@@ -1504,6 +1681,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
+        -- Удален обработчик клавиши I для Item ESP
         end
     end
 end)
@@ -1575,27 +1753,21 @@ end
 
 local function isPlayerAlive(player)
     if not player then 
-        print("Player is nil")
         return false 
     end
     
-    
     if not player.Name then
-        print("Player has no name")
         return false
     end
     
     if not player.Character then 
-        print("Player " .. tostring(player.Name) .. " has no character")
         return false 
     end
     local humanoid = player.Character:FindFirstChild("Humanoid")
     if not humanoid then 
-        print("Player " .. tostring(player.Name) .. " has no humanoid")
         return false 
     end
     local isAlive = humanoid.Health > 0
-    print("Player " .. tostring(player.Name) .. " health: " .. tostring(humanoid.Health) .. ", alive: " .. tostring(isAlive))
     return isAlive
 end
 
@@ -1767,9 +1939,732 @@ UserInputService.InputBegan:Connect(function(inp, gp)
         elseif Config.Aimbot.ToggleKey and inp.KeyCode == Config.Aimbot.ToggleKey then
             Config.Aimbot.Enabled = not Config.Aimbot.Enabled
             print("Aimbot toggled:", Config.Aimbot.Enabled)
+        -- Удален второй обработчик клавиши I для Item ESP
         end
     end
 end)
+
+
+local itemESPEnabled = false
+local itemESPConnections = {}
+local itemESPElements = {}
+
+local YBA_ITEM_NAMES = {
+    -- Основные предметы
+    ["Mysterious Arrow"] = true,
+    ["Rokakaka"] = true,
+    ["Pure Rokakaka"] = true,
+    ["Diamond"] = true,
+    ["Gold Coin"] = true,
+    ["Steel Ball"] = true,
+    ["Clackers"] = true,
+    ["Caesar's Headband"] = true,
+    ["Zeppeli's Hat"] = true,
+    ["Zeppeli's Scarf"] = true,
+    ["Ancient Scroll"] = true,
+    ["Quinton's Glove"] = true,
+    ["Stone Mask"] = true,
+    ["Lucky Arrow"] = true,
+    ["Lucky Stone Mask"] = true,
+
+    ["Rib Cage of The Saint's Corpse"] = true,
+    
+    ["Ancient Scroll"] = true,
+    ["DIO's Diary"] = true,
+    ["DIO's Bone"] = true,
+    ["DIO's Diary Page"] = true,
+    ["Lucky Stone Mask"] = true,
+}
+
+local function findYBAItems()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then 
+        return items 
+    end
+
+    local foundFolders = {}
+    
+    local targetFolder = workspace:FindFirstChild("Item_Spawns")
+    if targetFolder then
+        local itemsFolder = targetFolder:FindFirstChild("Items")
+        if itemsFolder then
+            table.insert(foundFolders, itemsFolder)
+        end
+    end
+    
+    if #foundFolders == 0 then
+        local possibleFolders = {
+            workspace:FindFirstChild("Items"),
+            workspace:FindFirstChild("items"),
+            workspace:FindFirstChild("ItemSpawns"),
+            workspace:FindFirstChild("itemspawns"),
+            workspace:FindFirstChild("ItemSpawn"),
+            workspace:FindFirstChild("itemspawn"),
+            workspace:FindFirstChild("Spawns"),
+            workspace:FindFirstChild("spawns"),
+            workspace:FindFirstChild("World"),
+            workspace:FindFirstChild("world"),
+            workspace:FindFirstChild("Map"),
+            workspace:FindFirstChild("map"),
+            workspace:FindFirstChild("Game"),
+            workspace:FindFirstChild("game")
+        }
+        
+        for _, folder in ipairs(possibleFolders) do
+            if folder then
+                table.insert(foundFolders, folder)
+            end
+        end
+    end
+    
+    if #foundFolders == 0 then 
+        return items 
+    end
+    
+    local foundCount = 0
+    local searchedModels = {}
+    local debugCount = 0
+
+    for _, folder in ipairs(foundFolders) do
+        local function searchInFolder(currentFolder, depth)
+            if depth > 3 then return end
+            
+            for _, child in ipairs(currentFolder:GetChildren()) do
+                debugCount = debugCount + 1
+                
+                if child:IsA("Model") then
+                    if not searchedModels[child] then
+                        searchedModels[child] = true
+                        
+                        local proximityPrompt = child:FindFirstChild("ProximityPrompt")
+                        local itemName = child.Name
+                        
+                        if proximityPrompt then
+                            itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
+                        end
+                        
+                        if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
+                            for _, part in ipairs(child:GetDescendants()) do
+                                if part:IsA("MeshPart") or part:IsA("Part") then
+                                    local distance = (part.Position - playerRoot.Position).Magnitude
+                                    
+                                    foundCount = foundCount + 1
+                                    
+                                    table.insert(items, {
+                                        Object = part,
+                                        Root = part,
+                                        Distance = distance,
+                                        Name = itemName,
+                                        Type = "YBA_Item",
+                                        Folder = currentFolder.Name
+                                    })
+                                    break
+                                end
+                            end
+                        end
+                    end
+                elseif child:IsA("Folder") and depth < 2 then
+                    searchInFolder(child, depth + 1)
+                end
+            end
+        end
+        
+        searchInFolder(folder, 0)
+    end
+    
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    
+    return items
+end
+
+local function findYBAItemsFast()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then 
+        return items 
+    end
+    
+    local targetFolder = workspace:FindFirstChild("Item_Spawns")
+    if not targetFolder then
+        return items
+    end
+    
+    local itemsFolder = targetFolder:FindFirstChild("Items")
+    if not itemsFolder then
+        return items
+    end
+    
+    local foundCount = 0
+    local debugCount = 0
+
+    for _, child in ipairs(itemsFolder:GetChildren()) do
+        debugCount = debugCount + 1
+        
+        if child:IsA("Model") then
+            local proximityPrompt = child:FindFirstChild("ProximityPrompt")
+            local itemName = child.Name
+            
+            if proximityPrompt then
+                itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
+            end
+            
+            if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
+                for _, part in ipairs(child:GetDescendants()) do
+                    if part:IsA("MeshPart") or part:IsA("Part") then
+                        local distance = (part.Position - playerRoot.Position).Magnitude
+                        
+                        foundCount = foundCount + 1
+                        
+                        table.insert(items, {
+                            Object = part,
+                            Root = part,
+                            Distance = distance,
+                            Name = itemName,
+                            Type = "YBA_Item",
+                            Folder = "Item_Spawns.Items"
+                        })
+                        break
+                    end
+                end
+            else
+                local lowerName = string.lower(itemName)
+                if string.find(lowerName, "arrow") or 
+                   string.find(lowerName, "rokakaka") or
+                   string.find(lowerName, "diamond") or
+                   string.find(lowerName, "coin") or
+                   string.find(lowerName, "corpse") or
+                   string.find(lowerName, "diary") or
+                   string.find(lowerName, "disc") or
+                   string.find(lowerName, "mask") or
+                   string.find(lowerName, "scroll") or
+                   string.find(lowerName, "glove") or
+                   string.find(lowerName, "headband") or
+                   string.find(lowerName, "ball") then
+                    
+                    for _, part in ipairs(child:GetDescendants()) do
+                        if part:IsA("MeshPart") or part:IsA("Part") then
+                            local distance = (part.Position - playerRoot.Position).Magnitude
+                            
+                            if distance <= YBAConfig.ItemESP.MaxDistance then
+                                foundCount = foundCount + 1
+                                print("YBA Item ESP: Быстрый поиск - найден возможный предмет", itemName, "на расстоянии", math.floor(distance), "м")
+                                
+                                table.insert(items, {
+                                    Object = part,
+                                    Root = part,
+                                    Distance = distance,
+                                    Name = itemName,
+                                    Type = "YBA_Item",
+                                    Folder = "Item_Spawns.Items"
+                                })
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    
+    return items
+end
+
+local function findYBAItemsAlternative()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then 
+        print("YBA Item ESP: Игрок не найден (альтернативный поиск)")
+        return items 
+    end
+
+    print("YBA Item ESP: Альтернативный поиск по всему workspace...")
+    
+    local foundCount = 0
+    local searchedModels = {}
+    local debugCount = 0
+
+    local function searchInWorkspace(parent, depth)
+        if depth > 10 then return end -- Ограничиваем глубину поиска
+        
+        for _, child in ipairs(parent:GetChildren()) do
+            debugCount = debugCount + 1
+            if debugCount % 500 == 0 then
+                print("YBA Item ESP: Альтернативный поиск - проверено объектов:", debugCount)
+            end
+            
+            if child:IsA("Model") then
+                if not searchedModels[child] then
+                    searchedModels[child] = true
+
+                    if YBA_ITEM_NAMES[child.Name] and YBAConfig.ItemESP.Items[child.Name] then
+                        print("YBA Item ESP: Альтернативный поиск - найдена модель предмета:", child.Name)
+
+                        for _, part in ipairs(child:GetDescendants()) do
+                            if part:IsA("MeshPart") or part:IsA("Part") then
+                                local distance = (part.Position - playerRoot.Position).Magnitude
+                                
+                                if distance <= YBAConfig.ItemESP.MaxDistance then
+                                    foundCount = foundCount + 1
+                                    print("YBA Item ESP: Альтернативный поиск - найден предмет", child.Name, "на расстоянии", math.floor(distance), "м")
+                                    
+                                    table.insert(items, {
+                                        Object = part,
+                                        Root = part,
+                                        Distance = distance,
+                                        Name = child.Name,
+                                        Type = "YBA_Item",
+                                        Folder = "Workspace"
+                                    })
+                                    break
+                                end
+                            end
+                        end
+                    else
+                        if string.find(string.lower(child.Name), "arrow") or 
+                           string.find(string.lower(child.Name), "rokakaka") or
+                           string.find(string.lower(child.Name), "diamond") or
+                           string.find(string.lower(child.Name), "coin") then
+                            print("YBA Item ESP: Альтернативный поиск - найдена неизвестная модель (возможно предмет):", child.Name)
+                        end
+                    end
+                end
+            elseif child:IsA("Folder") and depth < 5 then
+                searchInWorkspace(child, depth + 1)
+            end
+        end
+    end
+
+    searchInWorkspace(workspace, 0)
+
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    
+    print("YBA Item ESP: Альтернативный поиск - всего проверено объектов:", debugCount)
+    print("YBA Item ESP: Альтернативный поиск - всего найдено предметов:", foundCount)
+    
+    return items
+end
+
+local function debugWorkspaceStructure()
+    print("YBA Item ESP: === ОТЛАДКА СТРУКТУРЫ WORKSPACE ===")
+    
+    local function printFolderStructure(parent, prefix, maxDepth)
+        if maxDepth <= 0 then return end
+        
+        for _, child in ipairs(parent:GetChildren()) do
+            local childType = child.ClassName
+            local childName = child.Name
+            
+            print(prefix .. "├─ " .. childName .. " (" .. childType .. ")")
+
+            if child:IsA("Folder") then
+                printFolderStructure(child, prefix .. "│  ", maxDepth - 1)
+            end
+
+            if child:IsA("Model") then
+                local hasMeshPart = false
+                local hasPart = false
+                for _, descendant in ipairs(child:GetDescendants()) do
+                    if descendant:IsA("MeshPart") then
+                        hasMeshPart = true
+                    elseif descendant:IsA("Part") then
+                        hasPart = true
+                    end
+                end
+                if hasMeshPart or hasPart then
+                    print(prefix .. "│  └─ [Содержит MeshPart/Part]")
+                end
+            end
+        end
+    end
+    
+    print("YBA Item ESP: Структура workspace (первые 3 уровня):")
+    printFolderStructure(workspace, "", 3)
+    
+    print("YBA Item ESP: === КОНЕЦ ОТЛАДКИ ===")
+end
+
+local function createItemESP(item)
+    if itemESPElements[item.Object] then
+        return itemESPElements[item.Object]
+    end
+    
+    if not item.Object or not item.Object.Parent then
+        return nil
+    end
+
+    if item.Distance > YBAConfig.ItemESP.MaxRenderDistance then
+        return nil
+    end
+    
+    print("YBA Item ESP: Создаем ESP для предмета:", item.Name)
+    
+    local esp = {}
+    esp.itemName = item.Name 
+
+    local function getItemColor(itemName)
+        if string.find(itemName, "Arrow") then
+            return Color3.fromRGB(255, 215, 0) 
+        elseif string.find(itemName, "Rokakaka") then
+            return Color3.fromRGB(255, 0, 255) 
+        elseif string.find(itemName, "Diamond") then
+            return Color3.fromRGB(0, 255, 255) 
+        elseif string.find(itemName, "Corpse") then
+            return Color3.fromRGB(255, 0, 0) 
+        elseif string.find(itemName, "Diary") then
+            return Color3.fromRGB(255, 165, 0) 
+        elseif string.find(itemName, "Disc") then
+            return Color3.fromRGB(0, 255, 0)
+        else
+            return YBAConfig.ItemESP.FillColor 
+        end
+    end
+    
+    local itemColor = getItemColor(item.Name)
+
+    if YBAConfig.ItemESP.ShowOutline or YBAConfig.ItemESP.ShowFill then
+        local success, highlight = pcall(function()
+            local hl = Instance.new("Highlight")
+            hl.Adornee = item.Object
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
+            hl.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
+            hl.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
+            hl.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
+            hl.Parent = item.Object
+
+            local pulseConnection
+            pulseConnection = RunService.Heartbeat:Connect(function()
+                if not hl.Parent then
+                    pulseConnection:Disconnect()
+                    return
+                end
+                
+                local time = tick()
+                local pulse = math.sin(time * 4) * 0.4 + 0.6
+                hl.FillTransparency = YBAConfig.ItemESP.FillTransparency + (1 - pulse) * 0.4
+                hl.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency + (1 - pulse) * 0.2
+            end)
+            
+            esp.pulseConnection = pulseConnection
+            
+            return hl
+        end)
+        
+        if success and highlight then
+            esp.highlight = highlight
+            print("YBA Item ESP: Highlight создан для:", item.Name)
+        else
+            print("YBA Item ESP: Ошибка при создании Highlight для:", item.Name)
+        end
+    end
+
+    if YBAConfig.ItemESP.ShowText then
+        local success, billboard = pcall(function()
+            local bg = Instance.new("BillboardGui")
+            bg.AlwaysOnTop = true
+            bg.Size = UDim2.new(0, 200, 0, 50) 
+            bg.StudsOffset = Vector3.new(0, 3, 0) 
+            bg.Parent = item.Object
+
+            local background = Instance.new("Frame", bg)
+            background.Size = UDim2.new(1, 0, 1, 0)
+            background.Position = UDim2.new(0, 0, 0, 0)
+            background.BackgroundColor3 = YBAConfig.ItemESP.TextBackgroundColor
+            background.BackgroundTransparency = YBAConfig.ItemESP.TextBackgroundTransparency
+            background.BorderSizePixel = 0
+            background.ZIndex = 1
+            
+            local corner = Instance.new("UICorner", background)
+            corner.CornerRadius = UDim.new(0, 6) 
+
+            local border = Instance.new("Frame", bg)
+            border.Size = UDim2.new(1, 2, 1, 2)
+            border.Position = UDim2.new(0, -1, 0, -1)
+            border.BackgroundColor3 = itemColor
+            border.BorderSizePixel = 0
+            border.ZIndex = 0
+            
+            local borderCorner = Instance.new("UICorner", border)
+            borderCorner.CornerRadius = UDim.new(0, 8) 
+
+            local tl = Instance.new("TextLabel", bg)
+            tl.Size = UDim2.new(1, -6, 0.6, 0) 
+            tl.Position = UDim2.new(0, 3, 0, 2)
+            tl.BackgroundTransparency = 1
+            tl.Font = YBAConfig.ItemESP.Font
+            tl.TextSize = YBAConfig.ItemESP.TextSize
+            tl.TextColor3 = YBAConfig.ItemESP.TextColor
+            tl.TextXAlignment = Enum.TextXAlignment.Center
+            tl.TextYAlignment = Enum.TextYAlignment.Center
+            tl.Text = string.format("🎯 %s", item.Name)
+            tl.ZIndex = 3
+
+            local distanceLabel = Instance.new("TextLabel", bg)
+            distanceLabel.Size = UDim2.new(1, -6, 0.4, 0) 
+            distanceLabel.Position = UDim2.new(0, 3, 0.6, 0) 
+            distanceLabel.BackgroundTransparency = 1
+            distanceLabel.Font = Enum.Font.Gotham
+            distanceLabel.TextSize = YBAConfig.ItemESP.DistanceTextSize
+            distanceLabel.TextColor3 = YBAConfig.ItemESP.TextColor
+            distanceLabel.TextXAlignment = Enum.TextXAlignment.Center
+            distanceLabel.TextYAlignment = Enum.TextYAlignment.Center
+            distanceLabel.Text = string.format("📏 %dm", math.floor(item.Distance)) 
+            distanceLabel.ZIndex = 3
+            
+            return {
+                billboard = bg, 
+                text = tl, 
+                distanceLabel = distanceLabel,
+                background = background,
+                border = border
+            }
+        end)
+        
+        if success and billboard then
+            esp.billboard = billboard.billboard
+            esp.text = billboard.text
+            esp.distanceLabel = billboard.distanceLabel
+            esp.background = billboard.background
+            esp.border = billboard.border
+            print("YBA Item ESP: BillboardGui создан для:", item.Name)
+        else
+            print("YBA Item ESP: Ошибка при создании BillboardGui для:", item.Name)
+        end
+    end
+    
+    itemESPElements[item.Object] = esp
+    return esp
+end
+
+local function updateItemESP(item)
+    local esp = itemESPElements[item.Object]
+    if not esp then return end
+
+    if true then
+        if not item.Object or not item.Object.Parent then
+            print("YBA Item ESP: Предмет больше не существует, удаляем ESP:", item.Name)
+            removeItemESP(item)
+            return
+        end
+
+        local currentParent = item.Object.Parent
+        while currentParent and currentParent ~= workspace do
+            if currentParent.Name == "Items" and currentParent.Parent and currentParent.Parent.Name == "Item_Spawns" then
+                break
+            end
+            currentParent = currentParent.Parent
+        end
+        
+        if not currentParent or currentParent == workspace then
+            print("YBA Item ESP: Предмет перемещен из папки Items, удаляем ESP:", item.Name)
+            removeItemESP(item)
+            return
+        end
+    end
+
+    local function getItemColor(itemName)
+        if string.find(itemName, "Arrow") then
+            return Color3.fromRGB(255, 215, 0) 
+        elseif string.find(itemName, "Rokakaka") then
+            return Color3.fromRGB(255, 0, 255)
+        elseif string.find(itemName, "Diamond") then
+            return Color3.fromRGB(0, 255, 255)
+        elseif string.find(itemName, "Corpse") then
+            return Color3.fromRGB(255, 0, 0) 
+        elseif string.find(itemName, "Diary") then
+            return Color3.fromRGB(255, 165, 0) 
+        elseif string.find(itemName, "Disc") then
+            return Color3.fromRGB(0, 255, 0) 
+        else
+            return YBAConfig.ItemESP.FillColor 
+        end
+    end
+    
+    local itemColor = getItemColor(item.Name)
+
+    if esp.text and esp.text.Parent then
+        pcall(function()
+            esp.text.Text = string.format("🎯 %s", item.Name)
+        end)
+    end
+
+    if esp.distanceLabel and esp.distanceLabel.Parent then
+        pcall(function()
+            esp.distanceLabel.Text = string.format("📏 %dm", math.floor(item.Distance)) 
+        end)
+    end
+
+    if esp.highlight and esp.highlight.Parent then
+        pcall(function()
+            esp.highlight.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
+            esp.highlight.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
+            esp.highlight.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
+            esp.highlight.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
+        end)
+    end
+
+    if esp.border and esp.border.Parent then
+        pcall(function()
+            esp.border.BackgroundColor3 = itemColor
+        end)
+    end
+end
+
+local function removeItemESP(item)
+    local esp = itemESPElements[item.Object]
+    if not esp then return end
+
+    if esp.pulseConnection then
+        esp.pulseConnection:Disconnect()
+        esp.pulseConnection = nil
+    end
+
+    pcall(function()
+        if esp.highlight and esp.highlight.Parent then
+            esp.highlight:Destroy()
+        end
+    end)
+
+    pcall(function()
+        if esp.billboard and esp.billboard.Parent then
+            esp.billboard:Destroy()
+        end
+    end)
+
+    esp.highlight = nil
+    esp.billboard = nil
+    esp.text = nil
+    esp.distanceLabel = nil
+    esp.background = nil
+    esp.border = nil
+    
+    itemESPElements[item.Object] = nil
+end
+
+local function startItemESP()
+    if itemESPEnabled then 
+        print("YBA Item ESP: Уже активирован!")
+        return 
+    end
+    itemESPEnabled = true
+    
+    print("YBA Item ESP: Активирован!")
+    print("YBA Item ESP: Максимальная дистанция:", YBAConfig.ItemESP.MaxDistance)
+    print("YBA Item ESP: Показывать обводку:", YBAConfig.ItemESP.ShowOutline)
+    print("YBA Item ESP: Показывать текст:", YBAConfig.ItemESP.ShowText)
+
+    local testItems = findYBAItems()
+    print("YBA Item ESP: Активирован! Найдено предметов:", #testItems)
+    
+    local lastUpdate = 0
+    local updateInterval = YBAConfig.ItemESP.UpdateInterval 
+
+    local itemESPLoop = RunService.Heartbeat:Connect(function()
+        if not YBAConfig.ItemESP.Enabled then
+            stopItemESP()
+            return
+        end
+
+        local currentTime = tick()
+        if currentTime - lastUpdate < updateInterval then
+            return
+        end
+        lastUpdate = currentTime
+
+        local success, items = pcall(findYBAItemsFast)
+        local currentItems = {}
+
+        if not success or not items or #items == 0 then
+            local success2, items2 = pcall(findYBAItems)
+            if success2 and items2 and #items2 > 0 then
+                items = items2
+                success = true
+                print("YBA Item ESP: Используем обычный поиск, найдено предметов:", #items)
+            else
+                local success3, items3 = pcall(findYBAItemsAlternative)
+                if success3 and items3 and #items3 > 0 then
+                    items = items3
+                    success = true
+                    print("YBA Item ESP: Используем альтернативный поиск, найдено предметов:", #items)
+                end
+            end
+        end
+        
+        if success and items then
+            for i = 1, math.min(100, #items) do 
+                local item = items[i]
+                if item and item.Object and item.Object.Parent then
+                    if YBAConfig.ItemESP.Items[item.Name] then
+                        currentItems[item.Object] = true
+
+                        if not itemESPElements[item.Object] then
+                            pcall(createItemESP, item)
+                        else
+                            pcall(updateItemESP, item)
+                        end
+                    else
+                        if itemESPElements[item.Object] then
+                            pcall(removeItemESP, item)
+                        end
+                    end
+                end
+            end
+
+            if math.floor(currentTime) % 5 == 0 then
+                print("YBA Item ESP: Активных ESP:", #items, "| Максимальная дистанция:", YBAConfig.ItemESP.MaxDistance)
+            end
+        end
+
+        for obj, esp in pairs(itemESPElements) do
+            if not currentItems[obj] then
+                pcall(removeItemESP, {Object = obj})
+            end
+        end
+    end)
+    
+    table.insert(itemESPConnections, itemESPLoop)
+
+    local cleanupLoop = RunService.Heartbeat:Connect(function()
+        if not YBAConfig.ItemESP.Enabled then
+            return
+        end
+        
+        for obj, esp in pairs(itemESPElements) do
+            if not obj or not obj.Parent then
+                pcall(removeItemESP, {Object = obj})
+            end
+        end
+    end)
+    
+    table.insert(itemESPConnections, cleanupLoop)
+end
+
+local function stopItemESP()
+    if not itemESPEnabled then return end
+    itemESPEnabled = false
+    
+    print("YBA Item ESP: Деактивирован!")
+
+    for obj, esp in pairs(itemESPElements) do
+        pcall(removeItemESP, {Object = obj})
+    end
+
+    for _, connection in ipairs(itemESPConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    itemESPConnections = {}
+end
 
 
 local screenGui = Instance.new("ScreenGui", CoreGui)
@@ -2119,9 +3014,6 @@ keyBindButton("YBA Stand Range", YBAConfig.ToggleKey, function(newKey)
     YBAConfig.ToggleKey = newKey
 end)
 
-
-
-
 sectionHeader("🔷ESP Settings")
 toggle("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
 toggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
@@ -2135,12 +3027,10 @@ colorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor
 slider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
 slider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
 
-
 local divider1 = Instance.new("Frame", innerContainer)
 divider1.Size = UDim2.new(1, -10, 0, 2)
 divider1.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider1.BorderSizePixel = 0
-
 
 sectionHeader("🔷Aimbot Settings")
 toggle("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
@@ -2150,15 +3040,12 @@ slider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV =
 toggle("FOV Rainbow", Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
 colorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
 
-
 local divider2 = Instance.new("Frame", innerContainer)
 divider2.Size = UDim2.new(1, -10, 0, 2)
 divider2.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider2.BorderSizePixel = 0
 
-
 local guiCallbacks = {}
-
 
 local function updateStatusDisplay()
     if guiCallbacks.fly then
@@ -2176,13 +3063,14 @@ local function updateStatusDisplay()
     if guiCallbacks.yba then
         guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
     end
+    if guiCallbacks.itemESP then
+        guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
+    end
 end
-
 
 RunService.Heartbeat:Connect(function()
     updateStatusDisplay()
 end)
-
 
 sectionHeader("🟨 Fly Settings")
 
@@ -2200,20 +3088,16 @@ slider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
     FlyConfig.Speed = v
 end)
 
-
 speedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
     FlyConfig.Speed = v
 end)
-
 
 local divider3 = Instance.new("Frame", innerContainer)
 divider3.Size = UDim2.new(1, -10, 0, 2)
 divider3.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider3.BorderSizePixel = 0
 
-
 sectionHeader("🟪 NoClip Settings")
-
 
 local noClipStatusLabel = Instance.new("TextLabel", innerContainer)
 noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -2224,7 +3108,6 @@ noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
 noClipStatusLabel.BackgroundTransparency = 1
 noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-
 local forceNoClipBtn = Instance.new("TextButton", innerContainer)
 forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
 forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
@@ -2234,7 +3117,6 @@ forceNoClipBtn.TextColor3 = Color3.new(1,1,1)
 forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
 forceNoClipBtn.AutoButtonColor = false
 Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
-
 
 local function updateNoClipStatus()
     if isNoClipping then
@@ -2266,11 +3148,9 @@ forceNoClipBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-
 RunService.Heartbeat:Connect(function()
     updateNoClipStatus()
 end)
-
 
 local forceNoClipKeyBtn = Instance.new("TextButton", innerContainer)
 forceNoClipKeyBtn.Size = UDim2.new(1, -10, 0, 24)
@@ -2294,12 +3174,10 @@ forceNoClipKeyBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
-
 local divider4 = Instance.new("Frame", innerContainer)
 divider4.Size = UDim2.new(1, -10, 0, 2)
 divider4.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider4.BorderSizePixel = 0
-
 
 sectionHeader("🟦 SpeedHack Settings")
 
@@ -2336,7 +3214,6 @@ slider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
         end
     end
 end)
-
 
 speedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
     SpeedHackConfig.Speed = v
@@ -2393,9 +3270,91 @@ slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
     InfiniteJumpConfig.JumpPower = v
 end)
 
+sectionHeader("🟪 YBA Hacks")
+
+local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+    YBAConfig.Enabled = v
+    if v then 
+        startYBA() 
+    else 
+        stopYBA() 
+    end
+    if guiCallbacks.yba then
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.yba = ybaToggleBtn
+
+ybaToggleBtn.AutoButtonColor = false
+
+sectionHeader("🎯 YBA Item ESP")
+
+local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
+    YBAConfig.ItemESP.Enabled = v
+    if v then 
+        startItemESP() 
+    else 
+        stopItemESP() 
+    end
+    if guiCallbacks.itemESP then
+        guiCallbacks.itemESP.Text = "Item ESP: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.itemESP = itemESPToggleBtn
+
+itemESPToggleBtn.AutoButtonColor = false
+
+local itemSelectionHeader = Instance.new("TextLabel", innerContainer)
+itemSelectionHeader.Size = UDim2.new(1, -10, 0, 25)
+itemSelectionHeader.Text = "📦 ITEM SELECTION"
+itemSelectionHeader.Font = Enum.Font.GothamBold
+itemSelectionHeader.TextSize = 14
+itemSelectionHeader.TextColor3 = Color3.fromRGB(255, 255, 0)
+itemSelectionHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+itemSelectionHeader.BorderSizePixel = 1
+itemSelectionHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+itemSelectionHeader.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", itemSelectionHeader).CornerRadius = UDim.new(0,4)
+
+local function createItemToggle(itemName, defaultState)
+    local btn = toggle(itemName, defaultState, function(v)
+        YBAConfig.ItemESP.Items[itemName] = v
+        print("YBA Item ESP: Предмет", itemName, "установлен в", v and "ON" or "OFF")
+
+        if YBAConfig.ItemESP.Enabled then
+            if not v then
+                for obj, esp in pairs(itemESPElements) do
+                    if esp.itemName == itemName then
+                        pcall(removeItemESP, {Object = obj})
+                    end
+                end
+            end
+        end
+    end)
+    return btn
+end
+
+createItemToggle("Mysterious Arrow", YBAConfig.ItemESP.Items["Mysterious Arrow"])
+createItemToggle("Rokakaka", YBAConfig.ItemESP.Items["Rokakaka"])
+createItemToggle("Pure Rokakaka", YBAConfig.ItemESP.Items["Pure Rokakaka"])
+createItemToggle("Diamond", YBAConfig.ItemESP.Items["Diamond"])
+createItemToggle("Gold Coin", YBAConfig.ItemESP.Items["Gold Coin"])
+createItemToggle("Steel Ball", YBAConfig.ItemESP.Items["Steel Ball"])
+createItemToggle("Clackers", YBAConfig.ItemESP.Items["Clackers"])
+createItemToggle("Caesar's Headband", YBAConfig.ItemESP.Items["Caesar's Headband"])
+createItemToggle("Zeppeli's Hat", YBAConfig.ItemESP.Items["Zeppeli's Hat"])
+createItemToggle("Zeppeli's Scarf", YBAConfig.ItemESP.Items["Zeppeli's Scarf"])
+createItemToggle("Quinton's Glove", YBAConfig.ItemESP.Items["Quinton's Glove"])
+createItemToggle("Stone Mask", YBAConfig.ItemESP.Items["Stone Mask"])
+createItemToggle("Rib Cage of The Saint's Corpse", YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
+createItemToggle("Ancient Scroll", YBAConfig.ItemESP.Items["Ancient Scroll"])
+createItemToggle("DIO's Diary", YBAConfig.ItemESP.Items["DIO's Diary"])
+createItemToggle("DIO's Bone", YBAConfig.ItemESP.Items["DIO's Bone"])
+createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"])
+createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
+createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
 
 sectionHeader("🟩 Teleport Settings")
-
 
 local teleportSpacer = Instance.new("Frame", innerContainer)
 teleportSpacer.Size = UDim2.new(1, -10, 0, 10)
@@ -2467,55 +3426,9 @@ stopTeleportBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- YBA Stand Range Hack Section
-sectionHeader("🟪 YBA Stand Range Hack")
-
-local ybaSpacer = Instance.new("Frame", innerContainer)
-ybaSpacer.Size = UDim2.new(1, -10, 0, 10)
-ybaSpacer.BackgroundTransparency = 1
-
-local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
-    YBAConfig.Enabled = v
-    if v then 
-        startYBA() 
-    else 
-        stopYBA() 
-    end
-    if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.yba = ybaToggleBtn
-
-slider("Stand Range", 10, 200, YBAConfig.MaxStandDistance, function(v)
-    YBAConfig.MaxStandDistance = v
-end)
-
-slider("Camera Distance", 5, 50, YBAConfig.CameraDistance, function(v)
-    YBAConfig.CameraDistance = v
-end)
-
-slider("Camera Height", 1, 20, YBAConfig.CameraHeight, function(v)
-    YBAConfig.CameraHeight = v
-end)
-
-slider("Stand Control Speed", 0.1, 3.0, YBAConfig.StandControlSpeed, function(v)
-    YBAConfig.StandControlSpeed = v
-end)
-
-slider("Control Smoothing", 0.01, 0.5, YBAConfig.StandControlSmoothing, function(v)
-    YBAConfig.StandControlSmoothing = v
-end)
-
-slider("Mouse Sensitivity", 0.001, 0.05, YBAConfig.MouseSensitivity, function(v)
-    YBAConfig.MouseSensitivity = v
-end)
-
-
 local function createPlayerListInMenu()
     local allPlayers = Players:GetPlayers()
     local alivePlayers = {}
-    
     
     for _, player in ipairs(allPlayers) do
         if player and player ~= Players.LocalPlayer then
@@ -2523,22 +3436,18 @@ local function createPlayerListInMenu()
         end
     end
     
-    
     table.sort(alivePlayers, function(a, b)
         return a.Name:lower() < b.Name:lower()
     end)
     
     print("Создаем отсортированный список игроков в меню: " .. #alivePlayers .. " игроков")
     
-    
     local currentLetter = ""
     for i, player in ipairs(alivePlayers) do
         local firstLetter = player.Name:sub(1,1):upper()
         
-        
         if firstLetter ~= currentLetter then
             currentLetter = firstLetter
-            
             
             local letterHeader = Instance.new("TextLabel", innerContainer)
             letterHeader.Size = UDim2.new(1, -10, 0, 20)
@@ -2564,7 +3473,6 @@ local function createPlayerListInMenu()
         playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
         Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
         
-        
         playerBtn.MouseEnter:Connect(function()
             playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
             playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
@@ -2589,8 +3497,6 @@ local function createPlayerListInMenu()
             
             playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
             playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
-            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
             
             TeleportConfig.TargetPlayer = player
             TeleportConfig.SelectedPlayerName = player.Name
@@ -2600,7 +3506,6 @@ local function createPlayerListInMenu()
     end
 end
 createPlayerListInMenu()
-
 
 guiCallbacks.teleport = selectedPlayerLabel
 
@@ -2651,7 +3556,6 @@ local function updatePlayerList()
         playerBtn.BorderSizePixel = 1
         playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
         Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
-        
         
         playerBtn.MouseEnter:Connect(function()
             playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
@@ -2715,6 +3619,8 @@ local function updatePlayerList()
                not child.Text:find("START TELEPORT") and 
                not child.Text:find("STOP TELEPORT") and 
                not child.Text:find("Hotkey:") and 
+               not child.Text:find("YBA Stand Range") and 
+               not child.Text:find("Item ESP") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
             end
@@ -2762,4 +3668,5 @@ task.spawn(function()
         task.wait(30)
         updatePlayerList()
     end
-end) 
+end)
+
