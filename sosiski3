@@ -119,23 +119,18 @@ local YBAConfig = {
         MaxRenderDistance = 5000, -- Максимальная дистанция рендеринга ESP
         UpdateInterval = 0.3, -- Интервал обновления в секундах
         
-        -- Настройки отображения
-        ShowOutline = true,
-        ShowText = true,
-        ShowFill = true,
-        
-        -- Цвета
+        -- Цвета (фиксированные)
         FillColor = Color3.fromRGB(255, 215, 0), -- Цвет заполнения предмета
         OutlineColor = Color3.fromRGB(255, 255, 0), -- Цвет обводки предмета
         TextColor = Color3.fromRGB(255, 255, 255), -- Цвет текста
         TextBackgroundColor = Color3.fromRGB(0, 0, 0), -- Цвет фона текста
         
-        -- Прозрачность
+        -- Прозрачность (фиксированная)
         FillTransparency = 0.3, -- Прозрачность заполнения
         OutlineTransparency = 0.1, -- Прозрачность обводки
         TextBackgroundTransparency = 0.3, -- Прозрачность фона текста
         
-        -- Размеры текста
+        -- Размеры текста (фиксированные)
         TextSize = 10, -- Размер основного текста
         DistanceTextSize = 9, -- Размер текста расстояния
         
@@ -2693,16 +2688,15 @@ local function createItemESP(item)
     local itemColor = getItemColor(item.Name)
     
     -- Создаем Highlight с улучшенными настройками
-    if YBAConfig.ItemESP.ShowOutline or YBAConfig.ItemESP.ShowFill then
-        local success, highlight = pcall(function()
-            local hl = Instance.new("Highlight")
-            hl.Adornee = item.Object
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
-            hl.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
-            hl.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
-            hl.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
-            hl.Parent = item.Object
+    local success, highlight = pcall(function()
+        local hl = Instance.new("Highlight")
+        hl.Adornee = item.Object
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.FillColor = itemColor
+        hl.FillTransparency = YBAConfig.ItemESP.FillTransparency
+        hl.OutlineColor = YBAConfig.ItemESP.OutlineColor
+        hl.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
+        hl.Parent = item.Object
             
             -- Добавляем пульсацию для привлечения внимания
             local pulseConnection
@@ -2732,13 +2726,12 @@ local function createItemESP(item)
     end
     
     -- Создаем улучшенный BillboardGui с иконками
-    if YBAConfig.ItemESP.ShowText then
-        local success, billboard = pcall(function()
-            local bg = Instance.new("BillboardGui")
-            bg.AlwaysOnTop = true
-            bg.Size = UDim2.new(0, 300, 0, 80)
-            bg.StudsOffset = Vector3.new(0, 5, 0)
-            bg.Parent = item.Object
+    local success, billboard = pcall(function()
+        local bg = Instance.new("BillboardGui")
+        bg.AlwaysOnTop = true
+        bg.Size = UDim2.new(0, 200, 0, 50) -- Уменьшен размер
+        bg.StudsOffset = Vector3.new(0, 3, 0) -- Уменьшен отступ
+        bg.Parent = item.Object
             
             -- Фон с градиентом
             local background = Instance.new("Frame", bg)
@@ -2765,8 +2758,8 @@ local function createItemESP(item)
             
             -- Основной текст
             local tl = Instance.new("TextLabel", bg)
-            tl.Size = UDim2.new(1, -10, 0.6, 0)
-            tl.Position = UDim2.new(0, 5, 0, 5)
+            tl.Size = UDim2.new(1, -5, 0.6, 0)
+            tl.Position = UDim2.new(0, 2, 0, 2)
             tl.BackgroundTransparency = 1
             tl.Font = YBAConfig.ItemESP.Font
             tl.TextSize = YBAConfig.ItemESP.TextSize
@@ -2778,15 +2771,15 @@ local function createItemESP(item)
             
             -- Информация о расстоянии
             local distanceLabel = Instance.new("TextLabel", bg)
-            distanceLabel.Size = UDim2.new(1, -10, 0.4, 0)
-            distanceLabel.Position = UDim2.new(0, 5, 0.6, 0)
+            distanceLabel.Size = UDim2.new(1, -5, 0.4, 0)
+            distanceLabel.Position = UDim2.new(0, 2, 0.6, 0)
             distanceLabel.BackgroundTransparency = 1
             distanceLabel.Font = Enum.Font.Gotham
             distanceLabel.TextSize = YBAConfig.ItemESP.DistanceTextSize
             distanceLabel.TextColor3 = YBAConfig.ItemESP.TextColor
             distanceLabel.TextXAlignment = Enum.TextXAlignment.Center
             distanceLabel.TextYAlignment = Enum.TextYAlignment.Center
-            distanceLabel.Text = string.format("📏 %dm | 📁 %s", math.floor(item.Distance), item.Folder or "Unknown")
+            distanceLabel.Text = string.format("📏 %dm", math.floor(item.Distance))
             distanceLabel.ZIndex = 3
             
             return {
@@ -2881,10 +2874,10 @@ local function updateItemESP(item)
     -- Обновляем цвета Highlight
     if esp.highlight and esp.highlight.Parent then
         pcall(function()
-            esp.highlight.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
-            esp.highlight.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
-            esp.highlight.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
-            esp.highlight.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
+            esp.highlight.FillColor = itemColor
+            esp.highlight.FillTransparency = YBAConfig.ItemESP.FillTransparency
+            esp.highlight.OutlineColor = YBAConfig.ItemESP.OutlineColor
+            esp.highlight.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
         end)
     end
     
@@ -4089,67 +4082,7 @@ guiCallbacks.itemESP = itemESPToggleBtn
 -- Отключаем навигацию для кнопки Item ESP
 itemESPToggleBtn.AutoButtonColor = false
 
--- Настройки Item ESP
--- Настройки отображения
-toggle("Show Fill", YBAConfig.ItemESP.ShowFill, function(v)
-    YBAConfig.ItemESP.ShowFill = v
-end)
 
-toggle("Show Outline", YBAConfig.ItemESP.ShowOutline, function(v)
-    YBAConfig.ItemESP.ShowOutline = v
-end)
-
-toggle("Show Text", YBAConfig.ItemESP.ShowText, function(v) 
-    YBAConfig.ItemESP.ShowText = v 
-end)
-
--- Настройки дистанции
-slider("Max Distance", 100, 1000, YBAConfig.ItemESP.MaxDistance, function(v)
-    YBAConfig.ItemESP.MaxDistance = v
-end)
-
-slider("Max Render Distance", 1000, 10000, YBAConfig.ItemESP.MaxRenderDistance, function(v)
-    YBAConfig.ItemESP.MaxRenderDistance = v
-end)
-
--- Настройки размеров текста
-slider("Text Size", 6, 14, YBAConfig.ItemESP.TextSize, function(v)
-    YBAConfig.ItemESP.TextSize = v
-end)
-
-slider("Distance Text Size", 5, 12, YBAConfig.ItemESP.DistanceTextSize, function(v)
-    YBAConfig.ItemESP.DistanceTextSize = v
-end)
-
--- Настройки прозрачности
-slider("Fill Transparency", 0, 1, YBAConfig.ItemESP.FillTransparency, function(v)
-    YBAConfig.ItemESP.FillTransparency = v
-end)
-
-slider("Outline Transparency", 0, 1, YBAConfig.ItemESP.OutlineTransparency, function(v)
-    YBAConfig.ItemESP.OutlineTransparency = v
-end)
-
-slider("Text Background Transparency", 0, 1, YBAConfig.ItemESP.TextBackgroundTransparency, function(v)
-    YBAConfig.ItemESP.TextBackgroundTransparency = v
-end)
-
--- Настройки цветов
-colorPicker("Fill Color", YBAConfig.ItemESP.FillColor, function(c)
-    YBAConfig.ItemESP.FillColor = c
-end)
-
-colorPicker("Outline Color", YBAConfig.ItemESP.OutlineColor, function(c)
-    YBAConfig.ItemESP.OutlineColor = c
-end)
-
-colorPicker("Text Color", YBAConfig.ItemESP.TextColor, function(c)
-    YBAConfig.ItemESP.TextColor = c
-end)
-
-colorPicker("Text Background Color", YBAConfig.ItemESP.TextBackgroundColor, function(c)
-    YBAConfig.ItemESP.TextBackgroundColor = c
-end)
 
 
 
