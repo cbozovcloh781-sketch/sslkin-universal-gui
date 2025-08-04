@@ -1409,6 +1409,19 @@ local function createStealthTeleport()
                 bv.Velocity = Vector3.new(0, 0, 0)
             end
             
+            -- BodyGyro для стабильного поворота
+            local bg = root:FindFirstChild("BodyGyro")
+            if not bg then
+                bg = Instance.new("BodyGyro", root)
+                bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+                bg.D = 50
+                bg.P = 1000
+            end
+            
+            -- Поворот персонажа в ту же сторону, что и цель
+            local targetLookVector = targetCFrame.LookVector
+            bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetLookVector)
+            
             -- Упрощенная логика движения
             if behindDistance > 2 then
                 -- Движение к позиции за спиной
@@ -1551,6 +1564,11 @@ local function stopTeleport()
         bv:Destroy()
     end
     
+    local bg = root and root:FindFirstChild("BodyGyro")
+    if bg then
+        bg:Destroy()
+    end
+    
     
     if humanoid then
         humanoid.WalkSpeed = 16
@@ -1596,6 +1614,11 @@ local function stopTeleport()
                     returnBv.Velocity = Vector3.new(0, 0, 0)
                     task.wait(0.5) 
                     returnBv:Destroy()
+                end
+                
+                local returnBg = root:FindFirstChild("BodyGyro")
+                if returnBg then
+                    returnBg:Destroy()
                 end
                 
                 
