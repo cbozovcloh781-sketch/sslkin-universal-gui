@@ -3721,8 +3721,6 @@ local function createItemToggle(itemName, defaultState)
     return btn
 end
 
--- Основные предметы
-sectionHeader("🔸 Basic Items")
 createItemToggle("Mysterious Arrow", YBAConfig.ItemESP.Items["Mysterious Arrow"])
 createItemToggle("Rokakaka", YBAConfig.ItemESP.Items["Rokakaka"])
 createItemToggle("Pure Rokakaka", YBAConfig.ItemESP.Items["Pure Rokakaka"])
