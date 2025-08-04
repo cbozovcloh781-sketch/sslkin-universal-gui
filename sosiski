@@ -95,7 +95,7 @@ local TeleportConfig = {
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
-    StandRange = 100000, -- Увеличена дистанция ударов стенда
+    StandRange = 50, -- Уменьшена дистанция для избежания античита
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
@@ -206,6 +206,8 @@ local standControlConnections = {}
 local originalGravity = workspace.Gravity
 local originalYBAWalkSpeed = 16
 local originalYBAJumpPower = 50
+local lastYBAUse = 0
+local ybaCooldown = 3 -- Задержка между использованиями в секундах
 
 local isStandControlActive = false
 local currentControlledStand = nil
@@ -1273,6 +1275,48 @@ local function stopTeleport()
     end
 end
 
+local function getStandRangeByType(standName)
+    -- Безопасные дистанции для разных типов стендов
+    local standRanges = {
+        ["Star Platinum"] = 5,
+        ["The World"] = 5,
+        ["Hierophant Green"] = 20,
+        ["Magician's Red"] = 8,
+        ["Hermit Purple"] = 15,
+        ["Silver Chariot"] = 3,
+        ["Tower of Gray"] = 4,
+        ["Dark Blue Moon"] = 6,
+        ["Strength"] = 10,
+        ["Wheel of Fortune"] = 12,
+        ["Hanged Man"] = 25,
+        ["Emperor"] = 30,
+        ["Empress"] = 7,
+        ["Judgment"] = 8,
+        ["High Priestess"] = 15,
+        ["Death Thirteen"] = 20,
+        ["Lovers"] = 10,
+        ["Sun"] = 15,
+        ["Bastet"] = 8,
+        ["Thunder McQueen"] = 12,
+        ["Anubis"] = 6,
+        ["Khnum"] = 8,
+        ["Tohth"] = 10,
+        ["Horus"] = 12,
+        ["Atum"] = 8,
+        ["Osiris"] = 15
+    }
+    
+    for standType, range in pairs(standRanges) do
+        if string.find(standName, standType) then
+            -- Добавляем небольшую случайность (±1-2 единицы) для маскировки
+            local randomOffset = math.random(-2, 2)
+            return math.max(1, range + randomOffset)
+        end
+    end
+    
+    return 8 -- Дефолтная безопасная дистанция
+end
+
 local function findStands()
     local stands = {}
     local player = Players.LocalPlayer
@@ -1516,16 +1560,33 @@ end
 local function startYBA()
     if isYBAEnabled then return end
     
+    -- Проверяем задержку между использованиями
+    local currentTime = tick()
+    if currentTime - lastYBAUse < ybaCooldown then
+        print("YBA: Подождите", math.ceil(ybaCooldown - (currentTime - lastYBAUse)), "секунд перед следующим использованием")
+        return
+    end
+    
+    lastYBAUse = currentTime
     isYBAEnabled = true
     YBAConfig.Enabled = true
     
     local stands = findStands()
     
     if #stands == 0 then
+        print("YBA: Стенды не найдены")
         return
     end
     
     local targetStand = stands[1]
+    
+    -- Определяем безопасную дистанцию для конкретного стенда
+    local safeRange = getStandRangeByType(targetStand.Name)
+    print("YBA: Используем безопасную дистанцию для", targetStand.Name, ":", safeRange)
+    
+    -- Плавно увеличиваем дистанцию вместо резкого скачка
+    local originalRange = YBAConfig.StandRange
+    YBAConfig.StandRange = safeRange
     
     if YBAConfig.FreezePlayer then
         freezePlayer()
@@ -1537,6 +1598,12 @@ local function startYBA()
     if YBAConfig.TransferControl then
         activateFreeCamera(targetStand)
     end
+    
+    -- Восстанавливаем оригинальную дистанцию через некоторое время
+    task.spawn(function()
+        task.wait(2)
+        YBAConfig.StandRange = originalRange
+    end)
 end
 
 local function stopYBA()
