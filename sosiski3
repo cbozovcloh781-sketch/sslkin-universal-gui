@@ -1330,7 +1330,6 @@ local function stopTeleport()
     end
 end
 
--- YBA Stand Control Functions
 local function findStands()
     local stands = {}
     local player = Players.LocalPlayer
@@ -1338,13 +1337,9 @@ local function findStands()
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
     if not playerRoot then 
-        print("YBA: Не найден HumanoidRootPart игрока")
         return stands 
     end
     
-    print("YBA: Поиск стендов в радиусе 20 метров")
-    
-    -- Поиск стендов в YBA (различные варианты названий)
     local standNames = {
         "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
         "Star Platinum", "The World", "Hierophant Green", "Magician's Red",
@@ -1370,9 +1365,8 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then -- Ограничение радиуса 20 метров
+                    if distance <= 20 then
                         foundCount = foundCount + 1
-                        print("YBA: Найден стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1385,18 +1379,13 @@ local function findStands()
         end
     end
     
-    print("YBA: Найдено стендов по названию: " .. foundCount)
-    
-    -- Если стенды не найдены, ищем по другим критериям
     if #stands == 0 then
-        print("YBA: Поиск альтернативных стендов...")
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then -- Ограничение радиуса 20 метров
-                        print("YBA: Найден альтернативный стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
+                    if distance <= 20 then
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1409,9 +1398,7 @@ local function findStands()
         end
     end
     
-    -- Сортируем по расстоянию
     table.sort(stands, function(a, b) return a.Distance < b.Distance end)
-    print("YBA: Всего найдено подходящих стендов: " .. #stands)
     return stands
 end
 
@@ -1608,51 +1595,27 @@ end
 local function startYBA()
     if isYBAEnabled then return end
     
-    print("YBA: Запуск Stand Range Hack...")
-    
     isYBAEnabled = true
     YBAConfig.Enabled = true
     
-    -- Находим ближайший стенд
     local stands = findStands()
-    print("YBA: Найдено стендов: " .. #stands)
     
     if #stands == 0 then
-        print("YBA: Стенды не найдены в радиусе 20 метров")
-        print("YBA: Подойдите ближе к стенду")
         return
     end
     
-    local targetStand = stands[1] -- Берем ближайший стенд
-    print("YBA: Найден стенд - " .. targetStand.Name .. " на расстоянии " .. math.floor(targetStand.Distance))
+    local targetStand = stands[1]
     
-    -- Замораживаем игрока
     if YBAConfig.FreezePlayer then
-        print("YBA: Замораживаем игрока...")
         freezePlayer()
     end
     
-    -- Переключаем камеру (теперь используется новая система)
     if YBAConfig.SwitchCamera then
-        print("YBA: Переключаем камеру на стенд...")
-        -- Камера будет переключена в activateFreeCamera
     end
     
-    -- Активируем управление стендом
     if YBAConfig.TransferControl then
-        print("YBA: Активируем управление стендом...")
-        
-        -- Используем новую систему управления стендом
-        if activateFreeCamera(targetStand) then
-            print("YBA: Управление стендом активировано")
-        else
-            print("YBA: Не удалось активировать управление стендом")
-        end
-    else
-        print("YBA: TransferControl отключен")
+        activateFreeCamera(targetStand)
     end
-    
-    print("YBA: Stand Range Hack активирован!")
 end
 
 local function stopYBA()
@@ -1661,13 +1624,9 @@ local function stopYBA()
     isYBAEnabled = false
     YBAConfig.Enabled = false
     
-    -- Отключаем управление стендом
     disableFreeCamera()
-    
-    -- Восстанавливаем управление игроком
     unfreezePlayer()
     
-    -- Останавливаем управление стендом
     for _, connection in ipairs(standControlConnections) do
         if connection then
             pcall(function() connection:Disconnect() end)
@@ -1675,8 +1634,6 @@ local function stopYBA()
     end
     standControlConnections = {}
     controlledStand = nil
-    
-    print("YBA: Stand Range Hack деактивирован!")
 end
 
 local function getAlivePlayers()
@@ -2066,7 +2023,7 @@ UserInputService.InputBegan:Connect(function(inp, gp)
     end
 end)
 
--- YBA Item ESP Functions (Полностью переписанная версия)
+
 local itemESPEnabled = false
 local itemESPConnections = {}
 local itemESPElements = {}
@@ -2183,21 +2140,15 @@ local YBA_ITEM_NAMES = {
     ["Captain Tenille's Disc"] = true,
 }
 
--- Улучшенная функция для поиска предметов YBA по всей карте
 local function findYBAItems()
     local items = {}
     local player = Players.LocalPlayer
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     if not playerRoot then 
-        print("YBA Item ESP: Игрок не найден")
         return items 
     end
 
-    print("YBA Item ESP: Позиция игрока:", playerRoot.Position)
-    print("YBA Item ESP: Максимальная дистанция поиска:", YBAConfig.ItemESP.MaxDistance)
-
-    -- Оптимизированный поиск в конкретной структуре папок
     local foundFolders = {}
     
     local targetFolder = workspace:FindFirstChild("Item_Spawns")
@@ -2205,15 +2156,9 @@ local function findYBAItems()
         local itemsFolder = targetFolder:FindFirstChild("Items")
         if itemsFolder then
             table.insert(foundFolders, itemsFolder)
-            print("YBA Item ESP: Найдена целевая папка:", targetFolder.Name .. "." .. itemsFolder.Name)
-        else
-            print("YBA Item ESP: Папка 'Items' не найдена в", targetFolder.Name)
         end
-    else
-        print("YBA Item ESP: Папка 'Item_Spawns' не найдена в workspace")
     end
     
-    -- Fallback: старый список папок (если основная структура не найдена)
     if #foundFolders == 0 then
         local possibleFolders = {
             workspace:FindFirstChild("Items"),
@@ -2235,19 +2180,11 @@ local function findYBAItems()
         for _, folder in ipairs(possibleFolders) do
             if folder then
                 table.insert(foundFolders, folder)
-                print("YBA Item ESP: Найдена fallback папка:", folder.Name)
             end
         end
     end
     
     if #foundFolders == 0 then 
-        print("YBA Item ESP: Папки с предметами не найдены!")
-        print("YBA Item ESP: Доступные папки в workspace:")
-        for _, child in ipairs(workspace:GetChildren()) do
-            if child:IsA("Folder") then
-                print("  -", child.Name)
-            end
-        end
         return items 
     end
     
@@ -2255,49 +2192,30 @@ local function findYBAItems()
     local searchedModels = {}
     local debugCount = 0
 
-    -- Ищем предметы во всех найденных папках
     for _, folder in ipairs(foundFolders) do
-        print("YBA Item ESP: Ищем в папке:", folder.Name)
-        
-        -- Оптимизированная функция для поиска в папке items
         local function searchInFolder(currentFolder, depth)
-            if depth > 3 then return end -- Уменьшили глубину поиска
+            if depth > 3 then return end
             
             for _, child in ipairs(currentFolder:GetChildren()) do
                 debugCount = debugCount + 1
-                if debugCount % 50 == 0 then
-                    print("YBA Item ESP: Проверено объектов:", debugCount)
-                end
                 
                 if child:IsA("Model") then
-                    -- Проверяем, не обрабатывали ли мы уже эту модель
                     if not searchedModels[child] then
                         searchedModels[child] = true
                         
-                        -- Ищем proximityPrompt в модели для получения названия предмета
                         local proximityPrompt = child:FindFirstChild("ProximityPrompt")
-                        local itemName = child.Name -- По умолчанию используем имя модели
+                        local itemName = child.Name
                         
                         if proximityPrompt then
                             itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
                         end
                         
-                        -- Проверяем, является ли модель предметом и включен ли он в настройках
                         if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
-                            print("YBA Item ESP: Найдена модель предмета:", itemName)
-                            
-                            -- Ищем все MeshPart в модели
                             for _, part in ipairs(child:GetDescendants()) do
                                 if part:IsA("MeshPart") or part:IsA("Part") then
                                     local distance = (part.Position - playerRoot.Position).Magnitude
                                     
-                                    -- Добавляем все предметы, но помечаем те, что слишком далеко
                                     foundCount = foundCount + 1
-                                    if distance <= YBAConfig.ItemESP.MaxDistance then
-                                        print("YBA Item ESP: Найден предмет", itemName, "на расстоянии", math.floor(distance), "м")
-                                    else
-                                        print("YBA Item ESP: Найден предмет", itemName, "на расстоянии", math.floor(distance), "м (далеко)")
-                                    end
                                     
                                     table.insert(items, {
                                         Object = part,
@@ -2307,109 +2225,64 @@ local function findYBAItems()
                                         Type = "YBA_Item",
                                         Folder = currentFolder.Name
                                     })
-                                    break -- Берем только первый подходящий part из модели
+                                    break
                                 end
-                            end
-                        else
-                            -- Отладочная информация для неизвестных моделей
-                            if string.find(string.lower(itemName), "arrow") or 
-                               string.find(string.lower(itemName), "rokakaka") or
-                               string.find(string.lower(itemName), "diamond") or
-                               string.find(string.lower(itemName), "coin") then
-                                print("YBA Item ESP: Найдена неизвестная модель (возможно предмет):", itemName)
                             end
                         end
                     end
                 elseif child:IsA("Folder") and depth < 2 then
-                    -- Рекурсивно ищем в подпапках (уменьшили глубину)
                     searchInFolder(child, depth + 1)
                 end
             end
         end
         
-        -- Начинаем поиск в текущей папке
         searchInFolder(folder, 0)
     end
     
-    -- Сортируем предметы по расстоянию
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    print("YBA Item ESP: Всего проверено объектов:", debugCount)
-    print("YBA Item ESP: Всего найдено предметов:", foundCount)
-    if foundCount > 0 then
-        print("YBA Item ESP: Ближайший предмет:", items[1].Name, "на расстоянии", math.floor(items[1].Distance), "м")
-    else
-        print("YBA Item ESP: Предметы не найдены. Проверьте:")
-        print("  1. Правильность имен предметов в YBA_ITEM_NAMES")
-        print("  2. Дистанцию поиска (текущая:", YBAConfig.ItemESP.MaxDistance, "м)")
-        print("  3. Структуру папок в workspace")
-    end
     
     return items
 end
 
--- Быстрая функция для поиска в структуре item_spawns.items
 local function findYBAItemsFast()
     local items = {}
     local player = Players.LocalPlayer
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     if not playerRoot then 
-        print("YBA Item ESP: Игрок не найден (быстрый поиск)")
         return items 
     end
-
-    print("YBA Item ESP: Быстрый поиск в Item_Spawns.Items...")
     
     local targetFolder = workspace:FindFirstChild("Item_Spawns")
     if not targetFolder then
-        print("YBA Item ESP: Папка 'Item_Spawns' не найдена")
         return items
     end
     
     local itemsFolder = targetFolder:FindFirstChild("Items")
     if not itemsFolder then
-        print("YBA Item ESP: Папка 'Items' не найдена в Item_Spawns")
         return items
     end
-    
-    print("YBA Item ESP: Найдена структура Item_Spawns.Items")
     
     local foundCount = 0
     local debugCount = 0
 
-    -- Ищем все модели в папке Items
     for _, child in ipairs(itemsFolder:GetChildren()) do
         debugCount = debugCount + 1
         
         if child:IsA("Model") then
-            print("YBA Item ESP: Быстрый поиск - найдена модель:", child.Name, "в позиции:", child:GetPivot().Position)
-            
-            -- Ищем proximityPrompt в модели для получения названия предмета
             local proximityPrompt = child:FindFirstChild("ProximityPrompt")
-            local itemName = child.Name -- По умолчанию используем имя модели
+            local itemName = child.Name
             
             if proximityPrompt then
                 itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
-                print("YBA Item ESP: Быстрый поиск - название предмета из ProximityPrompt:", itemName)
             end
             
-                                    -- Проверяем, является ли модель предметом и включен ли он в настройках
-                        if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
-                print("YBA Item ESP: Быстрый поиск - это известный предмет:", itemName)
-                
-                -- Ищем все MeshPart в модели
+            if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
                 for _, part in ipairs(child:GetDescendants()) do
                     if part:IsA("MeshPart") or part:IsA("Part") then
                         local distance = (part.Position - playerRoot.Position).Magnitude
                         
-                        -- Добавляем все предметы, но помечаем те, что слишком далеко
                         foundCount = foundCount + 1
-                        if distance <= YBAConfig.ItemESP.MaxDistance then
-                            print("YBA Item ESP: Быстрый поиск - найден предмет", itemName, "на расстоянии", math.floor(distance), "м")
-                        else
-                            print("YBA Item ESP: Быстрый поиск - найден предмет", itemName, "на расстоянии", math.floor(distance), "м (далеко)")
-                        end
                         
                         table.insert(items, {
                             Object = part,
@@ -2423,10 +2296,6 @@ local function findYBAItemsFast()
                     end
                 end
             else
-                -- Отладочная информация для всех моделей
-                print("YBA Item ESP: Быстрый поиск - неизвестная модель:", itemName)
-                
-                -- Проверяем, может ли это быть предмет (по ключевым словам)
                 local lowerName = string.lower(itemName)
                 if string.find(lowerName, "arrow") or 
                    string.find(lowerName, "rokakaka") or
@@ -2440,9 +2309,7 @@ local function findYBAItemsFast()
                    string.find(lowerName, "glove") or
                    string.find(lowerName, "headband") or
                    string.find(lowerName, "ball") then
-                    print("YBA Item ESP: Быстрый поиск - возможно это предмет:", itemName)
                     
-                    -- Добавляем в список предметов даже если имя не в YBA_ITEM_NAMES
                     for _, part in ipairs(child:GetDescendants()) do
                         if part:IsA("MeshPart") or part:IsA("Part") then
                             local distance = (part.Position - playerRoot.Position).Magnitude
@@ -2468,11 +2335,7 @@ local function findYBAItemsFast()
         end
     end
     
-    -- Сортируем предметы по расстоянию
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    print("YBA Item ESP: Быстрый поиск - всего проверено объектов:", debugCount)
-    print("YBA Item ESP: Быстрый поиск - всего найдено предметов:", foundCount)
     
     return items
 end
