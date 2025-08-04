@@ -141,6 +141,97 @@ local YBAConfig = {
         
         -- Шрифт
         Font = Enum.Font.GothamBold,
+        
+        -- Настройки предметов (какие показывать)
+        Items = {
+            -- Основные предметы
+            ["Mysterious Arrow"] = true,
+            ["Rokakaka"] = true,
+            ["Pure Rokakaka"] = true,
+            ["Diamond"] = true,
+            ["Gold Coin"] = true,
+            ["Steel Ball"] = true,
+            ["Zeppeli's Headband"] = true,
+            ["Ancient Scroll"] = true,
+            ["Quinton's Glove"] = true,
+            ["Stone Mask"] = true,
+            ["Lucky Arrow"] = true,
+            ["Lucky Stone Mask"] = true,
+            
+            -- Части трупа святого
+            ["Rib Cage of The Saint's Corpse"] = true,
+            ["Left Arm of The Saint's Corpse"] = true,
+            ["Right Arm of The Saint's Corpse"] = true,
+            ["Heart of The Saint's Corpse"] = true,
+            ["Pelvis of The Saint's Corpse"] = true,
+            ["Left Leg of The Saint's Corpse"] = true,
+            ["Right Leg of The Saint's Corpse"] = true,
+            ["Head of The Saint's Corpse"] = true,
+            
+            -- Дополнительные предметы
+            ["DIO's Diary"] = true,
+            ["DIO's Bone"] = true,
+            ["DIO's Diary Page"] = true,
+            
+            -- Редкие предметы
+            ["Requiem Arrow"] = true,
+            ["Heaven Ascension DIO's Diary"] = true,
+            ["Made in Heaven"] = true,
+            ["C-Moon"] = true,
+            ["Green Baby"] = true,
+            
+            -- Диски стендов
+            ["Whitesnake's Disc"] = true,
+            ["Weather Report's Disc"] = true,
+            ["Diver Down's Disc"] = true,
+            ["Killer Queen's Disc"] = true,
+            ["King Crimson's Disc"] = true,
+            ["Gold Experience's Disc"] = true,
+            ["Star Platinum's Disc"] = true,
+            ["The World's Disc"] = true,
+            ["Crazy Diamond's Disc"] = true,
+            ["Silver Chariot's Disc"] = true,
+            ["Hierophant Green's Disc"] = true,
+            ["Magician's Red's Disc"] = true,
+            ["Hermit Purple's Disc"] = true,
+            ["Tower of Gray's Disc"] = true,
+            ["Dark Blue Moon's Disc"] = true,
+            ["Strength's Disc"] = true,
+            ["Ebony Devil's Disc"] = true,
+            ["Yellow Temperance's Disc"] = true,
+            ["Hanged Man's Disc"] = true,
+            ["Emperor's Disc"] = true,
+            ["Empress's Disc"] = true,
+            ["Wheel of Fortune's Disc"] = true,
+            ["Justice's Disc"] = true,
+            ["Lovers's Disc"] = true,
+            ["Sun's Disc"] = true,
+            ["Death Thirteen's Disc"] = true,
+            ["Judgment's Disc"] = true,
+            ["High Priestess's Disc"] = true,
+            ["Geb's Disc"] = true,
+            ["Khnum's Disc"] = true,
+            ["Tohth's Disc"] = true,
+            ["Anubis's Disc"] = true,
+            ["Bastet's Disc"] = true,
+            ["Sethan's Disc"] = true,
+            ["Osiris's Disc"] = true,
+            ["Horus's Disc"] = true,
+            ["Atum's Disc"] = true,
+            ["Tenore Sax's Disc"] = true,
+            ["Cream's Disc"] = true,
+            ["DIO's Disc"] = true,
+            ["Vanilla Ice's Disc"] = true,
+            ["Pet Shop's Disc"] = true,
+            ["N'Doul's Disc"] = true,
+            ["Oingo's Disc"] = true,
+            ["Boingo's Disc"] = true,
+            ["Chaka's Disc"] = true,
+            ["Khan's Disc"] = true,
+            ["Mannish Boy's Disc"] = true,
+            ["Alessi's Disc"] = true,
+            ["Daniel J. D'Arby's Disc"] = true,
+        }
     }
 }
 
@@ -2312,8 +2403,8 @@ local function findYBAItems()
                             itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
                         end
                         
-                        -- Проверяем, является ли модель предметом
-                        if YBA_ITEM_NAMES[itemName] then
+                        -- Проверяем, является ли модель предметом и включен ли он в настройках
+                        if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
                             print("YBA Item ESP: Найдена модель предмета:", itemName)
                             
                             -- Ищем все MeshPart в модели
@@ -2424,8 +2515,8 @@ local function findYBAItemsFast()
                 print("YBA Item ESP: Быстрый поиск - название предмета из ProximityPrompt:", itemName)
             end
             
-            -- Проверяем, является ли модель предметом
-            if YBA_ITEM_NAMES[itemName] then
+                                    -- Проверяем, является ли модель предметом и включен ли он в настройках
+                        if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
                 print("YBA Item ESP: Быстрый поиск - это известный предмет:", itemName)
                 
                 -- Ищем все MeshPart в модели
@@ -2539,8 +2630,8 @@ local function findYBAItemsAlternative()
                 if not searchedModels[child] then
                     searchedModels[child] = true
                     
-                    -- Проверяем, является ли модель предметом
-                    if YBA_ITEM_NAMES[child.Name] then
+                    -- Проверяем, является ли модель предметом и включен ли он в настройках
+                    if YBA_ITEM_NAMES[child.Name] and YBAConfig.ItemESP.Items[child.Name] then
                         print("YBA Item ESP: Альтернативный поиск - найдена модель предмета:", child.Name)
                         
                         -- Ищем все MeshPart в модели
@@ -3706,6 +3797,150 @@ guiCallbacks.itemESP = itemESPToggleBtn
 
 -- Отключаем навигацию для кнопки Item ESP
 itemESPToggleBtn.AutoButtonColor = false
+
+-- Настройки предметов для ESP
+sectionHeader("📦 Item Selection")
+
+-- Функция для создания переключателя предмета
+local function createItemToggle(itemName, defaultState)
+    local btn = toggle(itemName, defaultState, function(v)
+        YBAConfig.ItemESP.Items[itemName] = v
+        print("YBA Item ESP: Предмет", itemName, "установлен в", v and "ON" or "OFF")
+    end)
+    return btn
+end
+
+-- Основные предметы
+sectionHeader("🔸 Basic Items")
+createItemToggle("Mysterious Arrow", YBAConfig.ItemESP.Items["Mysterious Arrow"])
+createItemToggle("Rokakaka", YBAConfig.ItemESP.Items["Rokakaka"])
+createItemToggle("Pure Rokakaka", YBAConfig.ItemESP.Items["Pure Rokakaka"])
+createItemToggle("Diamond", YBAConfig.ItemESP.Items["Diamond"])
+createItemToggle("Gold Coin", YBAConfig.ItemESP.Items["Gold Coin"])
+createItemToggle("Steel Ball", YBAConfig.ItemESP.Items["Steel Ball"])
+createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
+
+-- Части трупа святого
+sectionHeader("💀 Saint's Corpse Parts")
+createItemToggle("Rib Cage of The Saint's Corpse", YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
+createItemToggle("Left Arm of The Saint's Corpse", YBAConfig.ItemESP.Items["Left Arm of The Saint's Corpse"])
+createItemToggle("Right Arm of The Saint's Corpse", YBAConfig.ItemESP.Items["Right Arm of The Saint's Corpse"])
+createItemToggle("Heart of The Saint's Corpse", YBAConfig.ItemESP.Items["Heart of The Saint's Corpse"])
+createItemToggle("Pelvis of The Saint's Corpse", YBAConfig.ItemESP.Items["Pelvis of The Saint's Corpse"])
+createItemToggle("Left Leg of The Saint's Corpse", YBAConfig.ItemESP.Items["Left Leg of The Saint's Corpse"])
+createItemToggle("Right Leg of The Saint's Corpse", YBAConfig.ItemESP.Items["Right Leg of The Saint's Corpse"])
+createItemToggle("Head of The Saint's Corpse", YBAConfig.ItemESP.Items["Head of The Saint's Corpse"])
+
+-- Редкие предметы
+sectionHeader("💎 Rare Items")
+createItemToggle("Requiem Arrow", YBAConfig.ItemESP.Items["Requiem Arrow"])
+createItemToggle("Heaven Ascension DIO's Diary", YBAConfig.ItemESP.Items["Heaven Ascension DIO's Diary"])
+createItemToggle("Made in Heaven", YBAConfig.ItemESP.Items["Made in Heaven"])
+createItemToggle("C-Moon", YBAConfig.ItemESP.Items["C-Moon"])
+createItemToggle("Green Baby", YBAConfig.ItemESP.Items["Green Baby"])
+
+-- Диски стендов (основные)
+sectionHeader("💿 Stand Discs (Main)")
+createItemToggle("Whitesnake's Disc", YBAConfig.ItemESP.Items["Whitesnake's Disc"])
+createItemToggle("Weather Report's Disc", YBAConfig.ItemESP.Items["Weather Report's Disc"])
+createItemToggle("Diver Down's Disc", YBAConfig.ItemESP.Items["Diver Down's Disc"])
+createItemToggle("Killer Queen's Disc", YBAConfig.ItemESP.Items["Killer Queen's Disc"])
+createItemToggle("King Crimson's Disc", YBAConfig.ItemESP.Items["King Crimson's Disc"])
+createItemToggle("Gold Experience's Disc", YBAConfig.ItemESP.Items["Gold Experience's Disc"])
+createItemToggle("Star Platinum's Disc", YBAConfig.ItemESP.Items["Star Platinum's Disc"])
+createItemToggle("The World's Disc", YBAConfig.ItemESP.Items["The World's Disc"])
+createItemToggle("Crazy Diamond's Disc", YBAConfig.ItemESP.Items["Crazy Diamond's Disc"])
+createItemToggle("Silver Chariot's Disc", YBAConfig.ItemESP.Items["Silver Chariot's Disc"])
+
+-- Диски стендов (дополнительные)
+sectionHeader("💿 Stand Discs (Extra)")
+createItemToggle("Hierophant Green's Disc", YBAConfig.ItemESP.Items["Hierophant Green's Disc"])
+createItemToggle("Magician's Red's Disc", YBAConfig.ItemESP.Items["Magician's Red's Disc"])
+createItemToggle("Hermit Purple's Disc", YBAConfig.ItemESP.Items["Hermit Purple's Disc"])
+createItemToggle("Tower of Gray's Disc", YBAConfig.ItemESP.Items["Tower of Gray's Disc"])
+createItemToggle("Dark Blue Moon's Disc", YBAConfig.ItemESP.Items["Dark Blue Moon's Disc"])
+createItemToggle("Strength's Disc", YBAConfig.ItemESP.Items["Strength's Disc"])
+createItemToggle("Ebony Devil's Disc", YBAConfig.ItemESP.Items["Ebony Devil's Disc"])
+createItemToggle("Yellow Temperance's Disc", YBAConfig.ItemESP.Items["Yellow Temperance's Disc"])
+createItemToggle("Hanged Man's Disc", YBAConfig.ItemESP.Items["Hanged Man's Disc"])
+createItemToggle("Emperor's Disc", YBAConfig.ItemESP.Items["Emperor's Disc"])
+
+-- Кнопки для быстрого управления
+sectionHeader("⚡ Quick Controls")
+
+local selectAllBtn = Instance.new("TextButton", innerContainer)
+selectAllBtn.Size = UDim2.new(1, -10, 0, 28)
+selectAllBtn.Text = "SELECT ALL ITEMS"
+selectAllBtn.Font = Enum.Font.GothamBold
+selectAllBtn.TextSize = 14
+selectAllBtn.TextColor3 = Color3.new(1,1,1)
+selectAllBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+selectAllBtn.AutoButtonColor = false
+Instance.new("UICorner", selectAllBtn).CornerRadius = UDim.new(0,6)
+
+selectAllBtn.MouseButton1Click:Connect(function()
+    for itemName, _ in pairs(YBAConfig.ItemESP.Items) do
+        YBAConfig.ItemESP.Items[itemName] = true
+    end
+    print("YBA Item ESP: Все предметы включены")
+    selectAllBtn.Text = "ALL SELECTED!"
+    task.wait(2)
+    selectAllBtn.Text = "SELECT ALL ITEMS"
+end)
+
+local deselectAllBtn = Instance.new("TextButton", innerContainer)
+deselectAllBtn.Size = UDim2.new(1, -10, 0, 28)
+deselectAllBtn.Text = "DESELECT ALL ITEMS"
+deselectAllBtn.Font = Enum.Font.GothamBold
+deselectAllBtn.TextSize = 14
+deselectAllBtn.TextColor3 = Color3.new(1,1,1)
+deselectAllBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+deselectAllBtn.AutoButtonColor = false
+Instance.new("UICorner", deselectAllBtn).CornerRadius = UDim.new(0,6)
+
+deselectAllBtn.MouseButton1Click:Connect(function()
+    for itemName, _ in pairs(YBAConfig.ItemESP.Items) do
+        YBAConfig.ItemESP.Items[itemName] = false
+    end
+    print("YBA Item ESP: Все предметы отключены")
+    deselectAllBtn.Text = "ALL DESELECTED!"
+    task.wait(2)
+    deselectAllBtn.Text = "DESELECT ALL ITEMS"
+end)
+
+local selectBasicBtn = Instance.new("TextButton", innerContainer)
+selectBasicBtn.Size = UDim2.new(1, -10, 0, 28)
+selectBasicBtn.Text = "SELECT BASIC ITEMS ONLY"
+selectBasicBtn.Font = Enum.Font.GothamBold
+selectBasicBtn.TextSize = 14
+selectBasicBtn.TextColor3 = Color3.new(1,1,1)
+selectBasicBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+selectBasicBtn.AutoButtonColor = false
+Instance.new("UICorner", selectBasicBtn).CornerRadius = UDim.new(0,6)
+
+selectBasicBtn.MouseButton1Click:Connect(function()
+    -- Сначала отключаем все
+    for itemName, _ in pairs(YBAConfig.ItemESP.Items) do
+        YBAConfig.ItemESP.Items[itemName] = false
+    end
+    
+    -- Включаем только основные предметы
+    local basicItems = {
+        "Mysterious Arrow", "Rokakaka", "Pure Rokakaka", "Diamond", 
+        "Gold Coin", "Steel Ball", "Lucky Arrow"
+    }
+    
+    for _, itemName in ipairs(basicItems) do
+        if YBAConfig.ItemESP.Items[itemName] ~= nil then
+            YBAConfig.ItemESP.Items[itemName] = true
+        end
+    end
+    
+    print("YBA Item ESP: Только основные предметы включены")
+    selectBasicBtn.Text = "BASIC SELECTED!"
+    task.wait(2)
+    selectBasicBtn.Text = "SELECT BASIC ITEMS ONLY"
+end)
 
 sectionHeader("🟩 Teleport Settings")
 
