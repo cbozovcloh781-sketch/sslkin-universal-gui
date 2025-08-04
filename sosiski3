@@ -96,6 +96,7 @@ local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
     StandRange = 500000, -- Увеличена дистанция ударов стенда
+    StandSpeed = 1.0, -- Скорость движения стенда
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
@@ -319,7 +320,7 @@ local YBAFreeCamera = {} do
         if move.Magnitude > 0 then
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
+            bv.Velocity = worldMove * (30 * YBAConfig.StandSpeed) -- Используем настраиваемую скорость стенда
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -3286,6 +3287,12 @@ end)
 guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
+
+-- Ползунок для скорости стенда
+slider("Stand Speed", 0.1, 5.0, YBAConfig.StandSpeed, function(v)
+    YBAConfig.StandSpeed = v
+    print("YBA Stand Speed установлен в:", v)
+end)
 
 sectionHeader("🎯 YBA Item ESP")
 
