@@ -1962,30 +1962,41 @@ end
 local function startYBA()
     if isYBAEnabled then return end
     
+    print("Запуск YBA Stand Range...")
+    
     isYBAEnabled = true
     YBAConfig.Enabled = true
+    
+    if not findStands then
+        print("ОШИБКА: Функция findStands не найдена!")
+        return
+    end
     
     local stands = findStands()
     
     if #stands == 0 then
+        print("Стенды не найдены!")
         return
     end
     
     local targetStand = stands[1]
+    print("Найден стенд:", targetStand.Name)
     
-    if YBAConfig.FreezePlayer then
+    if YBAConfig.FreezePlayer and freezePlayer then
         freezePlayer()
     end
     
     if YBAConfig.SwitchCamera then
     end
     
-    if YBAConfig.TransferControl then
+    if YBAConfig.TransferControl and activateFreeCamera then
         activateFreeCamera(targetStand)
     end
     
     -- Автоматически запускаем подземный полет при включении Stand Range
-    startUndergroundControl()
+    if startUndergroundControl then
+        startUndergroundControl()
+    end
 end
 
 local function stopYBA()
@@ -1994,8 +2005,12 @@ local function stopYBA()
     isYBAEnabled = false
     YBAConfig.Enabled = false
     
-    disableFreeCamera()
-    unfreezePlayer()
+    if disableFreeCamera then
+        disableFreeCamera()
+    end
+    if unfreezePlayer then
+        unfreezePlayer()
+    end
     
     for _, connection in ipairs(standControlConnections) do
         if connection then
@@ -2006,7 +2021,9 @@ local function stopYBA()
     controlledStand = nil
     
     -- Останавливаем подземный полет и возвращаем персонажа в исходную позицию
-    stopUndergroundControl()
+    if stopUndergroundControl then
+        stopUndergroundControl()
+    end
 end
 
 -- Функция для запуска управления персонажем под стендом (летающий режим)
@@ -2024,6 +2041,11 @@ local function startUndergroundControl()
     end
     
     -- Находим стенды
+    if not findStands then
+        print("Функция findStands не найдена!")
+        return
+    end
+    
     local stands = findStands()
     if #stands == 0 then
         print("Стенды не найдены! Убедитесь, что у вас есть стенд.")
@@ -2043,7 +2065,7 @@ local function startUndergroundControl()
     end
     
     -- Включаем NoClip для прохождения сквозь блоки
-    if YBAConfig.UndergroundControl.AutoNoClip and not isNoClipping then
+    if YBAConfig.UndergroundControl.AutoNoClip and not isNoClipping and startNoClip then
         startNoClip()
         print("NoClip включен для подземного полета")
     end
