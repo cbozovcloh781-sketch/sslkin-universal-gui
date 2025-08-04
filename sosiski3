@@ -1,13 +1,9 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
-
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
-
-
 local Config = {
     ESP = {
         Enabled     = true,
@@ -37,42 +33,32 @@ local Config = {
     },
     MenuCollapsed = false,
 }
-
-
 local FlyConfig = {
     Enabled = false,
     Speed = 1,
     ToggleKey = nil,
 }
-
-
 local NoClipConfig = {
     Enabled = false,
     ToggleKey = nil,
     ForceToggleKey = nil,
 }
-
-
 local SpeedHackConfig = {
     Enabled = false,
     Speed = 1,
     ToggleKey = nil,
     UseJumpPower = false,
 }
-
 local LongJumpConfig = {
     Enabled = false,
     JumpPower = 150,
     ToggleKey = nil,
 }
-
 local InfiniteJumpConfig = {
     Enabled = false,
     JumpPower = 50,
     ToggleKey = nil,
 }
-
-
 local TeleportConfig = {
     Enabled = false,
     TargetPlayer = nil,
@@ -91,7 +77,6 @@ local TeleportConfig = {
     MaxCorrectionSpeed = 300,
     StabilizationThreshold = 0.8,
 }
-
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
@@ -138,27 +123,21 @@ local YBAConfig = {
         Font = Enum.Font.GothamBold,
     }
 }
-
 local isFlying = false
 local flyConnections = {}
 local originalGravity = workspace.Gravity
-
 local isNoClipping = false
 local noClipConnections = {}
-
 local isSpeedHacking = false
 local speedHackConnections = {}
 local originalWalkSpeed = 16
 local originalJumpPower = 50
-
 local isLongJumping = false
 local longJumpConnections = {}
 local originalLongJumpPower = 50
-
 local isInfiniteJumping = false
 local infiniteJumpConnections = {}
 local lastJumpTime = 0
-
 local isTeleporting = false
 local teleportConnections = {}
 local playerSelectionWindow = nil
@@ -168,7 +147,6 @@ local isStabilizing = false
 local speedResetTimer = 0
 local lastSpeedCheck = tick()
 local lastBehindDistance = 0
-
 -- YBA Stand Control Variables
 local isYBAEnabled = false
 local ybaConnections = {}
@@ -180,14 +158,12 @@ local standControlConnections = {}
 local originalGravity = workspace.Gravity
 local originalYBAWalkSpeed = 16
 local originalYBAJumpPower = 50
-
 -- Новая система управления стендами
 local isStandControlActive = false
 local currentControlledStand = nil
 local standCameraConnections = {}
 local originalStandCameraCFrame = nil
 local standControlActive = false
-
 -- Система свободной камеры как в Infinite Yield
 local freeCameraActive = false
 local freeCameraConnections = {}
@@ -197,22 +173,18 @@ local freeCameraHeight = 5
 local freeCameraTarget = nil
 local freeCameraLastMousePos = Vector2.new(0, 0)
 local lastCameraUpdate = nil
-
 -- Item ESP Variables
 local itemESPConnections = {}
 local itemESPElements = {}
 local itemESPEnabled = false
-
 -- Новая система свободной камеры для YBA Stand Range
 local YBAFreeCamera = {} do
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
     local ContextActionService = game:GetService("ContextActionService")
     local Camera = workspace.CurrentCamera
-
     local fcRunning = false
     local INPUT_PRIORITY = Enum.ContextActionPriority.High.Value
-
     -- Переменные
     local cameraPos = Vector3.new()
     local cameraRot = Vector2.new()
@@ -221,11 +193,9 @@ local YBAFreeCamera = {} do
     local originalCameraCFrame = nil
     local cameraDistance = 10 -- Расстояние от камеры до стенда
     local cameraHeight = 5   -- Высота камеры над стендом
-
     -- Настройка скорости
     local NAV_SPEED = 1
     local SHIFT_MUL = 0.25
-
     -- Ввод
     local input = {
         W = 0, A = 0, S = 0, D = 0,
@@ -234,19 +204,16 @@ local YBAFreeCamera = {} do
         MouseDelta = Vector2.new(),
         MouseWheel = 0
     }
-
     -- Обработка клавиш
     local function onKey(actionName, inputState, inputObj)
         input[inputObj.KeyCode.Name] = (inputState == Enum.UserInputState.Begin) and 1 or 0
         return Enum.ContextActionResult.Sink
     end
-
     -- Обработка мыши
     local function onMouse(actionName, inputState, inputObj)
         input.MouseDelta = Vector2.new(-inputObj.Delta.y, -inputObj.Delta.x)
         return Enum.ContextActionResult.Sink
     end
-
     -- Обработка колесика мыши
     local function onMouseWheel(actionName, inputState, inputObj)
         if inputObj.UserInputType == Enum.UserInputType.MouseWheel then
@@ -254,7 +221,6 @@ local YBAFreeCamera = {} do
         end
         return Enum.ContextActionResult.Sink
     end
-
     -- Захват ввода
     local function startInput()
         for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
@@ -263,7 +229,6 @@ local YBAFreeCamera = {} do
         ContextActionService:BindActionAtPriority("FreecamMouse", onMouse, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
         ContextActionService:BindActionAtPriority("FreecamMouseWheel", onMouseWheel, false, INPUT_PRIORITY, Enum.UserInputType.MouseWheel)
     end
-
     -- Освобождение ввода
     local function stopInput()
         for k in pairs(input) do
@@ -277,13 +242,11 @@ local YBAFreeCamera = {} do
             ContextActionService:UnbindAction("FreecamKey_"..key)
         end
     end
-
     -- Обновление камеры следование за стендом от третьего лица
     local function stepFreecam(dt)
         if not targetStand or not targetStand.Root or not targetStand.Root.Parent then
             return
         end
-
         local standRoot = targetStand.Root
         local standPosition = standRoot.Position
         
@@ -295,11 +258,9 @@ local YBAFreeCamera = {} do
         local moveY = input.Space - input.LeftControl -- Включено управление высотой стенда
         
         local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
-
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
             move = move * SHIFT_MUL
         end
-
         -- Применяем движение к стенду (улучшено)
         local bv = standRoot:FindFirstChild("BodyVelocity")
         if not bv then
@@ -320,23 +281,18 @@ local YBAFreeCamera = {} do
         else
             bv.Velocity = Vector3.new(0, 0, 0)
         end
-
         -- Управление камерой от третьего лица (улучшено)
         local pan = input.MouseDelta * math.rad(0.8) -- Уменьшена чувствительность для плавности
         input.MouseDelta = Vector2.new()
-
         -- Обработка зума колесиком мыши
         if input.MouseWheel ~= 0 then
             cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 20)
             input.MouseWheel = 0
         end
-
         -- Изменение высоты камеры отключено для фиксированной позиции
-
         -- Плавное вращение камеры
         cameraRot = cameraRot + pan
         cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
-
         -- Поворот персонажа в зависимости от поворота камеры
         local player = Players.LocalPlayer
         if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -352,16 +308,13 @@ local YBAFreeCamera = {} do
                 humanoid.AutoRotate = false
             end
         end
-
         -- Позиция камеры от третьего лица за стендом (фиксированная)
         local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
         local cameraOffset = Vector3.new(0, cameraHeight - 2, cameraDistance) -- Фиксированная позиция чуть ниже
         local cf = CFrame.new(standPosition) * rot * CFrame.new(cameraOffset)
-
         cameraPos = cf.Position
         Camera.CFrame = cf
     end
-
     -- Включение управления стендом от третьего лица
     function YBAFreeCamera.Start(stand)
         if fcRunning then 
@@ -398,7 +351,6 @@ local YBAFreeCamera = {} do
         print("YBA: Управление стендом активировано: " .. stand.Name)
         return true
     end
-
     -- Выключение управления стендом
     function YBAFreeCamera.Stop()
         if not fcRunning then return end
@@ -433,7 +385,6 @@ local YBAFreeCamera = {} do
         
         print("YBA: Управление стендом отключено")
     end
-
     -- Переключение управления стендом
     function YBAFreeCamera.Toggle(stand)
         if fcRunning then
@@ -444,7 +395,6 @@ local YBAFreeCamera = {} do
         end
     end
 end
-
 local function startFly()
     local plr = Players.LocalPlayer
     local char = plr.Character
@@ -537,7 +487,6 @@ local function startFly()
     table.insert(flyConnections, inputUp)
     table.insert(flyConnections, renderConnection)
 end
-
 local function stopFly()
     isFlying = false
     
@@ -570,8 +519,6 @@ local function stopFly()
     end
     flyConnections = {}
 end
-
-
 local function startNoClip()
     local char = Players.LocalPlayer.Character
     if not char then return end
@@ -624,7 +571,6 @@ local function startNoClip()
         end
     end)
 end
-
 local function stopNoClip()
     isNoClipping = false
     
@@ -650,7 +596,6 @@ local function stopNoClip()
     end
     noClipConnections = {}
 end
-
 local function startSpeedHack()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -698,7 +643,6 @@ local function startSpeedHack()
     
     table.insert(speedHackConnections, speedLoop)
 end
-
 local function stopSpeedHack()
     isSpeedHacking = false
     
@@ -720,8 +664,6 @@ local function stopSpeedHack()
     end
     speedHackConnections = {}
 end
-
-
 local function startLongJump()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -757,7 +699,6 @@ local function startLongJump()
     
     table.insert(longJumpConnections, longJumpLoop)
 end
-
 local function stopLongJump()
     isLongJumping = false
     
@@ -779,8 +720,6 @@ local function stopLongJump()
     end
     longJumpConnections = {}
 end
-
-
 local function startInfiniteJump()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -839,7 +778,6 @@ local function startInfiniteJump()
     local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
     table.insert(infiniteJumpConnections, characterAddedConnection)
 end
-
 local function stopInfiniteJump()
     isInfiniteJumping = false
     lastJumpTime = 0
@@ -867,8 +805,6 @@ local function stopInfiniteJump()
         end
     end
 end
-
-
 local function createStealthTeleport()
     if not TeleportConfig.TargetPlayer then 
         return 
@@ -1074,7 +1010,6 @@ local function createStealthTeleport()
     
     table.insert(teleportConnections, stealthTeleportLoop)
 end
-
 local function startTeleport()
     if not TeleportConfig.TargetPlayer then 
         return 
@@ -1155,7 +1090,6 @@ local function startTeleport()
         end
     end)
 end
-
 local function stopTeleport()
     isTeleporting = false
     isStabilizing = false
@@ -1294,7 +1228,6 @@ local function stopTeleport()
         stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
     end
 end
-
 -- YBA Stand Control Functions
 local function findStands()
     local stands = {}
@@ -1379,7 +1312,6 @@ local function findStands()
     print("YBA: Всего найдено подходящих стендов: " .. #stands)
     return stands
 end
-
 local function freezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
@@ -1426,7 +1358,6 @@ local function freezePlayer()
         humanoid.AutoJumpEnabled = false
     end
 end
-
 local function unfreezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
@@ -1456,7 +1387,6 @@ local function unfreezePlayer()
         humanoid.AutoJumpEnabled = true
     end
 end
-
 -- Функция активации управления стендом
 local function activateFreeCamera(stand)
     if not stand or not stand.Root then 
@@ -1485,11 +1415,8 @@ local function activateFreeCamera(stand)
         return false
     end
 end
-
 -- Удалена старая функция switchToStandControl - заменена на новую систему YBAFreeCamera
-
 -- Удалена старая функция switchCameraToStand - заменена на новую систему YBAFreeCamera
-
 -- Функция для отключения управления стендом
 local function disableFreeCamera()
     if not freeCameraActive then return end
@@ -1545,13 +1472,9 @@ local function disableFreeCamera()
         end
     end
 end
-
 -- Удалены старые функции disableStandControl и restoreCamera - заменены на новую систему YBAFreeCamera
-
 -- Удалена старая функция controlFreeCamera - заменена на новую систему FreeCamera
-
 -- Удалена старая функция controlStandAsCharacter - заменена на новую систему FreeCamera
-
 -- Упрощенная функция управления стендом - использует новую систему FreeCamera
 local function controlStand(stand)
     if not stand or not stand.Root then 
@@ -1569,7 +1492,6 @@ local function controlStand(stand)
         print("YBA: Не удалось активировать свободную камеру для стенда: " .. stand.Name)
     end
 end
-
 local function startYBA()
     if isYBAEnabled then return end
     
@@ -1619,7 +1541,6 @@ local function startYBA()
     
     print("YBA: Stand Range Hack активирован!")
 end
-
 local function stopYBA()
     if not isYBAEnabled then return end
     
@@ -1643,7 +1564,6 @@ local function stopYBA()
     
     print("YBA: Stand Range Hack деактивирован!")
 end
-
 local function getAlivePlayers()
     local alivePlayers = {}
     
@@ -1677,8 +1597,6 @@ local function getAlivePlayers()
     
     return alivePlayers
 end
-
-
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp then
         if FlyConfig.ToggleKey and input.KeyCode == FlyConfig.ToggleKey then
@@ -1782,18 +1700,13 @@ UserInputService.InputBegan:Connect(function(input, gp)
         end
     end
 end)
-
-
 local ESPs, Lines = {}, {}
 local FOVCircle
-
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 2
 FOVCircle.NumSides = 100
 FOVCircle.Filled = false
 FOVCircle.Visible = false
-
-
 local function getName(p)
     return p.Name
 end
@@ -1822,8 +1735,6 @@ local function rayVisible(p)
     rp.FilterDescendantsInstances={Players.LocalPlayer.Character,p.Character}
     return not workspace:Raycast(cam.CFrame.Position, head.Position-cam.CFrame.Position, rp)
 end
-
-
 local function createOrUpdateESP(p)
     if not ESPs[p] then
         local hl=Instance.new("Highlight"); hl.Adornee=p.Character; hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent=p.Character
@@ -1837,7 +1748,6 @@ local function createOrUpdateESP(p)
     d.tl.TextColor3=Config.ESP.TextColor
     d.tl.Text=string.format("%s | HP:%d | %dm",getName(p),getHealth(p),math.floor((Players.LocalPlayer.Character.HumanoidRootPart.Position-p.Character.HumanoidRootPart.Position).Magnitude))
 end
-
 local function removeESP(p)
     if ESPs[p] then 
         if ESPs[p].hl and ESPs[p].hl.Parent then ESPs[p].hl:Destroy() end
@@ -1846,8 +1756,6 @@ local function removeESP(p)
     end
     if Lines[p] then Lines[p]:Remove(); Lines[p]=nil end
 end
-
-
 local function isPlayerAlive(player)
     if not player then 
         return false 
@@ -1867,19 +1775,15 @@ local function isPlayerAlive(player)
     local isAlive = humanoid.Health > 0
     return isAlive
 end
-
 local function isPlayerOnServer(player)
     if not player or not player.Character then return false end
     local humanoid = player.Character:FindFirstChild("Humanoid")
     if not humanoid then return false end
     return humanoid.Health > 0 and humanoid.Parent ~= nil
 end
-
-
 local function onPlayerDied(player)
     removeESP(player)
 end
-
 local function onPlayerRespawned(player)
     if Config.ESP.Enabled and player ~= Players.LocalPlayer then
         spawn(function()
@@ -1890,8 +1794,6 @@ local function onPlayerRespawned(player)
         end)
     end
 end
-
-
 local function setupPlayerESP(player)
     if player == Players.LocalPlayer then return end
     
@@ -1929,35 +1831,25 @@ local function setupPlayerESP(player)
         onPlayerDied(player)
     end)
 end
-
-
 for _, player in ipairs(Players:GetPlayers()) do
     setupPlayerESP(player)
 end
-
-
 Players.PlayerAdded:Connect(setupPlayerESP)
-
-
 Players.PlayerRemoving:Connect(function(player)
     removeESP(player)
 end)
-
 local function getClosestTarget()
     local cam = workspace.CurrentCamera
     local closest, minDist = nil, Config.Aimbot.FOV
-
     for _, p in ipairs(Players:GetPlayers()) do
         if p == Players.LocalPlayer then continue end
         if Config.Aimbot.TeamCheck and p.Team == Players.LocalPlayer.Team then continue end
         if not isAlive(p) then continue end
         if Config.Aimbot.VisibilityCheck and not rayVisible(p) then continue end
-
         local head = p.Character and p.Character:FindFirstChild("Head")
         if not head then continue end
         local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
         if not onScreen then continue end
-
         local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
         if dist < minDist then
             closest = head
@@ -1966,8 +1858,6 @@ local function getClosestTarget()
     end
     return closest
 end
-
-
 RunService.RenderStepped:Connect(function()
     local cam = workspace.CurrentCamera
     for _, player in ipairs(Players:GetPlayers()) do
@@ -2005,7 +1895,6 @@ RunService.RenderStepped:Connect(function()
             removeESP(player)
         end
     end
-
     
 if Config.Aimbot.Enabled then
     local target = getClosestTarget()
@@ -2014,19 +1903,13 @@ if Config.Aimbot.Enabled then
         cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target.Position)
     end
 end
-
-
 local cam = workspace.CurrentCamera
 FOVCircle.Visible = Config.Aimbot.Enabled
 FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
 FOVCircle.Color = Config.Aimbot.FOVRainbow and getRainbow() or Config.Aimbot.FOVColor
 FOVCircle.Radius = Config.Aimbot.FOV
-
-
     
 end)
-
-
 UserInputService.InputBegan:Connect(function(inp, gp)
     if gp then return end
     if inp.UserInputType == Enum.UserInputType.Keyboard then
@@ -2047,12 +1930,10 @@ UserInputService.InputBegan:Connect(function(inp, gp)
         end
     end
 end)
-
 -- YBA Item ESP Functions (Полностью переписанная версия)
 local itemESPEnabled = false
 local itemESPConnections = {}
 local itemESPElements = {}
-
 -- Расширенный список всех предметов YBA, которые спавнятся на карте и подбираются через E
 local YBA_ITEM_NAMES = {
     -- Основные предметы
@@ -2224,7 +2105,6 @@ local YBA_ITEM_NAMES = {
     ["Devo's Disc"] = true,
     ["Captain Tenille's Disc"] = true,
 }
-
 -- Улучшенная функция для поиска предметов YBA по всей карте
 local function findYBAItems()
     local items = {}
@@ -2235,10 +2115,8 @@ local function findYBAItems()
         print("YBA Item ESP: Игрок не найден")
         return items 
     end
-
     print("YBA Item ESP: Позиция игрока:", playerRoot.Position)
     print("YBA Item ESP: Максимальная дистанция поиска:", YBAConfig.ItemESP.MaxDistance)
-
     -- Оптимизированный поиск в конкретной структуре папок
     local foundFolders = {}
     
@@ -2296,7 +2174,6 @@ local function findYBAItems()
     local foundCount = 0
     local searchedModels = {}
     local debugCount = 0
-
     -- Ищем предметы во всех найденных папках
     for _, folder in ipairs(foundFolders) do
         print("YBA Item ESP: Ищем в папке:", folder.Name)
@@ -2389,7 +2266,6 @@ local function findYBAItems()
     
     return items
 end
-
 -- Быстрая функция для поиска в структуре item_spawns.items
 local function findYBAItemsFast()
     local items = {}
@@ -2400,7 +2276,6 @@ local function findYBAItemsFast()
         print("YBA Item ESP: Игрок не найден (быстрый поиск)")
         return items 
     end
-
     print("YBA Item ESP: Быстрый поиск в Item_Spawns.Items...")
     
     local targetFolder = workspace:FindFirstChild("Item_Spawns")
@@ -2419,7 +2294,6 @@ local function findYBAItemsFast()
     
     local foundCount = 0
     local debugCount = 0
-
     -- Ищем все модели в папке Items
     for _, child in ipairs(itemsFolder:GetChildren()) do
         debugCount = debugCount + 1
@@ -2518,7 +2392,6 @@ local function findYBAItemsFast()
     
     return items
 end
-
 -- Альтернативная функция для поиска предметов по всему workspace
 local function findYBAItemsAlternative()
     local items = {}
@@ -2529,13 +2402,11 @@ local function findYBAItemsAlternative()
         print("YBA Item ESP: Игрок не найден (альтернативный поиск)")
         return items 
     end
-
     print("YBA Item ESP: Альтернативный поиск по всему workspace...")
     
     local foundCount = 0
     local searchedModels = {}
     local debugCount = 0
-
     -- Ищем все модели в workspace
     local function searchInWorkspace(parent, depth)
         if depth > 10 then return end -- Ограничиваем глубину поиска
@@ -2604,7 +2475,6 @@ local function findYBAItemsAlternative()
     
     return items
 end
-
 -- Функция для отладки структуры workspace
 local function debugWorkspaceStructure()
     print("YBA Item ESP: === ОТЛАДКА СТРУКТУРЫ WORKSPACE ===")
@@ -2646,7 +2516,6 @@ local function debugWorkspaceStructure()
     
     print("YBA Item ESP: === КОНЕЦ ОТЛАДКИ ===")
 end
-
 -- Улучшенная функция для создания ESP элемента для предмета
 local function createItemESP(item)
     if itemESPElements[item.Object] then
@@ -2806,7 +2675,6 @@ local function createItemESP(item)
     itemESPElements[item.Object] = esp
     return esp
 end
-
 -- Улучшенная функция для обновления ESP предмета
 local function updateItemESP(item)
     local esp = itemESPElements[item.Object]
@@ -2888,7 +2756,6 @@ local function updateItemESP(item)
         end)
     end
 end
-
 -- Улучшенная функция для удаления ESP предмета
 local function removeItemESP(item)
     local esp = itemESPElements[item.Object]
@@ -2924,7 +2791,6 @@ local function removeItemESP(item)
     
     itemESPElements[item.Object] = nil
 end
-
 -- Улучшенная функция запуска Item ESP
 local function startItemESP()
     if itemESPEnabled then 
@@ -3029,7 +2895,6 @@ local function startItemESP()
     
     table.insert(itemESPConnections, cleanupLoop)
 end
-
 -- Функция остановки Item ESP
 local function stopItemESP()
     if not itemESPEnabled then return end
@@ -3050,12 +2915,9 @@ local function stopItemESP()
     end
     itemESPConnections = {}
 end
-
-
 local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
 screenGui.ResetOnSpawn = false
-
 local frame = Instance.new("Frame", screenGui)
 frame.Name = "MainFrame"
 frame.Position = UDim2.new(0, 20, 0.5, -200)
@@ -3065,13 +2927,11 @@ frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
-
 local titleBar = Instance.new("Frame", frame)
 titleBar.Name = "TitleBar"
 titleBar.Size = UDim2.new(1, 0, 0, 36)
 titleBar.Position = UDim2.new(0, 0, 0, 0)
 titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-
 local titleText = Instance.new("TextLabel", titleBar)
 titleText.Name = "TitleText"
 titleText.Size = UDim2.new(1, -40, 1, 0)
@@ -3082,7 +2942,6 @@ titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 14
 titleText.TextColor3 = Color3.new(1, 1, 1)
 titleText.TextXAlignment = Enum.TextXAlignment.Left
-
 local collapseBtn = Instance.new("TextButton", titleBar)
 collapseBtn.Name = "Collapse"
 collapseBtn.Size = UDim2.new(0, 26, 0, 26)
@@ -3093,7 +2952,6 @@ collapseBtn.TextSize = 18
 collapseBtn.TextColor3 = Color3.new(1, 1, 1)
 collapseBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
 Instance.new("UICorner", collapseBtn).CornerRadius = UDim.new(0, 6)
-
 local scroll = Instance.new("ScrollingFrame", frame)
 scroll.Position = UDim2.new(0, 0, 0, 30)
 scroll.Size = UDim2.new(1, 0, 1, -46)
@@ -3102,7 +2960,6 @@ scroll.ScrollBarThickness = 6
 scroll.BackgroundTransparency = 1
 scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 scroll.ClipsDescendants = true
-
 local innerContainer = Instance.new("Frame", scroll)
 innerContainer.Name = "InnerContainer"
 innerContainer.BackgroundTransparency = 1
@@ -3110,39 +2967,30 @@ innerContainer.Size = UDim2.new(1, -20, 0, 0)
 innerContainer.Position = UDim2.new(0, 10, 0, 0)
 innerContainer.AutomaticSize = Enum.AutomaticSize.Y
 innerContainer.ClipsDescendants = false
-
 local function toggleMenu()
     Config.MenuCollapsed = not Config.MenuCollapsed
     local collapsed = Config.MenuCollapsed
     local size = collapsed and UDim2.new(0, 280, 0, 40) or UDim2.new(0, 280, 0, 800)
     local text = collapsed and "+" or "−"
     local color = collapsed and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-
     TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Size = size
     }):Play()
-
     TweenService:Create(collapseBtn, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         BackgroundColor3 = color
     }):Play()
-
     collapseBtn.Text = text
     scroll.Visible = not collapsed
 end
-
 collapseBtn.MouseButton1Click:Connect(toggleMenu)
-
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp and input.KeyCode == Enum.KeyCode.Insert then
         toggleMenu()
     end
 end)
-
 local UIListLayout = Instance.new("UIListLayout", innerContainer)
 UIListLayout.Padding = UDim.new(0, 8)
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-
 local function sectionHeader(text)
 	
 	local spacer = Instance.new("Frame", innerContainer)
@@ -3157,7 +3005,6 @@ local function sectionHeader(text)
 	lbl.TextColor3 = Color3.fromRGB(255,255,255)
 	lbl.BackgroundTransparency = 1
 end
-
 local function toggle(label, default, callback)
 	local btn = Instance.new("TextButton", innerContainer)
 	btn.Size = UDim2.new(1, -10, 0, 28)
@@ -3168,7 +3015,6 @@ local function toggle(label, default, callback)
 	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
 	btn.AutoButtonColor = false
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
-
 	btn.MouseButton1Click:Connect(function()
 		default = not default
 		btn.Text = label .. ": " .. (default and "ON" or "OFF")
@@ -3177,12 +3023,10 @@ local function toggle(label, default, callback)
 	
 	return btn
 end
-
 local function slider(label, min, max, value, callback)
 	local container = Instance.new("Frame", innerContainer)
 	container.Size = UDim2.new(1, -10, 0, 36)
 	container.BackgroundTransparency = 1
-
 	local lbl = Instance.new("TextLabel", container)
 	lbl.Text = label .. ": " .. value
 	lbl.Size = UDim2.new(1, 0, 0.5, 0)
@@ -3190,18 +3034,15 @@ local function slider(label, min, max, value, callback)
 	lbl.TextSize = 13
 	lbl.TextColor3 = Color3.new(1,1,1)
 	lbl.BackgroundTransparency = 1
-
 	local sliderBack = Instance.new("Frame", container)
 	sliderBack.Position = UDim2.new(0,0,0.5,4)
 	sliderBack.Size = UDim2.new(1, 0, 0, 6)
 	sliderBack.BackgroundColor3 = Color3.fromRGB(50,50,50)
 	Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(1,0)
-
 	local sliderFill = Instance.new("Frame", sliderBack)
 	sliderFill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
 	sliderFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1,0)
-
 	local dragging = false
 	sliderBack.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -3226,7 +3067,6 @@ local function slider(label, min, max, value, callback)
 		end
 	end)
 end
-
 local function colorPicker(labelText, currentColor, callback)
     local lbl = Instance.new("TextLabel", innerContainer)
     lbl.Text = labelText
@@ -3235,7 +3075,6 @@ local function colorPicker(labelText, currentColor, callback)
     lbl.Size = UDim2.new(1, -10, 0, 20)
     lbl.Font = Enum.Font.SourceSans
     lbl.TextSize = 14
-
     local colors = {
         Color3.fromRGB(255, 255, 255),
         Color3.fromRGB(255, 0, 0),
@@ -3247,16 +3086,13 @@ local function colorPicker(labelText, currentColor, callback)
         Color3.fromRGB(128, 128, 128),
         Color3.fromRGB(255, 165, 0),
     }
-
     local row = Instance.new("Frame", innerContainer)
     row.Size = UDim2.new(1, -10, 0, 28)
     row.BackgroundTransparency = 1
-
     local layout = Instance.new("UIListLayout", row)
     layout.FillDirection = Enum.FillDirection.Horizontal
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     layout.Padding = UDim.new(0, 4)
-
     for _, clr in pairs(colors) do
         local btn = Instance.new("TextButton", row)
         btn.Size = UDim2.new(0, 24, 0, 24)
@@ -3268,12 +3104,10 @@ local function colorPicker(labelText, currentColor, callback)
         end)
     end
 end
-
 local function speedInput(label, currentSpeed, callback)
     local container = Instance.new("Frame", innerContainer)
     container.Size = UDim2.new(1, -10, 0, 36)
     container.BackgroundTransparency = 1
-
     local lbl = Instance.new("TextLabel", container)
     lbl.Text = label .. ": " .. currentSpeed
     lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
@@ -3281,7 +3115,6 @@ local function speedInput(label, currentSpeed, callback)
     lbl.TextSize = 13
     lbl.TextColor3 = Color3.new(1,1,1)
     lbl.BackgroundTransparency = 1
-
     local inputBox = Instance.new("TextBox", container)
     inputBox.Position = UDim2.new(0.7, 5, 0.25, 0)
     inputBox.Size = UDim2.new(0.3, -5, 0.5, 0)
@@ -3292,7 +3125,6 @@ local function speedInput(label, currentSpeed, callback)
     inputBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
     inputBox.PlaceholderText = "Speed"
     Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0,4)
-
     inputBox.FocusLost:Connect(function()
         local newSpeed = tonumber(inputBox.Text)
         if newSpeed and newSpeed > 0 then
@@ -3302,15 +3134,12 @@ local function speedInput(label, currentSpeed, callback)
             inputBox.Text = tostring(currentSpeed)
         end
     end)
-
     return lbl, inputBox
 end
-
 local function playerSelector(label, currentPlayer, callback)
     local container = Instance.new("Frame", innerContainer)
     container.Size = UDim2.new(1, -10, 0, 36)
     container.BackgroundTransparency = 1
-
     local lbl = Instance.new("TextLabel", container)
     lbl.Text = label .. ": " .. (currentPlayer and currentPlayer.Name or "None")
     lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
@@ -3318,7 +3147,6 @@ local function playerSelector(label, currentPlayer, callback)
     lbl.TextSize = 13
     lbl.TextColor3 = Color3.new(1,1,1)
     lbl.BackgroundTransparency = 1
-
     local selectBtn = Instance.new("TextButton", container)
     selectBtn.Position = UDim2.new(0.7, 5, 0.25, 0)
     selectBtn.Size = UDim2.new(0.3, -5, 0.5, 0)
@@ -3328,7 +3156,6 @@ local function playerSelector(label, currentPlayer, callback)
     selectBtn.TextColor3 = Color3.new(1,1,1)
     selectBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
     Instance.new("UICorner", selectBtn).CornerRadius = UDim.new(0,4)
-
     selectBtn.MouseButton1Click:Connect(function()
         print("=== КНОПКА ВЫБОРА ИГРОКА НАЖАТА ===")
         
@@ -3341,11 +3168,8 @@ local function playerSelector(label, currentPlayer, callback)
             callback(TeleportConfig.TargetPlayer)
         end
     end)
-
     return lbl, selectBtn
 end
-
-
 local function keyBindButton(name, currentKey, callback)
     local btn = Instance.new("TextButton", innerContainer)
     btn.Size = UDim2.new(1, -10, 0, 24)
@@ -3356,7 +3180,6 @@ local function keyBindButton(name, currentKey, callback)
     btn.TextSize = 13
     btn.AutoButtonColor = false
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
-
     btn.MouseButton1Click:Connect(function()
         btn.Text = name .. " Hotkey: [Press any key]"
         local conn
@@ -3369,63 +3192,45 @@ local function keyBindButton(name, currentKey, callback)
         end)
     end)
 end
-
-
 keyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
     Config.ESP.ToggleKey = newKey
 end)
-
 keyBindButton("Aimbot", Config.Aimbot.ToggleKey, function(newKey)
     Config.Aimbot.ToggleKey = newKey
 end)
-
 keyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
     FlyConfig.ToggleKey = newKey
 end)
-
 keyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
     NoClipConfig.ToggleKey = newKey
 end)
-
 keyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
     SpeedHackConfig.ToggleKey = newKey
 end)
-
 keyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
     TeleportConfig.ToggleKey = newKey
 end)
-
 keyBindButton("YBA Stand Range", YBAConfig.ToggleKey, function(newKey)
     YBAConfig.ToggleKey = newKey
 end)
-
 keyBindButton("YBA Item ESP", YBAConfig.ItemESP.ToggleKey, function(newKey)
     YBAConfig.ItemESP.ToggleKey = newKey
 end)
-
-
-
-
 sectionHeader("🔷ESP Settings")
 toggle("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
 toggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
 toggle("Show Outline", Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
 toggle("Show Lines", Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
 toggle("Rainbow Colors", Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
-
 colorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
 colorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
 colorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor = c end)
 slider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
 slider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
-
-
 local divider1 = Instance.new("Frame", innerContainer)
 divider1.Size = UDim2.new(1, -10, 0, 2)
 divider1.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider1.BorderSizePixel = 0
-
-
 sectionHeader("🔷Aimbot Settings")
 toggle("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
 toggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
@@ -3433,17 +3238,11 @@ toggle("Visibility Check", Config.Aimbot.VisibilityCheck, function(v) Config.Aim
 slider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
 toggle("FOV Rainbow", Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
 colorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
-
-
 local divider2 = Instance.new("Frame", innerContainer)
 divider2.Size = UDim2.new(1, -10, 0, 2)
 divider2.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider2.BorderSizePixel = 0
-
-
 local guiCallbacks = {}
-
-
 local function updateStatusDisplay()
     if guiCallbacks.fly then
         guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
@@ -3464,15 +3263,10 @@ local function updateStatusDisplay()
         guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
     end
 end
-
-
 RunService.Heartbeat:Connect(function()
     updateStatusDisplay()
 end)
-
-
 sectionHeader("🟨 Fly Settings")
-
 local flyToggleBtn = toggle("Fly", FlyConfig.Enabled, function(v)
     FlyConfig.Enabled = v
     if v then startFly() else stopFly() end
@@ -3482,26 +3276,17 @@ local flyToggleBtn = toggle("Fly", FlyConfig.Enabled, function(v)
     end
 end)
 guiCallbacks.fly = flyToggleBtn
-
 slider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
     FlyConfig.Speed = v
 end)
-
-
 speedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
     FlyConfig.Speed = v
 end)
-
-
 local divider3 = Instance.new("Frame", innerContainer)
 divider3.Size = UDim2.new(1, -10, 0, 2)
 divider3.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider3.BorderSizePixel = 0
-
-
 sectionHeader("🟪 NoClip Settings")
-
-
 local noClipStatusLabel = Instance.new("TextLabel", innerContainer)
 noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
 noClipStatusLabel.Text = "NoClip Status: OFF"
@@ -3510,8 +3295,6 @@ noClipStatusLabel.TextSize = 12
 noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
 noClipStatusLabel.BackgroundTransparency = 1
 noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-
 local forceNoClipBtn = Instance.new("TextButton", innerContainer)
 forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
 forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
@@ -3521,8 +3304,6 @@ forceNoClipBtn.TextColor3 = Color3.new(1,1,1)
 forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
 forceNoClipBtn.AutoButtonColor = false
 Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
-
-
 local function updateNoClipStatus()
     if isNoClipping then
         noClipStatusLabel.Text = "NoClip Status: ON"
@@ -3536,7 +3317,6 @@ local function updateNoClipStatus()
         forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
     end
 end
-
 forceNoClipBtn.MouseButton1Click:Connect(function()
     if isNoClipping then
         stopNoClip()
@@ -3552,13 +3332,9 @@ forceNoClipBtn.MouseButton1Click:Connect(function()
         updateNoClipStatus()
     end
 end)
-
-
 RunService.Heartbeat:Connect(function()
     updateNoClipStatus()
 end)
-
-
 local forceNoClipKeyBtn = Instance.new("TextButton", innerContainer)
 forceNoClipKeyBtn.Size = UDim2.new(1, -10, 0, 24)
 forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. (NoClipConfig.ForceToggleKey and tostring(NoClipConfig.ForceToggleKey.Name) or "None") .. "]"
@@ -3568,7 +3344,6 @@ forceNoClipKeyBtn.Font = Enum.Font.Gotham
 forceNoClipKeyBtn.TextSize = 13
 forceNoClipKeyBtn.AutoButtonColor = false
 Instance.new("UICorner", forceNoClipKeyBtn).CornerRadius = UDim.new(0,6)
-
 forceNoClipKeyBtn.MouseButton1Click:Connect(function()
     forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [Press any key]"
     local conn
@@ -3580,16 +3355,11 @@ forceNoClipKeyBtn.MouseButton1Click:Connect(function()
         end
     end)
 end)
-
-
 local divider4 = Instance.new("Frame", innerContainer)
 divider4.Size = UDim2.new(1, -10, 0, 2)
 divider4.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider4.BorderSizePixel = 0
-
-
 sectionHeader("🟦 SpeedHack Settings")
-
 local speedHackToggleBtn = toggle("SpeedHack", SpeedHackConfig.Enabled, function(v)
     SpeedHackConfig.Enabled = v
     if v then startSpeedHack() else stopSpeedHack() end
@@ -3599,7 +3369,6 @@ local speedHackToggleBtn = toggle("SpeedHack", SpeedHackConfig.Enabled, function
     end
 end)
 guiCallbacks.speedHack = speedHackToggleBtn
-
 toggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
     SpeedHackConfig.UseJumpPower = v
     
@@ -3608,7 +3377,6 @@ toggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
         startSpeedHack()
     end
 end)
-
 slider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
     SpeedHackConfig.Speed = v
     
@@ -3623,8 +3391,6 @@ slider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
         end
     end
 end)
-
-
 speedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
     SpeedHackConfig.Speed = v
     if SpeedHackConfig.Enabled then
@@ -3638,15 +3404,12 @@ speedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
         end
     end
 end)
-
 local divider5 = Instance.new("Frame", innerContainer)
 divider5.Position = UDim2.new(0, 5, 0, yOffset)
 divider5.Size = UDim2.new(1, -10, 0, 2)
 divider5.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider5.BorderSizePixel = 0
-
 sectionHeader("🦘 Jump Settings")
-
 local longJumpToggleBtn = toggle("Long Jump", LongJumpConfig.Enabled, function(v)
     LongJumpConfig.Enabled = v
     if v then startLongJump() else stopLongJump() end
@@ -3655,7 +3418,6 @@ local longJumpToggleBtn = toggle("Long Jump", LongJumpConfig.Enabled, function(v
     end
 end)
 guiCallbacks.longJump = longJumpToggleBtn
-
 slider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
     LongJumpConfig.JumpPower = v
     if LongJumpConfig.Enabled then
@@ -3666,7 +3428,6 @@ slider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
         end
     end
 end)
-
 local infiniteJumpToggleBtn = toggle("Infinite Jump", InfiniteJumpConfig.Enabled, function(v)
     InfiniteJumpConfig.Enabled = v
     if v then startInfiniteJump() else stopInfiniteJump() end
@@ -3675,19 +3436,13 @@ local infiniteJumpToggleBtn = toggle("Infinite Jump", InfiniteJumpConfig.Enabled
     end
 end)
 guiCallbacks.infiniteJump = infiniteJumpToggleBtn
-
 slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
     InfiniteJumpConfig.JumpPower = v
 end)
-
-
 sectionHeader("🟩 Teleport Settings")
-
-
 local teleportSpacer = Instance.new("Frame", innerContainer)
 teleportSpacer.Size = UDim2.new(1, -10, 0, 10)
 teleportSpacer.BackgroundTransparency = 1
-
 local selectedPlayerLabel = Instance.new("TextLabel", innerContainer)
 selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
 selectedPlayerLabel.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
@@ -3696,7 +3451,6 @@ selectedPlayerLabel.TextSize = 14
 selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
 selectedPlayerLabel.BackgroundTransparency = 1
 selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
-
 local startTeleportBtn = Instance.new("TextButton", innerContainer)
 startTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
 startTeleportBtn.Text = "START TELEPORT"
@@ -3706,7 +3460,6 @@ startTeleportBtn.TextColor3 = Color3.new(1,1,1)
 startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
 startTeleportBtn.AutoButtonColor = false
 Instance.new("UICorner", startTeleportBtn).CornerRadius = UDim.new(0,6)
-
 startTeleportBtn.MouseButton1Click:Connect(function()
     if not TeleportConfig.TargetPlayer then
         startTeleportBtn.Text = "Select player first!"
@@ -3727,7 +3480,6 @@ startTeleportBtn.MouseButton1Click:Connect(function()
         startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
     end
 end)
-
 local stopTeleportBtn = Instance.new("TextButton", innerContainer)
 stopTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
 stopTeleportBtn.Text = "STOP TELEPORT"
@@ -3737,7 +3489,6 @@ stopTeleportBtn.TextColor3 = Color3.new(1,1,1)
 stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
 stopTeleportBtn.AutoButtonColor = false
 Instance.new("UICorner", stopTeleportBtn).CornerRadius = UDim.new(0,6)
-
 stopTeleportBtn.MouseButton1Click:Connect(function()
     if TeleportConfig.Enabled then
         stopTeleport()
@@ -3753,10 +3504,7 @@ stopTeleportBtn.MouseButton1Click:Connect(function()
         stopTeleportBtn.Text = "STOP TELEPORT"
     end
 end)
-
 -- YBA Hacks Section (перемещен в конец)
-
-
 local function createPlayerListInMenu()
     local allPlayers = Players:GetPlayers()
     local alivePlayers = {}
@@ -3843,10 +3591,7 @@ local function createPlayerListInMenu()
     end
 end
 createPlayerListInMenu()
-
-
 guiCallbacks.teleport = selectedPlayerLabel
-
 local function updatePlayerList()
     local tempContainer = Instance.new("Frame")
     tempContainer.Name = "TempPlayerList"
@@ -3977,7 +3722,6 @@ local function updatePlayerList()
     
     tempContainer:Destroy()
 end
-
 local updatePlayersBtn = Instance.new("TextButton", innerContainer)
 updatePlayersBtn.Size = UDim2.new(1, -10, 0, 28)
 updatePlayersBtn.Text = "UPDATE PLAYER LIST"
@@ -3987,7 +3731,6 @@ updatePlayersBtn.TextColor3 = Color3.new(1,1,1)
 updatePlayersBtn.BackgroundColor3 = Color3.fromRGB(100,150,255)
 updatePlayersBtn.AutoButtonColor = false
 Instance.new("UICorner", updatePlayersBtn).CornerRadius = UDim.new(0,6)
-
 updatePlayersBtn.MouseButton1Click:Connect(function()
     updatePlayersBtn.Text = "UPDATING..."
     updatePlayerList()
@@ -4000,14 +3743,12 @@ updatePlayersBtn.MouseButton1Click:Connect(function()
         task.wait(5)
     end)
 end)
-
 task.spawn(function()
     while true do
         task.wait(30)
         updatePlayerList()
     end
 end)
-
 -- Инициализация Item ESP при запуске (отключена для безопасности)
 -- if YBAConfig.ItemESP.Enabled then
 --     task.spawn(function()
@@ -4015,10 +3756,8 @@ end)
 --         startItemESP()
 --     end)
 -- end
-
 -- YBA Hacks Section (в конце меню)
 sectionHeader("🟪 YBA Hacks")
-
 local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
     YBAConfig.Enabled = v
     if v then 
@@ -4031,10 +3770,8 @@ local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
     end
 end)
 guiCallbacks.yba = ybaToggleBtn
-
 -- Отключаем навигацию для кнопки YBA Stand Range
 ybaToggleBtn.AutoButtonColor = false
-
 -- Информация об управлении
 local controlsInfo = Instance.new("TextLabel", innerContainer)
 controlsInfo.Size = UDim2.new(1, -10, 0, 80)
@@ -4048,10 +3785,8 @@ controlsInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
 controlsInfo.TextXAlignment = Enum.TextXAlignment.Left
 controlsInfo.TextYAlignment = Enum.TextYAlignment.Top
 Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4)
-
 -- YBA Item ESP Controls
 sectionHeader("🎯 YBA Item ESP")
-
 -- Информация о новой системе Item ESP
 local itemESPInfo = Instance.new("TextLabel", innerContainer)
 itemESPInfo.Size = UDim2.new(1, -10, 0, 80)
@@ -4065,7 +3800,6 @@ itemESPInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
 itemESPInfo.TextXAlignment = Enum.TextXAlignment.Left
 itemESPInfo.TextYAlignment = Enum.TextYAlignment.Top
 Instance.new("UICorner", itemESPInfo).CornerRadius = UDim.new(0, 4)
-
 local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
     YBAConfig.ItemESP.Enabled = v
     if v then 
@@ -4078,23 +3812,7 @@ local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(
     end
 end)
 guiCallbacks.itemESP = itemESPToggleBtn
-
 -- Отключаем навигацию для кнопки Item ESP
 itemESPToggleBtn.AutoButtonColor = false
-
-
-
-
-
-
-
-
-
-
-
  
-
-
-
-
 
