@@ -95,12 +95,13 @@ local TeleportConfig = {
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
-    StandRange = 100000, -- Увеличена дистанция ударов стенда
+    StandRange = 10000000, -- Увеличена дистанция ударов стенда до 10 миллионов
+    StandSpeed = 1.0, -- Скорость движения стенда
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
     AutoFindStands = true,
-    MaxStandDistance = 10000, -- Увеличена дистанция захвата стенда
+    MaxStandDistance = 10000000, -- Увеличена дистанция захвата стенда до 10 миллионов
     CameraDistance = 15,
     CameraHeight = 5,
     StandControlSpeed = 1.0,
@@ -340,7 +341,7 @@ local YBAFreeCamera = {} do
         if move.Magnitude > 0 then
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
+            bv.Velocity = worldMove * (30 * YBAConfig.StandSpeed) -- Используем настраиваемую скорость стенда
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -1743,7 +1744,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= YBAConfig.StandRange then
                         foundCount = foundCount + 1
                         table.insert(stands, {
                             Model = obj,
@@ -1763,7 +1764,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= YBAConfig.StandRange then
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -3777,6 +3778,12 @@ end)
 guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
+
+-- Ползунок для скорости стенда
+slider("Stand Speed", 0.1, 5.0, YBAConfig.StandSpeed, function(v)
+    YBAConfig.StandSpeed = v
+    print("YBA Stand Speed установлен в:", v)
+end)
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
 itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
