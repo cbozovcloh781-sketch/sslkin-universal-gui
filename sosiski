@@ -112,6 +112,18 @@ local YBAConfig = {
     CameraFollowHeight = 6.1,
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
+    -- Анти тайм стоп функция
+    AntiTimeStop = {
+        Enabled = false,
+        ToggleKey = nil,
+        AutoActivate = true,
+        DetectionRange = 1000,
+        ActivationDelay = 0.1,
+        Duration = 5.0,
+        Cooldown = 10.0,
+        LastActivation = 0,
+        IsActive = false
+    },
     -- Item ESP Configuration
     ItemESP = {
         Enabled = false,
@@ -327,6 +339,56 @@ local YBAFreeCamera = {} do
             end
         else
             bv.Velocity = Vector3.new(0, 0, 0)
+        end
+
+        -- Обработка атак стенда
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            -- Находим ближайшего игрока для атаки
+            local nearestPlayer = nil
+            local nearestDistance = math.huge
+            
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= Players.LocalPlayer and player.Character then
+                    local playerRoot = player.Character:FindFirstChild("HumanoidRootPart")
+                    if playerRoot then
+                        local distance = (playerRoot.Position - standPosition).Magnitude
+                        if distance <= YBAConfig.StandRange and distance < nearestDistance then
+                            nearestPlayer = player
+                            nearestDistance = distance
+                        end
+                    end
+                end
+            end
+            
+            if nearestPlayer then
+                -- Выполняем атаку стенда
+                local playerRoot = nearestPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if playerRoot then
+                    -- Создаем эффект атаки
+                    local attackEffect = Instance.new("Part")
+                    attackEffect.Shape = Enum.PartType.Ball
+                    attackEffect.Size = Vector3.new(2, 2, 2)
+                    attackEffect.Position = standPosition
+                    attackEffect.Anchored = true
+                    attackEffect.CanCollide = false
+                    attackEffect.Material = Enum.Material.Neon
+                    attackEffect.Color = Color3.fromRGB(255, 0, 0)
+                    attackEffect.Parent = workspace
+                    
+                    -- Анимация атаки
+                    local tween = TweenService:Create(attackEffect, TweenInfo.new(0.3), {
+                        Position = playerRoot.Position,
+                        Size = Vector3.new(5, 5, 5)
+                    })
+                    tween:Play()
+                    
+                    tween.Completed:Connect(function()
+                        attackEffect:Destroy()
+                    end)
+                    
+                    print("YBA: Атака стенда выполнена на дистанции " .. math.floor(nearestDistance) .. " studs")
+                end
+            end
         end
 
         local pan = input.MouseDelta * math.rad(0.8) -- Уменьшена чувствительность для плавности
@@ -1423,6 +1485,87 @@ local function unfreezePlayer()
     end
 end
 
+-- Функции для анти тайм стоп
+local function startAntiTimeStop()
+    if YBAConfig.AntiTimeStop.IsActive then return end
+    
+    local currentTime = tick()
+    if currentTime - YBAConfig.AntiTimeStop.LastActivation < YBAConfig.AntiTimeStop.Cooldown then
+        print("YBA: Анти тайм стоп на кулдауне")
+        return
+    end
+    
+    YBAConfig.AntiTimeStop.IsActive = true
+    YBAConfig.AntiTimeStop.LastActivation = currentTime
+    
+    print("YBA: Анти тайм стоп активирован!")
+    
+    -- Создаем эффект анти тайм стоп
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            -- Увеличиваем скорость для "прорыва" тайм стопа
+            humanoid.WalkSpeed = humanoid.WalkSpeed * 2
+            humanoid.JumpPower = humanoid.JumpPower * 1.5
+        end
+    end
+    
+    -- Автоматически отключаем через Duration секунд
+    spawn(function()
+        wait(YBAConfig.AntiTimeStop.Duration)
+        stopAntiTimeStop()
+    end)
+end
+
+local function stopAntiTimeStop()
+    if not YBAConfig.AntiTimeStop.IsActive then return end
+    
+    YBAConfig.AntiTimeStop.IsActive = false
+    print("YBA: Анти тайм стоп деактивирован")
+    
+    -- Восстанавливаем нормальную скорость
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = originalYBAWalkSpeed
+            humanoid.JumpPower = originalYBAJumpPower
+        end
+    end
+end
+
+-- Функция для автоматического обнаружения тайм стопа
+local function detectTimeStop()
+    if not YBAConfig.AntiTimeStop.AutoActivate then return end
+    
+    local player = Players.LocalPlayer
+    if not player or not player.Character then return end
+    
+    local playerRoot = player.Character:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then return end
+    
+    -- Проверяем всех игроков в радиусе DetectionRange
+    for _, otherPlayer in pairs(Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character then
+            local otherRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if otherRoot then
+                local distance = (otherRoot.Position - playerRoot.Position).Magnitude
+                if distance <= YBAConfig.AntiTimeStop.DetectionRange then
+                    -- Проверяем, не заморожен ли игрок (признак тайм стопа)
+                    local humanoid = otherPlayer.Character:FindFirstChild("Humanoid")
+                    if humanoid and humanoid.WalkSpeed == 0 then
+                        print("YBA: Обнаружен тайм стоп! Активируем защиту...")
+                        wait(YBAConfig.AntiTimeStop.ActivationDelay)
+                        startAntiTimeStop()
+                        break
+                    end
+                end
+            end
+        end
+    end
+end
+
 local function activateFreeCamera(stand)
     if not stand or not stand.Root then 
         print("YBA: Ошибка - стенд или его Root не найден")
@@ -1682,11 +1825,30 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
+        elseif YBAConfig.AntiTimeStop.ToggleKey and input.KeyCode == YBAConfig.AntiTimeStop.ToggleKey then
+            if YBAConfig.AntiTimeStop.IsActive then
+                stopAntiTimeStop()
+            else
+                startAntiTimeStop()
+            end
+            
+            if guiCallbacks.antiTimeStop then
+                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (YBAConfig.AntiTimeStop.IsActive and "ON" or "OFF")
+            end
         -- Удален обработчик клавиши I для Item ESP
         end
     end
 end)
 
+-- Автоматическое обнаружение тайм стопа
+spawn(function()
+    while true do
+        if YBAConfig.AntiTimeStop.AutoActivate then
+            detectTimeStop()
+        end
+        wait(0.5) -- Проверяем каждые 0.5 секунды
+    end
+end)
 
 local ESPs, Lines = {}, {}
 local FOVCircle
@@ -3288,10 +3450,43 @@ guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
 
+-- Кнопка для анти тайм стоп
+local antiTimeStopToggleBtn = toggle("Anti Time Stop", YBAConfig.AntiTimeStop.IsActive, function(v)
+    if v then
+        startAntiTimeStop()
+    else
+        stopAntiTimeStop()
+    end
+    if guiCallbacks.antiTimeStop then
+        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (YBAConfig.AntiTimeStop.IsActive and "ON" or "OFF")
+    end
+end)
+guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
+
+antiTimeStopToggleBtn.AutoButtonColor = false
+
 -- Ползунок для скорости стенда
 slider("Stand Speed", 0.1, 5.0, YBAConfig.StandSpeed, function(v)
     YBAConfig.StandSpeed = v
     print("YBA Stand Speed установлен в:", v)
+end)
+
+-- Настройки анти тайм стоп
+sectionHeader("⏰ Anti Time Stop Settings")
+
+slider("Detection Range", 100, 2000, YBAConfig.AntiTimeStop.DetectionRange, function(v)
+    YBAConfig.AntiTimeStop.DetectionRange = v
+    print("Anti Time Stop Detection Range установлен в:", v)
+end)
+
+slider("Duration", 1.0, 10.0, YBAConfig.AntiTimeStop.Duration, function(v)
+    YBAConfig.AntiTimeStop.Duration = v
+    print("Anti Time Stop Duration установлен в:", v)
+end)
+
+slider("Cooldown", 5.0, 20.0, YBAConfig.AntiTimeStop.Cooldown, function(v)
+    YBAConfig.AntiTimeStop.Cooldown = v
+    print("Anti Time Stop Cooldown установлен в:", v)
 end)
 
 sectionHeader("🎯 YBA Item ESP")
