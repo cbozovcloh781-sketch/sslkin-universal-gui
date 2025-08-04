@@ -95,12 +95,12 @@ local TeleportConfig = {
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
-    StandRange = 100000, -- Увеличена дистанция ударов стенда
+    StandRange = 1000000, -- Увеличена дистанция ударов стенда до 1 миллиона
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
     AutoFindStands = true,
-    MaxStandDistance = 10000, -- Увеличена дистанция захвата стенда
+    MaxStandDistance = 1000000, -- Увеличена дистанция захвата стенда до 1 миллиона
     CameraDistance = 15,
     CameraHeight = 5,
     StandControlSpeed = 1.0,
@@ -1743,7 +1743,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.StandRange then
+                    if distance <= 20 then
                         foundCount = foundCount + 1
                         table.insert(stands, {
                             Model = obj,
@@ -1763,7 +1763,29 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.StandRange then
+                    if distance <= YBAConfig.MaxStandDistance then
+                        table.insert(stands, {
+                            Model = obj,
+                            Root = standRoot,
+                            Distance = distance,
+                            Name = obj.Name
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Если все еще нет стендов, ищем любой объект с Humanoid в радиусе MaxStandDistance
+    if #stands == 0 then
+        print("YBA: Расширенный поиск стендов...")
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
+                local standRoot = obj:FindFirstChild("HumanoidRootPart")
+                if standRoot then
+                    local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                    if distance <= YBAConfig.MaxStandDistance then
+                        print("YBA: Найден возможный стенд:", obj.Name, "на расстоянии", math.floor(distance), "м")
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1864,6 +1886,7 @@ local function activateFreeCamera(stand)
     end
     
     print("YBA: Активируем управление стендом: " .. stand.Name)
+    print("YBA: Расстояние до стенда:", math.floor(stand.Distance), "м")
 
     if YBAConfig.FreezePlayer then
         print("YBA: Замораживаем игрока...")
@@ -1872,6 +1895,28 @@ local function activateFreeCamera(stand)
 
     freeCameraActive = true
     freeCameraTarget = stand
+    controlledStand = stand
+
+    -- Принудительно устанавливаем стенд как контролируемый
+    if stand.Root then
+        -- Создаем BodyVelocity для принудительного управления
+        local bv = stand.Root:FindFirstChild("BodyVelocity")
+        if not bv then
+            bv = Instance.new("BodyVelocity", stand.Root)
+            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        end
+        
+        -- Создаем BodyGyro для стабилизации
+        local bg = stand.Root:FindFirstChild("BodyGyro")
+        if not bg then
+            bg = Instance.new("BodyGyro", stand.Root)
+            bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            bg.D = 1000
+            bg.P = 2000
+        end
+        
+        print("YBA: Физические компоненты стенда активированы")
+    end
 
     if YBAFreeCamera.Start(stand) then
         print("YBA: Управление стендом активировано от третьего лица")
@@ -1957,10 +2002,42 @@ local function startYBA()
     local stands = findStands()
     
     if #stands == 0 then
-        return
+        print("YBA: Стенды не найдены в стандартном поиске, пытаемся найти любой стенд...")
+        
+        -- Принудительный поиск любого стенда
+        local player = Players.LocalPlayer
+        local playerChar = player.Character
+        local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+        
+        if playerRoot then
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
+                    local standRoot = obj:FindFirstChild("HumanoidRootPart")
+                    if standRoot then
+                        local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                        print("YBA: Найден объект:", obj.Name, "на расстоянии", math.floor(distance), "м")
+                        
+                        -- Принудительно захватываем первый найденный стенд
+                        stands = {{
+                            Model = obj,
+                            Root = standRoot,
+                            Distance = distance,
+                            Name = obj.Name
+                        }}
+                        break
+                    end
+                end
+            end
+        end
+        
+        if #stands == 0 then
+            print("YBA: Не удалось найти стенды")
+            return
+        end
     end
     
     local targetStand = stands[1]
+    print("YBA: Выбран стенд:", targetStand.Name, "на расстоянии", math.floor(targetStand.Distance), "м")
     
     if YBAConfig.FreezePlayer then
         freezePlayer()
@@ -2063,6 +2140,11 @@ local function startYBA()
                 -- Отправляем атаку от имени стенда
                 local standRoot = controlledStand.Root
                 local standPosition = standRoot.Position
+                local playerRoot = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local playerPosition = playerRoot and playerRoot.Position or Vector3.new(0,0,0)
+                
+                local distance = (standPosition - playerPosition).Magnitude
+                print("YBA: Атака стенда на расстоянии", math.floor(distance), "м")
                 
                 -- Создаем RemoteEvent для отправки атаки от имени стенда
                 local attackEvent = game:GetService("ReplicatedStorage"):FindFirstChild("StandAttackEvent")
@@ -2072,17 +2154,21 @@ local function startYBA()
                     attackEvent.Parent = game:GetService("ReplicatedStorage")
                 end
                 
-                -- Отправляем данные атаки
+                -- Отправляем данные атаки с принудительным обходом ограничений
                 local attackData = {
                     AttackType = attackType,
                     StandPosition = standPosition,
                     StandName = controlledStand.Name,
-                    PlayerPosition = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and Players.LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new(0,0,0),
+                    PlayerPosition = playerPosition,
                     Timestamp = tick(),
-                    FromStand = true -- Указываем что атака идет от стенда
+                    FromStand = true, -- Указываем что атака идет от стенда
+                    ForceLongRange = true, -- Принудительно обходим ограничения
+                    Distance = distance,
+                    MaxRange = YBAConfig.StandRange
                 }
                 
                 attackEvent:FireServer(attackData)
+                print("YBA: Атака отправлена с принудительным обходом ограничений")
             end
         end
     end)
@@ -2117,59 +2203,33 @@ local function startYBA()
                 -- Вычисляем расстояние между стендом и игроком
                 local distance = (standPosition - playerPosition).Magnitude
                 
-                -- Если стенд находится дальше 50 метров, обманываем сервер
-                if distance > 50 then
-                    print("YBA: Стенд находится на расстоянии", math.floor(distance), "м. Обманываем сервер...")
-                    
-                    -- Временно перемещаем стенд ближе к игроку для атаки
-                    local originalStandPosition = standRoot.Position
-                    local fakePosition = playerPosition + (standPosition - playerPosition).Unit * 45 -- 45 метров от игрока
-                    
-                    -- Перемещаем стенд на фальшивую позицию
-                    standRoot.CFrame = CFrame.new(fakePosition)
-                    
-                    -- Отправляем атаку с фальшивой позиции
-                    if args[1] and type(args[1]) == "table" then
-                        args[1].StandPosition = fakePosition
-                        args[1].FromStand = true
-                        args[1].StandName = controlledStand.Name
-                        args[1].FakePosition = true
-                    elseif args[1] then
-                        local originalData = args[1]
-                        args[1] = {
-                            OriginalData = originalData,
-                            StandPosition = fakePosition,
-                            FromStand = true,
-                            StandName = controlledStand.Name,
-                            FakePosition = true
-                        }
-                    end
-                    
-                    -- Возвращаем стенд на оригинальную позицию после небольшой задержки
-                    spawn(function()
-                        task.wait(0.1)
-                        if standRoot and standRoot.Parent then
-                            standRoot.CFrame = CFrame.new(originalStandPosition)
-                        end
-                    end)
-                    
-                    print("YBA: Атака отправлена с фальшивой позиции для обхода ограничения")
-                else
-                    -- Если стенд в пределах 50 метров, отправляем нормально
-                    if args[1] and type(args[1]) == "table" then
-                        args[1].StandPosition = standPosition
-                        args[1].FromStand = true
-                        args[1].StandName = controlledStand.Name
-                    elseif args[1] then
-                        local originalData = args[1]
-                        args[1] = {
-                            OriginalData = originalData,
-                            StandPosition = standPosition,
-                            FromStand = true,
-                            StandName = controlledStand.Name
-                        }
-                    end
+                -- Принудительно обходим все ограничения расстояния
+                print("YBA: Стенд находится на расстоянии", math.floor(distance), "м. Принудительно обходим ограничения...")
+                
+                -- Добавляем флаги для обхода ограничений
+                if args[1] and type(args[1]) == "table" then
+                    args[1].StandPosition = standPosition
+                    args[1].FromStand = true
+                    args[1].StandName = controlledStand.Name
+                    args[1].ForceLongRange = true
+                    args[1].Distance = distance
+                    args[1].MaxRange = YBAConfig.StandRange
+                    args[1].BypassDistanceLimit = true
+                elseif args[1] then
+                    local originalData = args[1]
+                    args[1] = {
+                        OriginalData = originalData,
+                        StandPosition = standPosition,
+                        FromStand = true,
+                        StandName = controlledStand.Name,
+                        ForceLongRange = true,
+                        Distance = distance,
+                        MaxRange = YBAConfig.StandRange,
+                        BypassDistanceLimit = true
+                    }
                 end
+                
+                print("YBA: Атака отправлена с принудительным обходом всех ограничений")
                 
                 print("YBA: Атака перенаправлена через стенд:", controlledStand.Name)
             end
