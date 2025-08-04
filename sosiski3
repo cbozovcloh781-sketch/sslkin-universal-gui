@@ -116,19 +116,31 @@ local YBAConfig = {
         Enabled = false,
         ToggleKey = Enum.KeyCode.I, -- Клавиша I по умолчанию для активации Item ESP
         MaxDistance = 1000, -- Дистанция для поиска предметов
+        MaxRenderDistance = 5000, -- Максимальная дистанция рендеринга ESP
+        UpdateInterval = 0.3, -- Интервал обновления в секундах
+        
+        -- Настройки отображения
         ShowOutline = true,
         ShowText = true,
-        FillColor = Color3.fromRGB(255, 215, 0), -- Золотой цвет для предметов
-        OutlineColor = Color3.fromRGB(255, 255, 0),
-        TextColor = Color3.fromRGB(255, 255, 255),
-        FillTransparency = 0.3, -- Уменьшена прозрачность для лучшей видимости
-        OutlineTransparency = 0.1,
-        TextSize = 14, -- Увеличен размер текста
+        ShowFill = true,
+        
+        -- Цвета
+        FillColor = Color3.fromRGB(255, 215, 0), -- Цвет заполнения предмета
+        OutlineColor = Color3.fromRGB(255, 255, 0), -- Цвет обводки предмета
+        TextColor = Color3.fromRGB(255, 255, 255), -- Цвет текста
+        TextBackgroundColor = Color3.fromRGB(0, 0, 0), -- Цвет фона текста
+        
+        -- Прозрачность
+        FillTransparency = 0.3, -- Прозрачность заполнения
+        OutlineTransparency = 0.1, -- Прозрачность обводки
+        TextBackgroundTransparency = 0.3, -- Прозрачность фона текста
+        
+        -- Размеры текста
+        TextSize = 10, -- Размер основного текста
+        DistanceTextSize = 9, -- Размер текста расстояния
+        
+        -- Шрифт
         Font = Enum.Font.GothamBold,
-        UpdateInterval = 0.3, -- Интервал обновления в секундах
-        ShowThroughWalls = true, -- Показывать предметы через стены
-        CheckItemExists = true, -- Проверять существование предметов
-        MaxRenderDistance = 5000, -- Максимальная дистанция рендеринга ESP
     }
 }
 
@@ -2681,15 +2693,15 @@ local function createItemESP(item)
     local itemColor = getItemColor(item.Name)
     
     -- Создаем Highlight с улучшенными настройками
-    if YBAConfig.ItemESP.ShowOutline then
+    if YBAConfig.ItemESP.ShowOutline or YBAConfig.ItemESP.ShowFill then
         local success, highlight = pcall(function()
             local hl = Instance.new("Highlight")
             hl.Adornee = item.Object
-            hl.DepthMode = YBAConfig.ItemESP.ShowThroughWalls and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
-            hl.FillColor = itemColor
-            hl.FillTransparency = YBAConfig.ItemESP.FillTransparency
-            hl.OutlineColor = YBAConfig.ItemESP.OutlineColor
-            hl.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
+            hl.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
+            hl.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
+            hl.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
             hl.Parent = item.Object
             
             -- Добавляем пульсацию для привлечения внимания
@@ -2732,8 +2744,8 @@ local function createItemESP(item)
             local background = Instance.new("Frame", bg)
             background.Size = UDim2.new(1, 0, 1, 0)
             background.Position = UDim2.new(0, 0, 0, 0)
-            background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-            background.BackgroundTransparency = 0.3
+            background.BackgroundColor3 = YBAConfig.ItemESP.TextBackgroundColor
+            background.BackgroundTransparency = YBAConfig.ItemESP.TextBackgroundTransparency
             background.BorderSizePixel = 0
             background.ZIndex = 1
             
@@ -2757,8 +2769,8 @@ local function createItemESP(item)
             tl.Position = UDim2.new(0, 5, 0, 5)
             tl.BackgroundTransparency = 1
             tl.Font = YBAConfig.ItemESP.Font
-            tl.TextSize = YBAConfig.ItemESP.TextSize + 2
-            tl.TextColor3 = Color3.fromRGB(255, 255, 255)
+            tl.TextSize = YBAConfig.ItemESP.TextSize
+            tl.TextColor3 = YBAConfig.ItemESP.TextColor
             tl.TextXAlignment = Enum.TextXAlignment.Center
             tl.TextYAlignment = Enum.TextYAlignment.Center
             tl.Text = string.format("🎯 %s", item.Name)
@@ -2770,8 +2782,8 @@ local function createItemESP(item)
             distanceLabel.Position = UDim2.new(0, 5, 0.6, 0)
             distanceLabel.BackgroundTransparency = 1
             distanceLabel.Font = Enum.Font.Gotham
-            distanceLabel.TextSize = YBAConfig.ItemESP.TextSize - 2
-            distanceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            distanceLabel.TextSize = YBAConfig.ItemESP.DistanceTextSize
+            distanceLabel.TextColor3 = YBAConfig.ItemESP.TextColor
             distanceLabel.TextXAlignment = Enum.TextXAlignment.Center
             distanceLabel.TextYAlignment = Enum.TextYAlignment.Center
             distanceLabel.Text = string.format("📏 %dm | 📁 %s", math.floor(item.Distance), item.Folder or "Unknown")
@@ -2807,8 +2819,8 @@ local function updateItemESP(item)
     local esp = itemESPElements[item.Object]
     if not esp then return end
     
-    -- Проверяем существование предмета
-    if YBAConfig.ItemESP.CheckItemExists then
+    -- Проверяем существование предмета (всегда включено)
+    if true then
         if not item.Object or not item.Object.Parent then
             print("YBA Item ESP: Предмет больше не существует, удаляем ESP:", item.Name)
             removeItemESP(item)
@@ -2869,10 +2881,10 @@ local function updateItemESP(item)
     -- Обновляем цвета Highlight
     if esp.highlight and esp.highlight.Parent then
         pcall(function()
-            esp.highlight.FillColor = itemColor
-            esp.highlight.OutlineColor = YBAConfig.ItemESP.OutlineColor
-            esp.highlight.FillTransparency = YBAConfig.ItemESP.FillTransparency
-            esp.highlight.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
+            esp.highlight.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
+            esp.highlight.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
+            esp.highlight.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
+            esp.highlight.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
         end)
     end
     
@@ -4078,18 +4090,38 @@ guiCallbacks.itemESP = itemESPToggleBtn
 itemESPToggleBtn.AutoButtonColor = false
 
 -- Настройки Item ESP
-toggle("Show Outline", YBAConfig.ItemESP.ShowOutline, function(v) 
-    YBAConfig.ItemESP.ShowOutline = v 
+-- Настройки отображения
+toggle("Show Fill", YBAConfig.ItemESP.ShowFill, function(v)
+    YBAConfig.ItemESP.ShowFill = v
+end)
+
+toggle("Show Outline", YBAConfig.ItemESP.ShowOutline, function(v)
+    YBAConfig.ItemESP.ShowOutline = v
 end)
 
 toggle("Show Text", YBAConfig.ItemESP.ShowText, function(v) 
     YBAConfig.ItemESP.ShowText = v 
 end)
 
+-- Настройки дистанции
 slider("Max Distance", 100, 1000, YBAConfig.ItemESP.MaxDistance, function(v)
     YBAConfig.ItemESP.MaxDistance = v
 end)
 
+slider("Max Render Distance", 1000, 10000, YBAConfig.ItemESP.MaxRenderDistance, function(v)
+    YBAConfig.ItemESP.MaxRenderDistance = v
+end)
+
+-- Настройки размеров текста
+slider("Text Size", 6, 14, YBAConfig.ItemESP.TextSize, function(v)
+    YBAConfig.ItemESP.TextSize = v
+end)
+
+slider("Distance Text Size", 5, 12, YBAConfig.ItemESP.DistanceTextSize, function(v)
+    YBAConfig.ItemESP.DistanceTextSize = v
+end)
+
+-- Настройки прозрачности
 slider("Fill Transparency", 0, 1, YBAConfig.ItemESP.FillTransparency, function(v)
     YBAConfig.ItemESP.FillTransparency = v
 end)
@@ -4098,10 +4130,11 @@ slider("Outline Transparency", 0, 1, YBAConfig.ItemESP.OutlineTransparency, func
     YBAConfig.ItemESP.OutlineTransparency = v
 end)
 
-slider("Text Size", 8, 16, YBAConfig.ItemESP.TextSize, function(v)
-    YBAConfig.ItemESP.TextSize = v
+slider("Text Background Transparency", 0, 1, YBAConfig.ItemESP.TextBackgroundTransparency, function(v)
+    YBAConfig.ItemESP.TextBackgroundTransparency = v
 end)
 
+-- Настройки цветов
 colorPicker("Fill Color", YBAConfig.ItemESP.FillColor, function(c)
     YBAConfig.ItemESP.FillColor = c
 end)
@@ -4114,92 +4147,21 @@ colorPicker("Text Color", YBAConfig.ItemESP.TextColor, function(c)
     YBAConfig.ItemESP.TextColor = c
 end)
 
--- Новые настройки для улучшенного ESP
-toggle("Show Through Walls", YBAConfig.ItemESP.ShowThroughWalls, function(v)
-    YBAConfig.ItemESP.ShowThroughWalls = v
-end)
-
-toggle("Check Item Exists", YBAConfig.ItemESP.CheckItemExists, function(v)
-    YBAConfig.ItemESP.CheckItemExists = v
-end)
-
-slider("Max Render Distance", 1000, 10000, YBAConfig.ItemESP.MaxRenderDistance, function(v)
-    YBAConfig.ItemESP.MaxRenderDistance = v
-end)
-
--- Кнопка для принудительного отключения Item ESP
-local forceDisableItemESPBtn = Instance.new("TextButton", innerContainer)
-forceDisableItemESPBtn.Size = UDim2.new(1, -10, 0, 28)
-forceDisableItemESPBtn.Text = "FORCE DISABLE ITEM ESP"
-forceDisableItemESPBtn.Font = Enum.Font.GothamBold
-forceDisableItemESPBtn.TextSize = 12
-forceDisableItemESPBtn.TextColor3 = Color3.new(1,1,1)
-forceDisableItemESPBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-forceDisableItemESPBtn.AutoButtonColor = false
-Instance.new("UICorner", forceDisableItemESPBtn).CornerRadius = UDim.new(0,6)
-
-forceDisableItemESPBtn.MouseButton1Click:Connect(function()
-    YBAConfig.ItemESP.Enabled = false
-    stopItemESP()
-    if guiCallbacks.itemESP then
-        guiCallbacks.itemESP.Text = "Item ESP: OFF"
-    end
-    print("YBA: Item ESP принудительно отключен!")
+colorPicker("Text Background Color", YBAConfig.ItemESP.TextBackgroundColor, function(c)
+    YBAConfig.ItemESP.TextBackgroundColor = c
 end)
 
 
 
 
 
--- Кнопка для очистки всех ESP элементов
-local clearAllESPBtn = Instance.new("TextButton", innerContainer)
-clearAllESPBtn.Size = UDim2.new(1, -10, 0, 28)
-clearAllESPBtn.Text = "🧹 CLEAR ALL ITEM ESP"
-clearAllESPBtn.Font = Enum.Font.GothamBold
-clearAllESPBtn.TextSize = 12
-clearAllESPBtn.TextColor3 = Color3.new(1,1,1)
-clearAllESPBtn.BackgroundColor3 = Color3.fromRGB(255,150,100)
-clearAllESPBtn.AutoButtonColor = false
-Instance.new("UICorner", clearAllESPBtn).CornerRadius = UDim.new(0,6)
 
-clearAllESPBtn.MouseButton1Click:Connect(function()
-    print("YBA Item ESP: Очищаем все ESP элементы...")
-    local clearedCount = 0
-    for obj, esp in pairs(itemESPElements) do
-        pcall(removeItemESP, {Object = obj})
-        clearedCount = clearedCount + 1
-    end
-    print("YBA Item ESP: Очищено ESP элементов:", clearedCount)
-end)
+
+
 
  
 
--- Кнопка для настройки клавиши Item ESP
-local keyBindItemESPBtn = Instance.new("TextButton", innerContainer)
-keyBindItemESPBtn.Size = UDim2.new(1, -10, 0, 28)
-keyBindItemESPBtn.Text = "⌨️ SET ITEM ESP KEY (Current: " .. (YBAConfig.ItemESP.ToggleKey and YBAConfig.ItemESP.ToggleKey.Name or "None") .. ")"
-keyBindItemESPBtn.Font = Enum.Font.GothamBold
-keyBindItemESPBtn.TextSize = 12
-keyBindItemESPBtn.TextColor3 = Color3.new(1,1,1)
-keyBindItemESPBtn.BackgroundColor3 = Color3.fromRGB(150,100,255)
-keyBindItemESPBtn.AutoButtonColor = false
-Instance.new("UICorner", keyBindItemESPBtn).CornerRadius = UDim.new(0,6)
 
-keyBindItemESPBtn.MouseButton1Click:Connect(function()
-    keyBindItemESPBtn.Text = "⌨️ PRESS ANY KEY..."
-    keyBindItemESPBtn.BackgroundColor3 = Color3.fromRGB(255,255,100)
-    
-    local connection
-    connection = UserInputService.InputBegan:Connect(function(input)
-        if input.KeyCode ~= Enum.KeyCode.Unknown then
-            YBAConfig.ItemESP.ToggleKey = input.KeyCode
-            keyBindItemESPBtn.Text = "⌨️ SET ITEM ESP KEY (Current: " .. input.KeyCode.Name .. ")"
-            keyBindItemESPBtn.BackgroundColor3 = Color3.fromRGB(150,100,255)
-            connection:Disconnect()
-            print("YBA Item ESP: Клавиша установлена:", input.KeyCode.Name)
-        end
-    end)
-end)
 
 
 
