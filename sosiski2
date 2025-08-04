@@ -1994,8 +1994,11 @@ local function startYBA()
     end
     
     -- Автоматически запускаем подземный полет при включении Stand Range
+    print("Запускаем подземный полет...")
     if startUndergroundControl then
         startUndergroundControl()
+    else
+        print("ОШИБКА: Функция startUndergroundControl не найдена!")
     end
 end
 
@@ -2028,7 +2031,12 @@ end
 
 -- Функция для запуска управления персонажем под стендом (летающий режим)
 local function startUndergroundControl()
-    if isUndergroundControlEnabled then return end
+    print("=== ЗАПУСК ПОДЗЕМНОГО ПОЛЕТА ===")
+    
+    if isUndergroundControlEnabled then 
+        print("Подземный полет уже активен!")
+        return 
+    end
     
     local plr = Players.LocalPlayer
     local char = plr.Character
@@ -2039,6 +2047,8 @@ local function startUndergroundControl()
         print("Персонаж не найден!")
         return 
     end
+    
+    print("Персонаж найден, позиция:", root.Position)
     
     -- Находим стенды
     if not findStands then
@@ -2085,22 +2095,33 @@ local function startUndergroundControl()
     local standPos = controlledStandForUnderground.Position
     local undergroundPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z) -- Фиксированное расстояние 30 метров
     
+    print("Стенд позиция:", standPos)
+    print("Целевая подземная позиция:", undergroundPos)
+    print("Текущая позиция персонажа:", root.Position)
+    
     -- Создаем BodyVelocity для быстрого перемещения под землю
     local initialBv = Instance.new("BodyVelocity", root)
     initialBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    initialBv.Velocity = (undergroundPos - root.Position).Unit * 200 -- Высокая скорость для быстрого перемещения
+    local direction = (undergroundPos - root.Position).Unit
+    local speed = 200
+    initialBv.Velocity = direction * speed
+    
+    print("Создан BodyVelocity со скоростью:", initialBv.Velocity)
     
     -- Удаляем начальный BodyVelocity через 1 секунду
     task.spawn(function()
         task.wait(1)
         if initialBv and initialBv.Parent then
             initialBv:Destroy()
+            print("Начальный BodyVelocity удален")
         end
     end)
     
     -- Основной цикл полета под землей за стендом
+    print("Запускаем основной цикл подземного полета...")
     local undergroundFlyLoop = RunService.RenderStepped:Connect(function()
         if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
+            print("Подземный полет остановлен - стенд не найден или функция отключена")
             -- Восстанавливаем настройки персонажа
             if hum then
                 hum.JumpPower = flyOriginalJumpPower
