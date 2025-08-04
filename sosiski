@@ -2126,15 +2126,33 @@ UserInputService.InputBegan:Connect(function(input, gp)
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
-            AntiTimeStopConfig.Enabled = not AntiTimeStopConfig.Enabled
-            if AntiTimeStopConfig.Enabled then 
-                startAntiTimeStop() 
-            else 
-                stopAntiTimeStop() 
-            end
-            
-            if guiCallbacks.antiTimeStop then
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (AntiTimeStopConfig.Enabled and "ON" or "OFF")
+            -- Временная активация Anti Time Stop
+            if not isAntiTimeStopEnabled then
+                -- Включаем Anti Time Stop
+                AntiTimeStopConfig.Enabled = true
+                startAntiTimeStop()
+                
+                if guiCallbacks.antiTimeStop then
+                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
+                end
+                
+                -- Ждем 0.5 секунды и выключаем
+                task.wait(0.5)
+                
+                -- Выключаем Anti Time Stop
+                AntiTimeStopConfig.Enabled = false
+                stopAntiTimeStop()
+                
+                if guiCallbacks.antiTimeStop then
+                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+                end
+            else
+                -- Если уже активно, показываем сообщение
+                if guiCallbacks.antiTimeStop then
+                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
+                    task.wait(1)
+                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+                end
             end
         -- Удален обработчик клавиши I для Item ESP
         end
@@ -3522,7 +3540,11 @@ local function updateStatusDisplay()
         guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
     end
     if guiCallbacks.antiTimeStop then
-        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (AntiTimeStopConfig.Enabled and "ON" or "OFF")
+        if isAntiTimeStopEnabled then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVE"
+        else
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+        end
     end
 end
 
@@ -3826,19 +3848,41 @@ divider7.BorderSizePixel = 0
 
 sectionHeader("⏰ Anti Time Stop")
 
-local antiTimeStopToggleBtn = toggle("Anti Time Stop", AntiTimeStopConfig.Enabled, function(v)
-    AntiTimeStopConfig.Enabled = v
-    if v then startAntiTimeStop() else stopAntiTimeStop() end
-    
-    if guiCallbacks.antiTimeStop then
-        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (v and "ON" or "OFF")
+local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
+    -- Игнорируем значение v, так как теперь это временная активация
+    if not isAntiTimeStopEnabled then
+        -- Включаем Anti Time Stop
+        AntiTimeStopConfig.Enabled = true
+        startAntiTimeStop()
+        
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
+        end
+        
+        -- Ждем 0.5 секунды и выключаем
+        task.wait(0.5)
+        
+        -- Выключаем Anti Time Stop
+        AntiTimeStopConfig.Enabled = false
+        stopAntiTimeStop()
+        
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+        end
+    else
+        -- Если уже активно, показываем сообщение
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
+            task.wait(1)
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+        end
     end
 end)
 guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
 
 local antiTimeStopKeyBtn = Instance.new("TextButton", innerContainer)
 antiTimeStopKeyBtn.Size = UDim2.new(1, -10, 0, 24)
-antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [" .. (AntiTimeStopConfig.ToggleKey and tostring(AntiTimeStopConfig.ToggleKey.Name) or "None") .. "]"
+antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey (0.5s): [" .. (AntiTimeStopConfig.ToggleKey and tostring(AntiTimeStopConfig.ToggleKey.Name) or "None") .. "]"
 antiTimeStopKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
 antiTimeStopKeyBtn.TextColor3 = Color3.new(1,1,1)
 antiTimeStopKeyBtn.Font = Enum.Font.Gotham
@@ -3847,13 +3891,13 @@ antiTimeStopKeyBtn.AutoButtonColor = false
 Instance.new("UICorner", antiTimeStopKeyBtn).CornerRadius = UDim.new(0,6)
 
 antiTimeStopKeyBtn.MouseButton1Click:Connect(function()
-    antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [Press any key]"
+    antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey (0.5s): [Press any key]"
     local conn
     conn = UserInputService.InputBegan:Connect(function(input, gp)
         if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
             conn:Disconnect()
             AntiTimeStopConfig.ToggleKey = input.KeyCode
-            antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+            antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey (0.5s): [" .. tostring(input.KeyCode.Name) .. "]"
         end
     end)
 end)
