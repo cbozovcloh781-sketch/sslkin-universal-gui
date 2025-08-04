@@ -80,7 +80,7 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil,
     UseStealthMode = true,
-    TeleportSpeed = 1200,
+    TeleportSpeed = 2000,
     ReturnSpeed = 2000,
     BehindPlayerDistance = 3.0,
     StabilizationTime = 0.5,
@@ -1392,7 +1392,11 @@ local function createStealthTeleport()
                     -- Более частое обновление для движущихся целей
         if lastTeleportPosition then
             local targetMovement = (targetPos - lastTeleportPosition).Magnitude
-            if targetMovement > 3 then
+            local targetSpeed = currentTargetRoot.Velocity.Magnitude
+            
+            if targetSpeed > 80 then
+                task.wait(0.01) -- Минимальная задержка для очень быстрых целей
+            elseif targetMovement > 3 then
                 task.wait(0.02) -- Уменьшаем задержку для быстрых целей
             end
         end
@@ -1423,35 +1427,48 @@ local function createStealthTeleport()
             local targetLookVector = targetCFrame.LookVector
             bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetLookVector)
             
-            -- Улучшенная логика следования за движущейся целью
+            -- Агрессивная логика следования за движущейся целью
             local targetVelocity = currentTargetRoot.Velocity
             local targetSpeed = targetVelocity.Magnitude
             
-            -- Предсказание позиции цели с учетом её скорости
-            local predictionTime = 0.1 -- Время предсказания
+            -- Увеличенное предсказание для быстрых целей
+            local predictionTime = targetSpeed > 50 and 0.2 or 0.1
             local predictedPosition = behindPosition.Position + (targetVelocity * predictionTime)
             local predictedDistance = (predictedPosition - currentPos).Magnitude
             
-            -- Адаптивная скорость в зависимости от скорости цели
+            -- Максимальная скорость для быстрых целей
             local adaptiveSpeed = TeleportConfig.TeleportSpeed
-            if targetSpeed > 80 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0 -- Максимальная скорость для очень быстрых целей
+            if targetSpeed > 100 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 3.0 -- Очень быстрые цели
+            elseif targetSpeed > 80 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.5
             elseif targetSpeed > 50 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.5 -- Увеличиваем скорость для быстрых целей
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0
             elseif targetSpeed > 20 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.2
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.5
             end
             
-            if predictedDistance > 1.5 then
+            -- Мгновенное позиционирование для очень быстрых целей
+            if targetSpeed > 80 and predictedDistance > 5 then
+                -- Прямое телепортирование к цели
+                root.CFrame = CFrame.new(predictedPosition, predictedPosition + targetLookVector)
+                bv.Velocity = Vector3.new(0, 0, 0)
+            elseif targetSpeed > 100 and predictedDistance > 3 then
+                -- Мгновенное телепортирование для сверхбыстрых целей
+                root.CFrame = CFrame.new(predictedPosition, predictedPosition + targetLookVector)
+                bv.Velocity = Vector3.new(0, 0, 0)
+            elseif predictedDistance > 1.0 then
                 -- Быстрое движение к предсказанной позиции
                 local direction = (predictedPosition - currentPos).Unit
                 local currentVelocity = bv.Velocity
                 local targetVelocity = direction * adaptiveSpeed
                 
-                -- Более агрессивное ускорение для быстрых целей
-                local accelerationFactor = 0.15
-                if targetSpeed > 80 then
-                    accelerationFactor = 0.5 -- Максимальное ускорение для очень быстрых целей
+                -- Максимальное ускорение для быстрых целей
+                local accelerationFactor = 0.2
+                if targetSpeed > 100 then
+                    accelerationFactor = 0.8 -- Почти мгновенное ускорение
+                elseif targetSpeed > 80 then
+                    accelerationFactor = 0.6
                 elseif targetSpeed > 50 then
                     accelerationFactor = 0.4
                 elseif targetSpeed > 30 then
@@ -1464,17 +1481,17 @@ local function createStealthTeleport()
             else
                 -- Точное следование за целью
                 local direction = (predictedPosition - currentPos).Unit
-                local correctionSpeed = math.min(predictedDistance * 15, 30)
+                local correctionSpeed = math.min(predictedDistance * 25, 50)
                 
                 -- Увеличиваем скорость коррекции для движущихся целей
                 if targetSpeed > 10 then
-                    correctionSpeed = correctionSpeed * 1.5
+                    correctionSpeed = correctionSpeed * 2.0
                 end
                 
                 bv.Velocity = direction * correctionSpeed
                 
                 -- Останавливаемся только если очень близко и цель не движется быстро
-                if predictedDistance < 0.3 and targetSpeed < 5 then
+                if predictedDistance < 0.2 and targetSpeed < 5 then
                     bv.Velocity = Vector3.new(0, 0, 0)
                 end
             end
