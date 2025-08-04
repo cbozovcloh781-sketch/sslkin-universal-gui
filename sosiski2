@@ -111,6 +111,16 @@ local YBAConfig = {
     CameraFollowHeight = 6.1,
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
+    -- Новая функция для управления персонажем под стендом
+    UndergroundControl = {
+        Enabled = false,
+        ToggleKey = nil,
+        UndergroundDistance = 30, -- Расстояние под землей в метрах
+        FollowSpeed = 50, -- Скорость следования за стендом
+        AutoNoClip = true, -- Автоматически включать NoClip
+        ReturnToOriginal = true, -- Возвращаться в исходную позицию при выключении
+        OriginalPosition = nil, -- Исходная позиция персонажа
+    },
     -- Item ESP Configuration
     ItemESP = {
         Enabled = false,
@@ -198,6 +208,13 @@ local originalJumpPower = 50
 local isLongJumping = false
 local longJumpConnections = {}
 local originalLongJumpPower = 50
+
+-- Переменные для управления персонажем под стендом
+local isUndergroundControlEnabled = false
+local undergroundControlConnections = {}
+local controlledStandForUnderground = nil
+local undergroundBodyVelocity = nil
+local undergroundBodyGyro = nil
 
 local isInfiniteJumping = false
 local infiniteJumpConnections = {}
@@ -1992,6 +2009,132 @@ local function stopYBA()
     controlledStand = nil
 end
 
+-- Функция для запуска управления персонажем под стендом
+local function startUndergroundControl()
+    if isUndergroundControlEnabled then return end
+    
+    local char = Players.LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then 
+        print("Персонаж не найден!")
+        return 
+    end
+    
+    -- Находим стенды
+    local stands = findStands()
+    if #stands == 0 then
+        print("Стенды не найдены! Убедитесь, что у вас есть стенд.")
+        return
+    end
+    
+    controlledStandForUnderground = stands[1]
+    isUndergroundControlEnabled = true
+    YBAConfig.UndergroundControl.Enabled = true
+    
+    -- Сохраняем исходную позицию
+    if not YBAConfig.UndergroundControl.OriginalPosition then
+        YBAConfig.UndergroundControl.OriginalPosition = root.Position
+    end
+    
+    -- Включаем NoClip если нужно
+    if YBAConfig.UndergroundControl.AutoNoClip and not isNoClipping then
+        startNoClip()
+    end
+    
+    -- Создаем BodyVelocity для управления персонажем
+    undergroundBodyVelocity = Instance.new("BodyVelocity", root)
+    undergroundBodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    undergroundBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    
+    -- Создаем BodyGyro для стабилизации
+    undergroundBodyGyro = Instance.new("BodyGyro", root)
+    undergroundBodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    undergroundBodyGyro.D = 1000
+    undergroundBodyGyro.P = 2000
+    
+    -- Основной цикл управления персонажем под стендом
+    local undergroundLoop = RunService.Heartbeat:Connect(function()
+        if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
+            return
+        end
+        
+        local char = Players.LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then 
+            -- Если персонаж умер, отключаем функцию
+            if isUndergroundControlEnabled then
+                stopUndergroundControl()
+            end
+            return 
+        end
+        
+        local standPos = controlledStandForUnderground.Position
+        local targetPos = Vector3.new(standPos.X, standPos.Y - YBAConfig.UndergroundControl.UndergroundDistance, standPos.Z)
+        
+        -- Вычисляем направление движения
+        local direction = (targetPos - root.Position).Unit
+        local distance = (targetPos - root.Position).Magnitude
+        
+        if distance > 2 then
+            -- Двигаем персонажа к цели
+            undergroundBodyVelocity.Velocity = direction * YBAConfig.UndergroundControl.FollowSpeed
+        else
+            -- Останавливаем движение когда достигли цели
+            undergroundBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+        
+        -- Стабилизируем поворот персонажа
+        undergroundBodyGyro.CFrame = CFrame.new(root.Position, targetPos)
+    end)
+    
+    table.insert(undergroundControlConnections, undergroundLoop)
+    
+    print("Управление персонажем под стендом активировано!")
+    print("Персонаж будет следовать за стендом на расстоянии " .. YBAConfig.UndergroundControl.UndergroundDistance .. " метров под землей")
+end
+
+-- Функция для остановки управления персонажем под стендом
+local function stopUndergroundControl()
+    if not isUndergroundControlEnabled then return end
+    
+    isUndergroundControlEnabled = false
+    YBAConfig.UndergroundControl.Enabled = false
+    
+    -- Удаляем BodyVelocity и BodyGyro
+    if undergroundBodyVelocity then
+        undergroundBodyVelocity:Destroy()
+        undergroundBodyVelocity = nil
+    end
+    
+    if undergroundBodyGyro then
+        undergroundBodyGyro:Destroy()
+        undergroundBodyGyro = nil
+    end
+    
+    -- Отключаем соединения
+    for _, connection in ipairs(undergroundControlConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    undergroundControlConnections = {}
+    
+    -- Возвращаем персонажа в исходную позицию если нужно
+    if YBAConfig.UndergroundControl.ReturnToOriginal and YBAConfig.UndergroundControl.OriginalPosition then
+        local char = Players.LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            print("Возвращаем персонажа в исходную позицию...")
+            root.CFrame = CFrame.new(YBAConfig.UndergroundControl.OriginalPosition)
+            YBAConfig.UndergroundControl.OriginalPosition = nil
+        end
+    end
+    
+    controlledStandForUnderground = nil
+    
+    print("Управление персонажем под стендом отключено!")
+end
+
 local function getAlivePlayers()
     local alivePlayers = {}
     
@@ -2115,6 +2258,16 @@ UserInputService.InputBegan:Connect(function(input, gp)
             
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+            end
+        elseif YBAConfig.UndergroundControl.ToggleKey and input.KeyCode == YBAConfig.UndergroundControl.ToggleKey then
+            if YBAConfig.UndergroundControl.Enabled then
+                stopUndergroundControl()
+            else
+                startUndergroundControl()
+            end
+            
+            if guiCallbacks.undergroundControl then
+                guiCallbacks.undergroundControl.Text = "Underground Control: " .. (YBAConfig.UndergroundControl.Enabled and "ON" or "OFF")
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
             -- Временная активация Anti Time Stop (как кнопка)
@@ -3777,6 +3930,66 @@ end)
 guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
+
+-- Кнопка для управления персонажем под стендом
+local undergroundControlToggleBtn = toggle("Underground Control", YBAConfig.UndergroundControl.Enabled, function(v)
+    YBAConfig.UndergroundControl.Enabled = v
+    if v then 
+        startUndergroundControl() 
+    else 
+        stopUndergroundControl() 
+    end
+    if guiCallbacks.undergroundControl then
+        guiCallbacks.undergroundControl.Text = "Underground Control: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.undergroundControl = undergroundControlToggleBtn
+
+undergroundControlToggleBtn.AutoButtonColor = false
+
+-- Настройки для подземного управления
+slider("Underground Distance", 10, 100, YBAConfig.UndergroundControl.UndergroundDistance, function(v)
+    YBAConfig.UndergroundControl.UndergroundDistance = v
+end)
+
+slider("Follow Speed", 20, 100, YBAConfig.UndergroundControl.FollowSpeed, function(v)
+    YBAConfig.UndergroundControl.FollowSpeed = v
+end)
+
+toggle("Auto NoClip", YBAConfig.UndergroundControl.AutoNoClip, function(v)
+    YBAConfig.UndergroundControl.AutoNoClip = v
+end)
+
+toggle("Return to Original", YBAConfig.UndergroundControl.ReturnToOriginal, function(v)
+    YBAConfig.UndergroundControl.ReturnToOriginal = v
+end)
+
+local undergroundControlKeyBtn = Instance.new("TextButton", innerContainer)
+undergroundControlKeyBtn.Size = UDim2.new(1, -10, 0, 24)
+undergroundControlKeyBtn.Text = "Underground Control Hotkey: [" .. (YBAConfig.UndergroundControl.ToggleKey and tostring(YBAConfig.UndergroundControl.ToggleKey.Name) or "None") .. "]"
+undergroundControlKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+undergroundControlKeyBtn.TextColor3 = Color3.new(1,1,1)
+undergroundControlKeyBtn.Font = Enum.Font.Gotham
+undergroundControlKeyBtn.TextSize = 13
+undergroundControlKeyBtn.AutoButtonColor = false
+Instance.new("UICorner", undergroundControlKeyBtn).CornerRadius = UDim.new(0,6)
+
+undergroundControlKeyBtn.MouseButton1Click:Connect(function()
+    undergroundControlKeyBtn.Text = "Underground Control Hotkey: [Press any key]"
+    local conn
+    conn = UserInputService.InputBegan:Connect(function(input, gp)
+        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
+            conn:Disconnect()
+            YBAConfig.UndergroundControl.ToggleKey = input.KeyCode
+            undergroundControlKeyBtn.Text = "Underground Control Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+        end
+    end)
+end)
+
+local dividerUnderground = Instance.new("Frame", innerContainer)
+dividerUnderground.Size = UDim2.new(1, -10, 0, 2)
+dividerUnderground.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+dividerUnderground.BorderSizePixel = 0
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
 itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
