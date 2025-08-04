@@ -113,7 +113,6 @@ local YBAConfig = {
     StandRotationSpeed = 0.05,
     -- Интегрированная функция подземного полета
     UndergroundControl = {
-        UndergroundDistance = 30, -- Расстояние под землей в метрах
         FlightSpeed = 120, -- Скорость полета за стендом
         AutoNoClip = true, -- Автоматически включать NoClip
         OriginalPosition = nil, -- Исходная позиция персонажа
@@ -2035,6 +2034,7 @@ local function startUndergroundControl()
     isUndergroundControlEnabled = true
     
     print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
+    print("Перемещаем персонажа под стенд на 30 метров вниз")
     
     -- Сохраняем исходную позицию при первом запуске Stand Range
     if not YBAConfig.UndergroundControl.OriginalPosition then
@@ -2042,9 +2042,10 @@ local function startUndergroundControl()
         print("Исходная позиция сохранена:", root.Position)
     end
     
-    -- Включаем NoClip если нужно
+    -- Включаем NoClip для прохождения сквозь блоки
     if YBAConfig.UndergroundControl.AutoNoClip and not isNoClipping then
         startNoClip()
+        print("NoClip включен для подземного полета")
     end
     
     -- Настройки полета как в оригинальной функции
@@ -2058,18 +2059,18 @@ local function startUndergroundControl()
     workspace.Gravity = 0
     hum.HipHeight = 0
     
-    -- Плавно перемещаем персонажа под стенд (без телепортации)
+    -- Принудительно перемещаем персонажа под стенд
     local standPos = controlledStandForUnderground.Position
-    local undergroundPos = Vector3.new(standPos.X, standPos.Y - YBAConfig.UndergroundControl.UndergroundDistance, standPos.Z)
+    local undergroundPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z) -- Фиксированное расстояние 30 метров
     
-    -- Создаем BodyVelocity для плавного перемещения
+    -- Создаем BodyVelocity для быстрого перемещения под землю
     local initialBv = Instance.new("BodyVelocity", root)
     initialBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    initialBv.Velocity = (undergroundPos - root.Position).Unit * 50 -- Медленная скорость для плавности
+    initialBv.Velocity = (undergroundPos - root.Position).Unit * 200 -- Высокая скорость для быстрого перемещения
     
-    -- Удаляем начальный BodyVelocity через 2 секунды
+    -- Удаляем начальный BodyVelocity через 1 секунду
     task.spawn(function()
-        task.wait(2)
+        task.wait(1)
         if initialBv and initialBv.Parent then
             initialBv:Destroy()
         end
@@ -2101,7 +2102,7 @@ local function startUndergroundControl()
         end
         
         local standPos = controlledStandForUnderground.Position
-        local targetPos = Vector3.new(standPos.X, standPos.Y - YBAConfig.UndergroundControl.UndergroundDistance, standPos.Z)
+        local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z) -- Фиксированное расстояние 30 метров
         
         -- Создаем BodyVelocity для полета
         local bv = root:FindFirstChild("BodyVelocity")
@@ -2114,19 +2115,19 @@ local function startUndergroundControl()
         local direction = (targetPos - root.Position).Unit
         local distance = (targetPos - root.Position).Magnitude
         
-        -- Отладочная информация (только для тестирования)
-        -- if tick() % 2 < 0.1 then -- Выводим каждые 2 секунды
-        --     print("=== ОТЛАДКА ПОДЗЕМНОГО ПОЛЕТА ===")
-        --     print("Стенд позиция:", standPos)
-        --     print("Целевая позиция:", targetPos)
-        --     print("Позиция персонажа:", root.Position)
-        --     print("Расстояние:", distance)
-        --     print("BodyVelocity существует:", bv ~= nil)
-        --     if bv then
-        --         print("BodyVelocity скорость:", bv.Velocity)
-        --     end
-        --     print("================================")
-        -- end
+        -- Отладочная информация (временно включена для тестирования)
+        if tick() % 3 < 0.1 then -- Выводим каждые 3 секунды
+            print("=== ОТЛАДКА ПОДЗЕМНОГО ПОЛЕТА ===")
+            print("Стенд позиция:", standPos)
+            print("Целевая позиция:", targetPos)
+            print("Позиция персонажа:", root.Position)
+            print("Расстояние:", distance)
+            print("BodyVelocity существует:", bv ~= nil)
+            if bv then
+                print("BodyVelocity скорость:", bv.Velocity)
+            end
+            print("================================")
+        end
         
         -- Плавное следование за стендом (как в оригинальном полете)
         if distance > 2 then
@@ -3994,11 +3995,6 @@ ybaToggleBtn.AutoButtonColor = false
 -- Ползунок для регулировки скорости полета под землей
 slider("Underground Flight Speed (50-300)", 50, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
     YBAConfig.UndergroundControl.FlightSpeed = v
-end)
-
--- Ползунок для регулировки расстояния под землей
-slider("Underground Distance (10-100m)", 10, 100, YBAConfig.UndergroundControl.UndergroundDistance, function(v)
-    YBAConfig.UndergroundControl.UndergroundDistance = v
 end)
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
