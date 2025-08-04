@@ -794,15 +794,23 @@ local function startAntiTimeStop()
                 local playerName = playerData.PlayerName
                 local resistTimeStop = playerData.Module
                 
-                print("\n=== Анализ модуля ResistTimeStop игрока:", playerName, "===")
-                print("Тип модуля:", typeof(resistTimeStop))
-                local modulePath = "workspace.Living." .. playerName .. ".ResistTimeStop"
-                print("Путь к модулю для Dex Explorer:")
-                print(modulePath)
+                print("\n=== Анализ объекта ResistTimeStop игрока:", playerName, "===")
+                print("Тип объекта:", typeof(resistTimeStop))
+                local objectPath = "workspace.Living." .. playerName .. ".ResistTimeStop"
+                print("Путь к объекту для Dex Explorer:")
+                print(objectPath)
                 
                 -- Если включен режим открытия в Dex Explorer
                 if AntiTimeStopConfig.OpenInDex then
-                    openInDexExplorer(modulePath)
+                    print("=== ИНСТРУКЦИЯ ДЛЯ ИЗУЧЕНИЯ В DEX EXPLORER ===")
+                    print("1. Откройте Dex Explorer")
+                    print("2. Перейдите по пути: " .. objectPath)
+                    print("3. Кликните на объект ResistTimeStop")
+                    print("4. В правой панели изучите все свойства объекта")
+                    print("5. Разверните все дочерние элементы")
+                    print("6. Обратите внимание на значения BoolValue, NumberValue, StringValue")
+                    print("7. Запишите названия и значения всех свойств")
+                    print("=== КОНЕЦ ИНСТРУКЦИИ ===")
                 end
                 
                 -- Изучаем содержимое модуля
@@ -832,13 +840,18 @@ local function startAntiTimeStop()
                 end
             end
             
-            print("\n=== Конец анализа всех модулей ResistTimeStop ===")
-            print("\n=== ИНСТРУКЦИЯ ДЛЯ DEX EXPLORER ===")
+            print("\n=== Конец анализа всех объектов ResistTimeStop ===")
+            print("\n=== ОБЩАЯ ИНСТРУКЦИЯ ДЛЯ DEX EXPLORER ===")
             print("1. Откройте Dex Explorer")
             print("2. В поиске введите: ResistTimeStop")
             print("3. Или перейдите по пути: workspace.Living.[имя_игрока].ResistTimeStop")
-            print("4. Кликните правой кнопкой на модуль и выберите 'View Script'")
-            print("5. Изучите код модуля и найдите функции активации")
+            print("4. Кликните на объект ResistTimeStop")
+            print("5. В правой панели изучите все свойства и дочерние элементы")
+            print("6. Обратите внимание на:")
+            print("   - Тип объекта (BoolValue, NumberValue, Folder и т.д.)")
+            print("   - Значения всех дочерних элементов")
+            print("   - Названия свойств, связанных с сопротивлением")
+            print("7. Запишите все найденные свойства и их значения")
             print("=== КОНЕЦ ИНСТРУКЦИИ ===")
         end
     end
@@ -927,6 +940,46 @@ local function startAntiTimeStop()
                                     child.Value = true
                                 end
                             end
+                        end
+                    else
+                        -- Если это не ModuleScript, а другой тип объекта (Folder, BoolValue и т.д.)
+                        print("ResistTimeStop является объектом типа:", typeof(resistTimeStop))
+                        
+                        -- Пытаемся изменить свойства объекта
+                        for _, child in pairs(resistTimeStop:GetDescendants()) do
+                            if child:IsA("BoolValue") then
+                                -- Активируем все BoolValue, которые могут быть связаны с сопротивлением
+                                if child.Name:lower():find("resist") or 
+                                   child.Name:lower():find("active") or 
+                                   child.Name:lower():find("enabled") or 
+                                   child.Name:lower():find("start") or 
+                                   child.Name:lower():find("begin") or 
+                                   child.Name:lower():find("toggle") or 
+                                   child.Name:lower():find("trigger") or
+                                   child.Name:lower():find("time") or
+                                   child.Name:lower():find("stop") then
+                                    child.Value = true
+                                    print("Активирован BoolValue:", child.Name, "=", child.Value)
+                                end
+                            elseif child:IsA("NumberValue") then
+                                -- Устанавливаем высокие значения для NumberValue, связанных с сопротивлением
+                                if child.Name:lower():find("resist") or 
+                                   child.Name:lower():find("power") or 
+                                   child.Name:lower():find("strength") or
+                                   child.Name:lower():find("time") then
+                                    child.Value = 999999
+                                    print("Установлено NumberValue:", child.Name, "=", child.Value)
+                                end
+                            end
+                        end
+                        
+                        -- Также пытаемся изменить свойства самого объекта
+                        if resistTimeStop:IsA("BoolValue") then
+                            resistTimeStop.Value = true
+                            print("Активирован основной объект ResistTimeStop")
+                        elseif resistTimeStop:IsA("NumberValue") then
+                            resistTimeStop.Value = 999999
+                            print("Установлено высокое значение для основного объекта ResistTimeStop")
                         end
                     end
                 end
@@ -4186,7 +4239,7 @@ end)
 -- Информационная панель
 local antiTimeStopInfo = Instance.new("TextLabel", innerContainer)
 antiTimeStopInfo.Size = UDim2.new(1, -10, 0, 40)
-antiTimeStopInfo.Text = "Anti Time Stop ищет игроков с модулем ResistTimeStop и изучает их механизм. Включите Debug Mode для анализа модулей и Open in Dex Explorer для получения инструкций по изучению кода в Dex Explorer."
+antiTimeStopInfo.Text = "Anti Time Stop ищет игроков с объектом ResistTimeStop и изучает их механизм сопротивления. Включите Debug Mode для анализа объектов и Open in Dex Explorer для получения инструкций по изучению свойств в Dex Explorer."
 antiTimeStopInfo.Font = Enum.Font.Gotham
 antiTimeStopInfo.TextSize = 12
 antiTimeStopInfo.TextColor3 = Color3.fromRGB(200,200,200)
