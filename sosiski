@@ -184,6 +184,7 @@ local AntiTimeStopConfig = {
     ForceMovement = true,
     MovementSpeed = 2.0,
     DebugMode = false, -- Режим отладки для изучения модуля
+    OpenInDex = false, -- Открыть модуль в Dex Explorer
 }
 
 local isLongJumping = false
@@ -742,6 +743,24 @@ local function startAntiTimeStop()
     local originalJumpPower = hum.JumpPower
     local originalGravity = workspace.Gravity
     
+    -- Функция для открытия модуля в Dex Explorer
+    local function openInDexExplorer(modulePath)
+        -- Пытаемся найти Dex Explorer
+        local dexExplorer = game:GetService("CoreGui"):FindFirstChild("Dex")
+        if dexExplorer then
+            print("Dex Explorer найден, пытаемся открыть модуль...")
+            -- Здесь можно попытаться программно открыть модуль
+            -- Но обычно Dex Explorer работает через UI
+        else
+            print("Dex Explorer не найден. Убедитесь, что он загружен.")
+        end
+        
+        print("Для открытия модуля в Dex Explorer:")
+        print("1. Откройте Dex Explorer")
+        print("2. В поиске введите: " .. modulePath)
+        print("3. Или перейдите по пути: " .. modulePath)
+    end
+    
     -- Функция для изучения модулей ResistTimeStop у всех игроков
     local function analyzeAllResistTimeStopModules()
         local living = workspace:FindFirstChild("Living")
@@ -777,6 +796,14 @@ local function startAntiTimeStop()
                 
                 print("\n=== Анализ модуля ResistTimeStop игрока:", playerName, "===")
                 print("Тип модуля:", typeof(resistTimeStop))
+                local modulePath = "workspace.Living." .. playerName .. ".ResistTimeStop"
+                print("Путь к модулю для Dex Explorer:")
+                print(modulePath)
+                
+                -- Если включен режим открытия в Dex Explorer
+                if AntiTimeStopConfig.OpenInDex then
+                    openInDexExplorer(modulePath)
+                end
                 
                 -- Изучаем содержимое модуля
                 for _, child in pairs(resistTimeStop:GetDescendants()) do
@@ -806,6 +833,13 @@ local function startAntiTimeStop()
             end
             
             print("\n=== Конец анализа всех модулей ResistTimeStop ===")
+            print("\n=== ИНСТРУКЦИЯ ДЛЯ DEX EXPLORER ===")
+            print("1. Откройте Dex Explorer")
+            print("2. В поиске введите: ResistTimeStop")
+            print("3. Или перейдите по пути: workspace.Living.[имя_игрока].ResistTimeStop")
+            print("4. Кликните правой кнопкой на модуль и выберите 'View Script'")
+            print("5. Изучите код модуля и найдите функции активации")
+            print("=== КОНЕЦ ИНСТРУКЦИИ ===")
         end
     end
     
@@ -4011,6 +4045,7 @@ local function updatePlayerList()
                not child.Text:find("Anti Time Stop") and 
                not child.Text:find("Movement Speed") and 
                not child.Text:find("Debug Mode") and 
+               not child.Text:find("Open in Dex Explorer") and 
                not child.Text:find("Anti Time Stop Hotkey") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
@@ -4106,6 +4141,25 @@ debugModeBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Кнопка открытия в Dex Explorer
+local dexExplorerBtn = Instance.new("TextButton", innerContainer)
+dexExplorerBtn.Size = UDim2.new(1, -10, 0, 28)
+dexExplorerBtn.Text = "Open in Dex Explorer: " .. (AntiTimeStopConfig.OpenInDex and "ON" or "OFF")
+dexExplorerBtn.Font = Enum.Font.Gotham
+dexExplorerBtn.TextSize = 14
+dexExplorerBtn.TextColor3 = Color3.new(1,1,1)
+dexExplorerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+dexExplorerBtn.AutoButtonColor = false
+Instance.new("UICorner", dexExplorerBtn).CornerRadius = UDim.new(0,6)
+
+dexExplorerBtn.MouseButton1Click:Connect(function()
+    AntiTimeStopConfig.OpenInDex = not AntiTimeStopConfig.OpenInDex
+    dexExplorerBtn.Text = "Open in Dex Explorer: " .. (AntiTimeStopConfig.OpenInDex and "ON" or "OFF")
+    if AntiTimeStopConfig.OpenInDex then
+        print("Режим открытия в Dex Explorer включен. Инструкции будут показаны при анализе модулей.")
+    end
+end)
+
 -- Кнопка настройки горячих клавиш
 local antiTimeStopKeyBtn = Instance.new("TextButton", innerContainer)
 antiTimeStopKeyBtn.Size = UDim2.new(1, -10, 0, 24)
@@ -4132,7 +4186,7 @@ end)
 -- Информационная панель
 local antiTimeStopInfo = Instance.new("TextLabel", innerContainer)
 antiTimeStopInfo.Size = UDim2.new(1, -10, 0, 40)
-antiTimeStopInfo.Text = "Anti Time Stop ищет игроков с модулем ResistTimeStop и изучает их механизм сопротивления остановке времени. Анализирует все найденные модули и пытается активировать их функции. Включите Debug Mode для изучения."
+antiTimeStopInfo.Text = "Anti Time Stop ищет игроков с модулем ResistTimeStop и изучает их механизм. Включите Debug Mode для анализа модулей и Open in Dex Explorer для получения инструкций по изучению кода в Dex Explorer."
 antiTimeStopInfo.Font = Enum.Font.Gotham
 antiTimeStopInfo.TextSize = 12
 antiTimeStopInfo.TextColor3 = Color3.fromRGB(200,200,200)
