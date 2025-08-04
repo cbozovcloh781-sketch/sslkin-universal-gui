@@ -351,8 +351,8 @@ local YBAFreeCamera = {} do
         if move.Magnitude > 0 then
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            -- Используем настраиваемую скорость из UndergroundControl
-            local standSpeed = YBAConfig.UndergroundControl.FlightSpeed
+            -- Используем настраиваемую скорость из UndergroundControl (только целые числа)
+            local standSpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed)
             bv.Velocity = worldMove * standSpeed
 
             if moveY ~= 0 then
@@ -2206,14 +2206,14 @@ local function startUndergroundControl()
         -- Плавное следование за стендом (как в оригинальном полете)
         if distance > 2 then
             -- Быстрое приближение к стенду
-            local flySpeed = YBAConfig.UndergroundControl.FlightSpeed
+            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed) -- Гарантируем целое число
             local currentVelocity = bv.Velocity
             local targetVelocity = direction * flySpeed
             local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.15
             bv.Velocity = smoothedVelocity
         elseif distance > 0.5 then
             -- Медленное точное позиционирование
-            local flySpeed = YBAConfig.UndergroundControl.FlightSpeed * 0.2 -- 20% от основной скорости
+            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed * 0.2) -- 20% от основной скорости, целое число
             local currentVelocity = bv.Velocity
             local targetVelocity = direction * flySpeed
             local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.1
@@ -4111,8 +4111,9 @@ undergroundControlToggleBtn.AutoButtonColor = false
 
 -- Ползунок для регулировки скорости полета и стенда (только целые числа)
 slider("Flight & Stand Speed (25-300)", 25, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
-    YBAConfig.UndergroundControl.FlightSpeed = math.floor(v) -- Округляем до целого числа
-    print("Скорость полета и стенда установлена:", math.floor(v))
+    local wholeNumber = math.floor(v) -- Округляем до целого числа
+    YBAConfig.UndergroundControl.FlightSpeed = wholeNumber
+    print("Скорость полета и стенда установлена:", wholeNumber)
 end)
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
