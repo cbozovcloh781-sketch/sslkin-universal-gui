@@ -1715,8 +1715,11 @@ local function findStands()
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
     if not playerRoot then 
+        print("YBA Debug: Игрок не найден")
         return stands 
     end
+    
+    print("YBA Debug: Ищем стенды для игрока:", player.Name)
     
     local standNames = {
         "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
@@ -1775,6 +1778,12 @@ local function findStands()
     end
     
     table.sort(stands, function(a, b) return a.Distance < b.Distance end)
+    
+    print("YBA Debug: Найдено стендов:", #stands)
+    for i, stand in ipairs(stands) do
+        print("YBA Debug: Стенд", i, ":", stand.Name, "на расстоянии", stand.Distance)
+    end
+    
     return stands
 end
 
@@ -1949,16 +1958,19 @@ end
 local function startYBA()
     if isYBAEnabled then return end
     
+    print("YBA Debug: Запуск YBA Stand Range")
     isYBAEnabled = true
     YBAConfig.Enabled = true
     
     local stands = findStands()
     
     if #stands == 0 then
+        print("YBA Debug: Стенды не найдены")
         return
     end
     
     local targetStand = stands[1]
+    print("YBA Debug: Выбран стенд для управления:", targetStand.Name)
     
     if YBAConfig.FreezePlayer then
         freezePlayer()
@@ -2032,13 +2044,18 @@ end
 -- Функция для телепортации стенда к ближайшему игроку
 local function teleportStandToNearestPlayer(stand)
     if not stand or not stand.Root then
-        print("YBA: Ошибка - стенд не найден для телепортации")
+        print("YBA Debug: Ошибка - стенд не найден для телепортации")
         return false
     end
     
+    print("YBA Debug: Попытка телепортации стенда:", stand.Name)
+    print("YBA Debug: Текущая позиция стенда:", stand.Root.Position)
+    
     local alivePlayers = getAlivePlayers()
+    print("YBA Debug: Найдено живых игроков:", #alivePlayers)
+    
     if #alivePlayers == 0 then
-        print("YBA: Нет живых игроков для атаки")
+        print("YBA Debug: Нет живых игроков для атаки")
         return false
     end
     
@@ -2058,27 +2075,48 @@ local function teleportStandToNearestPlayer(stand)
     
     if nearestPlayer and nearestPlayer.Character and nearestPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local targetPosition = nearestPlayer.Character.HumanoidRootPart.Position
+        print("YBA Debug: Целевая позиция:", targetPosition)
+        print("YBA Debug: Ближайший игрок:", nearestPlayer.Name, "на расстоянии:", nearestDistance)
+        
         stand.Root.CFrame = CFrame.new(targetPosition)
-        print("YBA: Стенд телепортирован к игроку:", nearestPlayer.Name, "на расстоянии:", nearestDistance)
+        print("YBA Debug: Стенд телепортирован к игроку:", nearestPlayer.Name)
         return true
     end
     
+    print("YBA Debug: Не удалось найти подходящего игрока для телепортации")
     return false
 end
 
 -- Функция для атаки стендом на любом расстоянии
 local function attackWithStand(stand)
     if not stand or not stand.Root then
-        print("YBA: Ошибка - стенд не найден для атаки")
+        print("YBA Debug: Ошибка - стенд не найден для атаки")
         return false
     end
     
+    print("YBA Debug: Попытка атаки стендом:", stand.Name)
+    print("YBA Debug: Позиция стенда:", stand.Root.Position)
+    
     -- Сначала телепортируем стенд к ближайшему игроку
     if teleportStandToNearestPlayer(stand) then
-        print("YBA: Стенд готов к атаке")
+        print("YBA Debug: Стенд телепортирован, готов к атаке")
+        
+        -- Попробуем симулировать атаку
+        local standModel = stand.Model
+        if standModel then
+            print("YBA Debug: Найден стенд модель:", standModel.Name)
+            
+            -- Попробуем найти части стенда для атаки
+            for _, part in pairs(standModel:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    print("YBA Debug: Часть стенда:", part.Name, "в позиции:", part.Position)
+                end
+            end
+        end
+        
         return true
     else
-        print("YBA: Не удалось подготовить стенд к атаке")
+        print("YBA Debug: Не удалось подготовить стенд к атаке")
         return false
     end
 end
@@ -2173,12 +2211,29 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF") .. " (UNLIMITED)"
             end
+        elseif input.KeyCode == Enum.KeyCode.T then
+            -- Тестовая функция (клавиша T)
+            print("YBA Debug: Тестовая функция активирована")
+            local stands = findStands()
+            print("YBA Debug: Найдено стендов в тесте:", #stands)
+            if #stands > 0 then
+                print("YBA Debug: Первый стенд:", stands[1].Name)
+            end
         elseif input.KeyCode == Enum.KeyCode.X then
             -- Быстрая атака стендом (клавиша X)
-            if YBAConfig.Enabled and controlledStand then
-                print("YBA: Быстрая атака стендом!")
-                attackWithStand(controlledStand)
+            print("YBA Debug: Нажата клавиша X")
+            if YBAConfig.Enabled then
+                print("YBA Debug: YBA включен")
+                if controlledStand then
+                    print("YBA Debug: Контролируемый стенд найден")
+                    print("YBA: Быстрая атака стендом!")
+                    attackWithStand(controlledStand)
+                else
+                    print("YBA Debug: Контролируемый стенд не найден")
+                    print("YBA: Сначала включите YBA Stand Range и найдите стенд")
+                end
             else
+                print("YBA Debug: YBA не включен")
                 print("YBA: Сначала включите YBA Stand Range и найдите стенд")
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
