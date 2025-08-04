@@ -2063,7 +2063,7 @@ local YBA_ITEM_NAMES = {
     ["Lucky Stone Mask"] = true,
 }
 
--- Функция для поиска предметов YBA через MeshPart в workspace.Item_Spawns.Items
+-- Функция для поиска предметов YBA: читаем World Pivot из Properties Model и ObjectText из Properties ProximityPrompt
 local function findYBAItems()
     local items = {}
     local player = Players.LocalPlayer
@@ -2074,28 +2074,11 @@ local function findYBAItems()
         return items 
     end
 
-    -- Проверяем все возможные варианты папок
-    print("YBA Item ESP: Ищем папки с предметами...")
-    local possibleFolders = {
-        workspace:FindFirstChild("Item_Spawns"),
-        workspace:FindFirstChild("item_spawns"),
-        workspace:FindFirstChild("Items"),
-        workspace:FindFirstChild("items"),
-        workspace:FindFirstChild("ItemSpawns"),
-        workspace:FindFirstChild("itemspawns")
-    }
+    print("YBA Item ESP: Начинаем поиск предметов...")
     
-    local itemFolder = nil
-    for _, folder in ipairs(possibleFolders) do
-        if folder then
-            print("YBA Item ESP: Найдена папка:", folder.Name)
-            itemFolder = folder
-            break
-        end
-    end
-    
+    local itemFolder = workspace:FindFirstChild("items_spawns")
     if not itemFolder then 
-        print("YBA Item ESP: Папка с предметами не найдена!")
+        print("YBA Item ESP: Папка 'items_spawns' не найдена!")
         print("YBA Item ESP: Доступные папки в workspace:")
         for _, child in ipairs(workspace:GetChildren()) do
             if child:IsA("Folder") then
@@ -2104,53 +2087,63 @@ local function findYBAItems()
         end
         return items 
     end
+    print("YBA Item ESP: Найдена папка 'items_spawns'")
     
-    -- Проверяем, есть ли в найденной папке вложенная папка Items
-    local itemsFolder = itemFolder:FindFirstChild("Items") or 
-                       itemFolder:FindFirstChild("items") or 
-                       itemFolder:FindFirstChild("Item")
-    
-    -- Если есть вложенная папка Items, используем её, иначе используем найденную папку
-    if itemsFolder then
-        print("YBA Item ESP: Найдена вложенная папка Items:", itemsFolder.Name)
-    else
-        itemsFolder = itemFolder
-        print("YBA Item ESP: Используем основную папку:", itemsFolder.Name)
+    local itemsFolder = itemFolder:FindFirstChild("items")
+    if not itemsFolder then 
+        print("YBA Item ESP: Папка 'items' не найдена в items_spawns!")
+        print("YBA Item ESP: Содержимое items_spawns:")
+        for _, child in ipairs(itemFolder:GetChildren()) do
+            print("  -", child.Name, "(", child.ClassName, ")")
+        end
+        return items 
     end
-    
-    print("YBA Item ESP: Содержимое папки:")
-    for _, child in ipairs(itemsFolder:GetChildren()) do
-        print("  -", child.Name, "(" .. child.ClassName .. ")")
-    end
+    print("YBA Item ESP: Найдена папка 'items'")
 
     local foundCount = 0
-
-    -- Теперь ищем Model в папке itemsFolder
     for _, model in ipairs(itemsFolder:GetChildren()) do
         if model:IsA("Model") then
-            print("YBA Item ESP: Проверяем Model:", model.Name, "В списке:", YBA_ITEM_NAMES[model.Name] and "ДА" or "НЕТ")
-            if YBA_ITEM_NAMES[model.Name] then
-                -- Ищем первый MeshPart в Model (визуальная часть предмета)
-                for _, part in ipairs(model:GetDescendants()) do
-                    if part:IsA("MeshPart") then
-                        local distance = (part.Position - playerRoot.Position).Magnitude
-                        print("YBA Item ESP: Найден MeshPart в", model.Name, "на расстоянии", math.floor(distance), "м")
-                        if distance <= YBAConfig.ItemESP.MaxDistance then
-                            foundCount = foundCount + 1
-                            print("YBA Item ESP: Добавляем предмет", model.Name)
-                            table.insert(items, {
-                                Object = part,
-                                Root = part,
-                                Distance = distance,
-                                Name = model.Name,
-                                Type = "YBA_Item"
-                            })
-                            break -- Берем только первый MeshPart из Model
-                        else
-                            print("YBA Item ESP: Предмет", model.Name, "слишком далеко:", math.floor(distance), "м >", YBAConfig.ItemESP.MaxDistance, "м")
-                        end
+            print("YBA Item ESP: Проверяем Model:", model.Name)
+            
+            -- Читаем World Pivot из Properties Model (позиция на карте)
+            local modelPosition = model:GetPivot().Position
+            print("YBA Item ESP: World Pivot Model:", modelPosition)
+            
+            -- Ищем ProximityPrompt и читаем ObjectText из его Properties
+            local objectName = nil
+            for _, desc in ipairs(model:GetDescendants()) do
+                if desc:IsA("ProximityPrompt") then
+                    print("YBA Item ESP: Найден ProximityPrompt в", model.Name)
+                    print("YBA Item ESP: ObjectText из Properties:", desc.ObjectText)
+                    if desc.ObjectText and desc.ObjectText ~= "" then
+                        objectName = desc.ObjectText
+                        break
                     end
                 end
+            end
+            
+            if objectName then
+                print("YBA Item ESP: Название предмета из Properties:", objectName)
+                print("YBA Item ESP: В списке:", YBA_ITEM_NAMES[objectName] and "ДА" or "НЕТ")
+                if YBA_ITEM_NAMES[objectName] then
+                    local distance = (modelPosition - playerRoot.Position).Magnitude
+                    print("YBA Item ESP: Расстояние до предмета:", math.floor(distance), "м")
+                    if distance <= YBAConfig.ItemESP.MaxDistance then
+                        foundCount = foundCount + 1
+                        print("YBA Item ESP: Добавляем предмет", objectName)
+                        table.insert(items, {
+                            Object = model, -- Подсвечиваем сам Model
+                            Root = model,
+                            Distance = distance,
+                            Name = objectName,
+                            Type = "YBA_Item"
+                        })
+                    else
+                        print("YBA Item ESP: Предмет слишком далеко:", math.floor(distance), "м >", YBAConfig.ItemESP.MaxDistance, "м")
+                    end
+                end
+            else
+                print("YBA Item ESP: ProximityPrompt или ObjectText не найден в Model:", model.Name)
             end
         end
     end
@@ -3573,264 +3566,10 @@ clearAllESPBtn.MouseButton1Click:Connect(function()
     print("YBA Item ESP: Очищено ESP элементов:", clearedCount)
 end) 
 
--- Функция для поиска предметов YBA: перебираем все Model в workspace.items_spawns.items, ищем первую MeshPart в каждой Model с нужным именем
-local function findYBAItems()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then return items end
 
-    local itemFolder = workspace:FindFirstChild("items_spawns")
-    if not itemFolder then return items end
-    local itemsFolder = itemFolder:FindFirstChild("items")
-    if not itemsFolder then return items end
 
-    for _, model in ipairs(itemsFolder:GetChildren()) do
-        if model:IsA("Model") and YBA_ITEM_NAMES[model.Name] then
-            local meshPart = nil
-            for _, part in ipairs(model:GetChildren()) do
-                if part:IsA("MeshPart") then
-                    meshPart = part
-                    break
-                end
-            end
-            if meshPart then
-                local distance = (meshPart.Position - playerRoot.Position).Magnitude
-                if distance <= YBAConfig.ItemESP.MaxDistance then
-                    table.insert(items, {
-                        Object = meshPart,
-                        Root = meshPart,
-                        Distance = distance,
-                        Name = model.Name,
-                        Type = "YBA_Item"
-                    })
-                end
-            end
-        end
-    end
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    return items
-end
 
--- Функция для поиска предметов YBA: имя берём из ProximityPrompt.ObjectText, подсвечиваем первую MeshPart
-local function findYBAItems()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then return items end
 
-    local itemFolder = workspace:FindFirstChild("items_spawns")
-    if not itemFolder then return items end
-    local itemsFolder = itemFolder:FindFirstChild("items")
-    if not itemsFolder then return items end
 
-    for _, model in ipairs(itemsFolder:GetChildren()) do
-        if model:IsA("Model") then
-            -- Ищем первый ProximityPrompt и берём ObjectText
-            local objectName = nil
-            for _, desc in ipairs(model:GetDescendants()) do
-                if desc:IsA("ProximityPrompt") and desc.ObjectText and #desc.ObjectText > 0 then
-                    objectName = desc.ObjectText
-                    break
-                end
-            end
-            if objectName and YBA_ITEM_NAMES[objectName] then
-                -- Ищем первую MeshPart для подсветки
-                local meshPart = nil
-                for _, part in ipairs(model:GetChildren()) do
-                    if part:IsA("MeshPart") then
-                        meshPart = part
-                        break
-                    end
-                end
-                if meshPart then
-                    local distance = (meshPart.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.ItemESP.MaxDistance then
-                        table.insert(items, {
-                            Object = meshPart,
-                            Root = meshPart,
-                            Distance = distance,
-                            Name = objectName,
-                            Type = "YBA_Item"
-                        })
-                    end
-                end
-            end
-        end
-    end
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    return items
-end
 
--- Функция для поиска предметов YBA: берём World Pivot из Model, ObjectText из ProximityPrompt, подсвечиваем Model
-local function findYBAItems()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then 
-        print("YBA Item ESP: Игрок не найден")
-        return items 
-    end
 
-    print("YBA Item ESP: Начинаем поиск предметов...")
-    
-    local itemFolder = workspace:FindFirstChild("items_spawns")
-    if not itemFolder then 
-        print("YBA Item ESP: Папка 'items_spawns' не найдена!")
-        print("YBA Item ESP: Доступные папки в workspace:")
-        for _, child in ipairs(workspace:GetChildren()) do
-            if child:IsA("Folder") then
-                print("  -", child.Name)
-            end
-        end
-        return items 
-    end
-    print("YBA Item ESP: Найдена папка 'items_spawns'")
-    
-    local itemsFolder = itemFolder:FindFirstChild("items")
-    if not itemsFolder then 
-        print("YBA Item ESP: Папка 'items' не найдена в items_spawns!")
-        print("YBA Item ESP: Содержимое items_spawns:")
-        for _, child in ipairs(itemFolder:GetChildren()) do
-            print("  -", child.Name, "(" .. child.ClassName .. ")")
-        end
-        return items 
-    end
-    print("YBA Item ESP: Найдена папка 'items'")
-    
-    print("YBA Item ESP: Содержимое папки items:")
-    for _, child in ipairs(itemsFolder:GetChildren()) do
-        print("  -", child.Name, "(" .. child.ClassName .. ")")
-    end
-
-    local foundCount = 0
-    for _, model in ipairs(itemsFolder:GetChildren()) do
-        if model:IsA("Model") then
-            print("YBA Item ESP: Проверяем Model:", model.Name)
-            
-            -- Берём World Pivot из Model (позиция на карте)
-            local modelPosition = model:GetPivot().Position
-            print("YBA Item ESP: Позиция Model:", modelPosition)
-            
-            -- Ищем ProximityPrompt и берём ObjectText (название предмета)
-            local objectName = nil
-            for _, desc in ipairs(model:GetDescendants()) do
-                if desc:IsA("ProximityPrompt") then
-                    print("YBA Item ESP: Найден ProximityPrompt в", model.Name, "ObjectText:", desc.ObjectText)
-                    if desc.ObjectText and #desc.ObjectText > 0 then
-                        objectName = desc.ObjectText
-                        break
-                    end
-                end
-            end
-            
-            if objectName then
-                print("YBA Item ESP: Название предмета:", objectName, "В списке:", YBA_ITEM_NAMES[objectName] and "ДА" or "НЕТ")
-                if YBA_ITEM_NAMES[objectName] then
-                    local distance = (modelPosition - playerRoot.Position).Magnitude
-                    print("YBA Item ESP: Расстояние до предмета:", math.floor(distance), "м")
-                    if distance <= YBAConfig.ItemESP.MaxDistance then
-                        foundCount = foundCount + 1
-                        print("YBA Item ESP: Добавляем предмет", objectName)
-                        table.insert(items, {
-                            Object = model, -- Подсвечиваем сам Model
-                            Root = model,
-                            Distance = distance,
-                            Name = objectName,
-                            Type = "YBA_Item"
-                        })
-                    else
-                        print("YBA Item ESP: Предмет слишком далеко:", math.floor(distance), "м >", YBAConfig.ItemESP.MaxDistance, "м")
-                    end
-                end
-            else
-                print("YBA Item ESP: ProximityPrompt не найден в Model:", model.Name)
-            end
-        end
-    end
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    print("YBA Item ESP: Всего найдено предметов:", foundCount)
-    return items
-end
-
--- Функция для поиска предметов YBA: читаем World Pivot из Properties Model и ObjectText из Properties ProximityPrompt
-local function findYBAItems()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then 
-        print("YBA Item ESP: Игрок не найден")
-        return items 
-    end
-
-    print("YBA Item ESP: Начинаем поиск предметов...")
-    
-    local itemFolder = workspace:FindFirstChild("items_spawns")
-    if not itemFolder then 
-        print("YBA Item ESP: Папка 'items_spawns' не найдена!")
-        return items 
-    end
-    print("YBA Item ESP: Найдена папка 'items_spawns'")
-    
-    local itemsFolder = itemFolder:FindFirstChild("items")
-    if not itemsFolder then 
-        print("YBA Item ESP: Папка 'items' не найдена в items_spawns!")
-        return items 
-    end
-    print("YBA Item ESP: Найдена папка 'items'")
-
-    local foundCount = 0
-    for _, model in ipairs(itemsFolder:GetChildren()) do
-        if model:IsA("Model") then
-            print("YBA Item ESP: Проверяем Model:", model.Name)
-            
-            -- Читаем World Pivot из Properties Model (позиция на карте)
-            local modelPosition = model:GetPivot().Position
-            print("YBA Item ESP: World Pivot Model:", modelPosition)
-            
-            -- Ищем ProximityPrompt и читаем ObjectText из его Properties
-            local objectName = nil
-            for _, desc in ipairs(model:GetDescendants()) do
-                if desc:IsA("ProximityPrompt") then
-                    print("YBA Item ESP: Найден ProximityPrompt в", model.Name)
-                    print("YBA Item ESP: ObjectText из Properties:", desc.ObjectText)
-                    if desc.ObjectText and desc.ObjectText ~= "" then
-                        objectName = desc.ObjectText
-                        break
-                    end
-                end
-            end
-            
-            if objectName then
-                print("YBA Item ESP: Название предмета из Properties:", objectName)
-                print("YBA Item ESP: В списке:", YBA_ITEM_NAMES[objectName] and "ДА" or "НЕТ")
-                if YBA_ITEM_NAMES[objectName] then
-                    local distance = (modelPosition - playerRoot.Position).Magnitude
-                    print("YBA Item ESP: Расстояние до предмета:", math.floor(distance), "м")
-                    if distance <= YBAConfig.ItemESP.MaxDistance then
-                        foundCount = foundCount + 1
-                        print("YBA Item ESP: Добавляем предмет", objectName)
-                        table.insert(items, {
-                            Object = model, -- Подсвечиваем сам Model
-                            Root = model,
-                            Distance = distance,
-                            Name = objectName,
-                            Type = "YBA_Item"
-                        })
-                    else
-                        print("YBA Item ESP: Предмет слишком далеко:", math.floor(distance), "м >", YBAConfig.ItemESP.MaxDistance, "м")
-                    end
-                end
-            else
-                print("YBA Item ESP: ProximityPrompt или ObjectText не найден в Model:", model.Name)
-            end
-        end
-    end
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    print("YBA Item ESP: Всего найдено предметов:", foundCount)
-    return items
-end
