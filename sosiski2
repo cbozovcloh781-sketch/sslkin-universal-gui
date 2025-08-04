@@ -2054,15 +2054,26 @@ local function startUndergroundControl()
     workspace.Gravity = 0
     hum.HipHeight = 0
     
-    -- Сразу переносим персонажа под стенд
+    -- Плавно перемещаем персонажа под стенд (без телепортации)
     local standPos = controlledStandForUnderground.Position
     local undergroundPos = Vector3.new(standPos.X, standPos.Y - YBAConfig.UndergroundControl.UndergroundDistance, standPos.Z)
-    root.CFrame = CFrame.new(undergroundPos)
+    
+    -- Создаем BodyVelocity для плавного перемещения
+    local initialBv = Instance.new("BodyVelocity", root)
+    initialBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    initialBv.Velocity = (undergroundPos - root.Position).Unit * 50 -- Медленная скорость для плавности
+    
+    -- Удаляем начальный BodyVelocity через 2 секунды
+    task.spawn(function()
+        task.wait(2)
+        if initialBv and initialBv.Parent then
+            initialBv:Destroy()
+        end
+    end)
     
     -- Основной цикл полета под землей за стендом
     local undergroundFlyLoop = RunService.RenderStepped:Connect(function()
         if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
-            print("Отключаем подземный полет - стенд не найден")
             -- Восстанавливаем настройки персонажа
             if hum then
                 hum.JumpPower = flyOriginalJumpPower
@@ -2099,27 +2110,37 @@ local function startUndergroundControl()
         local direction = (targetPos - root.Position).Unit
         local distance = (targetPos - root.Position).Magnitude
         
-        -- Отладочная информация (можно убрать позже)
-        if tick() % 2 < 0.1 then -- Выводим каждые 2 секунды
-            print("=== ОТЛАДКА ПОДЗЕМНОГО ПОЛЕТА ===")
-            print("Стенд позиция:", standPos)
-            print("Целевая позиция:", targetPos)
-            print("Позиция персонажа:", root.Position)
-            print("Расстояние:", distance)
-            print("BodyVelocity существует:", bv ~= nil)
-            if bv then
-                print("BodyVelocity скорость:", bv.Velocity)
-            end
-            print("================================")
-        end
+        -- Отладочная информация (только для тестирования)
+        -- if tick() % 2 < 0.1 then -- Выводим каждые 2 секунды
+        --     print("=== ОТЛАДКА ПОДЗЕМНОГО ПОЛЕТА ===")
+        --     print("Стенд позиция:", standPos)
+        --     print("Целевая позиция:", targetPos)
+        --     print("Позиция персонажа:", root.Position)
+        --     print("Расстояние:", distance)
+        --     print("BodyVelocity существует:", bv ~= nil)
+        --     if bv then
+        --         print("BodyVelocity скорость:", bv.Velocity)
+        --     end
+        --     print("================================")
+        -- end
         
-        if distance > 1 then
-            -- Летим к стенду с высокой скоростью
-            local flySpeed = 200 -- Увеличиваем скорость для быстрого следования
-            bv.Velocity = direction * flySpeed
+        -- Плавное следование за стендом (как в оригинальном полете)
+        if distance > 2 then
+            -- Быстрое приближение к стенду
+            local flySpeed = 120
+            local currentVelocity = bv.Velocity
+            local targetVelocity = direction * flySpeed
+            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.15
+            bv.Velocity = smoothedVelocity
+        elseif distance > 0.5 then
+            -- Медленное точное позиционирование
+            local flySpeed = 25
+            local currentVelocity = bv.Velocity
+            local targetVelocity = direction * flySpeed
+            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.1
+            bv.Velocity = smoothedVelocity
         else
-            -- Когда близко к цели, просто телепортируемся точно под стенд
-            root.CFrame = CFrame.new(targetPos)
+            -- Останавливаемся когда достигли позиции под стендом
             bv.Velocity = Vector3.new(0, 0, 0)
         end
     end)
