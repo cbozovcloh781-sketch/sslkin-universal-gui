@@ -183,6 +183,7 @@ local AntiTimeStopConfig = {
     ToggleKey = nil,
     ForceMovement = true,
     MovementSpeed = 2.0,
+    DebugMode = false, -- Режим отладки для изучения модуля
 }
 
 local isLongJumping = false
@@ -741,7 +742,49 @@ local function startAntiTimeStop()
     local originalJumpPower = hum.JumpPower
     local originalGravity = workspace.Gravity
     
-    -- Функция для предотвращения остановки времени
+    -- Функция для изучения модуля ResistTimeStop
+    local function analyzeResistTimeStopModule()
+        local living = workspace:FindFirstChild("Living")
+        if living then
+            local playerModule = living:FindFirstChild(Players.LocalPlayer.Name)
+            if playerModule then
+                local resistTimeStop = playerModule:FindFirstChild("ResistTimeStop")
+                if resistTimeStop then
+                    print("=== Анализ модуля ResistTimeStop ===")
+                    print("Тип модуля:", typeof(resistTimeStop))
+                    
+                    -- Изучаем содержимое модуля
+                    for _, child in pairs(resistTimeStop:GetDescendants()) do
+                        print("Дочерний элемент:", child.Name, "Тип:", typeof(child))
+                        if child:IsA("BoolValue") then
+                            print("  BoolValue:", child.Name, "=", child.Value)
+                        elseif child:IsA("NumberValue") then
+                            print("  NumberValue:", child.Name, "=", child.Value)
+                        elseif child:IsA("StringValue") then
+                            print("  StringValue:", child.Name, "=", child.Value)
+                        end
+                    end
+                    
+                    -- Пытаемся изучить функции модуля
+                    local success, moduleFunctions = pcall(function()
+                        return require(resistTimeStop)
+                    end)
+                    
+                    if success and moduleFunctions then
+                        print("Функции модуля:")
+                        for key, value in pairs(moduleFunctions) do
+                            print("  ", key, "=", typeof(value))
+                        end
+                    else
+                        print("Не удалось загрузить функции модуля:", moduleFunctions)
+                    end
+                    print("=== Конец анализа ===")
+                end
+            end
+        end
+    end
+    
+    -- Функция для предотвращения остановки времени через ResistTimeStop
     local function preventTimeStop()
         if not isAntiTimeStopActive or not char or not char.Parent then
             return
@@ -751,6 +794,65 @@ local function startAntiTimeStop()
         local currentRoot = char:FindFirstChild("HumanoidRootPart")
         
         if not currentHum or not currentRoot then return end
+        
+        -- Ищем модуль ResistTimeStop в workspace.Living
+        local living = workspace:FindFirstChild("Living")
+        if living then
+            local playerModule = living:FindFirstChild(Players.LocalPlayer.Name)
+            if playerModule then
+                local resistTimeStop = playerModule:FindFirstChild("ResistTimeStop")
+                if resistTimeStop then
+                    -- Если включен режим отладки, анализируем модуль
+                    if AntiTimeStopConfig.DebugMode then
+                        analyzeResistTimeStopModule()
+                        AntiTimeStopConfig.DebugMode = false -- Отключаем после первого анализа
+                    end
+                    
+                    -- Пытаемся активировать сопротивление остановке времени
+                    if typeof(resistTimeStop) == "ModuleScript" then
+                        -- Пытаемся вызвать функции модуля
+                        local success, result = pcall(function()
+                            -- Пытаемся получить доступ к функциям модуля
+                            local moduleFunctions = require(resistTimeStop)
+                            if moduleFunctions and typeof(moduleFunctions) == "table" then
+                                -- Пытаемся вызвать функции сопротивления
+                                if moduleFunctions.Resist then
+                                    moduleFunctions.Resist()
+                                elseif moduleFunctions.Activate then
+                                    moduleFunctions.Activate()
+                                elseif moduleFunctions.Enable then
+                                    moduleFunctions.Enable()
+                                elseif moduleFunctions.Start then
+                                    moduleFunctions.Start()
+                                elseif moduleFunctions.Begin then
+                                    moduleFunctions.Begin()
+                                end
+                            end
+                        end)
+                        
+                        if not success then
+                            -- Если не удалось вызвать функции, пытаемся изменить свойства
+                            for _, child in pairs(resistTimeStop:GetDescendants()) do
+                                if child:IsA("BoolValue") and child.Name:lower():find("resist") then
+                                    child.Value = true
+                                elseif child:IsA("BoolValue") and child.Name:lower():find("active") then
+                                    child.Value = true
+                                elseif child:IsA("BoolValue") and child.Name:lower():find("enabled") then
+                                    child.Value = true
+                                elseif child:IsA("BoolValue") and child.Name:lower():find("start") then
+                                    child.Value = true
+                                elseif child:IsA("BoolValue") and child.Name:lower():find("begin") then
+                                    child.Value = true
+                                end
+                            end
+                        end
+                    end
+                else
+                    -- Если модуля нет, создаем его или ищем альтернативные способы
+                    print("ResistTimeStop модуль не найден, используем альтернативные методы")
+                end
+            end
+        end
         
         -- Постоянно восстанавливаем способность к движению
         if currentHum.WalkSpeed == 0 then
@@ -3838,6 +3940,7 @@ local function updatePlayerList()
                not child.Text:find("Item ESP") and 
                not child.Text:find("Anti Time Stop") and 
                not child.Text:find("Movement Speed") and 
+               not child.Text:find("Debug Mode") and 
                not child.Text:find("Anti Time Stop Hotkey") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
@@ -3914,6 +4017,25 @@ speedInput("Custom Movement Speed", AntiTimeStopConfig.MovementSpeed, function(v
     AntiTimeStopConfig.MovementSpeed = v
 end)
 
+-- Кнопка режима отладки
+local debugModeBtn = Instance.new("TextButton", innerContainer)
+debugModeBtn.Size = UDim2.new(1, -10, 0, 28)
+debugModeBtn.Text = "Debug Mode: " .. (AntiTimeStopConfig.DebugMode and "ON" or "OFF")
+debugModeBtn.Font = Enum.Font.Gotham
+debugModeBtn.TextSize = 14
+debugModeBtn.TextColor3 = Color3.new(1,1,1)
+debugModeBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+debugModeBtn.AutoButtonColor = false
+Instance.new("UICorner", debugModeBtn).CornerRadius = UDim.new(0,6)
+
+debugModeBtn.MouseButton1Click:Connect(function()
+    AntiTimeStopConfig.DebugMode = not AntiTimeStopConfig.DebugMode
+    debugModeBtn.Text = "Debug Mode: " .. (AntiTimeStopConfig.DebugMode and "ON" or "OFF")
+    if AntiTimeStopConfig.DebugMode then
+        print("Режим отладки включен. Анализ модуля ResistTimeStop будет выполнен при следующем запуске функции.")
+    end
+end)
+
 -- Кнопка настройки горячих клавиш
 local antiTimeStopKeyBtn = Instance.new("TextButton", innerContainer)
 antiTimeStopKeyBtn.Size = UDim2.new(1, -10, 0, 24)
@@ -3940,7 +4062,7 @@ end)
 -- Информационная панель
 local antiTimeStopInfo = Instance.new("TextLabel", innerContainer)
 antiTimeStopInfo.Size = UDim2.new(1, -10, 0, 40)
-antiTimeStopInfo.Text = "Anti Time Stop предотвращает замораживание персонажа при остановке времени. Постоянно восстанавливает способность к движению и принудительно двигает персонажа при попытке застывания. Работает с любым стендом."
+antiTimeStopInfo.Text = "Anti Time Stop использует модуль ResistTimeStop для предотвращения замораживания персонажа. Анализирует и активирует встроенные механизмы сопротивления остановке времени. Включите Debug Mode для изучения модуля."
 antiTimeStopInfo.Font = Enum.Font.Gotham
 antiTimeStopInfo.TextSize = 12
 antiTimeStopInfo.TextColor3 = Color3.fromRGB(200,200,200)
