@@ -1791,6 +1791,8 @@ local function findStands()
     return stands
 end
 
+
+
 local function freezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
