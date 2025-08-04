@@ -2001,6 +2001,16 @@ local function startYBA()
     print("Stand Range активирован")
     print("Underground Flight будет активирован через 5 секунд...")
     
+    -- Добавляем обработчик смерти
+    local humanoid = char and char:FindFirstChild("Humanoid")
+    if humanoid then
+        local deathConnection = humanoid.Died:Connect(function()
+            print("Игрок умер, отключаем Stand Range...")
+            stopYBA()
+        end)
+        table.insert(standControlConnections, deathConnection)
+    end
+    
     task.spawn(function()
         task.wait(5) -- Ждем 5 секунд
         
@@ -2097,6 +2107,8 @@ local function startUndergroundControl()
     if YBAConfig.UndergroundControl.AutoNoClip and not isNoClipping and startNoClip then
         startNoClip()
         print("NoClip включен для подземного полета")
+    elseif not startNoClip then
+        print("ОШИБКА: Функция startNoClip не найдена!")
     end
     
     -- Настройки полета как в оригинальной функции
@@ -2214,8 +2226,18 @@ local function startUndergroundControl()
     
     table.insert(undergroundControlConnections, undergroundFlyLoop)
     
+    -- Добавляем обработчик смерти для Underground Flight
+    local humanoid = char and char:FindFirstChild("Humanoid")
+    if humanoid then
+        local deathConnection = humanoid.Died:Connect(function()
+            print("Игрок умер, отключаем Underground Flight...")
+            stopUndergroundControl()
+        end)
+        table.insert(undergroundControlConnections, deathConnection)
+    end
+    
     print("Полет под землей за стендом активирован!")
-    print("Персонаж перенесен под стенд на расстоянии " .. YBAConfig.UndergroundControl.UndergroundDistance .. " метров под землей")
+    print("Персонаж перенесен под стенд на расстоянии 30 метров под землей")
 end
 
 -- Функция для остановки управления персонажем под стендом
@@ -2253,12 +2275,34 @@ local function stopUndergroundControl()
     end
     undergroundControlConnections = {}
     
-    -- Возвращаем персонажа в исходную позицию
+    -- Плавно возвращаем персонажа в исходную позицию
     if YBAConfig.UndergroundControl.OriginalPosition then
         if root then
-            print("Возвращаем персонажа в исходную позицию...")
-            root.CFrame = CFrame.new(YBAConfig.UndergroundControl.OriginalPosition)
-            YBAConfig.UndergroundControl.OriginalPosition = nil
+            print("Плавно возвращаем персонажа в исходную позицию...")
+            
+            -- Создаем BodyVelocity для плавного возврата
+            local returnBv = Instance.new("BodyVelocity", root)
+            returnBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            
+            -- Вычисляем направление к исходной позиции
+            local direction = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Unit
+            local distance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
+            local returnSpeed = 100 -- Скорость возврата
+            
+            returnBv.Velocity = direction * returnSpeed
+            
+            -- Отслеживаем возврат
+            local returnConnection = RunService.Heartbeat:Connect(function()
+                local currentDistance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
+                
+                if currentDistance < 2 then
+                    -- Когда близко к цели, останавливаемся
+                    returnBv:Destroy()
+                    returnConnection:Disconnect()
+                    YBAConfig.UndergroundControl.OriginalPosition = nil
+                    print("Персонаж успешно возвращен в исходную позицию")
+                end
+            end)
         end
     end
     
@@ -4065,10 +4109,10 @@ end)
 
 undergroundControlToggleBtn.AutoButtonColor = false
 
--- Ползунок для регулировки скорости полета и стенда
+-- Ползунок для регулировки скорости полета и стенда (только целые числа)
 slider("Flight & Stand Speed (25-300)", 25, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
-    YBAConfig.UndergroundControl.FlightSpeed = v
-    print("Скорость полета и стенда установлена:", v)
+    YBAConfig.UndergroundControl.FlightSpeed = math.floor(v) -- Округляем до целого числа
+    print("Скорость полета и стенда установлена:", math.floor(v))
 end)
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
