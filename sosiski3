@@ -161,15 +161,8 @@ local YBAConfig = {
             ["Lucky Arrow"] = true,
             ["Lucky Stone Mask"] = true,
             
-            -- Части трупа святого
+            -- Части трупа святого (только грудная клетка)
             ["Rib Cage of The Saint's Corpse"] = true,
-            ["Left Arm of The Saint's Corpse"] = true,
-            ["Right Arm of The Saint's Corpse"] = true,
-            ["Heart of The Saint's Corpse"] = true,
-            ["Pelvis of The Saint's Corpse"] = true,
-            ["Left Leg of The Saint's Corpse"] = true,
-            ["Right Leg of The Saint's Corpse"] = true,
-            ["Head of The Saint's Corpse"] = true,
             
             -- Дополнительные предметы
             ["DIO's Diary"] = true,
@@ -2097,15 +2090,8 @@ local YBA_ITEM_NAMES = {
     ["Lucky Arrow"] = true,
     ["Lucky Stone Mask"] = true,
     
-    -- Части трупа святого
+    -- Части трупа святого (только грудная клетка)
     ["Rib Cage of The Saint's Corpse"] = true,
-    ["Left Arm of The Saint's Corpse"] = true,
-    ["Right Arm of The Saint's Corpse"] = true,
-    ["Heart of The Saint's Corpse"] = true,
-    ["Pelvis of The Saint's Corpse"] = true,
-    ["Left Leg of The Saint's Corpse"] = true,
-    ["Right Leg of The Saint's Corpse"] = true,
-    ["Head of The Saint's Corpse"] = true,
     
     -- Дополнительные предметы
     ["DIO's Diary"] = true,
@@ -3748,18 +3734,11 @@ createItemToggle("Zeppeli's Headband", YBAConfig.ItemESP.Items["Zeppeli's Headba
 createItemToggle("Zeppeli's Hat", YBAConfig.ItemESP.Items["Zeppeli's Hat"])
 createItemToggle("Zeppeli's Scarf", YBAConfig.ItemESP.Items["Zeppeli's Scarf"])
 createItemToggle("Quinton's Glove", YBAConfig.ItemESP.Items["Quinton's Glove"])
+createItemToggle("Stone Mask", YBAConfig.ItemESP.Items["Stone Mask"])
+createItemToggle("Rib Cage of The Saint's Corpse", YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
 createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
 
--- Части трупа святого
-sectionHeader("💀 Saint's Corpse Parts")
-createItemToggle("Rib Cage of The Saint's Corpse", YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
-createItemToggle("Left Arm of The Saint's Corpse", YBAConfig.ItemESP.Items["Left Arm of The Saint's Corpse"])
-createItemToggle("Right Arm of The Saint's Corpse", YBAConfig.ItemESP.Items["Right Arm of The Saint's Corpse"])
-createItemToggle("Heart of The Saint's Corpse", YBAConfig.ItemESP.Items["Heart of The Saint's Corpse"])
-createItemToggle("Pelvis of The Saint's Corpse", YBAConfig.ItemESP.Items["Pelvis of The Saint's Corpse"])
-createItemToggle("Left Leg of The Saint's Corpse", YBAConfig.ItemESP.Items["Left Leg of The Saint's Corpse"])
-createItemToggle("Right Leg of The Saint's Corpse", YBAConfig.ItemESP.Items["Right Leg of The Saint's Corpse"])
-createItemToggle("Head of The Saint's Corpse", YBAConfig.ItemESP.Items["Head of The Saint's Corpse"])
+
 
 
 
@@ -3826,7 +3805,8 @@ selectBasicBtn.MouseButton1Click:Connect(function()
     local basicItems = {
         "Mysterious Arrow", "Rokakaka", "Pure Rokakaka", "Diamond", 
         "Gold Coin", "Steel Ball", "Clackers", "Zeppeli's Headband", 
-        "Zeppeli's Hat", "Zeppeli's Scarf", "Quinton's Glove", "Lucky Arrow"
+        "Zeppeli's Hat", "Zeppeli's Scarf", "Quinton's Glove", "Stone Mask",
+        "Rib Cage of The Saint's Corpse", "Lucky Arrow"
     }
     
     for _, itemName in ipairs(basicItems) do
