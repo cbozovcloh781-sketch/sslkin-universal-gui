@@ -1743,7 +1743,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= YBAConfig.StandRange then
                         foundCount = foundCount + 1
                         table.insert(stands, {
                             Model = obj,
@@ -1763,7 +1763,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= YBAConfig.StandRange then
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -2114,7 +2114,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             end
             
             if guiCallbacks.yba then
-                guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+                guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF") .. " (" .. YBAConfig.StandRange .. ")"
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
             -- Временная активация Anti Time Stop (как кнопка)
@@ -3529,7 +3529,7 @@ local function updateStatusDisplay()
         guiCallbacks.teleport.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
     end
     if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF") .. " (" .. YBAConfig.StandRange .. ")"
     end
     if guiCallbacks.itemESP then
         guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
@@ -3763,7 +3763,7 @@ standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 standRangeLabel.BackgroundTransparency = 1
 standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+local ybaToggleBtn = toggle("YBA Stand Range (" .. YBAConfig.StandRange .. ")", YBAConfig.Enabled, function(v)
     YBAConfig.Enabled = v
     if v then 
         startYBA() 
@@ -3771,12 +3771,30 @@ local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
         stopYBA() 
     end
     if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF") .. " (" .. YBAConfig.StandRange .. ")"
+    end
+    -- Обновляем текст кнопки
+    if ybaToggleBtn then
+        ybaToggleBtn.Text = "YBA Stand Range (" .. YBAConfig.StandRange .. ")"
     end
 end)
 guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
+
+-- Слайдер для настройки дальности стенда
+slider("Stand Range", 10, 200000, YBAConfig.StandRange, function(value)
+    YBAConfig.StandRange = value
+    print("YBA: Дальность стенда установлена в:", value)
+    
+    -- Обновляем текст кнопки
+    if ybaToggleBtn then
+        ybaToggleBtn.Text = "YBA Stand Range (" .. value .. ")"
+    end
+    if guiCallbacks.yba then
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF") .. " (" .. value .. ")"
+    end
+end)
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
 itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
