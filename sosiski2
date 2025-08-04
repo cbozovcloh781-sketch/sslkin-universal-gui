@@ -3663,3 +3663,48 @@ local function findYBAItems()
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
     return items
 end
+
+-- Функция для поиска предметов YBA: берём World Pivot из Model, ObjectText из ProximityPrompt, подсвечиваем Model
+local function findYBAItems()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then return items end
+
+    local itemFolder = workspace:FindFirstChild("items_spawns")
+    if not itemFolder then return items end
+    local itemsFolder = itemFolder:FindFirstChild("items")
+    if not itemsFolder then return items end
+
+    for _, model in ipairs(itemsFolder:GetChildren()) do
+        if model:IsA("Model") then
+            -- Берём World Pivot из Model (позиция на карте)
+            local modelPosition = model:GetPivot().Position
+            
+            -- Ищем ProximityPrompt и берём ObjectText (название предмета)
+            local objectName = nil
+            for _, desc in ipairs(model:GetDescendants()) do
+                if desc:IsA("ProximityPrompt") and desc.ObjectText and #desc.ObjectText > 0 then
+                    objectName = desc.ObjectText
+                    break
+                end
+            end
+            
+            if objectName and YBA_ITEM_NAMES[objectName] then
+                local distance = (modelPosition - playerRoot.Position).Magnitude
+                if distance <= YBAConfig.ItemESP.MaxDistance then
+                    table.insert(items, {
+                        Object = model, -- Подсвечиваем сам Model
+                        Root = model,
+                        Distance = distance,
+                        Name = objectName,
+                        Type = "YBA_Item"
+                    })
+                end
+            end
+        end
+    end
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    return items
+end
