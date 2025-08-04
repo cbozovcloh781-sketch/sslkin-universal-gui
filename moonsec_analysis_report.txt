@@ -1,0 +1,39 @@
+=== ОТЧЕТ О ДЕШИФРОВКЕ MOONSEC V3 ===
+Файл: ybaredguiforpc
+Размер: 595525 символов
+
+=== ДЕШИФРОВАННЫЕ ПЕРЕМЕННЫЕ ===
+g = "e"
+m = "m(z,g(g,g),g(g,g))"
+z = "m local t=0x00 local g=0x00 z={(function(e)if t>0x27 then return e end t=t+1 g=(g+0x91e-e)%0x12 return(g%0x03==0x0 and(function(z)if not m[z]then g=g+0x01 m[z]=(0x5a)"
+f = "r.GYcYGMDc or r.IlXuYHmE"
+n = "0xff"
+h = "z(g,4,6)"
+eg = "(getfenv)or(function()return _ENV end)"
+e = "''"
+t = "z[e+2]"
+y = "1"
+o = "{}"
+a = "#r.urtaTDJQ(s('\49.\48'))~=1 local g=m"
+k = "m"
+l = "(1)"
+s = "_[g[n]]"
+j = "j-b+1 local g"
+d = "{}"
+
+=== ФУНКЦИИ ===
+function m(m)
+function f(g)
+function zg(b,...)
+function g(z,g)
+function d()
+function u()
+function c(m)
+function ng(...)
+function mg()
+function zg(z,g,m)
+function c(k,o,h)
+function zg(...)
+function b(...)
+
+=== ВЫЗОВЫ LOADSTRING ===
