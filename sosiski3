@@ -141,6 +141,36 @@ local YBAConfig = {
         
         -- Шрифт
         Font = Enum.Font.GothamBold,
+        
+        -- Настройки предметов (какие показывать)
+        Items = {
+            -- Основные предметы
+            ["Mysterious Arrow"] = true,
+            ["Rokakaka"] = true,
+            ["Pure Rokakaka"] = true,
+            ["Diamond"] = true,
+            ["Gold Coin"] = true,
+            ["Steel Ball"] = true,
+            ["Clackers"] = true,
+            ["Caesar's Headband"] = true,
+            ["Zeppeli's Hat"] = true,
+            ["Zeppeli's Scarf"] = true,
+            ["Ancient Scroll"] = true,
+            ["Quinton's Glove"] = true,
+            ["Stone Mask"] = true,
+            ["Lucky Arrow"] = true,
+            ["Lucky Stone Mask"] = true,
+            
+            -- Части трупа святого (только грудная клетка)
+            ["Rib Cage of The Saint's Corpse"] = true,
+            
+            -- Дополнительные предметы
+            ["DIO's Diary"] = true,
+            ["DIO's Bone"] = true,
+            ["DIO's Diary Page"] = true,
+            
+
+        }
     }
 }
 
@@ -1300,7 +1330,6 @@ local function stopTeleport()
     end
 end
 
--- YBA Stand Control Functions
 local function findStands()
     local stands = {}
     local player = Players.LocalPlayer
@@ -1308,13 +1337,9 @@ local function findStands()
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
     if not playerRoot then 
-        print("YBA: Не найден HumanoidRootPart игрока")
         return stands 
     end
     
-    print("YBA: Поиск стендов в радиусе " .. YBAConfig.MaxStandDistance .. " (без ограничений дистанции)")
-    
-    -- Поиск стендов в YBA (различные варианты названий)
     local standNames = {
         "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
         "Star Platinum", "The World", "Hierophant Green", "Magician's Red",
@@ -1340,9 +1365,8 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance then -- Бесконечная привязка к стенду
+                    if distance <= 20 then
                         foundCount = foundCount + 1
-                        print("YBA: Найден стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1355,18 +1379,13 @@ local function findStands()
         end
     end
     
-    print("YBA: Найдено стендов по названию: " .. foundCount)
-    
-    -- Если стенды не найдены, ищем по другим критериям
     if #stands == 0 then
-        print("YBA: Поиск альтернативных стендов...")
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.MaxStandDistance then -- Бесконечная привязка к стенду
-                        print("YBA: Найден альтернативный стенд '" .. obj.Name .. "' на расстоянии " .. math.floor(distance))
+                    if distance <= 20 then
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1379,9 +1398,7 @@ local function findStands()
         end
     end
     
-    -- Сортируем по расстоянию
     table.sort(stands, function(a, b) return a.Distance < b.Distance end)
-    print("YBA: Всего найдено подходящих стендов: " .. #stands)
     return stands
 end
 
@@ -1578,51 +1595,27 @@ end
 local function startYBA()
     if isYBAEnabled then return end
     
-    print("YBA: Запуск Stand Range Hack...")
-    
     isYBAEnabled = true
     YBAConfig.Enabled = true
     
-    -- Находим ближайший стенд
     local stands = findStands()
-    print("YBA: Найдено стендов: " .. #stands)
     
     if #stands == 0 then
-        print("YBA: Стенды не найдены в радиусе " .. YBAConfig.MaxStandDistance)
-        print("YBA: Попробуйте увеличить Stand Range в настройках")
         return
     end
     
-    local targetStand = stands[1] -- Берем ближайший стенд
-    print("YBA: Найден стенд - " .. targetStand.Name .. " на расстоянии " .. math.floor(targetStand.Distance))
+    local targetStand = stands[1]
     
-    -- Замораживаем игрока
     if YBAConfig.FreezePlayer then
-        print("YBA: Замораживаем игрока...")
         freezePlayer()
     end
     
-    -- Переключаем камеру (теперь используется новая система)
     if YBAConfig.SwitchCamera then
-        print("YBA: Переключаем камеру на стенд...")
-        -- Камера будет переключена в activateFreeCamera
     end
     
-    -- Активируем управление стендом
     if YBAConfig.TransferControl then
-        print("YBA: Активируем управление стендом...")
-        
-        -- Используем новую систему управления стендом
-        if activateFreeCamera(targetStand) then
-            print("YBA: Управление стендом активировано")
-        else
-            print("YBA: Не удалось активировать управление стендом")
-        end
-    else
-        print("YBA: TransferControl отключен")
+        activateFreeCamera(targetStand)
     end
-    
-    print("YBA: Stand Range Hack активирован!")
 end
 
 local function stopYBA()
@@ -1631,13 +1624,9 @@ local function stopYBA()
     isYBAEnabled = false
     YBAConfig.Enabled = false
     
-    -- Отключаем управление стендом
     disableFreeCamera()
-    
-    -- Восстанавливаем управление игроком
     unfreezePlayer()
     
-    -- Останавливаем управление стендом
     for _, connection in ipairs(standControlConnections) do
         if connection then
             pcall(function() connection:Disconnect() end)
@@ -1645,8 +1634,6 @@ local function stopYBA()
     end
     standControlConnections = {}
     controlledStand = nil
-    
-    print("YBA: Stand Range Hack деактивирован!")
 end
 
 local function getAlivePlayers()
@@ -2036,7 +2023,7 @@ UserInputService.InputBegan:Connect(function(inp, gp)
     end
 end)
 
--- YBA Item ESP Functions (Полностью переписанная версия)
+
 local itemESPEnabled = false
 local itemESPConnections = {}
 local itemESPElements = {}
@@ -2050,184 +2037,35 @@ local YBA_ITEM_NAMES = {
     ["Diamond"] = true,
     ["Gold Coin"] = true,
     ["Steel Ball"] = true,
-    ["Zeppeli's Headband"] = true,
+    ["Clackers"] = true,
+    ["Caesar's Headband"] = true,
+    ["Zeppeli's Hat"] = true,
+    ["Zeppeli's Scarf"] = true,
     ["Ancient Scroll"] = true,
     ["Quinton's Glove"] = true,
     ["Stone Mask"] = true,
     ["Lucky Arrow"] = true,
     ["Lucky Stone Mask"] = true,
     
-    -- Части трупа святого
+    -- Части трупа святого (только грудная клетка)
     ["Rib Cage of The Saint's Corpse"] = true,
-    ["Left Arm of The Saint's Corpse"] = true,
-    ["Right Arm of The Saint's Corpse"] = true,
-    ["Heart of The Saint's Corpse"] = true,
-    ["Pelvis of The Saint's Corpse"] = true,
-    ["Left Leg of The Saint's Corpse"] = true,
-    ["Right Leg of The Saint's Corpse"] = true,
-    ["Head of The Saint's Corpse"] = true,
     
-    -- Дополнительные предметы
+    ["Ancient Scroll"] = true,
     ["DIO's Diary"] = true,
     ["DIO's Bone"] = true,
     ["DIO's Diary Page"] = true,
-    ["Ancient Scroll"] = true,
-    ["Zeppeli's Headband"] = true,
-    ["Quinton's Glove"] = true,
-    ["Stone Mask"] = true,
     ["Lucky Stone Mask"] = true,
-    ["Pure Rokakaka"] = true,
-    ["Rokakaka"] = true,
-    ["Mysterious Arrow"] = true,
-    ["Lucky Arrow"] = true,
-    ["Steel Ball"] = true,
-    ["Diamond"] = true,
-    ["Gold Coin"] = true,
-    
-    -- Редкие предметы
-    ["Requiem Arrow"] = true,
-    ["Heaven Ascension DIO's Diary"] = true,
-    ["Made in Heaven"] = true,
-    ["C-Moon"] = true,
-    ["Green Baby"] = true,
-    ["Whitesnake's Disc"] = true,
-    ["Weather Report's Disc"] = true,
-    ["Diver Down's Disc"] = true,
-    ["Killer Queen's Disc"] = true,
-    ["King Crimson's Disc"] = true,
-    ["Gold Experience's Disc"] = true,
-    ["Star Platinum's Disc"] = true,
-    ["The World's Disc"] = true,
-    ["Crazy Diamond's Disc"] = true,
-    ["Silver Chariot's Disc"] = true,
-    ["Hierophant Green's Disc"] = true,
-    ["Magician's Red's Disc"] = true,
-    ["Hermit Purple's Disc"] = true,
-    ["Tower of Gray's Disc"] = true,
-    ["Dark Blue Moon's Disc"] = true,
-    ["Strength's Disc"] = true,
-    ["Ebony Devil's Disc"] = true,
-    ["Yellow Temperance's Disc"] = true,
-    ["Hanged Man's Disc"] = true,
-    ["Emperor's Disc"] = true,
-    ["Empress's Disc"] = true,
-    ["Wheel of Fortune's Disc"] = true,
-    ["Justice's Disc"] = true,
-    ["Lovers's Disc"] = true,
-    ["Sun's Disc"] = true,
-    ["Death Thirteen's Disc"] = true,
-    ["Judgment's Disc"] = true,
-    ["High Priestess's Disc"] = true,
-    ["Geb's Disc"] = true,
-    ["Khnum's Disc"] = true,
-    ["Tohth's Disc"] = true,
-    ["Anubis's Disc"] = true,
-    ["Bastet's Disc"] = true,
-    ["Sethan's Disc"] = true,
-    ["Osiris's Disc"] = true,
-    ["Horus's Disc"] = true,
-    ["Atum's Disc"] = true,
-    ["Tenore Sax's Disc"] = true,
-    ["Cream's Disc"] = true,
-    ["The World's Disc"] = true,
-    ["DIO's Disc"] = true,
-    ["Vanilla Ice's Disc"] = true,
-    ["Pet Shop's Disc"] = true,
-    ["N'Doul's Disc"] = true,
-    ["Oingo's Disc"] = true,
-    ["Boingo's Disc"] = true,
-    ["Chaka's Disc"] = true,
-    ["Khan's Disc"] = true,
-    ["Mannish Boy's Disc"] = true,
-    ["Alessi's Disc"] = true,
-    ["Daniel J. D'Arby's Disc"] = true,
-    ["Terence T. D'Arby's Disc"] = true,
-    ["Kenny G's Disc"] = true,
-    ["Nukesaku's Disc"] = true,
-    ["Rubber Soul's Disc"] = true,
-    ["J. Geil's Disc"] = true,
-    ["Centerfold's Disc"] = true,
-    ["Enya the Hag's Disc"] = true,
-    ["Steely Dan's Disc"] = true,
-    ["Arabia Fats's Disc"] = true,
-    ["Mannish Boy's Disc"] = true,
-    ["Cameo's Disc"] = true,
-    ["Midler's Disc"] = true,
-    ["Nena's Disc"] = true,
-    ["ZZ's Disc"] = true,
-    ["Donovan's Disc"] = true,
-    ["Forever's Disc"] = true,
-    ["Devo's Disc"] = true,
-    ["Captain Tenille's Disc"] = true,
-    ["Tower of Gray's Disc"] = true,
-    ["Dark Blue Moon's Disc"] = true,
-    ["Strength's Disc"] = true,
-    ["Ebony Devil's Disc"] = true,
-    ["Yellow Temperance's Disc"] = true,
-    ["Hanged Man's Disc"] = true,
-    ["Emperor's Disc"] = true,
-    ["Empress's Disc"] = true,
-    ["Wheel of Fortune's Disc"] = true,
-    ["Justice's Disc"] = true,
-    ["Lovers's Disc"] = true,
-    ["Sun's Disc"] = true,
-    ["Death Thirteen's Disc"] = true,
-    ["Judgment's Disc"] = true,
-    ["High Priestess's Disc"] = true,
-    ["Geb's Disc"] = true,
-    ["Khnum's Disc"] = true,
-    ["Tohth's Disc"] = true,
-    ["Anubis's Disc"] = true,
-    ["Bastet's Disc"] = true,
-    ["Sethan's Disc"] = true,
-    ["Osiris's Disc"] = true,
-    ["Horus's Disc"] = true,
-    ["Atum's Disc"] = true,
-    ["Tenore Sax's Disc"] = true,
-    ["Cream's Disc"] = true,
-    ["Vanilla Ice's Disc"] = true,
-    ["Pet Shop's Disc"] = true,
-    ["N'Doul's Disc"] = true,
-    ["Oingo's Disc"] = true,
-    ["Boingo's Disc"] = true,
-    ["Chaka's Disc"] = true,
-    ["Khan's Disc"] = true,
-    ["Alessi's Disc"] = true,
-    ["Daniel J. D'Arby's Disc"] = true,
-    ["Terence T. D'Arby's Disc"] = true,
-    ["Kenny G's Disc"] = true,
-    ["Nukesaku's Disc"] = true,
-    ["Rubber Soul's Disc"] = true,
-    ["J. Geil's Disc"] = true,
-    ["Centerfold's Disc"] = true,
-    ["Enya the Hag's Disc"] = true,
-    ["Steely Dan's Disc"] = true,
-    ["Arabia Fats's Disc"] = true,
-    ["Cameo's Disc"] = true,
-    ["Midler's Disc"] = true,
-    ["Nena's Disc"] = true,
-    ["ZZ's Disc"] = true,
-    ["Donovan's Disc"] = true,
-    ["Forever's Disc"] = true,
-    ["Devo's Disc"] = true,
-    ["Captain Tenille's Disc"] = true,
 }
 
--- Улучшенная функция для поиска предметов YBA по всей карте
 local function findYBAItems()
     local items = {}
     local player = Players.LocalPlayer
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     if not playerRoot then 
-        print("YBA Item ESP: Игрок не найден")
         return items 
     end
 
-    print("YBA Item ESP: Позиция игрока:", playerRoot.Position)
-    print("YBA Item ESP: Максимальная дистанция поиска:", YBAConfig.ItemESP.MaxDistance)
-
-    -- Оптимизированный поиск в конкретной структуре папок
     local foundFolders = {}
     
     local targetFolder = workspace:FindFirstChild("Item_Spawns")
@@ -2235,15 +2073,9 @@ local function findYBAItems()
         local itemsFolder = targetFolder:FindFirstChild("Items")
         if itemsFolder then
             table.insert(foundFolders, itemsFolder)
-            print("YBA Item ESP: Найдена целевая папка:", targetFolder.Name .. "." .. itemsFolder.Name)
-        else
-            print("YBA Item ESP: Папка 'Items' не найдена в", targetFolder.Name)
         end
-    else
-        print("YBA Item ESP: Папка 'Item_Spawns' не найдена в workspace")
     end
     
-    -- Fallback: старый список папок (если основная структура не найдена)
     if #foundFolders == 0 then
         local possibleFolders = {
             workspace:FindFirstChild("Items"),
@@ -2265,19 +2097,11 @@ local function findYBAItems()
         for _, folder in ipairs(possibleFolders) do
             if folder then
                 table.insert(foundFolders, folder)
-                print("YBA Item ESP: Найдена fallback папка:", folder.Name)
             end
         end
     end
     
     if #foundFolders == 0 then 
-        print("YBA Item ESP: Папки с предметами не найдены!")
-        print("YBA Item ESP: Доступные папки в workspace:")
-        for _, child in ipairs(workspace:GetChildren()) do
-            if child:IsA("Folder") then
-                print("  -", child.Name)
-            end
-        end
         return items 
     end
     
@@ -2285,49 +2109,30 @@ local function findYBAItems()
     local searchedModels = {}
     local debugCount = 0
 
-    -- Ищем предметы во всех найденных папках
     for _, folder in ipairs(foundFolders) do
-        print("YBA Item ESP: Ищем в папке:", folder.Name)
-        
-        -- Оптимизированная функция для поиска в папке items
         local function searchInFolder(currentFolder, depth)
-            if depth > 3 then return end -- Уменьшили глубину поиска
+            if depth > 3 then return end
             
             for _, child in ipairs(currentFolder:GetChildren()) do
                 debugCount = debugCount + 1
-                if debugCount % 50 == 0 then
-                    print("YBA Item ESP: Проверено объектов:", debugCount)
-                end
                 
                 if child:IsA("Model") then
-                    -- Проверяем, не обрабатывали ли мы уже эту модель
                     if not searchedModels[child] then
                         searchedModels[child] = true
                         
-                        -- Ищем proximityPrompt в модели для получения названия предмета
                         local proximityPrompt = child:FindFirstChild("ProximityPrompt")
-                        local itemName = child.Name -- По умолчанию используем имя модели
+                        local itemName = child.Name
                         
                         if proximityPrompt then
                             itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
                         end
                         
-                        -- Проверяем, является ли модель предметом
-                        if YBA_ITEM_NAMES[itemName] then
-                            print("YBA Item ESP: Найдена модель предмета:", itemName)
-                            
-                            -- Ищем все MeshPart в модели
+                        if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
                             for _, part in ipairs(child:GetDescendants()) do
                                 if part:IsA("MeshPart") or part:IsA("Part") then
                                     local distance = (part.Position - playerRoot.Position).Magnitude
                                     
-                                    -- Добавляем все предметы, но помечаем те, что слишком далеко
                                     foundCount = foundCount + 1
-                                    if distance <= YBAConfig.ItemESP.MaxDistance then
-                                        print("YBA Item ESP: Найден предмет", itemName, "на расстоянии", math.floor(distance), "м")
-                                    else
-                                        print("YBA Item ESP: Найден предмет", itemName, "на расстоянии", math.floor(distance), "м (далеко)")
-                                    end
                                     
                                     table.insert(items, {
                                         Object = part,
@@ -2337,109 +2142,64 @@ local function findYBAItems()
                                         Type = "YBA_Item",
                                         Folder = currentFolder.Name
                                     })
-                                    break -- Берем только первый подходящий part из модели
+                                    break
                                 end
-                            end
-                        else
-                            -- Отладочная информация для неизвестных моделей
-                            if string.find(string.lower(itemName), "arrow") or 
-                               string.find(string.lower(itemName), "rokakaka") or
-                               string.find(string.lower(itemName), "diamond") or
-                               string.find(string.lower(itemName), "coin") then
-                                print("YBA Item ESP: Найдена неизвестная модель (возможно предмет):", itemName)
                             end
                         end
                     end
                 elseif child:IsA("Folder") and depth < 2 then
-                    -- Рекурсивно ищем в подпапках (уменьшили глубину)
                     searchInFolder(child, depth + 1)
                 end
             end
         end
         
-        -- Начинаем поиск в текущей папке
         searchInFolder(folder, 0)
     end
     
-    -- Сортируем предметы по расстоянию
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    print("YBA Item ESP: Всего проверено объектов:", debugCount)
-    print("YBA Item ESP: Всего найдено предметов:", foundCount)
-    if foundCount > 0 then
-        print("YBA Item ESP: Ближайший предмет:", items[1].Name, "на расстоянии", math.floor(items[1].Distance), "м")
-    else
-        print("YBA Item ESP: Предметы не найдены. Проверьте:")
-        print("  1. Правильность имен предметов в YBA_ITEM_NAMES")
-        print("  2. Дистанцию поиска (текущая:", YBAConfig.ItemESP.MaxDistance, "м)")
-        print("  3. Структуру папок в workspace")
-    end
     
     return items
 end
 
--- Быстрая функция для поиска в структуре item_spawns.items
 local function findYBAItemsFast()
     local items = {}
     local player = Players.LocalPlayer
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     if not playerRoot then 
-        print("YBA Item ESP: Игрок не найден (быстрый поиск)")
         return items 
     end
-
-    print("YBA Item ESP: Быстрый поиск в Item_Spawns.Items...")
     
     local targetFolder = workspace:FindFirstChild("Item_Spawns")
     if not targetFolder then
-        print("YBA Item ESP: Папка 'Item_Spawns' не найдена")
         return items
     end
     
     local itemsFolder = targetFolder:FindFirstChild("Items")
     if not itemsFolder then
-        print("YBA Item ESP: Папка 'Items' не найдена в Item_Spawns")
         return items
     end
-    
-    print("YBA Item ESP: Найдена структура Item_Spawns.Items")
     
     local foundCount = 0
     local debugCount = 0
 
-    -- Ищем все модели в папке Items
     for _, child in ipairs(itemsFolder:GetChildren()) do
         debugCount = debugCount + 1
         
         if child:IsA("Model") then
-            print("YBA Item ESP: Быстрый поиск - найдена модель:", child.Name, "в позиции:", child:GetPivot().Position)
-            
-            -- Ищем proximityPrompt в модели для получения названия предмета
             local proximityPrompt = child:FindFirstChild("ProximityPrompt")
-            local itemName = child.Name -- По умолчанию используем имя модели
+            local itemName = child.Name
             
             if proximityPrompt then
                 itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
-                print("YBA Item ESP: Быстрый поиск - название предмета из ProximityPrompt:", itemName)
             end
             
-            -- Проверяем, является ли модель предметом
-            if YBA_ITEM_NAMES[itemName] then
-                print("YBA Item ESP: Быстрый поиск - это известный предмет:", itemName)
-                
-                -- Ищем все MeshPart в модели
+            if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
                 for _, part in ipairs(child:GetDescendants()) do
                     if part:IsA("MeshPart") or part:IsA("Part") then
                         local distance = (part.Position - playerRoot.Position).Magnitude
                         
-                        -- Добавляем все предметы, но помечаем те, что слишком далеко
                         foundCount = foundCount + 1
-                        if distance <= YBAConfig.ItemESP.MaxDistance then
-                            print("YBA Item ESP: Быстрый поиск - найден предмет", itemName, "на расстоянии", math.floor(distance), "м")
-                        else
-                            print("YBA Item ESP: Быстрый поиск - найден предмет", itemName, "на расстоянии", math.floor(distance), "м (далеко)")
-                        end
                         
                         table.insert(items, {
                             Object = part,
@@ -2453,10 +2213,6 @@ local function findYBAItemsFast()
                     end
                 end
             else
-                -- Отладочная информация для всех моделей
-                print("YBA Item ESP: Быстрый поиск - неизвестная модель:", itemName)
-                
-                -- Проверяем, может ли это быть предмет (по ключевым словам)
                 local lowerName = string.lower(itemName)
                 if string.find(lowerName, "arrow") or 
                    string.find(lowerName, "rokakaka") or
@@ -2470,9 +2226,7 @@ local function findYBAItemsFast()
                    string.find(lowerName, "glove") or
                    string.find(lowerName, "headband") or
                    string.find(lowerName, "ball") then
-                    print("YBA Item ESP: Быстрый поиск - возможно это предмет:", itemName)
                     
-                    -- Добавляем в список предметов даже если имя не в YBA_ITEM_NAMES
                     for _, part in ipairs(child:GetDescendants()) do
                         if part:IsA("MeshPart") or part:IsA("Part") then
                             local distance = (part.Position - playerRoot.Position).Magnitude
@@ -2498,11 +2252,7 @@ local function findYBAItemsFast()
         end
     end
     
-    -- Сортируем предметы по расстоянию
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    print("YBA Item ESP: Быстрый поиск - всего проверено объектов:", debugCount)
-    print("YBA Item ESP: Быстрый поиск - всего найдено предметов:", foundCount)
     
     return items
 end
@@ -2539,8 +2289,8 @@ local function findYBAItemsAlternative()
                 if not searchedModels[child] then
                     searchedModels[child] = true
                     
-                    -- Проверяем, является ли модель предметом
-                    if YBA_ITEM_NAMES[child.Name] then
+                    -- Проверяем, является ли модель предметом и включен ли он в настройках
+                    if YBA_ITEM_NAMES[child.Name] and YBAConfig.ItemESP.Items[child.Name] then
                         print("YBA Item ESP: Альтернативный поиск - найдена модель предмета:", child.Name)
                         
                         -- Ищем все MeshPart в модели
@@ -2653,6 +2403,7 @@ local function createItemESP(item)
     print("YBA Item ESP: Создаем ESP для предмета:", item.Name)
     
     local esp = {}
+    esp.itemName = item.Name -- Сохраняем имя предмета для быстрого доступа
     
     -- Определяем цвет предмета в зависимости от его типа
     local function getItemColor(itemName)
@@ -2976,14 +2727,22 @@ local function startItemESP()
             for i = 1, math.min(100, #items) do -- Увеличили лимит до 100 предметов
                 local item = items[i]
                 if item and item.Object and item.Object.Parent then
-                    currentItems[item.Object] = true
-                    
-                    -- Создаем ESP только если его еще нет
-                    if not itemESPElements[item.Object] then
-                        pcall(createItemESP, item)
+                    -- Проверяем, включен ли этот предмет в настройках
+                    if YBAConfig.ItemESP.Items[item.Name] then
+                        currentItems[item.Object] = true
+                        
+                        -- Создаем ESP только если его еще нет
+                        if not itemESPElements[item.Object] then
+                            pcall(createItemESP, item)
+                        else
+                            -- Обновляем ESP
+                            pcall(updateItemESP, item)
+                        end
                     else
-                        -- Обновляем ESP
-                        pcall(updateItemESP, item)
+                        -- Если предмет отключен в настройках, удаляем его ESP
+                        if itemESPElements[item.Object] then
+                            pcall(removeItemESP, item)
+                        end
                     end
                 end
             end
@@ -2994,7 +2753,7 @@ local function startItemESP()
             end
         end
         
-        -- Удаляем ESP для предметов, которых больше нет
+        -- Удаляем ESP для предметов, которых больше нет или которые отключены в настройках
         for obj, esp in pairs(itemESPElements) do
             if not currentItems[obj] then
                 pcall(removeItemESP, {Object = obj})
@@ -3669,6 +3428,105 @@ slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
 end)
 
 
+-- YBA Hacks Section (перемещена перед Teleport Settings)
+sectionHeader("🟪 YBA Hacks")
+
+local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+    YBAConfig.Enabled = v
+    if v then 
+        startYBA() 
+    else 
+        stopYBA() 
+    end
+    if guiCallbacks.yba then
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.yba = ybaToggleBtn
+
+-- Отключаем навигацию для кнопки YBA Stand Range
+ybaToggleBtn.AutoButtonColor = false
+
+-- YBA Item ESP Controls
+sectionHeader("🎯 YBA Item ESP")
+
+local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
+    YBAConfig.ItemESP.Enabled = v
+    if v then 
+        startItemESP() 
+    else 
+        stopItemESP() 
+    end
+    if guiCallbacks.itemESP then
+        guiCallbacks.itemESP.Text = "Item ESP: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.itemESP = itemESPToggleBtn
+
+-- Отключаем навигацию для кнопки Item ESP
+itemESPToggleBtn.AutoButtonColor = false
+
+-- Настройки предметов для ESP
+local itemSelectionHeader = Instance.new("TextLabel", innerContainer)
+itemSelectionHeader.Size = UDim2.new(1, -10, 0, 25)
+itemSelectionHeader.Text = "📦 ITEM SELECTION"
+itemSelectionHeader.Font = Enum.Font.GothamBold
+itemSelectionHeader.TextSize = 14
+itemSelectionHeader.TextColor3 = Color3.fromRGB(255, 255, 0)
+itemSelectionHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+itemSelectionHeader.BorderSizePixel = 1
+itemSelectionHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+itemSelectionHeader.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", itemSelectionHeader).CornerRadius = UDim.new(0,4)
+
+-- Функция для создания переключателя предмета
+local function createItemToggle(itemName, defaultState)
+    local btn = toggle(itemName, defaultState, function(v)
+        YBAConfig.ItemESP.Items[itemName] = v
+        print("YBA Item ESP: Предмет", itemName, "установлен в", v and "ON" or "OFF")
+        
+        -- Немедленно применяем изменения
+        if YBAConfig.ItemESP.Enabled then
+            -- Если предмет отключен, удаляем все его ESP элементы
+            if not v then
+                for obj, esp in pairs(itemESPElements) do
+                    -- Проверяем, принадлежит ли ESP этому предмету
+                    if esp.itemName == itemName then
+                        pcall(removeItemESP, {Object = obj})
+                    end
+                end
+            end
+        end
+    end)
+    return btn
+end
+
+createItemToggle("Mysterious Arrow", YBAConfig.ItemESP.Items["Mysterious Arrow"])
+createItemToggle("Rokakaka", YBAConfig.ItemESP.Items["Rokakaka"])
+createItemToggle("Pure Rokakaka", YBAConfig.ItemESP.Items["Pure Rokakaka"])
+createItemToggle("Diamond", YBAConfig.ItemESP.Items["Diamond"])
+createItemToggle("Gold Coin", YBAConfig.ItemESP.Items["Gold Coin"])
+createItemToggle("Steel Ball", YBAConfig.ItemESP.Items["Steel Ball"])
+createItemToggle("Clackers", YBAConfig.ItemESP.Items["Clackers"])
+createItemToggle("Caesar's Headband", YBAConfig.ItemESP.Items["Caesar's Headband"])
+createItemToggle("Zeppeli's Hat", YBAConfig.ItemESP.Items["Zeppeli's Hat"])
+createItemToggle("Zeppeli's Scarf", YBAConfig.ItemESP.Items["Zeppeli's Scarf"])
+createItemToggle("Quinton's Glove", YBAConfig.ItemESP.Items["Quinton's Glove"])
+createItemToggle("Stone Mask", YBAConfig.ItemESP.Items["Stone Mask"])
+createItemToggle("Rib Cage of The Saint's Corpse", YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
+createItemToggle("Ancient Scroll", YBAConfig.ItemESP.Items["Ancient Scroll"])
+createItemToggle("DIO's Diary", YBAConfig.ItemESP.Items["DIO's Diary"])
+createItemToggle("DIO's Bone", YBAConfig.ItemESP.Items["DIO's Bone"])
+createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"])
+createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
+createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
+
+
+
+
+
+
+
 sectionHeader("🟩 Teleport Settings")
 
 
@@ -3947,6 +3805,7 @@ local function updatePlayerList()
                not child.Text:find("STOP TELEPORT") and 
                not child.Text:find("Hotkey:") and 
                not child.Text:find("YBA Stand Range") and 
+               not child.Text:find("Item ESP") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
             end
@@ -4004,40 +3863,4 @@ end)
 --     end)
 -- end
 
--- YBA Hacks Section (в конце меню)
-sectionHeader("🟪 YBA Hacks")
 
-local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
-    YBAConfig.Enabled = v
-    if v then 
-        startYBA() 
-    else 
-        stopYBA() 
-    end
-    if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.yba = ybaToggleBtn
-
--- Отключаем навигацию для кнопки YBA Stand Range
-ybaToggleBtn.AutoButtonColor = false
-
--- YBA Item ESP Controls
-sectionHeader("🎯 YBA Item ESP")
-
-local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
-    YBAConfig.ItemESP.Enabled = v
-    if v then 
-        startItemESP() 
-    else 
-        stopItemESP() 
-    end
-    if guiCallbacks.itemESP then
-        guiCallbacks.itemESP.Text = "Item ESP: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.itemESP = itemESPToggleBtn
-
--- Отключаем навигацию для кнопки Item ESP
-itemESPToggleBtn.AutoButtonColor = false
