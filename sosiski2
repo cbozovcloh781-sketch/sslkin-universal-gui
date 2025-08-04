@@ -3666,4 +3666,4 @@ testESPBtn.MouseButton1Click:Connect(function()
         print("YBA: Предметы YBA не найдены или произошла ошибка")
         print("YBA: Убедитесь, что вы находитесь в игре YBA и есть предметы поблизости")
     end
-end) 
+end)
