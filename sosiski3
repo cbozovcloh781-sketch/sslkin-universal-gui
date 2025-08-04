@@ -3669,6 +3669,44 @@ slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
 end)
 
 
+-- YBA Hacks Section (перемещена перед Teleport Settings)
+sectionHeader("🟪 YBA Hacks")
+
+local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+    YBAConfig.Enabled = v
+    if v then 
+        startYBA() 
+    else 
+        stopYBA() 
+    end
+    if guiCallbacks.yba then
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.yba = ybaToggleBtn
+
+-- Отключаем навигацию для кнопки YBA Stand Range
+ybaToggleBtn.AutoButtonColor = false
+
+-- YBA Item ESP Controls
+sectionHeader("🎯 YBA Item ESP")
+
+local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
+    YBAConfig.ItemESP.Enabled = v
+    if v then 
+        startItemESP() 
+    else 
+        stopItemESP() 
+    end
+    if guiCallbacks.itemESP then
+        guiCallbacks.itemESP.Text = "Item ESP: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.itemESP = itemESPToggleBtn
+
+-- Отключаем навигацию для кнопки Item ESP
+itemESPToggleBtn.AutoButtonColor = false
+
 sectionHeader("🟩 Teleport Settings")
 
 
@@ -3947,6 +3985,7 @@ local function updatePlayerList()
                not child.Text:find("STOP TELEPORT") and 
                not child.Text:find("Hotkey:") and 
                not child.Text:find("YBA Stand Range") and 
+               not child.Text:find("Item ESP") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
             end
@@ -4004,40 +4043,4 @@ end)
 --     end)
 -- end
 
--- YBA Hacks Section (в конце меню)
-sectionHeader("🟪 YBA Hacks")
 
-local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
-    YBAConfig.Enabled = v
-    if v then 
-        startYBA() 
-    else 
-        stopYBA() 
-    end
-    if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.yba = ybaToggleBtn
-
--- Отключаем навигацию для кнопки YBA Stand Range
-ybaToggleBtn.AutoButtonColor = false
-
--- YBA Item ESP Controls
-sectionHeader("🎯 YBA Item ESP")
-
-local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
-    YBAConfig.ItemESP.Enabled = v
-    if v then 
-        startItemESP() 
-    else 
-        stopItemESP() 
-    end
-    if guiCallbacks.itemESP then
-        guiCallbacks.itemESP.Text = "Item ESP: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.itemESP = itemESPToggleBtn
-
--- Отключаем навигацию для кнопки Item ESP
-itemESPToggleBtn.AutoButtonColor = false
