@@ -1636,63 +1636,34 @@ end
 local function getAlivePlayers()
     local alivePlayers = {}
     
-    print("=== ПОИСК ЖИВЫХ ИГРОКОВ ===")
-    
-    
     if not Players then
-        print("Players сервис не найден!")
         return alivePlayers
     end
     
     if not Players.LocalPlayer then
-        print("LocalPlayer не найден!")
         return alivePlayers
     end
     
     local allPlayers = Players:GetPlayers()
     if not allPlayers then
-        print("Не удалось получить список игроков!")
         return alivePlayers
     end
     
-    print("Всего игроков на сервере: " .. #allPlayers)
-    print("Локальный игрок: " .. Players.LocalPlayer.Name)
-    
     for i, player in ipairs(allPlayers) do
         if player then
-            print("Проверяем игрока " .. i .. ": " .. player.Name)
-            
             if player ~= Players.LocalPlayer then
-                print("  - Это не локальный игрок")
-                
                 if player.Character then
-                    print("  - У игрока есть персонаж")
-                    
                     local humanoid = player.Character:FindFirstChild("Humanoid")
                     if humanoid then
-                        print("  - У игрока есть Humanoid, здоровье: " .. humanoid.Health)
-                        
                         if humanoid.Health > 0 then
-                            print("  - Игрок жив, добавляем в список")
                             table.insert(alivePlayers, player)
-                        else
-                            print("  - Игрок мертв")
                         end
-                    else
-                        print("  - У игрока нет Humanoid")
                     end
-                else
-                    print("  - У игрока нет персонажа")
                 end
-            else
-                print("  - Это локальный игрок, пропускаем")
             end
-        else
-            print("Игрок " .. i .. " равен nil")
         end
     end
     
-    print("Найдено живых игроков: " .. #alivePlayers)
     return alivePlayers
 end
 
@@ -1868,27 +1839,21 @@ end
 
 local function isPlayerAlive(player)
     if not player then 
-        print("Player is nil")
         return false 
     end
     
-    
     if not player.Name then
-        print("Player has no name")
         return false
     end
     
     if not player.Character then 
-        print("Player " .. tostring(player.Name) .. " has no character")
         return false 
     end
     local humanoid = player.Character:FindFirstChild("Humanoid")
     if not humanoid then 
-        print("Player " .. tostring(player.Name) .. " has no humanoid")
         return false 
     end
     local isAlive = humanoid.Health > 0
-    print("Player " .. tostring(player.Name) .. " health: " .. tostring(humanoid.Health) .. ", alive: " .. tostring(isAlive))
     return isAlive
 end
 
@@ -2120,12 +2085,10 @@ local function findYBAItems()
         return items 
     end
 
-    print("YBA Item ESP: Начинаем поиск предметов в папке:", itemsFolder.Name)
     local foundCount = 0
 
     for _, model in ipairs(itemsFolder:GetChildren()) do
         if model:IsA("Model") then
-            print("YBA Item ESP: Проверяем Model:", model.Name, "В списке:", YBA_ITEM_NAMES[model.Name] and "ДА" or "НЕТ")
             if YBA_ITEM_NAMES[model.Name] then
                 -- Ищем первый MeshPart в Model (визуальная часть предмета)
                 for _, part in ipairs(model:GetDescendants()) do
@@ -2133,7 +2096,6 @@ local function findYBAItems()
                         local distance = (part.Position - playerRoot.Position).Magnitude
                         if distance <= YBAConfig.ItemESP.MaxDistance then
                             foundCount = foundCount + 1
-                            print("YBA Item ESP: Найден предмет", model.Name, "на расстоянии", math.floor(distance), "м")
                             table.insert(items, {
                                 Object = part,
                                 Root = part,
@@ -2149,7 +2111,6 @@ local function findYBAItems()
         end
     end
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    print("YBA Item ESP: Всего найдено предметов:", foundCount)
     return items
 end
 
@@ -2314,9 +2275,8 @@ local function startItemESP()
     print("YBA Item ESP: Показывать текст:", YBAConfig.ItemESP.ShowText)
     
     -- Тестовый поиск предметов
-    print("YBA Item ESP: Тестовый поиск предметов...")
     local testItems = findYBAItems()
-    print("YBA Item ESP: Тестовый поиск завершен, найдено:", #testItems)
+    print("YBA Item ESP: Активирован! Найдено предметов:", #testItems)
     
     local lastUpdate = 0
     local updateInterval = 0.5 -- Обновляем каждые 0.5 секунды для более плавной работы
@@ -2340,7 +2300,6 @@ local function startItemESP()
         local currentItems = {}
         
         if success and items then
-            print("YBA Item ESP: Найдено предметов в цикле:", #items)
             -- Обрабатываем предметы (увеличиваем лимит для лучшего покрытия)
             for i = 1, math.min(50, #items) do
                 local item = items[i]
@@ -2349,7 +2308,6 @@ local function startItemESP()
                     
                     -- Создаем ESP только если его еще нет
                     if not itemESPElements[item.Object] then
-                        print("YBA Item ESP: Создаем ESP для:", item.Name)
                         pcall(createItemESP, item)
                     else
                         -- Обновляем ESP
@@ -2357,8 +2315,6 @@ local function startItemESP()
                     end
                 end
             end
-        else
-            print("YBA Item ESP: Ошибка при поиске предметов или предметы не найдены")
         end
         
         -- Удаляем ESP для предметов, которых больше нет
