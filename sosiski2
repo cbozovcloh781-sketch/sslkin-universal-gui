@@ -269,7 +269,7 @@ local YBAFreeCamera = {} do
     local cameraDistance = 10 -- Расстояние от камеры до стенда
     local cameraHeight = 5   -- Высота камеры над стендом
 
-    local NAV_SPEED = 1
+    local NAV_SPEED = 2 -- Нормальная скорость навигации
 
     local input = {
         W = 0, A = 0, S = 0, D = 0,
@@ -331,16 +331,30 @@ local YBAFreeCamera = {} do
         
         local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
 
-        local bv = standRoot:FindFirstChild("BodyVelocity")
+        local bv = standRoot:FindFirstChild("YBAStandVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", standRoot)
+            bv.Name = "YBAStandVelocity"
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
         
         if move.Magnitude > 0 then
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
+            bv.Velocity = worldMove * 50 -- Нормальная скорость движения стенда
+
+            -- Проверяем расстояние между игроком и стендом
+            local player = Players.LocalPlayer
+            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local playerRoot = player.Character.HumanoidRootPart
+                local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                
+                -- Если стенд уходит слишком далеко, телепортируем игрока к нему
+                if distance > 100 then
+                    print("YBA Debug: Стенд слишком далеко, телепортируем игрока")
+                    playerRoot.CFrame = CFrame.new(standRoot.Position + Vector3.new(0, 0, 10))
+                end
+            end
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -353,7 +367,7 @@ local YBAFreeCamera = {} do
         input.MouseDelta = Vector2.new()
 
         if input.MouseWheel ~= 0 then
-            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 20)
+            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 1000) -- Увеличено максимальное расстояние камеры
             input.MouseWheel = 0
         end
 
@@ -366,8 +380,9 @@ local YBAFreeCamera = {} do
             local humanoid = player.Character:FindFirstChild("Humanoid")
             
             if humanoid then
-                local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
-                playerRoot.CFrame = targetCFrame
+                -- Убираем принудительное изменение позиции игрока для увеличения дальности
+                -- local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
+                -- playerRoot.CFrame = targetCFrame
 
                 humanoid.AutoRotate = false
             end
@@ -405,12 +420,54 @@ local YBAFreeCamera = {} do
             if humanoid then
                 humanoid.AutoRotate = false 
             end
+            
+            -- Попробуем отключить все ограничения расстояния для стенда
+            local standModel = stand.Model
+            if standModel then
+                -- Отключаем все BodyVelocity и BodyGyro, которые могут ограничивать движение
+                for _, part in pairs(standModel:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        local bv = part:FindFirstChild("BodyVelocity")
+                        if bv then
+                            bv:Destroy()
+                        end
+                        local bg = part:FindFirstChild("BodyGyro")
+                        if bg then
+                            bg:Destroy()
+                        end
+                    end
+                end
+            end
         end
         
         Camera.CameraType = Enum.CameraType.Scriptable
         RunService:BindToRenderStep("YBAFreecam", Enum.RenderPriority.Camera.Value, stepFreecam)
         startInput()
         fcRunning = true
+        
+        -- Запускаем цикл для принудительного разрыва связи между игроком и стендом
+        spawn(function()
+            while fcRunning and targetStand and targetStand.Root do
+                task.wait(0.1) -- Проверяем каждые 0.1 секунды
+                
+                -- Принудительно отключаем все ограничения расстояния
+                local standModel = targetStand.Model
+                if standModel then
+                    for _, part in pairs(standModel:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            local bv = part:FindFirstChild("BodyVelocity")
+                            if bv and bv.Name ~= "YBAStandVelocity" then
+                                bv:Destroy()
+                            end
+                            local bg = part:FindFirstChild("BodyGyro")
+                            if bg and bg.Name ~= "YBAStandGyro" then
+                                bg:Destroy()
+                            end
+                        end
+                    end
+                end
+            end
+        end)
         
         print("YBA: Управление стендом активировано: " .. stand.Name)
         return true
@@ -1715,8 +1772,11 @@ local function findStands()
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
     if not playerRoot then 
+        print("YBA Debug: Игрок не найден")
         return stands 
     end
+    
+    print("YBA Debug: Ищем стенды для игрока:", player.Name)
     
     local standNames = {
         "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
@@ -1743,15 +1803,14 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
-                        foundCount = foundCount + 1
-                        table.insert(stands, {
-                            Model = obj,
-                            Root = standRoot,
-                            Distance = distance,
-                            Name = obj.Name
-                        })
-                    end
+                    -- Убираем ограничение по расстоянию - теперь можно атаковать откуда угодно
+                    foundCount = foundCount + 1
+                    table.insert(stands, {
+                        Model = obj,
+                        Root = standRoot,
+                        Distance = distance,
+                        Name = obj.Name
+                    })
                 end
             end
         end
@@ -1763,20 +1822,25 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
-                        table.insert(stands, {
-                            Model = obj,
-                            Root = standRoot,
-                            Distance = distance,
-                            Name = obj.Name
-                        })
-                    end
+                    -- Убираем ограничение по расстоянию - теперь можно атаковать откуда угодно
+                    table.insert(stands, {
+                        Model = obj,
+                        Root = standRoot,
+                        Distance = distance,
+                        Name = obj.Name
+                    })
                 end
             end
         end
     end
     
     table.sort(stands, function(a, b) return a.Distance < b.Distance end)
+    
+    print("YBA Debug: Найдено стендов:", #stands)
+    for i, stand in ipairs(stands) do
+        print("YBA Debug: Стенд", i, ":", stand.Name, "на расстоянии", stand.Distance)
+    end
+    
     return stands
 end
 
@@ -1793,17 +1857,19 @@ local function freezePlayer()
         originalPlayerCFrame = root.CFrame
         
         -- Создаем BodyVelocity для заморозки
-        local bv = root:FindFirstChild("BodyVelocity")
+        local bv = root:FindFirstChild("YBAFreezeVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", root)
+            bv.Name = "YBAFreezeVelocity"
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
         bv.Velocity = Vector3.new(0, 0, 0)
         
         -- Дополнительно отключаем все движения персонажа
-        local gyro = root:FindFirstChild("BodyGyro")
+        local gyro = root:FindFirstChild("YBAFreezeGyro")
         if not gyro then
             gyro = Instance.new("BodyGyro", root)
+            gyro.Name = "YBAFreezeGyro"
             gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
         end
         gyro.CFrame = root.CFrame
@@ -1836,12 +1902,12 @@ local function unfreezePlayer()
     local humanoid = char:FindFirstChild("Humanoid")
     
     if root then
-        local bv = root:FindFirstChild("BodyVelocity")
+        local bv = root:FindFirstChild("YBAFreezeVelocity")
         if bv then
             bv:Destroy()
         end
         
-        local gyro = root:FindFirstChild("BodyGyro")
+        local gyro = root:FindFirstChild("YBAFreezeGyro")
         if gyro then
             gyro:Destroy()
         end
@@ -1919,12 +1985,12 @@ local function disableFreeCamera()
 
         local root = player.Character:FindFirstChild("HumanoidRootPart")
         if root then
-            local bv = root:FindFirstChild("BodyVelocity")
+            local bv = root:FindFirstChild("YBAFreezeVelocity")
             if bv then
                 bv:Destroy()
             end
             
-            local gyro = root:FindFirstChild("BodyGyro")
+            local gyro = root:FindFirstChild("YBAFreezeGyro")
             if gyro then
                 gyro:Destroy()
             end
@@ -1951,16 +2017,19 @@ end
 local function startYBA()
     if isYBAEnabled then return end
     
+    print("YBA Debug: Запуск YBA Stand Range")
     isYBAEnabled = true
     YBAConfig.Enabled = true
     
     local stands = findStands()
     
     if #stands == 0 then
+        print("YBA Debug: Стенды не найдены")
         return
     end
     
     local targetStand = stands[1]
+    print("YBA Debug: Выбран стенд для управления:", targetStand.Name)
     
     if YBAConfig.FreezePlayer then
         freezePlayer()
@@ -1971,6 +2040,11 @@ local function startYBA()
     
     if YBAConfig.TransferControl then
         activateFreeCamera(targetStand)
+        -- Автоматически атакуем стендом при включении
+        spawn(function()
+            task.wait(0.5) -- Ждем немного для инициализации
+            attackWithStand(targetStand)
+        end)
     end
 end
 
@@ -2024,6 +2098,107 @@ local function getAlivePlayers()
     end
     
     return alivePlayers
+end
+
+-- Функция для телепортации стенда к ближайшему игроку
+local function teleportStandToNearestPlayer(stand)
+    if not stand or not stand.Root then
+        print("YBA Debug: Ошибка - стенд не найден для телепортации")
+        return false
+    end
+    
+    print("YBA Debug: Попытка телепортации стенда:", stand.Name)
+    print("YBA Debug: Текущая позиция стенда:", stand.Root.Position)
+    
+    local alivePlayers = getAlivePlayers()
+    print("YBA Debug: Найдено живых игроков:", #alivePlayers)
+    
+    if #alivePlayers == 0 then
+        print("YBA Debug: Нет живых игроков для атаки")
+        return false
+    end
+    
+    -- Находим ближайшего игрока
+    local nearestPlayer = nil
+    local nearestDistance = math.huge
+    
+    for _, player in ipairs(alivePlayers) do
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (player.Character.HumanoidRootPart.Position - stand.Root.Position).Magnitude
+            if distance < nearestDistance then
+                nearestDistance = distance
+                nearestPlayer = player
+            end
+        end
+    end
+    
+    if nearestPlayer and nearestPlayer.Character and nearestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local targetPosition = nearestPlayer.Character.HumanoidRootPart.Position
+        print("YBA Debug: Целевая позиция:", targetPosition)
+        print("YBA Debug: Ближайший игрок:", nearestPlayer.Name, "на расстоянии:", nearestDistance)
+        
+        stand.Root.CFrame = CFrame.new(targetPosition)
+        print("YBA Debug: Стенд телепортирован к игроку:", nearestPlayer.Name)
+        return true
+    end
+    
+    print("YBA Debug: Не удалось найти подходящего игрока для телепортации")
+    return false
+end
+
+-- Функция для атаки стендом на любом расстоянии
+local function attackWithStand(stand)
+    if not stand or not stand.Root then
+        print("YBA Debug: Ошибка - стенд не найден для атаки")
+        return false
+    end
+    
+    print("YBA Debug: Попытка атаки стендом:", stand.Name)
+    print("YBA Debug: Позиция стенда:", stand.Root.Position)
+    
+    -- Принудительно разрываем все связи между игроком и стендом
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local playerRoot = player.Character:FindFirstChild("HumanoidRootPart")
+        if playerRoot then
+            -- Отключаем все BodyVelocity и BodyGyro у игрока
+            for _, part in pairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    local bv = part:FindFirstChild("BodyVelocity")
+                    if bv and bv.Name ~= "YBAFreezeVelocity" then
+                        bv:Destroy()
+                    end
+                    local bg = part:FindFirstChild("BodyGyro")
+                    if bg and bg.Name ~= "YBAFreezeGyro" then
+                        bg:Destroy()
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Сначала телепортируем стенд к ближайшему игроку
+    if teleportStandToNearestPlayer(stand) then
+        print("YBA Debug: Стенд телепортирован, готов к атаке")
+        
+        -- Попробуем симулировать атаку
+        local standModel = stand.Model
+        if standModel then
+            print("YBA Debug: Найден стенд модель:", standModel.Name)
+            
+            -- Попробуем найти части стенда для атаки
+            for _, part in pairs(standModel:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    print("YBA Debug: Часть стенда:", part.Name, "в позиции:", part.Position)
+                end
+            end
+        end
+        
+        return true
+    else
+        print("YBA Debug: Не удалось подготовить стенд к атаке")
+        return false
+    end
 end
 
 
@@ -2114,7 +2289,32 @@ UserInputService.InputBegan:Connect(function(input, gp)
             end
             
             if guiCallbacks.yba then
-                guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+                guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF") .. " (UNLIMITED)"
+            end
+        elseif input.KeyCode == Enum.KeyCode.T then
+            -- Тестовая функция (клавиша T)
+            print("YBA Debug: Тестовая функция активирована")
+            local stands = findStands()
+            print("YBA Debug: Найдено стендов в тесте:", #stands)
+            if #stands > 0 then
+                print("YBA Debug: Первый стенд:", stands[1].Name)
+            end
+        elseif input.KeyCode == Enum.KeyCode.X then
+            -- Быстрая атака стендом (клавиша X)
+            print("YBA Debug: Нажата клавиша X")
+            if YBAConfig.Enabled then
+                print("YBA Debug: YBA включен")
+                if controlledStand then
+                    print("YBA Debug: Контролируемый стенд найден")
+                    print("YBA: Быстрая атака стендом!")
+                    attackWithStand(controlledStand)
+                else
+                    print("YBA Debug: Контролируемый стенд не найден")
+                    print("YBA: Сначала включите YBA Stand Range и найдите стенд")
+                end
+            else
+                print("YBA Debug: YBA не включен")
+                print("YBA: Сначала включите YBA Stand Range и найдите стенд")
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
             -- Временная активация Anti Time Stop (как кнопка)
@@ -3529,7 +3729,7 @@ local function updateStatusDisplay()
         guiCallbacks.teleport.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
     end
     if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF") .. " (UNLIMITED)"
     end
     if guiCallbacks.itemESP then
         guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
@@ -3756,14 +3956,14 @@ sectionHeader("🟪 YBA Hacks")
 
 local standRangeLabel = Instance.new("TextLabel", innerContainer)
 standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
-standRangeLabel.Text = "stand range hack"
+standRangeLabel.Text = "stand range hack (NO DISTANCE LIMIT)"
 standRangeLabel.Font = Enum.Font.Gotham
 standRangeLabel.TextSize = 12
-standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+standRangeLabel.TextColor3 = Color3.fromRGB(0, 255, 0) -- Зеленый цвет для показа, что ограничения убраны
 standRangeLabel.BackgroundTransparency = 1
 standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+local ybaToggleBtn = toggle("YBA Stand Range (UNLIMITED)", YBAConfig.Enabled, function(v)
     YBAConfig.Enabled = v
     if v then 
         startYBA() 
@@ -3771,12 +3971,36 @@ local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
         stopYBA() 
     end
     if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF") .. " (UNLIMITED)"
+    end
+    -- Обновляем текст кнопки
+    if ybaToggleBtn then
+        ybaToggleBtn.Text = "YBA Stand Range (UNLIMITED)"
     end
 end)
 guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
+
+-- Информация о том, что ограничения по расстоянию убраны
+local unlimitedRangeLabel = Instance.new("TextLabel", innerContainer)
+unlimitedRangeLabel.Size = UDim2.new(1, -10, 0, 20)
+unlimitedRangeLabel.Text = "✅ NO DISTANCE LIMIT - Attack from anywhere!"
+unlimitedRangeLabel.Font = Enum.Font.GothamBold
+unlimitedRangeLabel.TextSize = 12
+unlimitedRangeLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+unlimitedRangeLabel.BackgroundTransparency = 1
+unlimitedRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Информация о быстрой атаке
+local quickAttackLabel = Instance.new("TextLabel", innerContainer)
+quickAttackLabel.Size = UDim2.new(1, -10, 0, 20)
+quickAttackLabel.Text = "⚡ Press X for Quick Stand Attack!"
+quickAttackLabel.Font = Enum.Font.GothamBold
+quickAttackLabel.TextSize = 12
+quickAttackLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+quickAttackLabel.BackgroundTransparency = 1
+quickAttackLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
 itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
