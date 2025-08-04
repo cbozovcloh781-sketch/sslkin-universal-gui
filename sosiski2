@@ -2077,7 +2077,7 @@ local itemESPEnabled = false
 local itemESPConnections = {}
 local itemESPElements = {}
 
--- Простая функция для поиска всех объектов в workspace
+-- Функция для поиска предметов YBA (рококаки, стрелы и т.д.)
 local function getAllObjects()
     local objects = {}
     local player = Players.LocalPlayer
@@ -2088,13 +2088,135 @@ local function getAllObjects()
         return objects 
     end
     
-    print("YBA: Ищем все объекты в workspace...")
+    print("YBA: Ищем предметы YBA в workspace...")
     
-    -- Ищем все BasePart и Model в workspace
-    for _, obj in pairs(workspace:GetDescendants()) do
+    -- Список названий предметов YBA для поиска
+    local ybaItemNames = {
+        -- Рококаки и фрукты
+        "Rokakaka", "rokakaka", "Roka", "roka", "RokakakaFruit", "Rokakaka Fruit",
+        "Arrow", "arrow", "ArrowItem", "Arrow Item", "Stand Arrow", "stand arrow",
+        "Dio's Diary", "Dio Diary", "DioDiary", "dio diary", "dio's diary",
+        "Mysterious Arrow", "mysterious arrow", "MysteriousArrow",
+        "Requiem Arrow", "requiem arrow", "RequiemArrow",
+        "Corpse Part", "corpse part", "CorpsePart", "Corpse", "corpse",
+        "Rib Cage", "rib cage", "RibCage", "Rib", "rib",
+        "Heart", "heart", "HeartPart", "Heart Part",
+        "Eye", "eye", "EyePart", "Eye Part",
+        "Brain", "brain", "BrainPart", "Brain Part",
+        "Liver", "liver", "LiverPart", "Liver Part",
+        "Lung", "lung", "LungPart", "Lung Part",
+        "Stomach", "stomach", "StomachPart", "Stomach Part",
+        "Spine", "spine", "SpinePart", "Spine Part",
+        "Pelvis", "pelvis", "PelvisPart", "Pelvis Part",
+        "Left Arm", "left arm", "LeftArm", "Left Arm Part",
+        "Right Arm", "right arm", "RightArm", "Right Arm Part",
+        "Left Leg", "left leg", "LeftLeg", "Left Leg Part",
+        "Right Leg", "right leg", "RightLeg", "Right Leg Part",
+        -- Другие предметы YBA
+        "Diamond", "diamond", "DiamondItem", "Diamond Item",
+        "Gold Coin", "gold coin", "GoldCoin", "Gold", "gold",
+        "Money", "money", "Cash", "cash", "Bills", "bills",
+        "Stand Disc", "stand disc", "StandDisc", "Disc", "disc",
+        "Stand Discs", "stand discs", "StandDiscs", "Discs", "discs",
+        "Item", "item", "Pickup", "pickup", "Collectible", "collectible",
+        "Treasure", "treasure", "Loot", "loot", "Drop", "drop",
+        "Box", "box", "Chest", "chest", "Container", "container",
+        "Bag", "bag", "Pouch", "pouch", "Sack", "sack",
+        "Scroll", "scroll", "Book", "book", "Document", "document",
+        "Key", "key", "KeyItem", "Key Item", "Lockpick", "lockpick",
+        "Tool", "tool", "Weapon", "weapon", "Equipment", "equipment",
+        "Potion", "potion", "Elixir", "elixir", "Medicine", "medicine",
+        "Food", "food", "Apple", "apple", "Bread", "bread",
+        "Water", "water", "Bottle", "bottle", "Drink", "drink"
+    }
+    
+    -- Ищем предметы в определенных папках workspace
+    local searchFolders = {
+        workspace,
+        workspace:FindFirstChild("Items"),
+        workspace:FindFirstChild("Drops"),
+        workspace:FindFirstChild("Pickups"),
+        workspace:FindFirstChild("Collectibles"),
+        workspace:FindFirstChild("Loot"),
+        workspace:FindFirstChild("Treasure"),
+        workspace:FindFirstChild("World"),
+        workspace:FindFirstChild("Map"),
+        workspace:FindFirstChild("Game"),
+        workspace:FindFirstChild("Workspace")
+    }
+    
+    -- Ищем предметы по названиям
+    for _, folder in ipairs(searchFolders) do
+        if not folder then continue end
+        
+        for _, obj in pairs(folder:GetDescendants()) do
         if obj:IsA("BasePart") or obj:IsA("Model") then
-            -- Исключаем игроков и их части
-            if not obj:FindFirstChild("Humanoid") and not obj:FindFirstChild("HumanoidRootPart") and obj.Name ~= "HumanoidRootPart" then
+            -- Проверяем, является ли объект предметом YBA
+            local isYBAItem = false
+            local itemName = obj.Name
+            
+            -- Проверяем точное совпадение названия
+            for _, ybaName in ipairs(ybaItemNames) do
+                if itemName == ybaName or itemName:lower():find(ybaName:lower()) then
+                    isYBAItem = true
+                    break
+                end
+            end
+            
+                -- Дополнительные проверки для предметов
+    if not isYBAItem then
+        -- Проверяем, есть ли у объекта свойства предмета
+        if obj:IsA("BasePart") then
+            -- Ищем признаки предмета (размер, цвет, материал)
+            if obj.Size.X < 5 and obj.Size.Y < 5 and obj.Size.Z < 5 then
+                -- Маленькие объекты могут быть предметами
+                if obj.Material == Enum.Material.Neon or 
+                   obj.Material == Enum.Material.Plastic or
+                   obj.Material == Enum.Material.Metal or
+                   obj.Material == Enum.Material.Glass or
+                   obj.Material == Enum.Material.Wood then
+                    isYBAItem = true
+                end
+                
+                -- Проверяем, есть ли у объекта свойства предмета (CanCollide, Anchored)
+                if obj.CanCollide == false or obj.Anchored == true then
+                    isYBAItem = true
+                end
+                
+                -- Проверяем цвет объекта (яркие цвета часто указывают на предметы)
+                if obj.Color.R > 0.8 or obj.Color.G > 0.8 or obj.Color.B > 0.8 then
+                    isYBAItem = true
+                end
+            end
+        elseif obj:IsA("Model") then
+            -- Для моделей проверяем наличие частей с названиями предметов
+            for _, part in pairs(obj:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    for _, ybaName in ipairs(ybaItemNames) do
+                        if part.Name == ybaName or part.Name:lower():find(ybaName:lower()) then
+                            isYBAItem = true
+                            break
+                        end
+                    end
+                    if isYBAItem then break end
+                end
+            end
+            
+            -- Проверяем, есть ли у модели свойства предмета
+            if obj.PrimaryPart and obj.PrimaryPart.Size.X < 5 and obj.PrimaryPart.Size.Y < 5 and obj.PrimaryPart.Size.Z < 5 then
+                isYBAItem = true
+            end
+        end
+    end
+            
+            -- Исключаем игроков, их части и стенды
+            if isYBAItem and not obj:FindFirstChild("Humanoid") and 
+               not obj:FindFirstChild("HumanoidRootPart") and 
+               obj.Name ~= "HumanoidRootPart" and
+               not obj.Name:lower():find("stand") and
+               not obj.Name:lower():find("player") and
+               not obj.Name:lower():find("character") then
+                
                 local itemRoot = obj
                 local success = true
                 
@@ -2104,9 +2226,20 @@ local function getAllObjects()
                                obj:FindFirstChild("RootPart") or 
                                obj:FindFirstChild("Main") or
                                obj:FindFirstChild("Part") or
-                               obj:FindFirstChild("HumanoidRootPart")
+                               obj:FindFirstChild("Handle") or
+                               obj:FindFirstChild("Item")
                     
-                    -- Если не нашли корневую часть, пропускаем этот Model
+                    -- Если не нашли корневую часть, используем первый BasePart
+                    if not itemRoot then
+                        for _, part in pairs(obj:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                itemRoot = part
+                                break
+                            end
+                        end
+                    end
+                    
+                    -- Если все еще не нашли корневую часть, пропускаем этот Model
                     if not itemRoot then
                         success = false
                     end
@@ -2119,7 +2252,7 @@ local function getAllObjects()
                             Object = obj,
                             Root = itemRoot,
                             Distance = distance,
-                            Name = obj.Name
+                            Name = itemName
                         })
                     end
                 end
@@ -2127,18 +2260,22 @@ local function getAllObjects()
         end
     end
     
-    -- Сортируем по расстоянию и берем только ближайшие
+    -- Сортируем по расстоянию
     table.sort(objects, function(a, b) return a.Distance < b.Distance end)
     
-    -- Ограничиваем количество объектов
-    local maxObjects = 20
+    -- Ограничиваем количество объектов для производительности
+    local maxObjects = 15
     if #objects > maxObjects then
         for i = maxObjects + 1, #objects do
             objects[i] = nil
         end
     end
     
-    print("YBA: Найдено объектов для ESP:", #objects)
+    print("YBA: Найдено предметов YBA для ESP:", #objects)
+    for i, item in ipairs(objects) do
+        print("YBA: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+    end
+    
     return objects
 end
 
@@ -2151,19 +2288,51 @@ local function createItemESP(item)
         return nil
     end
     
-    print("YBA: Создаем ESP для объекта:", item.Name)
+    print("YBA: Создаем ESP для предмета YBA:", item.Name)
     
     local esp = {}
     
-    -- Создаем Highlight
+    -- Определяем цвет предмета в зависимости от типа
+    local itemColor = YBAConfig.ItemESP.FillColor
+    local itemType = "Item"
+    
+    -- Определяем тип и цвет предмета
+    local itemName = item.Name:lower()
+    if itemName:find("rokakaka") or itemName:find("roka") then
+        itemColor = Color3.fromRGB(255, 0, 255) -- Фиолетовый для рококаки
+        itemType = "Rokakaka"
+    elseif itemName:find("arrow") then
+        itemColor = Color3.fromRGB(255, 255, 0) -- Желтый для стрел
+        itemType = "Arrow"
+    elseif itemName:find("corpse") or itemName:find("rib") or itemName:find("heart") or 
+           itemName:find("eye") or itemName:find("brain") or itemName:find("liver") or
+           itemName:find("lung") or itemName:find("stomach") or itemName:find("spine") or
+           itemName:find("pelvis") or itemName:find("arm") or itemName:find("leg") then
+        itemColor = Color3.fromRGB(255, 0, 0) -- Красный для частей тела
+        itemType = "Corpse Part"
+    elseif itemName:find("diamond") then
+        itemColor = Color3.fromRGB(0, 255, 255) -- Голубой для алмазов
+        itemType = "Diamond"
+    elseif itemName:find("gold") or itemName:find("money") or itemName:find("cash") then
+        itemColor = Color3.fromRGB(255, 215, 0) -- Золотой для денег
+        itemType = "Money"
+    elseif itemName:find("disc") then
+        itemColor = Color3.fromRGB(0, 255, 0) -- Зеленый для дисков
+        itemType = "Stand Disc"
+    else
+        itemColor = Color3.fromRGB(255, 255, 255) -- Белый для остальных предметов
+        itemType = "Item"
+    end
+    
+    -- Создаем Highlight с цветом предмета
     if YBAConfig.ItemESP.ShowOutline then
         local success, highlight = pcall(function()
             local hl = Instance.new("Highlight")
             hl.Adornee = item.Object
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.FillColor = YBAConfig.ItemESP.FillColor
+            hl.FillColor = itemColor
             hl.FillTransparency = YBAConfig.ItemESP.FillTransparency
-            hl.OutlineColor = YBAConfig.ItemESP.OutlineColor
+            hl.OutlineColor = itemColor
             hl.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency
             hl.Parent = item.Object
             return hl
@@ -2171,18 +2340,18 @@ local function createItemESP(item)
         
         if success and highlight then
             esp.highlight = highlight
-            print("YBA: Highlight создан для:", item.Name)
+            print("YBA: Highlight создан для:", item.Name, "тип:", itemType)
         else
             print("YBA: Ошибка при создании Highlight для:", item.Name)
         end
     end
     
-    -- Создаем BillboardGui
+    -- Создаем BillboardGui с информацией о предмете
     if YBAConfig.ItemESP.ShowText then
         local success, billboard = pcall(function()
             local bg = Instance.new("BillboardGui")
             bg.AlwaysOnTop = true
-            bg.Size = UDim2.new(0, 200, 0, 50)
+            bg.Size = UDim2.new(0, 200, 0, 60)
             bg.StudsOffset = Vector3.new(0, 3, 0)
             bg.Parent = item.Object
             
@@ -2191,10 +2360,10 @@ local function createItemESP(item)
             tl.BackgroundTransparency = 1
             tl.Font = YBAConfig.ItemESP.Font
             tl.TextSize = YBAConfig.ItemESP.TextSize
-            tl.TextColor3 = YBAConfig.ItemESP.TextColor
+            tl.TextColor3 = itemColor
             tl.TextXAlignment = Enum.TextXAlignment.Center
             tl.TextYAlignment = Enum.TextYAlignment.Center
-            tl.Text = string.format("%s\n%dm", item.Name, math.floor(item.Distance))
+            tl.Text = string.format("[%s]\n%s\n%dm", itemType, item.Name, math.floor(item.Distance))
             
             return {billboard = bg, text = tl}
         end)
@@ -2202,7 +2371,9 @@ local function createItemESP(item)
         if success and billboard then
             esp.billboard = billboard.billboard
             esp.text = billboard.text
-            print("YBA: BillboardGui создан для:", item.Name)
+            esp.itemType = itemType
+            esp.itemColor = itemColor
+            print("YBA: BillboardGui создан для:", item.Name, "тип:", itemType)
         else
             print("YBA: Ошибка при создании BillboardGui для:", item.Name)
         end
@@ -2222,7 +2393,8 @@ local function updateItemESP(item)
     
     if esp.text and esp.text.Parent then
         pcall(function()
-            esp.text.Text = string.format("%s\n%dm", item.Name, math.floor(item.Distance))
+            local itemType = esp.itemType or "Item"
+            esp.text.Text = string.format("[%s]\n%s\n%dm", itemType, item.Name, math.floor(item.Distance))
         end)
     end
 end
@@ -3411,16 +3583,40 @@ forceSearchItemsBtn.AutoButtonColor = false
 Instance.new("UICorner", forceSearchItemsBtn).CornerRadius = UDim.new(0,6)
 
 forceSearchItemsBtn.MouseButton1Click:Connect(function()
-    print("YBA: Принудительный поиск объектов...")
+    print("YBA: Принудительный поиск предметов YBA...")
     local success, objects = pcall(getAllObjects)
     if success and objects then
-        print("YBA: Найдено объектов:", #objects)
-        for i = 1, math.min(10, #objects) do
-            local item = objects[i]
-            print("YBA: Объект", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+        print("YBA: Найдено предметов YBA:", #objects)
+        if #objects == 0 then
+            print("YBA: Предметы YBA не найдены. Проверьте:")
+            print("YBA: - Находитесь ли вы в игре YBA")
+            print("YBA: - Есть ли предметы в радиусе", YBAConfig.ItemESP.MaxDistance, "метров")
+            print("YBA: - Правильно ли настроены названия предметов")
+        else
+            for i = 1, math.min(10, #objects) do
+                local item = objects[i]
+                local itemType = "Item"
+                local itemName = item.Name:lower()
+                
+                if itemName:find("rokakaka") or itemName:find("roka") then
+                    itemType = "Rokakaka"
+                elseif itemName:find("arrow") then
+                    itemType = "Arrow"
+                elseif itemName:find("corpse") or itemName:find("rib") or itemName:find("heart") then
+                    itemType = "Corpse Part"
+                elseif itemName:find("diamond") then
+                    itemType = "Diamond"
+                elseif itemName:find("gold") or itemName:find("money") then
+                    itemType = "Money"
+                elseif itemName:find("disc") then
+                    itemType = "Stand Disc"
+                end
+                
+                print("YBA: Предмет", i, ":", item.Name, "(" .. itemType .. ") на расстоянии", math.floor(item.Distance), "м")
+            end
         end
     else
-        print("YBA: Ошибка при поиске объектов")
+        print("YBA: Ошибка при поиске предметов YBA")
     end
 end)
 
@@ -3436,20 +3632,38 @@ testESPBtn.AutoButtonColor = false
 Instance.new("UICorner", testESPBtn).CornerRadius = UDim.new(0,6)
 
 testESPBtn.MouseButton1Click:Connect(function()
-    print("YBA: Тестируем ESP на ближайшем объекте...")
+    print("YBA: Тестируем ESP на ближайшем предмете YBA...")
     local success, objects = pcall(getAllObjects)
     if success and objects and #objects > 0 then
-        local nearestObject = objects[1]
-        print("YBA: Ближайший объект:", nearestObject.Name, "на расстоянии", math.floor(nearestObject.Distance), "м")
+        local nearestItem = objects[1]
+        local itemType = "Item"
+        local itemName = nearestItem.Name:lower()
         
-        -- Создаем ESP для этого объекта
-        local esp = createItemESP(nearestObject)
+        if itemName:find("rokakaka") or itemName:find("roka") then
+            itemType = "Rokakaka"
+        elseif itemName:find("arrow") then
+            itemType = "Arrow"
+        elseif itemName:find("corpse") or itemName:find("rib") or itemName:find("heart") then
+            itemType = "Corpse Part"
+        elseif itemName:find("diamond") then
+            itemType = "Diamond"
+        elseif itemName:find("gold") or itemName:find("money") then
+            itemType = "Money"
+        elseif itemName:find("disc") then
+            itemType = "Stand Disc"
+        end
+        
+        print("YBA: Ближайший предмет:", nearestItem.Name, "(" .. itemType .. ") на расстоянии", math.floor(nearestItem.Distance), "м")
+        
+        -- Создаем ESP для этого предмета
+        local esp = createItemESP(nearestItem)
         if esp then
-            print("YBA: ESP успешно создан для:", nearestObject.Name)
+            print("YBA: ESP успешно создан для:", nearestItem.Name, "тип:", itemType)
         else
-            print("YBA: Ошибка при создании ESP для:", nearestObject.Name)
+            print("YBA: Ошибка при создании ESP для:", nearestItem.Name)
         end
     else
-        print("YBA: Объекты не найдены или произошла ошибка")
+        print("YBA: Предметы YBA не найдены или произошла ошибка")
+        print("YBA: Убедитесь, что вы находитесь в игре YBA и есть предметы поблизости")
     end
 end) 
