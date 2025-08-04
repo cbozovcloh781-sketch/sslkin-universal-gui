@@ -2133,24 +2133,31 @@ local function createInfiniteRangeBypass()
         -- Перехватываем все RemoteEvent
         for _, child in pairs(replicatedStorage:GetDescendants()) do
             if child:IsA("RemoteEvent") and child.Name ~= "InfiniteRangeAttack" then
-                local originalFireServer = child.FireServer
-                child.FireServer = function(self, ...)
-                    local args = {...}
-                    
-                    -- Проверяем, является ли это командой атаки
-                    if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
-                        local command = tostring(args[1]):lower()
+                -- Проверяем, поддерживает ли объект FireServer
+                local success, _ = pcall(function()
+                    return child.FireServer
+                end)
+                
+                if success then
+                    local originalFireServer = child.FireServer
+                    child.FireServer = function(self, ...)
+                        local args = {...}
                         
-                        if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
-                            -- Перенаправляем команду через наш RemoteEvent
-                            if args[2] and type(args[2]) == "Vector3" then
-                                sendInfiniteRangeAttack(args[2], command)
-                                return -- Блокируем оригинальную команду
+                        -- Проверяем, является ли это командой атаки
+                        if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
+                            local command = tostring(args[1]):lower()
+                            
+                            if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
+                                -- Перенаправляем команду через наш RemoteEvent
+                                if args[2] and type(args[2]) == "Vector3" then
+                                    sendInfiniteRangeAttack(args[2], command)
+                                    return -- Блокируем оригинальную команду
+                                end
                             end
                         end
+                        
+                        return originalFireServer(self, unpack(args))
                     end
-                    
-                    return originalFireServer(self, unpack(args))
                 end
             end
         end
@@ -2502,7 +2509,14 @@ local function bypassRangeLimitWithMetamethods()
         local replicatedStorage = game:GetService("ReplicatedStorage")
         for _, child in pairs(replicatedStorage:GetDescendants()) do
             if child:IsA("RemoteEvent") then
-                hookRemoteEvent(child)
+                -- Проверяем, поддерживает ли объект FireServer
+                local success, _ = pcall(function()
+                    return child.FireServer
+                end)
+                
+                if success then
+                    hookRemoteEvent(child)
+                end
             end
         end
         
@@ -2528,24 +2542,31 @@ local function createGlobalNetworkInterceptor()
         
         for _, child in pairs(replicatedStorage:GetDescendants()) do
             if child:IsA("RemoteFunction") then
-                local originalInvokeServer = child.InvokeServer
-                child.InvokeServer = function(self, ...)
-                    local args = {...}
-                    
-                    -- Проверяем, является ли это командой атаки
-                    if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
-                        local command = tostring(args[1]):lower()
+                -- Проверяем, поддерживает ли объект InvokeServer
+                local success, _ = pcall(function()
+                    return child.InvokeServer
+                end)
+                
+                if success then
+                    local originalInvokeServer = child.InvokeServer
+                    child.InvokeServer = function(self, ...)
+                        local args = {...}
                         
-                        if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
-                            print("YBA: Перехвачена команда атаки через RemoteFunction")
+                        -- Проверяем, является ли это командой атаки
+                        if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
+                            local command = tostring(args[1]):lower()
                             
-                            -- Добавляем флаги для обхода ограничения
-                            table.insert(args, "bypass_range_limit")
-                            table.insert(args, true)
+                            if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
+                                print("YBA: Перехвачена команда атаки через RemoteFunction")
+                                
+                                -- Добавляем флаги для обхода ограничения
+                                table.insert(args, "bypass_range_limit")
+                                table.insert(args, true)
+                            end
                         end
+                        
+                        return originalInvokeServer(self, unpack(args))
                     end
-                    
-                    return originalInvokeServer(self, unpack(args))
                 end
             end
         end
@@ -2556,36 +2577,43 @@ local function createGlobalNetworkInterceptor()
     -- Создаем глобальный перехватчик для всех сетевых событий
     local function createGlobalHook()
         -- Перехватываем все сетевые события через метаметоды
-        local oldNamecall = getrawmetatable(game).__namecall
-        setreadonly(getrawmetatable(game), false)
-        
-        getrawmetatable(game).__namecall = newcclosure(function(self, ...)
-            local args = {...}
-            local method = getnamecallmethod()
-            
-            -- Перехватываем FireServer и InvokeServer
-            if method == "FireServer" or method == "InvokeServer" then
-                if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
-                    local command = tostring(args[1]):lower()
-                    
-                    if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
-                        print("YBA: Глобальный перехватчик обнаружил команду атаки:", command)
-                        
-                        -- Добавляем флаги для обхода ограничения
-                        table.insert(args, "bypass_range_limit")
-                        table.insert(args, true)
-                        table.insert(args, "infinite_range")
-                        table.insert(args, true)
-                    end
-                end
-            end
-            
-            return oldNamecall(self, unpack(args))
+        local success, oldNamecall = pcall(function()
+            return getrawmetatable(game).__namecall
         end)
         
-        setreadonly(getrawmetatable(game), true)
-        
-        print("YBA: Глобальный перехватчик сетевых команд активирован")
+        if success then
+            setreadonly(getrawmetatable(game), false)
+            
+            getrawmetatable(game).__namecall = newcclosure(function(self, ...)
+                local args = {...}
+                local method = getnamecallmethod()
+                
+                -- Перехватываем FireServer и InvokeServer
+                if method == "FireServer" or method == "InvokeServer" then
+                    if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
+                        local command = tostring(args[1]):lower()
+                        
+                        if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
+                            print("YBA: Глобальный перехватчик обнаружил команду атаки:", command)
+                            
+                            -- Добавляем флаги для обхода ограничения
+                            table.insert(args, "bypass_range_limit")
+                            table.insert(args, true)
+                            table.insert(args, "infinite_range")
+                            table.insert(args, true)
+                        end
+                    end
+                end
+                
+                return oldNamecall(self, unpack(args))
+            end)
+            
+            setreadonly(getrawmetatable(game), true)
+            
+            print("YBA: Глобальный перехватчик сетевых команд активирован")
+        else
+            print("YBA: Не удалось активировать глобальный перехватчик")
+        end
     end
     
     createGlobalHook()
@@ -2636,30 +2664,36 @@ local function createAggressiveRangeBypass()
             fakeRemote.Parent = replicatedStorage
             
             -- Перехватываем FireServer для каждого фейкового RemoteEvent
-            local oldFireServer = fakeRemote.FireServer
-            fakeRemote.FireServer = function(self, ...)
-                local args = {...}
-                
-                -- Модифицируем все команды для обхода ограничения дистанции
-                if args[1] then
-                    local command = tostring(args[1]):lower()
+            local success, _ = pcall(function()
+                return fakeRemote.FireServer
+            end)
+            
+            if success then
+                local oldFireServer = fakeRemote.FireServer
+                fakeRemote.FireServer = function(self, ...)
+                    local args = {...}
                     
-                    -- Добавляем флаги для обхода ограничения
-                    table.insert(args, "bypass_range_limit")
-                    table.insert(args, true)
-                    table.insert(args, "infinite_range")
-                    table.insert(args, true)
-                    table.insert(args, "no_distance_check")
-                    table.insert(args, true)
-                    table.insert(args, "force_attack")
-                    table.insert(args, true)
-                    table.insert(args, "admin_override")
-                    table.insert(args, true)
+                    -- Модифицируем все команды для обхода ограничения дистанции
+                    if args[1] then
+                        local command = tostring(args[1]):lower()
+                        
+                        -- Добавляем флаги для обхода ограничения
+                        table.insert(args, "bypass_range_limit")
+                        table.insert(args, true)
+                        table.insert(args, "infinite_range")
+                        table.insert(args, true)
+                        table.insert(args, "no_distance_check")
+                        table.insert(args, true)
+                        table.insert(args, "force_attack")
+                        table.insert(args, true)
+                        table.insert(args, "admin_override")
+                        table.insert(args, true)
+                        
+                        print("YBA: Фейковый RemoteEvent", name, "перехватил команду:", command)
+                    end
                     
-                    print("YBA: Фейковый RemoteEvent", name, "перехватил команду:", command)
+                    return oldFireServer(self, unpack(args))
                 end
-                
-                return oldFireServer(self, unpack(args))
             end
         end
     end
@@ -2667,40 +2701,47 @@ local function createAggressiveRangeBypass()
     -- Создаем глобальный перехватчик всех сетевых событий
     local function createUltimateHook()
         -- Перехватываем все сетевые события через метаметоды
-        local oldNamecall = getrawmetatable(game).__namecall
-        setreadonly(getrawmetatable(game), false)
-        
-        getrawmetatable(game).__namecall = newcclosure(function(self, ...)
-            local args = {...}
-            local method = getnamecallmethod()
-            
-            -- Перехватываем все сетевые методы
-            if method == "FireServer" or method == "InvokeServer" or method == "Fire" or method == "Invoke" then
-                if args[1] then
-                    local command = tostring(args[1]):lower()
-                    
-                    -- Если это любая команда, добавляем флаги для обхода ограничения
-                    table.insert(args, "bypass_range_limit")
-                    table.insert(args, true)
-                    table.insert(args, "infinite_range")
-                    table.insert(args, true)
-                    table.insert(args, "no_distance_check")
-                    table.insert(args, true)
-                    table.insert(args, "force_attack")
-                    table.insert(args, true)
-                    table.insert(args, "admin_override")
-                    table.insert(args, true)
-                    
-                    print("YBA: Глобальный перехватчик модифицировал команду:", command)
-                end
-            end
-            
-            return oldNamecall(self, unpack(args))
+        local success, oldNamecall = pcall(function()
+            return getrawmetatable(game).__namecall
         end)
         
-        setreadonly(getrawmetatable(game), true)
-        
-        print("YBA: Агрессивный глобальный перехватчик активирован")
+        if success then
+            setreadonly(getrawmetatable(game), false)
+            
+            getrawmetatable(game).__namecall = newcclosure(function(self, ...)
+                local args = {...}
+                local method = getnamecallmethod()
+                
+                -- Перехватываем все сетевые методы
+                if method == "FireServer" or method == "InvokeServer" or method == "Fire" or method == "Invoke" then
+                    if args[1] then
+                        local command = tostring(args[1]):lower()
+                        
+                        -- Если это любая команда, добавляем флаги для обхода ограничения
+                        table.insert(args, "bypass_range_limit")
+                        table.insert(args, true)
+                        table.insert(args, "infinite_range")
+                        table.insert(args, true)
+                        table.insert(args, "no_distance_check")
+                        table.insert(args, true)
+                        table.insert(args, "force_attack")
+                        table.insert(args, true)
+                        table.insert(args, "admin_override")
+                        table.insert(args, true)
+                        
+                        print("YBA: Глобальный перехватчик модифицировал команду:", command)
+                    end
+                end
+                
+                return oldNamecall(self, unpack(args))
+            end)
+            
+            setreadonly(getrawmetatable(game), true)
+            
+            print("YBA: Агрессивный глобальный перехватчик активирован")
+        else
+            print("YBA: Не удалось активировать агрессивный глобальный перехватчик")
+        end
     end
     
     createUltimateHook()
@@ -2767,24 +2808,31 @@ local function createUltimateRangeBypass()
         
         for _, child in pairs(replicatedStorage:GetDescendants()) do
             if child:IsA("RemoteEvent") then
-                local originalFireServer = child.FireServer
-                child.FireServer = function(self, ...)
-                    local args = {...}
-                    
-                    -- Если это команда атаки, перенаправляем её
-                    if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
-                        local command = tostring(args[1]):lower()
+                -- Проверяем, поддерживает ли объект FireServer
+                local success, _ = pcall(function()
+                    return child.FireServer
+                end)
+                
+                if success then
+                    local originalFireServer = child.FireServer
+                    child.FireServer = function(self, ...)
+                        local args = {...}
                         
-                        if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
-                            if args[2] and type(args[2]) == "Vector3" then
-                                -- Перенаправляем атаку через ультимативную систему
-                                sendUltimateAttack(args[2], command)
-                                return -- Блокируем оригинальную команду
+                        -- Если это команда атаки, перенаправляем её
+                        if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
+                            local command = tostring(args[1]):lower()
+                            
+                            if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
+                                if args[2] and type(args[2]) == "Vector3" then
+                                    -- Перенаправляем атаку через ультимативную систему
+                                    sendUltimateAttack(args[2], command)
+                                    return -- Блокируем оригинальную команду
+                                end
                             end
                         end
+                        
+                        return originalFireServer(self, unpack(args))
                     end
-                    
-                    return originalFireServer(self, unpack(args))
                 end
             end
         end
