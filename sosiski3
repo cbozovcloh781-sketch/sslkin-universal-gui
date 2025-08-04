@@ -3742,6 +3742,122 @@ stopTeleportBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Создание таблицы игроков для телепорта (зафиксировано после раздела Teleport Settings)
+local function createPlayerListInMenu()
+    local allPlayers = Players:GetPlayers()
+    local alivePlayers = {}
+    
+    for _, player in ipairs(allPlayers) do
+        if player and player ~= Players.LocalPlayer then
+            table.insert(alivePlayers, player)
+        end
+    end
+    
+    table.sort(alivePlayers, function(a, b)
+        return a.Name:lower() < b.Name:lower()
+    end
+    
+    print("Создаем отсортированный список игроков в меню: " .. #alivePlayers .. " игроков")
+    
+    local currentLetter = ""
+    for i, player in ipairs(alivePlayers) do
+        local firstLetter = player.Name:sub(1,1):upper()
+        
+        if firstLetter ~= currentLetter then
+            currentLetter = firstLetter
+            
+            local letterHeader = Instance.new("TextLabel", innerContainer)
+            letterHeader.Size = UDim2.new(1, -10, 0, 20)
+            letterHeader.Text = "--- " .. currentLetter .. " ---"
+            letterHeader.Font = Enum.Font.GothamBold
+            letterHeader.TextSize = 12
+            letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
+            letterHeader.BackgroundColor3 = Color3.fromRGB(30,30,40)
+            letterHeader.BorderSizePixel = 0
+            letterHeader.TextXAlignment = Enum.TextXAlignment.Center
+            Instance.new("UICorner", letterHeader).CornerRadius = UDim.new(0,4)
+        end
+        
+        local playerBtn = Instance.new("TextButton", innerContainer)
+        playerBtn.Size = UDim2.new(1, -10, 0, 30)
+        playerBtn.Text = player.Name
+        playerBtn.Font = Enum.Font.Gotham
+        playerBtn.TextSize = 12
+        playerBtn.TextColor3 = Color3.new(1,1,1)
+        playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
+        playerBtn.AutoButtonColor = false
+        playerBtn.BorderSizePixel = 1
+        playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
+        Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
+        
+        playerBtn.MouseEnter:Connect(function()
+            playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
+            playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
+        end)
+        
+        playerBtn.MouseLeave:Connect(function()
+            playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
+            playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
+        end)
+        
+        playerBtn.MouseButton1Click:Connect(function()
+            for _, btn in ipairs(innerContainer:GetChildren()) do
+                if btn:IsA("TextButton") and 
+                   btn ~= startTeleportBtn and 
+                   btn ~= stopTeleportBtn and 
+                   btn ~= updatePlayersBtn and
+                   btn.Size.Y.Offset == 30 then
+                    btn.BackgroundColor3 = Color3.fromRGB(50,50,60)
+                    btn.BorderColor3 = Color3.fromRGB(100,100,120)
+                end
+            end
+            
+            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
+            
+            TeleportConfig.TargetPlayer = player
+            TeleportConfig.SelectedPlayerName = player.Name
+            TeleportConfig.OriginalPosition = nil 
+            selectedPlayerLabel.Text = "Selected Player: " .. player.Name
+        end)
+    end
+end
+
+-- Создаем таблицу игроков сразу после раздела Teleport Settings
+createPlayerListInMenu()
+
+-- Кнопка обновления списка игроков (зафиксирована после таблицы)
+local updatePlayersBtn = Instance.new("TextButton", innerContainer)
+updatePlayersBtn.Size = UDim2.new(1, -10, 0, 28)
+updatePlayersBtn.Text = "UPDATE PLAYER LIST"
+updatePlayersBtn.Font = Enum.Font.GothamBold
+updatePlayersBtn.TextSize = 14
+updatePlayersBtn.TextColor3 = Color3.new(1,1,1)
+updatePlayersBtn.BackgroundColor3 = Color3.fromRGB(100,150,255)
+updatePlayersBtn.AutoButtonColor = false
+Instance.new("UICorner", updatePlayersBtn).CornerRadius = UDim.new(0,6)
+
+updatePlayersBtn.MouseButton1Click:Connect(function()
+    updatePlayersBtn.Text = "UPDATING..."
+    updatePlayerList()
+    task.wait(1)
+    updatePlayersBtn.Text = "LIST UPDATED!"
+    task.wait(2)
+    updatePlayersBtn.Text = "UPDATE PLAYER LIST"
+    
+    task.spawn(function()
+        task.wait(5)
+    end)
+end)
+
+-- Автоматическое обновление списка игроков каждые 30 секунд
+task.spawn(function()
+    while true do
+        task.wait(30)
+        updatePlayerList()
+    end
+end)
+
 -- YBA Hacks Section удален (перемещен в конец)
 
 
@@ -3966,35 +4082,7 @@ local function updatePlayerList()
     tempContainer:Destroy()
 end
 
-local updatePlayersBtn = Instance.new("TextButton", innerContainer)
-updatePlayersBtn.Size = UDim2.new(1, -10, 0, 28)
-updatePlayersBtn.Text = "UPDATE PLAYER LIST"
-updatePlayersBtn.Font = Enum.Font.GothamBold
-updatePlayersBtn.TextSize = 14
-updatePlayersBtn.TextColor3 = Color3.new(1,1,1)
-updatePlayersBtn.BackgroundColor3 = Color3.fromRGB(100,150,255)
-updatePlayersBtn.AutoButtonColor = false
-Instance.new("UICorner", updatePlayersBtn).CornerRadius = UDim.new(0,6)
-
-updatePlayersBtn.MouseButton1Click:Connect(function()
-    updatePlayersBtn.Text = "UPDATING..."
-    updatePlayerList()
-    task.wait(1)
-    updatePlayersBtn.Text = "LIST UPDATED!"
-    task.wait(2)
-    updatePlayersBtn.Text = "UPDATE PLAYER LIST"
-    
-    task.spawn(function()
-        task.wait(5)
-    end)
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(30)
-        updatePlayerList()
-    end
-end)
+-- Старая кнопка UPDATE PLAYER LIST удалена (перемещена выше)
 
 -- Инициализация Item ESP при запуске (отключена для безопасности)
 -- if YBAConfig.ItemESP.Enabled then
