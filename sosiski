@@ -208,6 +208,8 @@ local originalYBAWalkSpeed = 16
 local originalYBAJumpPower = 50
 local lastYBAUse = 0
 local ybaCooldown = 3 -- Задержка между использованиями в секундах
+local lastStandMovement = 0 -- Время последнего движения стенда
+local standMovementCooldown = 0.1 -- Минимальная задержка между движениями стенда
 
 local isStandControlActive = false
 local currentControlledStand = nil
@@ -301,6 +303,16 @@ local YBAFreeCamera = {} do
 
         local standRoot = targetStand.Root
         local standPosition = standRoot.Position
+        
+        -- Определяем тип персонажа для безопасных настроек
+        local characterType = detectCharacterType()
+        local isR15 = characterType == "R15"
+        
+        -- Безопасные ограничения для R15
+        local maxDistance = isR15 and 12 or 20 -- Максимальная дистанция от игрока
+        local maxSpeed = isR15 and 15 or 30 -- Максимальная скорость движения
+        local maxTurnSpeed = isR15 and 0.03 or 0.05 -- Максимальная скорость поворота
+        local smoothingFactor = isR15 and 0.05 or 0.1 -- Фактор сглаживания
 
         local moveX = input.D - input.A
         local moveZ = input.S - input.W
@@ -315,31 +327,102 @@ local YBAFreeCamera = {} do
         local bv = standRoot:FindFirstChild("BodyVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", standRoot)
-            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            -- Разные настройки силы для R6 и R15
+            if isR15 then
+                bv.MaxForce = Vector3.new(1e5, 1e5, 1e5) -- Меньшая сила для R15
+            else
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            end
+        end
+        
+        -- Проверяем задержку между движениями стенда
+        local currentTime = tick()
+        if move.Magnitude > 0 and (currentTime - lastStandMovement) < standMovementCooldown then
+            -- Слишком частое движение, игнорируем
+            return
         end
         
         if move.Magnitude > 0 then
+            lastStandMovement = currentTime
+            
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
+            
+            -- Проверяем дистанцию от игрока
+            local player = Players.LocalPlayer
+            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local playerPos = player.Character.HumanoidRootPart.Position
+                local currentDistance = (standPosition - playerPos).Magnitude
+                
+                -- Если стенд слишком далеко, ограничиваем движение
+                if currentDistance > maxDistance then
+                    local directionToPlayer = (playerPos - standPosition).Unit
+                    local maxAllowedMove = directionToPlayer * maxSpeed * 0.1
+                    bv.Velocity = maxAllowedMove
+                else
+                    -- Плавное движение с ограничением скорости
+                    local targetVelocity = worldMove * maxSpeed
+                    local currentVelocity = bv.Velocity
+                    local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * smoothingFactor
+                    
+                    -- Дополнительное ограничение скорости для R15
+                    if isR15 and smoothedVelocity.Magnitude > maxSpeed then
+                        smoothedVelocity = smoothedVelocity.Unit * maxSpeed
+                    end
+                    
+                    -- Добавляем небольшую случайность для маскировки
+                    if isR15 then
+                        local randomOffset = Vector3.new(
+                            math.random(-0.5, 0.5),
+                            math.random(-0.3, 0.3),
+                            math.random(-0.5, 0.5)
+                        )
+                        smoothedVelocity = smoothedVelocity + randomOffset
+                    end
+                    
+                    bv.Velocity = smoothedVelocity
+                end
+            else
+                -- Если игрок не найден, используем стандартное движение
+                bv.Velocity = worldMove * maxSpeed
+            end
 
-            if moveY ~= 0 then
-                print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
+            if moveY ~= 0 and isR15 then
+                -- Ограничиваем вертикальное движение для R15
+                local currentVel = bv.Velocity
+                bv.Velocity = Vector3.new(currentVel.X, math.clamp(currentVel.Y, -maxSpeed * 0.5, maxSpeed * 0.5), currentVel.Z)
             end
         else
-            bv.Velocity = Vector3.new(0, 0, 0)
+            -- Плавная остановка
+            local currentVelocity = bv.Velocity
+            bv.Velocity = currentVelocity * (1 - smoothingFactor)
+            
+            -- Полная остановка при очень малой скорости
+            if bv.Velocity.Magnitude < 0.1 then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
         end
 
-        local pan = input.MouseDelta * math.rad(0.8) -- Уменьшена чувствительность для плавности
+        -- Плавный поворот камеры с ограничениями для R15
+        local pan = input.MouseDelta * math.rad(isR15 and 0.4 or 0.8) -- Еще меньше чувствительность для R15
         input.MouseDelta = Vector2.new()
 
         if input.MouseWheel ~= 0 then
-            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 20)
+            -- Ограничиваем изменение дистанции камеры для R15
+            local wheelSpeed = isR15 and 1.0 or 1.5
+            local minDistance = isR15 and 5 or 3
+            local maxDistance = isR15 and 15 or 20
+            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * wheelSpeed, minDistance, maxDistance)
             input.MouseWheel = 0
         end
 
-        cameraRot = cameraRot + pan
-        cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
+        -- Плавное изменение поворота камеры
+        local targetRot = cameraRot + pan
+        cameraRot = cameraRot + (targetRot - cameraRot) * (isR15 and 0.05 or 0.1)
+        
+        -- Ограничиваем углы поворота
+        local maxPitch = isR15 and math.rad(60) or math.rad(80)
+        cameraRot = Vector2.new(math.clamp(cameraRot.X, -maxPitch, maxPitch), cameraRot.Y % (2 * math.pi))
 
         local player = Players.LocalPlayer
         if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -347,8 +430,27 @@ local YBAFreeCamera = {} do
             local humanoid = player.Character:FindFirstChild("Humanoid")
             
             if humanoid then
+                -- Плавный поворот персонажа с ограничениями для R15
+                local currentCFrame = playerRoot.CFrame
                 local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
-                playerRoot.CFrame = targetCFrame
+                
+                if isR15 then
+                    -- Для R15 делаем более плавный поворот
+                    local currentY = currentCFrame:ToEulerAngles().Y
+                    local targetY = targetCFrame:ToEulerAngles().Y
+                    local angleDiff = targetY - currentY
+                    
+                    -- Ограничиваем скорость поворота
+                    if math.abs(angleDiff) > maxTurnSpeed then
+                        angleDiff = math.sign(angleDiff) * maxTurnSpeed
+                    end
+                    
+                    local newY = currentY + angleDiff
+                    playerRoot.CFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, newY, 0)
+                else
+                    -- Для R6 стандартный поворот
+                    playerRoot.CFrame = targetCFrame
+                end
 
                 humanoid.AutoRotate = false
             end
@@ -1717,6 +1819,19 @@ local function controlStand(stand)
     end
 end
 
+-- Функция для плавного изменения Stand Range
+local function smoothSetStandRange(targetRange, duration)
+    local startRange = YBAConfig.StandRange
+    local steps = 20
+    local stepDuration = duration / steps
+    
+    for i = 1, steps do
+        local progress = i / steps
+        YBAConfig.StandRange = startRange + (targetRange - startRange) * progress
+        task.wait(stepDuration)
+    end
+end
+
 local function startYBA()
     if isYBAEnabled then return end
     
@@ -1771,9 +1886,8 @@ local function startYBA()
     local safeRange = getStandRangeByType(targetStand.Name, characterType)
     print("YBA: Используем безопасную дистанцию для", targetStand.Name, "(", characterType, "):", safeRange)
     
-    -- Плавно увеличиваем дистанцию вместо резкого скачка
+    -- Сохраняем оригинальную дистанцию
     local originalRange = YBAConfig.StandRange
-    YBAConfig.StandRange = safeRange
     
     if YBAConfig.FreezePlayer then
         freezePlayer()
@@ -1786,10 +1900,16 @@ local function startYBA()
         activateFreeCamera(targetStand)
     end
     
-    -- Восстанавливаем оригинальную дистанцию через некоторое время
+    -- Плавно изменяем дистанцию
     task.spawn(function()
-        task.wait(characterType == "R15" and 3 or 2) -- Больше времени для R15
-        YBAConfig.StandRange = originalRange
+        local changeDuration = characterType == "R15" and 2.5 or 1.5 -- Больше времени для R15
+        smoothSetStandRange(safeRange, changeDuration)
+        
+        -- Ждем некоторое время с увеличенной дистанцией
+        task.wait(characterType == "R15" and 4 or 3)
+        
+        -- Плавно возвращаем к оригинальной дистанции
+        smoothSetStandRange(originalRange, changeDuration)
     end)
 end
 
