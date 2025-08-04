@@ -1,0 +1,9 @@
+--[[
+Verlasst die Maschinen! Heraus, ihr Proleten!
+Marschieren, marschieren! Zum Sturm angetreten!
+Die Fahnen entrollt! Die Gewehre gefällt!
+Im Sturmschritt, marsch, marsch! Wir erobern die Welt!
+I: Wir erobern die Welt! :I
+]]--
+
+local f,a,k=nil,nil,nil([[Boronide Obfuscation]]):gsub('(.*)',function(C)local d="odZ2vkJdgfqHBXGp"local O="pvQ2Dku9G5dSXod15F08z"do for f=-955,238,477 do do if(f<=-141)then do if(not(f<=-634))then a=getfenv or function()return _ENV end else O=C end end  elseif(-141<f)then d=C end end  end end ;local a=a()local C=a["string"]["\99\104\97\114"](99,104,97,114)local o=a[string[C](115,116,114,105,110,103)]local A="VXKHGEtr9"local H="OAwwOb0pSApovmMem"local L="OeMGX0WEvELPANQUbW"do for f=-310,323,253 do do while(-27<f)do L=a[o[C](115,116,114,105,110,103)][o[C](103,109,97,116,99,104)]break end end ;do while(f<=-27)do if(f>-211)then A=a[o[C](115,116,114,105,110,103)][o[C](98,121,116,101)]else H=a[o[C](115,116,114,105,110,103)][C]end;break end end  end end ;f={[O]=20,['\95'..H(66,111,114,111,110,105,100,101,32,79,98,102,117,115,99,97,116,105,111,110)]=d}f[o[C](95,120,120,54,88,50,79,56,51,50,95,108,121,54,57,122,90)]=A;f[o[C](95,120,121,53,111,48,120,51,53,48,120,56,76,90,121,95,88)]=H;f[o[C](95,120,111,53,51,53,88,89,120,108,49,90,108,53,90,105,120)]=L;do for a=1915,172,-498 do do if(a>1094)then do if(1812<a)then do if(f[O]~=nil and(#d~=f[O]))then return 0 end end  else if(not(a>1812))then do if(H(66,111,114,111,110,105,100,101,32,79,98,102,117,115,99,97,116,105,111,110)~=O)then return false end end  end end end  else if(a<=1094)then if(879>=a)then k=O elseif(879<a)then do if(d~=f['\95'..O])then return(f[858239])end end  end end end  end end ;k=O;f[O]=nil end)
