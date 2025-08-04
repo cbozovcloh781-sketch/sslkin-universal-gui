@@ -270,7 +270,6 @@ local YBAFreeCamera = {} do
     local cameraHeight = 5   -- Высота камеры над стендом
 
     local NAV_SPEED = 1
-    local SHIFT_MUL = 0.25
 
     local input = {
         W = 0, A = 0, S = 0, D = 0,
@@ -331,10 +330,6 @@ local YBAFreeCamera = {} do
         local moveY = input.Space - input.LeftControl -- Включено управление высотой стенда
         
         local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
-
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-            move = move * SHIFT_MUL
-        end
 
         local bv = standRoot:FindFirstChild("BodyVelocity")
         if not bv then
