@@ -95,12 +95,14 @@ local TeleportConfig = {
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
-    StandRange = 100000, -- Увеличена дистанция ударов стенда
+    StandRange = 10000000, -- Увеличена дистанция ударов стенда до 10 миллионов
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
     AutoFindStands = true,
-    MaxStandDistance = 10000, -- Увеличена дистанция захвата стенда
+    MaxStandDistance = 10000000, -- Увеличена дистанция захвата стенда до 10 миллионов
+    BypassStandRangeLimit = true, -- Обходить ограничение дистанции атаки стенда
+    StandRangeBypassDistance = 10000, -- Дистанция для обхода ограничения увеличена до 10 тысяч
     CameraDistance = 15,
     CameraHeight = 5,
     StandControlSpeed = 1.0,
@@ -1972,6 +1974,11 @@ local function startYBA()
     if YBAConfig.TransferControl then
         activateFreeCamera(targetStand)
     end
+    
+    -- Активируем обход ограничения дистанции атаки стенда
+    if YBAConfig.BypassStandRangeLimit then
+        startStandRangeBypass()
+    end
 end
 
 local function stopYBA()
@@ -1982,6 +1989,9 @@ local function stopYBA()
     
     disableFreeCamera()
     unfreezePlayer()
+    
+    -- Отключаем обход ограничения дистанции атаки стенда
+    stopStandRangeBypass()
     
     for _, connection in ipairs(standControlConnections) do
         if connection then
@@ -2024,6 +2034,167 @@ local function getAlivePlayers()
     end
     
     return alivePlayers
+end
+
+-- Функция для обхода ограничения дистанции атаки стенда
+local function bypassStandRangeLimit()
+    if not YBAConfig.BypassStandRangeLimit then
+        return
+    end
+    
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then return end
+    
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    -- Ищем стенд игрока
+    local stand = char:FindFirstChild("Stand")
+    if not stand then
+        -- Ищем стенд в других возможных местах
+        for _, child in pairs(char:GetDescendants()) do
+            if child:IsA("Model") and (child.Name:find("Stand") or child.Name:find("Platinum") or child.Name:find("World")) then
+                stand = child
+                break
+            end
+        end
+    end
+    
+    if not stand then return end
+    
+    local standRoot = stand:FindFirstChild("HumanoidRootPart") or stand:FindFirstChild("StandRoot") or stand:FindFirstChild("RootPart")
+    if not standRoot then return end
+    
+    -- Получаем всех живых игроков
+    local alivePlayers = getAlivePlayers()
+    
+    for _, targetPlayer in pairs(alivePlayers) do
+        local targetChar = targetPlayer.Character
+        if targetChar then
+            local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+            if targetRoot then
+                local distance = (targetRoot.Position - root.Position).Magnitude
+                
+                -- Если цель находится в пределах дистанции обхода
+                if distance <= YBAConfig.StandRangeBypassDistance then
+                    -- Создаем временную позицию стенда ближе к цели для обхода ограничения
+                    local targetPos = targetRoot.Position
+                    local standPos = standRoot.Position
+                    local direction = (targetPos - standPos).Unit
+                    
+                    -- Перемещаем стенд ближе к цели для обхода ограничения
+                    local bypassPos = targetPos - (direction * 5) -- 5 studs от цели (уменьшено для лучшего обхода)
+                    standRoot.CFrame = CFrame.new(bypassPos)
+                    
+                    -- Создаем BodyVelocity для удержания стенда в позиции
+                    local bv = standRoot:FindFirstChild("StandRangeBypassBodyVelocity")
+                    if not bv then
+                        bv = Instance.new("BodyVelocity", standRoot)
+                        bv.Name = "StandRangeBypassBodyVelocity"
+                        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                    end
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                    
+                    -- Создаем BodyGyro для стабилизации
+                    local bg = standRoot:FindFirstChild("StandRangeBypassBodyGyro")
+                    if not bg then
+                        bg = Instance.new("BodyGyro", standRoot)
+                        bg.Name = "StandRangeBypassBodyGyro"
+                        bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+                        bg.D = 1000
+                        bg.P = 2000
+                    end
+                    bg.CFrame = CFrame.lookAt(bypassPos, targetPos)
+                    
+                    -- Дополнительно пытаемся обойти ограничение через изменение позиции игрока
+                    if distance > 1260 then -- Если расстояние больше стандартного ограничения
+                        local playerPos = root.Position
+                        local newPlayerPos = targetPos - (direction * 1200) -- Размещаем игрока в пределах 1200 studs от цели
+                        root.CFrame = CFrame.new(newPlayerPos)
+                        
+                        -- Создаем BodyVelocity для игрока
+                        local playerBv = root:FindFirstChild("StandRangeBypassPlayerBodyVelocity")
+                        if not playerBv then
+                            playerBv = Instance.new("BodyVelocity", root)
+                            playerBv.Name = "StandRangeBypassPlayerBodyVelocity"
+                            playerBv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                        end
+                        playerBv.Velocity = Vector3.new(0, 0, 0)
+                        
+                        print("YBA: Агрессивный обход ограничения - игрок и стенд перемещены к цели на расстоянии", math.floor(distance), "studs")
+                    else
+                        print("YBA: Обход ограничения дистанции - стенд перемещен к цели на расстоянии", math.floor(distance), "studs")
+                    end
+                    return
+                end
+            end
+        end
+    end
+    
+    -- Если нет целей в пределах дистанции, возвращаем стенд и игрока в нормальную позицию
+    local bv = standRoot:FindFirstChild("StandRangeBypassBodyVelocity")
+    if bv then
+        bv:Destroy()
+    end
+    
+    local bg = standRoot:FindFirstChild("StandRangeBypassBodyGyro")
+    if bg then
+        bg:Destroy()
+    end
+    
+    local playerBv = root:FindFirstChild("StandRangeBypassPlayerBodyVelocity")
+    if playerBv then
+        playerBv:Destroy()
+    end
+end
+
+-- Функция для активации обхода ограничения дистанции
+local function startStandRangeBypass()
+    if not YBAConfig.BypassStandRangeLimit then return end
+    
+    local bypassLoop = RunService.Heartbeat:Connect(function()
+        if YBAConfig.BypassStandRangeLimit then
+            bypassStandRangeLimit()
+        end
+    end)
+    
+    table.insert(standControlConnections, bypassLoop)
+    print("YBA: Обход ограничения дистанции атаки стенда активирован")
+end
+
+-- Функция для отключения обхода ограничения дистанции
+local function stopStandRangeBypass()
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if char then
+        local stand = char:FindFirstChild("Stand")
+        if stand then
+            local standRoot = stand:FindFirstChild("HumanoidRootPart") or stand:FindFirstChild("StandRoot") or stand:FindFirstChild("RootPart")
+            if standRoot then
+                local bv = standRoot:FindFirstChild("StandRangeBypassBodyVelocity")
+                if bv then
+                    bv:Destroy()
+                end
+                
+                local bg = standRoot:FindFirstChild("StandRangeBypassBodyGyro")
+                if bg then
+                    bg:Destroy()
+                end
+            end
+        end
+        
+        -- Очищаем объекты игрока
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local playerBv = root:FindFirstChild("StandRangeBypassPlayerBodyVelocity")
+            if playerBv then
+                playerBv:Destroy()
+            end
+        end
+    end
+    
+    print("YBA: Обход ограничения дистанции атаки стенда отключен")
 end
 
 
@@ -2115,6 +2286,16 @@ UserInputService.InputBegan:Connect(function(input, gp)
             
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+            end
+        elseif input.KeyCode == Enum.KeyCode.R then -- Клавиша R для обхода ограничения дистанции
+            YBAConfig.BypassStandRangeLimit = not YBAConfig.BypassStandRangeLimit
+            
+            if YBAConfig.BypassStandRangeLimit then
+                startStandRangeBypass()
+                print("YBA: Обход ограничения дистанции атаки стенда ВКЛЮЧЕН")
+            else
+                stopStandRangeBypass()
+                print("YBA: Обход ограничения дистанции атаки стенда ВЫКЛЮЧЕН")
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
             -- Временная активация Anti Time Stop (как кнопка)
