@@ -179,6 +179,8 @@ local AntiTimeStopConfig = {
     AntiFreeze = true, -- Предотвращать заморозку персонажа
     TimeStopBypass = true, -- Обходить остановку времени
     MovementOverride = true, -- Переопределять движение в time stop
+    DisableOnAttack = true, -- Отключать BodyVelocity при атаке
+    ServerSync = true, -- Синхронизировать с сервером
 }
 
 local isFlying = false
@@ -803,6 +805,66 @@ local function startAntiTimeStop()
         end
     end)
     
+    -- Обработка атак для предотвращения конфликтов
+    local attackDetection = RunService.Heartbeat:Connect(function()
+        if not isAntiTimeStopEnabled or not timeStopDetected or not char or not char.Parent then
+            return
+        end
+        
+        if not AntiTimeStopConfig.DisableOnAttack then
+            return
+        end
+        
+        -- Проверяем, не атакует ли игрок
+        local isAttacking = false
+        
+        -- Проверяем нажатие клавиш атаки
+        if UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+           UserInputService:IsKeyDown(Enum.KeyCode.E) or
+           UserInputService:IsKeyDown(Enum.KeyCode.R) or
+           UserInputService:IsKeyDown(Enum.KeyCode.T) or
+           UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+           UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+            isAttacking = true
+        end
+        
+        -- Проверяем наличие анимаций атаки
+        local animator = hum:FindFirstChild("Animator")
+        if animator then
+            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                local animName = track.Animation.AnimationId:lower()
+                if animName:find("attack") or 
+                   animName:find("punch") or 
+                   animName:find("kick") or
+                   animName:find("hit") or
+                   animName:find("stand") then
+                    isAttacking = true
+                    break
+                end
+            end
+        end
+        
+        -- Временно отключаем BodyVelocity при атаке
+        local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
+        local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+        
+        if isAttacking then
+            if bv then
+                bv.MaxForce = Vector3.new(0, 0, 0)
+            end
+            if bg then
+                bg.MaxTorque = Vector3.new(0, 0, 0)
+            end
+        else
+            if bv then
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            end
+            if bg then
+                bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+            end
+        end
+    end)
+    
     -- Основной цикл обнаружения и обработки time stop
     local timeStopDetection = RunService.Heartbeat:Connect(function()
         if not isAntiTimeStopEnabled or not char or not char.Parent then
@@ -927,6 +989,23 @@ local function startAntiTimeStop()
                     -- Стабилизируем поворот
                     bg.CFrame = cam.CFrame
                     
+                    -- Синхронизируем с сервером через изменение позиции
+                    if AntiTimeStopConfig.ServerSync then
+                        local newCFrame = root.CFrame + (moveVector * 0.016) -- 60 FPS
+                        root.CFrame = newCFrame
+                        
+                        -- Альтернативный метод через RemoteEvent
+                        local remoteEvent = game:GetService("ReplicatedStorage"):FindFirstChild("AntiTimeStopMovement")
+                        if not remoteEvent then
+                            remoteEvent = Instance.new("RemoteEvent")
+                            remoteEvent.Name = "AntiTimeStopMovement"
+                            remoteEvent.Parent = game:GetService("ReplicatedStorage")
+                        end
+                        
+                        -- Отправляем позицию на сервер
+                        remoteEvent:FireServer(newCFrame)
+                    end
+                    
                     -- Добавляем небольшой эффект для визуализации движения в time stop
                     if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
                         antiTimeStopEffect.Color = Color3.fromRGB(255, 255, 0) -- Желтый цвет при движении
@@ -944,6 +1023,7 @@ local function startAntiTimeStop()
     end)
     
     table.insert(antiTimeStopConnections, antiFreezeLoop)
+    table.insert(antiTimeStopConnections, attackDetection)
     table.insert(antiTimeStopConnections, timeStopDetection)
     table.insert(antiTimeStopConnections, movementOverride)
 end
@@ -3765,6 +3845,14 @@ end)
 
 toggle("Movement Override", AntiTimeStopConfig.MovementOverride, function(v)
     AntiTimeStopConfig.MovementOverride = v
+end)
+
+toggle("Disable On Attack", AntiTimeStopConfig.DisableOnAttack, function(v)
+    AntiTimeStopConfig.DisableOnAttack = v
+end)
+
+toggle("Server Sync", AntiTimeStopConfig.ServerSync, function(v)
+    AntiTimeStopConfig.ServerSync = v
 end)
 
 slider("Movement Speed", 0.5, 3.0, AntiTimeStopConfig.MovementSpeed, function(v)
