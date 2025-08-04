@@ -111,6 +111,12 @@ local YBAConfig = {
     CameraFollowHeight = 6.1,
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
+    -- Интегрированная функция подземного полета
+    UndergroundControl = {
+        FlightSpeed = 50, -- Скорость полета за стендом (25-300)
+        AutoNoClip = true, -- Автоматически включать NoClip
+        OriginalPosition = nil, -- Исходная позиция персонажа
+    },
     -- Item ESP Configuration
     ItemESP = {
         Enabled = false,
@@ -198,6 +204,12 @@ local originalJumpPower = 50
 local isLongJumping = false
 local longJumpConnections = {}
 local originalLongJumpPower = 50
+
+-- Переменные для управления персонажем под стендом
+local isUndergroundControlEnabled = false
+local undergroundControlConnections = {}
+local controlledStandForUnderground = nil
+local isShiftPressed = false -- Отслеживание нажатия Shift для ускорения
 
 local isInfiniteJumping = false
 local infiniteJumpConnections = {}
@@ -340,7 +352,16 @@ local YBAFreeCamera = {} do
         if move.Magnitude > 0 then
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
+            -- Используем настраиваемую скорость из UndergroundControl (только целые числа)
+            local standSpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed)
+            
+            -- Добавляем ускорение при нажатии Shift
+            if isShiftPressed then
+                standSpeed = standSpeed + 50
+                print("Ускорение активировано - скорость:", standSpeed)
+            end
+            
+            bv.Velocity = worldMove * standSpeed
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -1780,6 +1801,8 @@ local function findStands()
     return stands
 end
 
+
+
 local function freezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
@@ -1951,27 +1974,67 @@ end
 local function startYBA()
     if isYBAEnabled then return end
     
+               print("Запуск Stand Range Hack...")
+    
     isYBAEnabled = true
     YBAConfig.Enabled = true
+    
+    if not findStands then
+        print("ОШИБКА: Функция findStands не найдена!")
+        return
+    end
     
     local stands = findStands()
     
     if #stands == 0 then
+        print("Стенды не найдены!")
         return
     end
     
     local targetStand = stands[1]
+    print("Найден стенд:", targetStand.Name)
     
-    if YBAConfig.FreezePlayer then
+    if YBAConfig.FreezePlayer and freezePlayer then
         freezePlayer()
     end
     
     if YBAConfig.SwitchCamera then
     end
     
-    if YBAConfig.TransferControl then
+    if YBAConfig.TransferControl and activateFreeCamera then
         activateFreeCamera(targetStand)
     end
+    
+    -- Автоматически запускаем подземный полет через 5 секунд после включения Stand Range
+               print("Stand Range Hack активирован")
+    print("Underground Flight будет активирован через 5 секунд...")
+    
+    -- Добавляем обработчик смерти
+    local humanoid = char and char:FindFirstChild("Humanoid")
+    if humanoid then
+        local deathConnection = humanoid.Died:Connect(function()
+                           print("Игрок умер, отключаем Stand Range Hack...")
+            stopYBA()
+        end)
+        table.insert(standControlConnections, deathConnection)
+    end
+    
+    task.spawn(function()
+        task.wait(5) -- Ждем 5 секунд
+        
+        -- Проверяем, что Stand Range все еще включен
+        if not isYBAEnabled then
+                           print("Stand Range Hack был отключен, Underground Flight не активируется")
+            return
+        end
+        
+        if startUndergroundControl then
+            print("Автоматически включаем Underground Flight...")
+            startUndergroundControl()
+        else
+            print("ОШИБКА: Функция startUndergroundControl не найдена!")
+        end
+    end)
 end
 
 local function stopYBA()
@@ -1980,8 +2043,12 @@ local function stopYBA()
     isYBAEnabled = false
     YBAConfig.Enabled = false
     
-    disableFreeCamera()
-    unfreezePlayer()
+    if disableFreeCamera then
+        disableFreeCamera()
+    end
+    if unfreezePlayer then
+        unfreezePlayer()
+    end
     
     for _, connection in ipairs(standControlConnections) do
         if connection then
@@ -1990,6 +2057,278 @@ local function stopYBA()
     end
     standControlConnections = {}
     controlledStand = nil
+    
+    -- Останавливаем подземный полет при выключении Stand Range
+               print("Stand Range Hack деактивирован")
+    print("Автоматически отключаем Underground Flight...")
+    if stopUndergroundControl then
+        stopUndergroundControl()
+    end
+end
+
+-- Функция для запуска управления персонажем под стендом (летающий режим)
+local function startUndergroundControl()
+    print("=== ЗАПУСК ПОДЗЕМНОГО ПОЛЕТА ===")
+    
+    if isUndergroundControlEnabled then 
+        print("Подземный полет уже активен!")
+        return 
+    end
+    
+    local plr = Players.LocalPlayer
+    local char = plr.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if not hum or not root then 
+        print("Персонаж не найден!")
+        return 
+    end
+    
+    print("Персонаж найден, позиция:", root.Position)
+    
+    -- Находим стенды
+    if not findStands then
+        print("Функция findStands не найдена!")
+        return
+    end
+    
+    local stands = findStands()
+    if #stands == 0 then
+        print("Стенды не найдены! Убедитесь, что у вас есть стенд.")
+        return
+    end
+    
+    controlledStandForUnderground = stands[1].Root
+    isUndergroundControlEnabled = true
+    
+    print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
+    print("Перемещаем персонажа под стенд на 30 метров вниз")
+    
+    -- Сохраняем исходную позицию при первом запуске Stand Range
+    if not YBAConfig.UndergroundControl.OriginalPosition then
+        YBAConfig.UndergroundControl.OriginalPosition = root.Position
+        print("Исходная позиция сохранена:", root.Position)
+    end
+    
+    -- Включаем NoClip для прохождения сквозь блоки
+    if YBAConfig.UndergroundControl.AutoNoClip and not isNoClipping and startNoClip then
+        startNoClip()
+        print("NoClip включен для подземного полета")
+    elseif not startNoClip then
+        print("ОШИБКА: Функция startNoClip не найдена!")
+    end
+    
+    -- Настройки полета как в оригинальной функции
+    local flyOriginalJumpPower = hum.JumpPower
+    local flyOriginalJumpHeight = hum.JumpHeight
+    local flyOriginalGravity = workspace.Gravity
+    local flyOriginalHipHeight = hum.HipHeight
+    
+    hum.JumpPower = 0
+    hum.JumpHeight = 0
+    workspace.Gravity = 0
+    hum.HipHeight = 0
+    
+    -- Принудительно перемещаем персонажа под стенд
+    local standPos = controlledStandForUnderground.Position
+    local undergroundPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z) -- Фиксированное расстояние 30 метров
+    
+    print("Стенд позиция:", standPos)
+    print("Целевая подземная позиция:", undergroundPos)
+    print("Текущая позиция персонажа:", root.Position)
+    
+    -- Создаем BodyVelocity для быстрого перемещения под землю
+    local initialBv = Instance.new("BodyVelocity", root)
+    initialBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    local direction = (undergroundPos - root.Position).Unit
+    local speed = 200
+    initialBv.Velocity = direction * speed
+    
+    print("Создан BodyVelocity со скоростью:", initialBv.Velocity)
+    
+    -- Удаляем начальный BodyVelocity через 1 секунду
+    task.spawn(function()
+        task.wait(1)
+        if initialBv and initialBv.Parent then
+            initialBv:Destroy()
+            print("Начальный BodyVelocity удален")
+        end
+    end)
+    
+    -- Основной цикл полета под землей за стендом
+    print("Запускаем основной цикл подземного полета...")
+    local undergroundFlyLoop = RunService.RenderStepped:Connect(function()
+        if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
+            print("Подземный полет остановлен - стенд не найден или функция отключена")
+            -- Восстанавливаем настройки персонажа
+            if hum then
+                hum.JumpPower = flyOriginalJumpPower
+                hum.JumpHeight = flyOriginalJumpHeight
+                hum.HipHeight = flyOriginalHipHeight
+            end
+            if not isNoClipping then
+                workspace.Gravity = flyOriginalGravity
+            end
+            return
+        end
+        
+        local char = Players.LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then 
+            -- Если персонаж умер, отключаем функцию
+            if isUndergroundControlEnabled then
+                stopUndergroundControl()
+            end
+            return 
+        end
+        
+        local standPos = controlledStandForUnderground.Position
+        local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z) -- Фиксированное расстояние 30 метров
+        
+        -- Создаем BodyVelocity для полета
+        local bv = root:FindFirstChild("BodyVelocity")
+        if not bv then
+            bv = Instance.new("BodyVelocity", root)
+            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        end
+        
+        -- Вычисляем направление движения к стенду
+        local direction = (targetPos - root.Position).Unit
+        local distance = (targetPos - root.Position).Magnitude
+        
+        -- Отладочная информация (отключена для чистоты консоли)
+        -- if tick() % 3 < 0.1 then -- Выводим каждые 3 секунды
+        --     print("=== ОТЛАДКА ПОДЗЕМНОГО ПОЛЕТА ===")
+        --     print("Стенд позиция:", standPos)
+        --     print("Целевая позиция:", targetPos)
+        --     print("Позиция персонажа:", root.Position)
+        --     print("Расстояние:", distance)
+        --     print("BodyVelocity существует:", bv ~= nil)
+        --     if bv then
+        --         print("BodyVelocity скорость:", bv.Velocity)
+        --     end
+        --     print("================================")
+        -- end
+        
+        -- Плавное следование за стендом (как в оригинальном полете)
+        if distance > 2 then
+            -- Быстрое приближение к стенду
+            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed) -- Гарантируем целое число
+            
+            -- Добавляем ускорение при нажатии Shift
+            if isShiftPressed then
+                flySpeed = flySpeed + 50
+            end
+            
+            local currentVelocity = bv.Velocity
+            local targetVelocity = direction * flySpeed
+            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.15
+            bv.Velocity = smoothedVelocity
+        elseif distance > 0.5 then
+            -- Медленное точное позиционирование
+            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed * 0.2) -- 20% от основной скорости, целое число
+            
+            -- Добавляем ускорение при нажатии Shift (тоже для точного позиционирования)
+            if isShiftPressed then
+                flySpeed = flySpeed + 10 -- Меньшее ускорение для точного позиционирования
+            end
+            
+            local currentVelocity = bv.Velocity
+            local targetVelocity = direction * flySpeed
+            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.1
+            bv.Velocity = smoothedVelocity
+        else
+            -- Останавливаемся когда достигли позиции под стендом
+            bv.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+    
+    table.insert(undergroundControlConnections, undergroundFlyLoop)
+    
+    -- Добавляем обработчик смерти для Underground Flight
+    local humanoid = char and char:FindFirstChild("Humanoid")
+    if humanoid then
+        local deathConnection = humanoid.Died:Connect(function()
+            print("Игрок умер, отключаем Underground Flight...")
+            stopUndergroundControl()
+        end)
+        table.insert(undergroundControlConnections, deathConnection)
+    end
+    
+    print("Полет под землей за стендом активирован!")
+    print("Персонаж перенесен под стенд на расстоянии 30 метров под землей")
+end
+
+-- Функция для остановки управления персонажем под стендом
+local function stopUndergroundControl()
+    if not isUndergroundControlEnabled then return end
+    
+    isUndergroundControlEnabled = false
+    
+    local char = Players.LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    -- Восстанавливаем настройки персонажа
+    if hum then
+        hum.JumpPower = 50
+        hum.JumpHeight = 7.2
+        hum.HipHeight = 2
+    end
+    
+    workspace.Gravity = 196.2
+    
+    -- Удаляем BodyVelocity
+    if root then
+        local bv = root:FindFirstChild("BodyVelocity")
+        if bv then
+            bv:Destroy()
+        end
+    end
+    
+    -- Отключаем соединения
+    for _, connection in ipairs(undergroundControlConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    undergroundControlConnections = {}
+    
+    -- Плавно возвращаем персонажа в исходную позицию
+    if YBAConfig.UndergroundControl.OriginalPosition then
+        if root then
+            print("Плавно возвращаем персонажа в исходную позицию...")
+            
+            -- Создаем BodyVelocity для плавного возврата
+            local returnBv = Instance.new("BodyVelocity", root)
+            returnBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            
+            -- Вычисляем направление к исходной позиции
+            local direction = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Unit
+            local distance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
+            local returnSpeed = 100 -- Скорость возврата
+            
+            returnBv.Velocity = direction * returnSpeed
+            
+            -- Отслеживаем возврат
+            local returnConnection = RunService.Heartbeat:Connect(function()
+                local currentDistance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
+                
+                if currentDistance < 2 then
+                    -- Когда близко к цели, останавливаемся
+                    returnBv:Destroy()
+                    returnConnection:Disconnect()
+                    YBAConfig.UndergroundControl.OriginalPosition = nil
+                    print("Персонаж успешно возвращен в исходную позицию")
+                end
+            end)
+        end
+    end
+    
+    controlledStandForUnderground = nil
+    
+    print("Полет под землей за стендом отключен!")
 end
 
 local function getAlivePlayers()
@@ -2114,8 +2453,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
             end
             
             if guiCallbacks.yba then
-                guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+                guiCallbacks.yba.Text = "Stand Range Hack: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
+
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
             -- Временная активация Anti Time Stop (как кнопка)
             if not isAntiTimeStopEnabled then
@@ -2151,6 +2491,21 @@ UserInputService.InputBegan:Connect(function(input, gp)
             end
         -- Удален обработчик клавиши I для Item ESP
         end
+    end
+end)
+
+-- Обработчики клавиш для ускорения Ctrl в Stand Range Hack
+UserInputService.InputBegan:Connect(function(input, gp)
+    if not gp and input.KeyCode == Enum.KeyCode.LeftControl then
+        isShiftPressed = true
+        print("Ctrl нажат - ускорение активировано")
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gp)
+    if input.KeyCode == Enum.KeyCode.LeftControl then
+        isShiftPressed = false
+        print("Ctrl отпущен - ускорение деактивировано")
     end
 end)
 
@@ -3763,7 +4118,7 @@ standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 standRangeLabel.BackgroundTransparency = 1
 standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+local ybaToggleBtn = toggle("Stand Range Hack", YBAConfig.Enabled, function(v)
     YBAConfig.Enabled = v
     if v then 
         startYBA() 
@@ -3771,12 +4126,81 @@ local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
         stopYBA() 
     end
     if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (v and "ON" or "OFF")
+        guiCallbacks.yba.Text = "Stand Range Hack: " .. (v and "ON" or "OFF")
     end
 end)
 guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
+
+-- Кнопка для полета под землей за стендом
+local undergroundControlToggleBtn = toggle("Underground Flight", false, function(v)
+    if v then 
+        startUndergroundControl() 
+    else 
+        stopUndergroundControl() 
+    end
+end)
+
+undergroundControlToggleBtn.AutoButtonColor = false
+
+-- Ползунок для регулировки скорости полета и стенда (только целые числа)
+slider("Flight & Stand Speed (25-300)", 25, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
+    local wholeNumber = math.floor(v) -- Округляем до целого числа
+    YBAConfig.UndergroundControl.FlightSpeed = wholeNumber
+    print("Скорость полета и стенда установлена:", wholeNumber)
+    print("Нажмите Ctrl для ускорения на +50 единиц")
+end)
+
+local dividerAntiTimeStop = Instance.new("Frame", innerContainer)
+dividerAntiTimeStop.Size = UDim2.new(1, -10, 0, 2)
+dividerAntiTimeStop.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+dividerAntiTimeStop.BorderSizePixel = 0
+
+local antiTimeStopLabel = Instance.new("TextLabel", innerContainer)
+antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
+antiTimeStopLabel.Text = "anti time stop"
+antiTimeStopLabel.Font = Enum.Font.Gotham
+antiTimeStopLabel.TextSize = 12
+antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+antiTimeStopLabel.BackgroundTransparency = 1
+antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
+    -- Игнорируем значение v, так как теперь это временная активация
+    if not isAntiTimeStopEnabled then
+        -- Включаем Anti Time Stop
+        AntiTimeStopConfig.Enabled = true
+        startAntiTimeStop()
+        
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
+        end
+        
+        -- Асинхронно ждем 0.5 секунды и выключаем
+        spawn(function()
+            task.wait(0.5)
+            
+            -- Выключаем Anti Time Stop
+            AntiTimeStopConfig.Enabled = false
+            stopAntiTimeStop()
+            
+            if guiCallbacks.antiTimeStop then
+                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+            end
+        end)
+    else
+        -- Если уже активно, показываем сообщение
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
+            spawn(function()
+                task.wait(1)
+                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+            end)
+        end
+    end
+end)
+guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
 itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -3852,55 +4276,7 @@ createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"]
 createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
 createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
 
-local divider7 = Instance.new("Frame", innerContainer)
-divider7.Size = UDim2.new(1, -10, 0, 2)
-divider7.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider7.BorderSizePixel = 0
 
-local antiTimeStopLabel = Instance.new("TextLabel", innerContainer)
-antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
-antiTimeStopLabel.Text = "anti time stop"
-antiTimeStopLabel.Font = Enum.Font.Gotham
-antiTimeStopLabel.TextSize = 12
-antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-antiTimeStopLabel.BackgroundTransparency = 1
-antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
-    -- Игнорируем значение v, так как теперь это временная активация
-    if not isAntiTimeStopEnabled then
-        -- Включаем Anti Time Stop
-        AntiTimeStopConfig.Enabled = true
-        startAntiTimeStop()
-        
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
-        end
-        
-        -- Асинхронно ждем 0.5 секунды и выключаем
-        spawn(function()
-            task.wait(0.5)
-            
-            -- Выключаем Anti Time Stop
-            AntiTimeStopConfig.Enabled = false
-            stopAntiTimeStop()
-            
-            if guiCallbacks.antiTimeStop then
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end
-        end)
-    else
-        -- Если уже активно, показываем сообщение
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-            spawn(function()
-                task.wait(1)
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end)
-        end
-    end
-end)
-guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
 
 
 
