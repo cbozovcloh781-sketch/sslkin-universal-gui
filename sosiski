@@ -761,7 +761,9 @@ local function startAntiTimeStop()
            workspace.Gravity == 0 or
            (currentRoot.Velocity.Magnitude < 0.1 and currentHum.MoveDirection.Magnitude > 0) or
            -- Дополнительная проверка: если персонаж пытается двигаться, но не двигается
-           (currentHum.MoveDirection.Magnitude > 0 and currentRoot.Velocity.Magnitude < 0.5) then
+           (currentHum.MoveDirection.Magnitude > 0 and currentRoot.Velocity.Magnitude < 0.5) or
+           -- Проверка на застывание персонажа
+           (currentHum.MoveDirection.Magnitude > 0 and currentRoot.AssemblyLinearVelocity.Magnitude < 0.1) then
             isTimeStopped = true
         end
         
@@ -769,69 +771,35 @@ local function startAntiTimeStop()
             -- Получаем направление движения от пользователя
             local moveDirection = currentHum.MoveDirection
             if moveDirection.Magnitude > 0 then
-                -- Принудительно изменяем позицию всех частей персонажа
+                -- Вычисляем вектор движения
                 local moveVector = moveDirection.Unit * AntiTimeStopConfig.MovementSpeed
                 
-                -- Принудительно устанавливаем NetworkOwnership для всех частей
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part:SetNetworkOwner(Players.LocalPlayer)
-                    end
-                end
+                -- Сохраняем текущую позицию корня
+                local oldRootPosition = currentRoot.Position
                 
-                -- Сначала перемещаем корень
-                local newRootPosition = currentRoot.Position + moveVector
+                -- Перемещаем корень
+                local newRootPosition = oldRootPosition + moveVector
                 currentRoot.CFrame = CFrame.new(newRootPosition)
                 
-                -- Принудительно перемещаем все части персонажа
+                -- Перемещаем все части персонажа относительно корня
                 for _, part in pairs(char:GetDescendants()) do
                     if part:IsA("BasePart") and part ~= currentRoot then
-                        -- Вычисляем новую позицию относительно корня
-                        local relativeOffset = part.Position - currentRoot.Position
-                        local newPartPosition = newRootPosition + relativeOffset
+                        -- Вычисляем смещение от старой позиции корня
+                        local offsetFromOldRoot = part.Position - oldRootPosition
                         
-                        -- Принудительно устанавливаем позицию
+                        -- Новая позиция части = новая позиция корня + смещение
+                        local newPartPosition = newRootPosition + offsetFromOldRoot
+                        
+                        -- Перемещаем часть
                         part.CFrame = CFrame.new(newPartPosition)
-                        
-                        -- Также принудительно устанавливаем Velocity для синхронизации
-                        if part:FindFirstChild("BodyVelocity") then
-                            part.BodyVelocity:Destroy()
-                        end
-                        local bv = Instance.new("BodyVelocity", part)
-                        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                        bv.Velocity = moveVector * 10
-                        
-                        -- Принудительно устанавливаем AssemblyLinearVelocity
-                        part.AssemblyLinearVelocity = moveVector * 10
                     end
                 end
-                
-                -- Принудительно устанавливаем Velocity для корня
-                if currentRoot:FindFirstChild("BodyVelocity") then
-                    currentRoot.BodyVelocity:Destroy()
-                end
-                local rootBv = Instance.new("BodyVelocity", currentRoot)
-                rootBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                rootBv.Velocity = moveVector * 10
-                
-                -- Также принудительно устанавливаем AssemblyLinearVelocity
-                currentRoot.AssemblyLinearVelocity = moveVector * 10
             end
             
             -- Восстанавливаем нормальные значения
             currentHum.WalkSpeed = originalWalkSpeed
             currentHum.JumpPower = originalJumpPower
             workspace.Gravity = originalGravity
-        else
-            -- Если время не остановлено, убираем все BodyVelocity
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    local bv = part:FindFirstChild("BodyVelocity")
-                    if bv then
-                        bv:Destroy()
-                    end
-                end
-            end
         end
     end
     
@@ -839,13 +807,6 @@ local function startAntiTimeStop()
     local antiTimeStopLoop = RunService.Heartbeat:Connect(function()
         bypassTimeStop()
     end)
-    
-    -- Дополнительный цикл для более частых обновлений
-    local antiTimeStopRenderLoop = RunService.RenderStepped:Connect(function()
-        bypassTimeStop()
-    end)
-    
-    table.insert(antiTimeStopConnections, antiTimeStopRenderLoop)
     
     table.insert(antiTimeStopConnections, antiTimeStopLoop)
     
@@ -863,20 +824,6 @@ end
 
 local function stopAntiTimeStop()
     isAntiTimeStopActive = false
-    
-    local char = Players.LocalPlayer.Character
-    
-    -- Убираем все BodyVelocity со всех частей персонажа
-    if char then
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                local bv = part:FindFirstChild("BodyVelocity")
-                if bv then
-                    bv:Destroy()
-                end
-            end
-        end
-    end
     
     -- Отключаем все соединения
     for _, connection in ipairs(antiTimeStopConnections) do
@@ -3982,7 +3929,7 @@ end)
 -- Информационная панель
 local antiTimeStopInfo = Instance.new("TextLabel", innerContainer)
 antiTimeStopInfo.Size = UDim2.new(1, -10, 0, 40)
-antiTimeStopInfo.Text = "Anti Time Stop позволяет двигаться во время остановки времени другими игроками/NPC. Принудительно перемещает весь персонаж целиком, включая все части тела. Работает с любым стендом."
+antiTimeStopInfo.Text = "Anti Time Stop позволяет двигаться во время остановки времени другими игроками/NPC. Перемещает весь персонаж целиком через CFrame, включая все части тела. Работает с любым стендом."
 antiTimeStopInfo.Font = Enum.Font.Gotham
 antiTimeStopInfo.TextSize = 12
 antiTimeStopInfo.TextColor3 = Color3.fromRGB(200,200,200)
