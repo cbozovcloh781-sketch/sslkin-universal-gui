@@ -675,33 +675,17 @@ local function createAntiTimeStopEffect()
     local char = Players.LocalPlayer.Character
     if not char then return end
     
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    -- Создаем зеленую обводку персонажа
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "AntiTimeStopEffect"
+    highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Зеленый цвет
+    highlight.OutlineColor = Color3.fromRGB(0, 200, 0) -- Темно-зеленый контур
+    highlight.FillTransparency = 0.3
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = char
     
-    -- Создаем зеленую линию вокруг персонажа
-    local effect = Instance.new("Part")
-    effect.Name = "AntiTimeStopEffect"
-    effect.Shape = Enum.PartType.Ball
-    effect.Size = Vector3.new(6, 6, 6)
-    effect.Transparency = 0.3
-    effect.Material = Enum.Material.Neon
-    effect.Color = Color3.fromRGB(0, 255, 0) -- Зеленый цвет
-    effect.Anchored = true
-    effect.CanCollide = false
-    effect.Parent = workspace
-    
-    -- Эффект следует за игроком
-    local followConnection = RunService.Heartbeat:Connect(function()
-        if effect and effect.Parent and root and root.Parent then
-            effect.CFrame = root.CFrame + Vector3.new(0, 2, 0)
-        else
-            if followConnection then
-                followConnection:Disconnect()
-            end
-        end
-    end)
-    
-    antiTimeStopEffect = effect
+    antiTimeStopEffect = highlight
 end
 
 local function removeAntiTimeStopEffect()
@@ -801,10 +785,10 @@ local function startAntiTimeStop()
         
         -- Только визуальный эффект при атаке
         if isAttacking and antiTimeStopEffect then
-            antiTimeStopEffect.Color = Color3.fromRGB(255, 255, 0) -- Желтый при атаке
+            antiTimeStopEffect.FillColor = Color3.fromRGB(255, 255, 0) -- Желтый при атаке
         else
             if antiTimeStopEffect then
-                antiTimeStopEffect.Color = Color3.fromRGB(0, 255, 0) -- Зеленый обычно
+                antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 0) -- Зеленый обычно
             end
         end
     end)
@@ -952,14 +936,14 @@ local function startAntiTimeStop()
                     
                     -- Добавляем небольшой эффект для визуализации движения в time stop
                     if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                        antiTimeStopEffect.Color = Color3.fromRGB(0, 255, 255) -- Голубой цвет при движении
+                        antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 255) -- Голубой цвет при движении
                     end
                 else
                     bv.Velocity = Vector3.new(0, 0, 0)
                     
                     -- Возвращаем обычный цвет эффекта
                     if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                        antiTimeStopEffect.Color = Color3.fromRGB(0, 255, 0) -- Зеленый цвет
+                        antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 0) -- Зеленый цвет
                     end
                 end
             end
