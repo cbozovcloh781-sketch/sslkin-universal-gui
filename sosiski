@@ -2121,22 +2121,36 @@ UserInputService.InputBegan:Connect(function(input, gp)
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
-            -- Переключатель Anti Time Stop
+            -- Временная активация Anti Time Stop (как кнопка)
             if not isAntiTimeStopEnabled then
                 -- Включаем Anti Time Stop
                 AntiTimeStopConfig.Enabled = true
                 startAntiTimeStop()
                 
                 if guiCallbacks.antiTimeStop then
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ON"
+                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
                 end
-            else
-                -- Выключаем Anti Time Stop
-                AntiTimeStopConfig.Enabled = false
-                stopAntiTimeStop()
                 
+                -- Асинхронно ждем 0.5 секунды и выключаем
+                spawn(function()
+                    task.wait(0.5)
+                    
+                    -- Выключаем Anti Time Stop
+                    AntiTimeStopConfig.Enabled = false
+                    stopAntiTimeStop()
+                    
+                    if guiCallbacks.antiTimeStop then
+                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+                    end
+                end)
+            else
+                -- Если уже активно, показываем сообщение
                 if guiCallbacks.antiTimeStop then
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: OFF"
+                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
+                    spawn(function()
+                        task.wait(1)
+                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
+                    end)
                 end
             end
         -- Удален обработчик клавиши I для Item ESP
