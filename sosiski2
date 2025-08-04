@@ -2086,6 +2086,82 @@ local function bypassStandRangeLimit()
     end
 end
 
+-- Функция для полного обхода ограничения дистанции через модификацию сетевых пакетов
+local function createInfiniteRangeBypass()
+    -- Создаем собственный RemoteEvent для отправки команд атаки
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local infiniteRangeRemote = replicatedStorage:FindFirstChild("InfiniteRangeAttack")
+    
+    if not infiniteRangeRemote then
+        infiniteRangeRemote = Instance.new("RemoteEvent")
+        infiniteRangeRemote.Name = "InfiniteRangeAttack"
+        infiniteRangeRemote.Parent = replicatedStorage
+    end
+    
+    -- Функция для отправки атаки на любом расстоянии
+    local function sendInfiniteRangeAttack(targetPos, attackType)
+        if not targetPos then return end
+        
+        local player = Players.LocalPlayer
+        local char = player.Character
+        if not char then return end
+        
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        
+        local distance = (targetPos - root.Position).Magnitude
+        
+        -- Отправляем команду атаки с флагами для обхода ограничения
+        local attackData = {
+            attackType = attackType or "punch",
+            targetPosition = targetPos,
+            playerPosition = root.Position,
+            distance = distance,
+            bypassRangeLimit = true,
+            infiniteRange = true,
+            noDistanceCheck = true,
+            timestamp = tick()
+        }
+        
+        infiniteRangeRemote:FireServer(attackData)
+        
+        print("YBA: Отправлена атака на расстоянии", math.floor(distance), "studs")
+    end
+    
+    -- Перехватываем все команды атаки и перенаправляем их
+    local function interceptAndRedirect()
+        -- Перехватываем все RemoteEvent
+        for _, child in pairs(replicatedStorage:GetDescendants()) do
+            if child:IsA("RemoteEvent") and child.Name ~= "InfiniteRangeAttack" then
+                local originalFireServer = child.FireServer
+                child.FireServer = function(self, ...)
+                    local args = {...}
+                    
+                    -- Проверяем, является ли это командой атаки
+                    if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
+                        local command = tostring(args[1]):lower()
+                        
+                        if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
+                            -- Перенаправляем команду через наш RemoteEvent
+                            if args[2] and type(args[2]) == "Vector3" then
+                                sendInfiniteRangeAttack(args[2], command)
+                                return -- Блокируем оригинальную команду
+                            end
+                        end
+                    end
+                    
+                    return originalFireServer(self, unpack(args))
+                end
+            end
+        end
+    end
+    
+    interceptAndRedirect()
+    
+    -- Возвращаем функцию для отправки атак
+    return sendInfiniteRangeAttack
+end
+
 -- Функция для активации обхода ограничения дистанции
 local function startStandRangeBypass()
     if not YBAConfig.BypassStandRangeLimit then return end
@@ -2181,6 +2257,15 @@ local function startStandRangeBypass()
     -- Активируем глобальный перехватчик сетевых команд
     createGlobalNetworkInterceptor()
     
+    -- Активируем систему бесконечной дистанции
+    local sendInfiniteRangeAttack = createInfiniteRangeBypass()
+    
+    -- Активируем агрессивный обход ограничения дистанции
+    createAggressiveRangeBypass()
+    
+    -- Активируем ультимативный обход ограничения дистанции
+    local sendUltimateAttack = createUltimateRangeBypass()
+    
     -- Также перехватываем InputBegan для клавиш атаки
     local attackKeys = {Enum.KeyCode.F, Enum.KeyCode.E, Enum.KeyCode.R, Enum.KeyCode.T, Enum.KeyCode.Y, Enum.KeyCode.Q}
     
@@ -2203,19 +2288,41 @@ local function startStandRangeBypass()
                     if root then
                         local distance = (targetPos - root.Position).Magnitude
                         
-                        if distance > 1260 then
-                            print("YBA: Атака на большом расстоянии", math.floor(distance), "studs - пытаемся обойти ограничение")
+                        if distance > 50 then -- Уменьшаем порог до 50 studs
+                            print("YBA: Атака на большом расстоянии", math.floor(distance), "studs - используем ультимативную систему")
                             
-                            -- Создаем временный RemoteEvent для отправки модифицированной команды
-                            local tempRemote = Instance.new("RemoteEvent")
-                            tempRemote.Name = "StandRangeBypassAttack"
-                            tempRemote.Parent = game:GetService("ReplicatedStorage")
-                            
-                            -- Отправляем модифицированную команду атаки
-                            tempRemote:FireServer("attack", targetPos, "bypass_range_limit", true)
-                            
-                            -- Удаляем временный RemoteEvent
-                            tempRemote:Destroy()
+                            -- Используем ультимативную систему
+                            if sendUltimateAttack then
+                                sendUltimateAttack(targetPos, "ultimate_attack")
+                            elseif sendInfiniteRangeAttack then
+                                sendInfiniteRangeAttack(targetPos, "infinite_attack")
+                            else
+                                -- Fallback: создаем временный RemoteEvent
+                                local tempRemote = Instance.new("RemoteEvent")
+                                tempRemote.Name = "StandRangeBypassAttack"
+                                tempRemote.Parent = game:GetService("ReplicatedStorage")
+                                
+                                -- Отправляем модифицированную команду атаки с дополнительными флагами
+                                local attackData = {
+                                    attackType = "ultimate_attack",
+                                    targetPosition = targetPos,
+                                    distance = distance,
+                                    bypassRangeLimit = true,
+                                    infiniteRange = true,
+                                    noDistanceCheck = true,
+                                    forceAttack = true,
+                                    adminOverride = true,
+                                    ultimateBypass = true,
+                                    timestamp = tick()
+                                }
+                                
+                                tempRemote:FireServer(attackData)
+                                
+                                -- Удаляем временный RemoteEvent
+                                tempRemote:Destroy()
+                            end
+                        else
+                            print("YBA: Атака на нормальном расстоянии", math.floor(distance), "studs")
                         end
                     end
                 end
@@ -2482,6 +2589,211 @@ local function createGlobalNetworkInterceptor()
     end
     
     createGlobalHook()
+end
+
+-- Функция для создания агрессивного обхода ограничения дистанции
+local function createAggressiveRangeBypass()
+    -- Создаем множество фейковых RemoteEvent с разными именами
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local fakeRemoteNames = {
+        "StandAttack",
+        "StandAbility",
+        "StandSkill", 
+        "Attack",
+        "Hit",
+        "Punch",
+        "Kick",
+        "Ability",
+        "Skill",
+        "StandRangeAttack",
+        "LongRangeAttack",
+        "RemoteAttack",
+        "InfiniteRangeAttack",
+        "BypassRangeAttack",
+        "ForceAttack",
+        "StandPunch",
+        "StandKick",
+        "StandAbility1",
+        "StandAbility2",
+        "StandAbility3",
+        "StandSkill1",
+        "StandSkill2",
+        "StandSkill3",
+        "StandCombo",
+        "StandBarrage",
+        "StandOra",
+        "StandMuda",
+        "StandWryyy",
+        "StandZaWarudo",
+        "StandTheWorld"
+    }
+    
+    for _, name in pairs(fakeRemoteNames) do
+        local fakeRemote = replicatedStorage:FindFirstChild(name)
+        if not fakeRemote then
+            fakeRemote = Instance.new("RemoteEvent")
+            fakeRemote.Name = name
+            fakeRemote.Parent = replicatedStorage
+            
+            -- Перехватываем FireServer для каждого фейкового RemoteEvent
+            local oldFireServer = fakeRemote.FireServer
+            fakeRemote.FireServer = function(self, ...)
+                local args = {...}
+                
+                -- Модифицируем все команды для обхода ограничения дистанции
+                if args[1] then
+                    local command = tostring(args[1]):lower()
+                    
+                    -- Добавляем флаги для обхода ограничения
+                    table.insert(args, "bypass_range_limit")
+                    table.insert(args, true)
+                    table.insert(args, "infinite_range")
+                    table.insert(args, true)
+                    table.insert(args, "no_distance_check")
+                    table.insert(args, true)
+                    table.insert(args, "force_attack")
+                    table.insert(args, true)
+                    table.insert(args, "admin_override")
+                    table.insert(args, true)
+                    
+                    print("YBA: Фейковый RemoteEvent", name, "перехватил команду:", command)
+                end
+                
+                return oldFireServer(self, unpack(args))
+            end
+        end
+    end
+    
+    -- Создаем глобальный перехватчик всех сетевых событий
+    local function createUltimateHook()
+        -- Перехватываем все сетевые события через метаметоды
+        local oldNamecall = getrawmetatable(game).__namecall
+        setreadonly(getrawmetatable(game), false)
+        
+        getrawmetatable(game).__namecall = newcclosure(function(self, ...)
+            local args = {...}
+            local method = getnamecallmethod()
+            
+            -- Перехватываем все сетевые методы
+            if method == "FireServer" or method == "InvokeServer" or method == "Fire" or method == "Invoke" then
+                if args[1] then
+                    local command = tostring(args[1]):lower()
+                    
+                    -- Если это любая команда, добавляем флаги для обхода ограничения
+                    table.insert(args, "bypass_range_limit")
+                    table.insert(args, true)
+                    table.insert(args, "infinite_range")
+                    table.insert(args, true)
+                    table.insert(args, "no_distance_check")
+                    table.insert(args, true)
+                    table.insert(args, "force_attack")
+                    table.insert(args, true)
+                    table.insert(args, "admin_override")
+                    table.insert(args, true)
+                    
+                    print("YBA: Глобальный перехватчик модифицировал команду:", command)
+                end
+            end
+            
+            return oldNamecall(self, unpack(args))
+        end)
+        
+        setreadonly(getrawmetatable(game), true)
+        
+        print("YBA: Агрессивный глобальный перехватчик активирован")
+    end
+    
+    createUltimateHook()
+    
+    print("YBA: Создано агрессивных фейковых RemoteEvent:", #fakeRemoteNames)
+end
+
+-- Функция для создания ультимативного обхода ограничения дистанции
+local function createUltimateRangeBypass()
+    -- Создаем функцию для отправки атак на любом расстоянии
+    local function sendUltimateAttack(targetPos, attackType)
+        if not targetPos then return end
+        
+        local player = Players.LocalPlayer
+        local char = player.Character
+        if not char then return end
+        
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        
+        local distance = (targetPos - root.Position).Magnitude
+        
+        -- Создаем множество RemoteEvent для отправки атаки
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local remoteNames = {
+            "StandAttack", "Attack", "Hit", "Punch", "Kick", "Ability", "Skill",
+            "StandAbility", "StandSkill", "StandRangeAttack", "LongRangeAttack",
+            "InfiniteRangeAttack", "BypassRangeAttack", "ForceAttack"
+        }
+        
+        for _, remoteName in pairs(remoteNames) do
+            local remote = replicatedStorage:FindFirstChild(remoteName)
+            if not remote then
+                remote = Instance.new("RemoteEvent")
+                remote.Name = remoteName
+                remote.Parent = replicatedStorage
+            end
+            
+            -- Отправляем атаку через каждый RemoteEvent
+            local attackData = {
+                attackType = attackType or "ultimate_attack",
+                targetPosition = targetPos,
+                playerPosition = root.Position,
+                distance = distance,
+                bypassRangeLimit = true,
+                infiniteRange = true,
+                noDistanceCheck = true,
+                forceAttack = true,
+                adminOverride = true,
+                ultimateBypass = true,
+                timestamp = tick()
+            }
+            
+            remote:FireServer(attackData)
+        end
+        
+        print("YBA: Ультимативная атака отправлена на расстоянии", math.floor(distance), "studs")
+    end
+    
+    -- Перехватываем все возможные команды атаки
+    local function interceptAllAttacks()
+        -- Перехватываем все RemoteEvent в игре
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        
+        for _, child in pairs(replicatedStorage:GetDescendants()) do
+            if child:IsA("RemoteEvent") then
+                local originalFireServer = child.FireServer
+                child.FireServer = function(self, ...)
+                    local args = {...}
+                    
+                    -- Если это команда атаки, перенаправляем её
+                    if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
+                        local command = tostring(args[1]):lower()
+                        
+                        if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
+                            if args[2] and type(args[2]) == "Vector3" then
+                                -- Перенаправляем атаку через ультимативную систему
+                                sendUltimateAttack(args[2], command)
+                                return -- Блокируем оригинальную команду
+                            end
+                        end
+                    end
+                    
+                    return originalFireServer(self, unpack(args))
+                end
+            end
+        end
+    end
+    
+    interceptAllAttacks()
+    
+    -- Возвращаем функцию для отправки ультимативных атак
+    return sendUltimateAttack
 end
 
 
