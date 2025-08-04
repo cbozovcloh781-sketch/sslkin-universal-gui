@@ -116,10 +116,10 @@ local YBAConfig = {
     AntiTimeStop = {
         Enabled = false,
         ToggleKey = nil,
-        AutoActivate = true,
+        AutoActivate = false, -- Отключено автовключение
         DetectionRange = 1000,
         ActivationDelay = 0.1,
-        Duration = 5.0,
+        Duration = 30.0, -- Увеличено время до 30 секунд
         Cooldown = 10.0,
         LastActivation = 0,
         IsActive = false
@@ -352,7 +352,8 @@ local YBAFreeCamera = {} do
                     local playerRoot = player.Character:FindFirstChild("HumanoidRootPart")
                     if playerRoot then
                         local distance = (playerRoot.Position - standPosition).Magnitude
-                        if distance <= YBAConfig.StandRange and distance < nearestDistance then
+                        -- Убираем ограничение по дистанции - стенд может атаковать на любой дистанции
+                        if distance < nearestDistance then
                             nearestPlayer = player
                             nearestDistance = distance
                         end
@@ -361,31 +362,10 @@ local YBAFreeCamera = {} do
             end
             
             if nearestPlayer then
-                -- Выполняем атаку стенда
+                -- Простая атака стенда без визуальных эффектов
                 local playerRoot = nearestPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if playerRoot then
-                    -- Создаем эффект атаки
-                    local attackEffect = Instance.new("Part")
-                    attackEffect.Shape = Enum.PartType.Ball
-                    attackEffect.Size = Vector3.new(2, 2, 2)
-                    attackEffect.Position = standPosition
-                    attackEffect.Anchored = true
-                    attackEffect.CanCollide = false
-                    attackEffect.Material = Enum.Material.Neon
-                    attackEffect.Color = Color3.fromRGB(255, 0, 0)
-                    attackEffect.Parent = workspace
-                    
-                    -- Анимация атаки
-                    local tween = TweenService:Create(attackEffect, TweenInfo.new(0.3), {
-                        Position = playerRoot.Position,
-                        Size = Vector3.new(5, 5, 5)
-                    })
-                    tween:Play()
-                    
-                    tween.Completed:Connect(function()
-                        attackEffect:Destroy()
-                    end)
-                    
+                    -- Просто логируем атаку
                     print("YBA: Атака стенда выполнена на дистанции " .. math.floor(nearestDistance) .. " studs")
                 end
             end
@@ -1506,8 +1486,8 @@ local function startAntiTimeStop()
         local humanoid = player.Character:FindFirstChild("Humanoid")
         if humanoid then
             -- Увеличиваем скорость для "прорыва" тайм стопа
-            humanoid.WalkSpeed = humanoid.WalkSpeed * 2
-            humanoid.JumpPower = humanoid.JumpPower * 1.5
+            humanoid.WalkSpeed = humanoid.WalkSpeed * 3 -- Увеличено с 2 до 3
+            humanoid.JumpPower = humanoid.JumpPower * 2 -- Увеличено с 1.5 до 2
         end
     end
     
@@ -1840,15 +1820,15 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- Автоматическое обнаружение тайм стопа
-spawn(function()
-    while true do
-        if YBAConfig.AntiTimeStop.AutoActivate then
-            detectTimeStop()
-        end
-        wait(0.5) -- Проверяем каждые 0.5 секунды
-    end
-end)
+-- Автоматическое обнаружение тайм стопа (отключено)
+-- spawn(function()
+--     while true do
+--         if YBAConfig.AntiTimeStop.AutoActivate then
+--             detectTimeStop()
+--         end
+--         wait(0.5) -- Проверяем каждые 0.5 секунды
+--     end
+-- end)
 
 local ESPs, Lines = {}, {}
 local FOVCircle
@@ -3479,7 +3459,7 @@ slider("Detection Range", 100, 2000, YBAConfig.AntiTimeStop.DetectionRange, func
     print("Anti Time Stop Detection Range установлен в:", v)
 end)
 
-slider("Duration", 1.0, 10.0, YBAConfig.AntiTimeStop.Duration, function(v)
+slider("Duration", 5.0, 60.0, YBAConfig.AntiTimeStop.Duration, function(v)
     YBAConfig.AntiTimeStop.Duration = v
     print("Anti Time Stop Duration установлен в:", v)
 end)
