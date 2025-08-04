@@ -3742,7 +3742,7 @@ stopTeleportBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- YBA Hacks Section (перемещен в конец)
+-- YBA Hacks Section удален (перемещен в конец)
 
 
 local function createPlayerListInMenu()
@@ -4023,36 +4023,8 @@ guiCallbacks.yba = ybaToggleBtn
 -- Отключаем навигацию для кнопки YBA Stand Range
 ybaToggleBtn.AutoButtonColor = false
 
--- Информация об управлении
-local controlsInfo = Instance.new("TextLabel", innerContainer)
-controlsInfo.Size = UDim2.new(1, -10, 0, 80)
-controlsInfo.Text = "Управление стендом от 3-го лица:\nWASD - Движение стенда\nSpace/Ctrl - Подъем/спуск стенда\nМышь - Поворот камеры\nКолесико - Зум камеры\nShift - Медленное движение\nКамера зафиксирована за стендом"
-controlsInfo.Font = Enum.Font.Gotham
-controlsInfo.TextSize = 10
-controlsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
-controlsInfo.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-controlsInfo.BorderSizePixel = 1
-controlsInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
-controlsInfo.TextXAlignment = Enum.TextXAlignment.Left
-controlsInfo.TextYAlignment = Enum.TextYAlignment.Top
-Instance.new("UICorner", controlsInfo).CornerRadius = UDim.new(0, 4)
-
 -- YBA Item ESP Controls
 sectionHeader("🎯 YBA Item ESP")
-
--- Информация о новой системе Item ESP
-local itemESPInfo = Instance.new("TextLabel", innerContainer)
-itemESPInfo.Size = UDim2.new(1, -10, 0, 80)
-itemESPInfo.Text = "🔍 Улучшенная система поиска предметов YBA:\n• Автоматически находит Arrow, Rokakaka, Diamond\n• Ищет Corpse Parts, Stand Discs, Requiem Arrows\n• Подсвечивает все подбираемые предметы\n• Работает на всей карте (до 1000м)\n• Цветовая кодировка по типам предметов\n• Компактные таблички с уменьшенным пространством"
-itemESPInfo.Font = Enum.Font.Gotham
-itemESPInfo.TextSize = 10
-itemESPInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
-itemESPInfo.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-itemESPInfo.BorderSizePixel = 1
-itemESPInfo.BorderColor3 = Color3.fromRGB(80, 80, 100)
-itemESPInfo.TextXAlignment = Enum.TextXAlignment.Left
-itemESPInfo.TextYAlignment = Enum.TextYAlignment.Top
-Instance.new("UICorner", itemESPInfo).CornerRadius = UDim.new(0, 4)
 
 local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
     YBAConfig.ItemESP.Enabled = v
@@ -4069,5 +4041,3 @@ guiCallbacks.itemESP = itemESPToggleBtn
 
 -- Отключаем навигацию для кнопки Item ESP
 itemESPToggleBtn.AutoButtonColor = false
-
--- Настройки Item ESP удалены - все настройки фиксированные
