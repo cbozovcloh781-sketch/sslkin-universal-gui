@@ -351,7 +351,9 @@ local YBAFreeCamera = {} do
         if move.Magnitude > 0 then
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
+            -- Используем настраиваемую скорость из UndergroundControl
+            local standSpeed = YBAConfig.UndergroundControl.FlightSpeed
+            bv.Velocity = worldMove * standSpeed
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -1995,8 +1997,14 @@ local function startYBA()
         activateFreeCamera(targetStand)
     end
     
-    -- Подземный полет теперь включается отдельной кнопкой
+    -- Автоматически запускаем подземный полет при включении Stand Range
     print("Stand Range активирован")
+    print("Автоматически включаем Underground Flight...")
+    if startUndergroundControl then
+        startUndergroundControl()
+    else
+        print("ОШИБКА: Функция startUndergroundControl не найдена!")
+    end
 end
 
 local function stopYBA()
@@ -2020,8 +2028,12 @@ local function stopYBA()
     standControlConnections = {}
     controlledStand = nil
     
-    -- Подземный полет останавливается отдельной кнопкой
+    -- Останавливаем подземный полет при выключении Stand Range
     print("Stand Range деактивирован")
+    print("Автоматически отключаем Underground Flight...")
+    if stopUndergroundControl then
+        stopUndergroundControl()
+    end
 end
 
 -- Функция для запуска управления персонажем под стендом (летающий режим)
@@ -2153,19 +2165,19 @@ local function startUndergroundControl()
         local direction = (targetPos - root.Position).Unit
         local distance = (targetPos - root.Position).Magnitude
         
-        -- Отладочная информация (временно включена для тестирования)
-        if tick() % 3 < 0.1 then -- Выводим каждые 3 секунды
-            print("=== ОТЛАДКА ПОДЗЕМНОГО ПОЛЕТА ===")
-            print("Стенд позиция:", standPos)
-            print("Целевая позиция:", targetPos)
-            print("Позиция персонажа:", root.Position)
-            print("Расстояние:", distance)
-            print("BodyVelocity существует:", bv ~= nil)
-            if bv then
-                print("BodyVelocity скорость:", bv.Velocity)
-            end
-            print("================================")
-        end
+        -- Отладочная информация (отключена для чистоты консоли)
+        -- if tick() % 3 < 0.1 then -- Выводим каждые 3 секунды
+        --     print("=== ОТЛАДКА ПОДЗЕМНОГО ПОЛЕТА ===")
+        --     print("Стенд позиция:", standPos)
+        --     print("Целевая позиция:", targetPos)
+        --     print("Позиция персонажа:", root.Position)
+        --     print("Расстояние:", distance)
+        --     print("BodyVelocity существует:", bv ~= nil)
+        --     if bv then
+        --         print("BodyVelocity скорость:", bv.Velocity)
+        --     end
+        --     print("================================")
+        -- end
         
         -- Плавное следование за стендом (как в оригинальном полете)
         if distance > 2 then
@@ -4041,9 +4053,10 @@ end)
 
 undergroundControlToggleBtn.AutoButtonColor = false
 
--- Ползунок для регулировки скорости полета под землей
-slider("Underground Flight Speed (50-300)", 50, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
+-- Ползунок для регулировки скорости полета и стенда
+slider("Flight & Stand Speed (50-300)", 50, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
     YBAConfig.UndergroundControl.FlightSpeed = v
+    print("Скорость полета и стенда установлена:", v)
 end)
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
