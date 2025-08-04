@@ -169,7 +169,7 @@ local YBAConfig = {
 local AntiTimeStopConfig = {
     Enabled = false,
     ToggleKey = nil,
-    MovementSpeed = 2.0, -- Скорость движения в остановленном времени
+    MovementSpeed = 1.5, -- Скорость движения в остановленном времени
     JumpPower = 50, -- Сила прыжка в остановленном времени
     WalkSpeed = 16, -- Скорость ходьбы в остановленном времени
     AutoActivate = true, -- Автоматически активировать при обнаружении time stop
@@ -179,6 +179,8 @@ local AntiTimeStopConfig = {
     AntiFreeze = true, -- Предотвращать заморозку персонажа
     TimeStopBypass = true, -- Обходить остановку времени
     MovementOverride = true, -- Переопределять движение в time stop
+    DisableOnAttack = true, -- Отключать BodyVelocity при атаке
+    ServerSync = true, -- Синхронизировать с сервером
 }
 
 local isFlying = false
@@ -737,13 +739,13 @@ local function startAntiTimeStop()
     
     createAntiTimeStopEffect()
     
-    -- Простая защита от заморозки (только локальная)
+    -- Агрессивная защита от заморозки
     local antiFreezeLoop = RunService.Heartbeat:Connect(function()
         if not isAntiTimeStopEnabled or not char or not char.Parent then
             return
         end
         
-        -- Только локальная разблокировка (не влияет на сервер)
+        -- Принудительно разблокируем все части персонажа
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.Anchored = false
@@ -757,6 +759,7 @@ local function startAntiTimeStop()
             hum.JumpPower = AntiTimeStopConfig.JumpPower
             hum.AutoRotate = true
             hum.AutoJumpEnabled = true
+            hum.Health = math.max(hum.Health, 1) -- Предотвращаем смерть
         end
         
         -- Автоматическая активация при обнаружении заморозки
@@ -773,6 +776,79 @@ local function startAntiTimeStop()
                 timeStopDetected = true
                 timeStopStartTime = tick()
                 print("Auto-detected freeze! Activating Anti Time Stop...")
+                
+                -- Принудительно разблокируем
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Anchored = false
+                        part.CanCollide = true
+                    end
+                end
+            end
+        end
+        
+        -- Дополнительная защита от смерти
+        if hum and hum.Health <= 0 then
+            hum.Health = 1
+        end
+    end)
+    
+    -- Обработка атак для предотвращения конфликтов
+    local attackDetection = RunService.Heartbeat:Connect(function()
+        if not isAntiTimeStopEnabled or not timeStopDetected or not char or not char.Parent then
+            return
+        end
+        
+        if not AntiTimeStopConfig.DisableOnAttack then
+            return
+        end
+        
+        -- Проверяем, не атакует ли игрок
+        local isAttacking = false
+        
+        -- Проверяем нажатие клавиш атаки
+        if UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+           UserInputService:IsKeyDown(Enum.KeyCode.E) or
+           UserInputService:IsKeyDown(Enum.KeyCode.R) or
+           UserInputService:IsKeyDown(Enum.KeyCode.T) or
+           UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+           UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+            isAttacking = true
+        end
+        
+        -- Проверяем наличие анимаций атаки
+        local animator = hum:FindFirstChild("Animator")
+        if animator then
+            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                local animName = track.Animation.AnimationId:lower()
+                if animName:find("attack") or 
+                   animName:find("punch") or 
+                   animName:find("kick") or
+                   animName:find("hit") or
+                   animName:find("stand") then
+                    isAttacking = true
+                    break
+                end
+            end
+        end
+        
+        -- Временно отключаем BodyVelocity при атаке
+        local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
+        local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+        
+        if isAttacking then
+            if bv then
+                bv.MaxForce = Vector3.new(0, 0, 0)
+            end
+            if bg then
+                bg.MaxTorque = Vector3.new(0, 0, 0)
+            end
+        else
+            if bv then
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            end
+            if bg then
+                bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
             end
         end
     end)
@@ -791,13 +867,43 @@ local function startAntiTimeStop()
             
             print("Time Stop detected! Activating Anti Time Stop...")
             
-            -- Только локальные эффекты
+            -- Активируем защиту от time stop
+            if AntiTimeStopConfig.AntiFreeze then
+                -- Принудительно разблокируем персонажа
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Anchored = false
+                        part.CanCollide = true
+                    end
+                end
+            end
+            
             if AntiTimeStopConfig.MovementOverride then
+                -- Переопределяем движение в time stop
                 hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
                 hum.JumpPower = AntiTimeStopConfig.JumpPower
+                
+                -- Создаем BodyVelocity для принудительного движения
+                local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
+                if not bv then
+                    bv = Instance.new("BodyVelocity", root)
+                    bv.Name = "AntiTimeStopBodyVelocity"
+                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                end
+                
+                -- Создаем BodyGyro для стабилизации
+                local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+                if not bg then
+                    bg = Instance.new("BodyGyro", root)
+                    bg.Name = "AntiTimeStopBodyGyro"
+                    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+                    bg.D = 1000
+                    bg.P = 2000
+                end
             end
             
             if AntiTimeStopConfig.SoundEffect then
+                -- Воспроизводим звуковой эффект
                 local sound = Instance.new("Sound", root)
                 sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
                 sound.Volume = 0.5
@@ -815,62 +921,123 @@ local function startAntiTimeStop()
             hum.WalkSpeed = originalAntiTimeStopWalkSpeed
             hum.JumpPower = originalAntiTimeStopJumpPower
             
+            -- Удаляем BodyVelocity и BodyGyro
+            local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+            
+            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+            if bg then
+                bg:Destroy()
+            end
+            
             removeAntiTimeStopEffect()
         end
     end)
     
-    -- Локальное движение (только для тебя)
+    -- Обработка движения в time stop
     local movementOverride = RunService.Heartbeat:Connect(function()
         if not isAntiTimeStopEnabled or not timeStopDetected or not char or not char.Parent then
             return
         end
         
         if AntiTimeStopConfig.MovementOverride then
-            -- Обрабатываем ввод для движения
-            local moveVector = Vector3.new(0, 0, 0)
-            local cam = workspace.CurrentCamera
+            local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
+            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
             
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                moveVector = moveVector + cam.CFrame.lookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                moveVector = moveVector - cam.CFrame.lookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                moveVector = moveVector - cam.CFrame.rightVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                moveVector = moveVector + cam.CFrame.rightVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                moveVector = moveVector + Vector3.new(0, 1, 0)
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-                moveVector = moveVector - Vector3.new(0, 1, 0)
-            end
-            
-            if moveVector.Magnitude > 0 then
-                moveVector = moveVector.Unit * (AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed)
+            if bv and bg then
+                -- Обрабатываем ввод для движения
+                local moveVector = Vector3.new(0, 0, 0)
+                local cam = workspace.CurrentCamera
                 
-                -- Только локальное изменение позиции (не влияет на сервер)
-                local newCFrame = root.CFrame + (moveVector * 0.016)
-                root.CFrame = newCFrame
-                
-                -- Визуальный эффект
-                if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                    antiTimeStopEffect.Color = Color3.fromRGB(255, 255, 0)
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                    moveVector = moveVector + cam.CFrame.lookVector
                 end
-            else
-                if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                    antiTimeStopEffect.Color = Color3.fromRGB(255, 0, 255)
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                    moveVector = moveVector - cam.CFrame.lookVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                    moveVector = moveVector - cam.CFrame.rightVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                    moveVector = moveVector + cam.CFrame.rightVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                    moveVector = moveVector + Vector3.new(0, 1, 0)
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+                    moveVector = moveVector - Vector3.new(0, 1, 0)
+                end
+                
+                if moveVector.Magnitude > 0 then
+                    moveVector = moveVector.Unit * (AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed)
+                    bv.Velocity = moveVector
+                    
+                    -- Стабилизируем поворот
+                    bg.CFrame = cam.CFrame
+                    
+                    -- Синхронизируем с сервером через изменение позиции
+                    if AntiTimeStopConfig.ServerSync then
+                        local newCFrame = root.CFrame + (moveVector * 0.016) -- 60 FPS
+                        root.CFrame = newCFrame
+                        
+                        -- Альтернативный метод через RemoteEvent
+                        local remoteEvent = game:GetService("ReplicatedStorage"):FindFirstChild("AntiTimeStopMovement")
+                        if not remoteEvent then
+                            remoteEvent = Instance.new("RemoteEvent")
+                            remoteEvent.Name = "AntiTimeStopMovement"
+                            remoteEvent.Parent = game:GetService("ReplicatedStorage")
+                        end
+                        
+                        -- Отправляем позицию на сервер
+                        remoteEvent:FireServer(newCFrame)
+                    end
+                    
+                    -- Добавляем небольшой эффект для визуализации движения в time stop
+                    if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
+                        antiTimeStopEffect.Color = Color3.fromRGB(255, 255, 0) -- Желтый цвет при движении
+                    end
+                else
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                    
+                    -- Возвращаем обычный цвет эффекта
+                    if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
+                        antiTimeStopEffect.Color = Color3.fromRGB(255, 0, 255) -- Фиолетовый цвет
+                    end
                 end
             end
         end
     end)
     
+    -- Обработчик событий для предотвращения смерти
+    local damageProtection = char.Humanoid.Died:Connect(function()
+        if isAntiTimeStopEnabled and timeStopDetected then
+            -- Предотвращаем смерть в time stop
+            task.wait(0.1)
+            if char and char.Parent then
+                local newHum = char:FindFirstChildOfClass("Humanoid")
+                if newHum then
+                    newHum.Health = 1
+                end
+            end
+        end
+    end)
+    
+    -- Обработчик изменения здоровья
+    local healthChanged = hum.HealthChanged:Connect(function(health)
+        if isAntiTimeStopEnabled and timeStopDetected and health <= 0 then
+            -- Предотвращаем смерть
+            hum.Health = 1
+        end
+    end)
+    
     table.insert(antiTimeStopConnections, antiFreezeLoop)
+    table.insert(antiTimeStopConnections, attackDetection)
     table.insert(antiTimeStopConnections, timeStopDetection)
     table.insert(antiTimeStopConnections, movementOverride)
+    table.insert(antiTimeStopConnections, damageProtection)
+    table.insert(antiTimeStopConnections, healthChanged)
 end
 
 local function stopAntiTimeStop()
@@ -886,6 +1053,18 @@ local function stopAntiTimeStop()
         hum.JumpPower = originalAntiTimeStopJumpPower
         hum.AutoRotate = true
         hum.AutoJumpEnabled = true
+    end
+    
+    if root then
+        local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
+        if bv then
+            bv:Destroy()
+        end
+        
+        local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+        if bg then
+            bg:Destroy()
+        end
     end
     
     removeAntiTimeStopEffect()
@@ -3628,7 +3807,7 @@ divider6.Size = UDim2.new(1, -10, 0, 2)
 divider6.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider6.BorderSizePixel = 0
 
-sectionHeader("⏰ Anti Time Stop")
+sectionHeader("⏰ Anti Time Stop Settings")
 
 local antiTimeStopToggleBtn = toggle("Anti Time Stop", AntiTimeStopConfig.Enabled, function(v)
     AntiTimeStopConfig.Enabled = v
@@ -3639,6 +3818,108 @@ local antiTimeStopToggleBtn = toggle("Anti Time Stop", AntiTimeStopConfig.Enable
     end
 end)
 guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
+
+toggle("Auto Activate", AntiTimeStopConfig.AutoActivate, function(v)
+    AntiTimeStopConfig.AutoActivate = v
+end)
+
+toggle("Visual Effect", AntiTimeStopConfig.VisualEffect, function(v)
+    AntiTimeStopConfig.VisualEffect = v
+end)
+
+toggle("Sound Effect", AntiTimeStopConfig.SoundEffect, function(v)
+    AntiTimeStopConfig.SoundEffect = v
+end)
+
+toggle("Anti Freeze", AntiTimeStopConfig.AntiFreeze, function(v)
+    AntiTimeStopConfig.AntiFreeze = v
+end)
+
+toggle("Movement Override", AntiTimeStopConfig.MovementOverride, function(v)
+    AntiTimeStopConfig.MovementOverride = v
+end)
+
+toggle("Disable On Attack", AntiTimeStopConfig.DisableOnAttack, function(v)
+    AntiTimeStopConfig.DisableOnAttack = v
+end)
+
+toggle("Server Sync", AntiTimeStopConfig.ServerSync, function(v)
+    AntiTimeStopConfig.ServerSync = v
+end)
+
+slider("Movement Speed", 0.5, 3.0, AntiTimeStopConfig.MovementSpeed, function(v)
+    AntiTimeStopConfig.MovementSpeed = v
+end)
+
+slider("Detection Range", 50, 200, AntiTimeStopConfig.DetectionRange, function(v)
+    AntiTimeStopConfig.DetectionRange = v
+end)
+
+slider("Walk Speed", 8, 32, AntiTimeStopConfig.WalkSpeed, function(v)
+    AntiTimeStopConfig.WalkSpeed = v
+end)
+
+slider("Jump Power", 25, 100, AntiTimeStopConfig.JumpPower, function(v)
+    AntiTimeStopConfig.JumpPower = v
+end)
+
+local forceAntiTimeStopBtn = Instance.new("TextButton", innerContainer)
+forceAntiTimeStopBtn.Size = UDim2.new(1, -10, 0, 28)
+forceAntiTimeStopBtn.Text = "FORCE ANTI TIME STOP ACTIVATE"
+forceAntiTimeStopBtn.Font = Enum.Font.GothamBold
+forceAntiTimeStopBtn.TextSize = 14
+forceAntiTimeStopBtn.TextColor3 = Color3.new(1,1,1)
+forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,255)
+forceAntiTimeStopBtn.AutoButtonColor = false
+Instance.new("UICorner", forceAntiTimeStopBtn).CornerRadius = UDim.new(0,6)
+
+forceAntiTimeStopBtn.MouseButton1Click:Connect(function()
+    if not isAntiTimeStopEnabled then
+        startAntiTimeStop()
+        AntiTimeStopConfig.Enabled = true
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ON"
+        end
+        forceAntiTimeStopBtn.Text = "ANTI TIME STOP ACTIVATED"
+        forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
+        task.wait(2)
+        forceAntiTimeStopBtn.Text = "FORCE ANTI TIME STOP ACTIVATE"
+        forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,255)
+    else
+        stopAntiTimeStop()
+        AntiTimeStopConfig.Enabled = false
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: OFF"
+        end
+        forceAntiTimeStopBtn.Text = "ANTI TIME STOP DEACTIVATED"
+        forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+        task.wait(2)
+        forceAntiTimeStopBtn.Text = "FORCE ANTI TIME STOP ACTIVATE"
+        forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,255)
+    end
+end)
+
+local antiTimeStopKeyBtn = Instance.new("TextButton", innerContainer)
+antiTimeStopKeyBtn.Size = UDim2.new(1, -10, 0, 24)
+antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [" .. (AntiTimeStopConfig.ToggleKey and tostring(AntiTimeStopConfig.ToggleKey.Name) or "None") .. "]"
+antiTimeStopKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+antiTimeStopKeyBtn.TextColor3 = Color3.new(1,1,1)
+antiTimeStopKeyBtn.Font = Enum.Font.Gotham
+antiTimeStopKeyBtn.TextSize = 13
+antiTimeStopKeyBtn.AutoButtonColor = false
+Instance.new("UICorner", antiTimeStopKeyBtn).CornerRadius = UDim.new(0,6)
+
+antiTimeStopKeyBtn.MouseButton1Click:Connect(function()
+    antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [Press any key]"
+    local conn
+    conn = UserInputService.InputBegan:Connect(function(input, gp)
+        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
+            conn:Disconnect()
+            AntiTimeStopConfig.ToggleKey = input.KeyCode
+            antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+        end
+    end)
+end)
 
 
 
