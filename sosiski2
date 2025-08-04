@@ -3572,3 +3572,43 @@ clearAllESPBtn.MouseButton1Click:Connect(function()
     end
     print("YBA Item ESP: Очищено ESP элементов:", clearedCount)
 end) 
+
+-- Функция для поиска предметов YBA: перебираем все Model в workspace.items_spawns.items, ищем первую MeshPart в каждой Model с нужным именем
+local function findYBAItems()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then return items end
+
+    local itemFolder = workspace:FindFirstChild("items_spawns")
+    if not itemFolder then return items end
+    local itemsFolder = itemFolder:FindFirstChild("items")
+    if not itemsFolder then return items end
+
+    for _, model in ipairs(itemsFolder:GetChildren()) do
+        if model:IsA("Model") and YBA_ITEM_NAMES[model.Name] then
+            local meshPart = nil
+            for _, part in ipairs(model:GetChildren()) do
+                if part:IsA("MeshPart") then
+                    meshPart = part
+                    break
+                end
+            end
+            if meshPart then
+                local distance = (meshPart.Position - playerRoot.Position).Magnitude
+                if distance <= YBAConfig.ItemESP.MaxDistance then
+                    table.insert(items, {
+                        Object = meshPart,
+                        Root = meshPart,
+                        Distance = distance,
+                        Name = model.Name,
+                        Type = "YBA_Item"
+                    })
+                end
+            end
+        end
+    end
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    return items
+end
