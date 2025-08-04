@@ -113,7 +113,7 @@ local YBAConfig = {
     StandRotationSpeed = 0.05,
     -- Интегрированная функция подземного полета
     UndergroundControl = {
-        FlightSpeed = 120, -- Скорость полета за стендом
+        FlightSpeed = 120, -- Скорость полета за стендом (25-300)
         AutoNoClip = true, -- Автоматически включать NoClip
         OriginalPosition = nil, -- Исходная позиция персонажа
     },
@@ -1997,14 +1997,26 @@ local function startYBA()
         activateFreeCamera(targetStand)
     end
     
-    -- Автоматически запускаем подземный полет при включении Stand Range
+    -- Автоматически запускаем подземный полет через 5 секунд после включения Stand Range
     print("Stand Range активирован")
-    print("Автоматически включаем Underground Flight...")
-    if startUndergroundControl then
-        startUndergroundControl()
-    else
-        print("ОШИБКА: Функция startUndergroundControl не найдена!")
-    end
+    print("Underground Flight будет активирован через 5 секунд...")
+    
+    task.spawn(function()
+        task.wait(5) -- Ждем 5 секунд
+        
+        -- Проверяем, что Stand Range все еще включен
+        if not isYBAEnabled then
+            print("Stand Range был отключен, Underground Flight не активируется")
+            return
+        end
+        
+        if startUndergroundControl then
+            print("Автоматически включаем Underground Flight...")
+            startUndergroundControl()
+        else
+            print("ОШИБКА: Функция startUndergroundControl не найдена!")
+        end
+    end)
 end
 
 local function stopYBA()
@@ -4054,7 +4066,7 @@ end)
 undergroundControlToggleBtn.AutoButtonColor = false
 
 -- Ползунок для регулировки скорости полета и стенда
-slider("Flight & Stand Speed (50-300)", 50, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
+slider("Flight & Stand Speed (25-300)", 25, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
     YBAConfig.UndergroundControl.FlightSpeed = v
     print("Скорость полета и стенда установлена:", v)
 end)
