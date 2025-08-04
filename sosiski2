@@ -115,15 +115,15 @@ local YBAConfig = {
     ItemESP = {
         Enabled = false,
         ToggleKey = nil,
-        MaxDistance = 150, -- Еще больше уменьшена дистанция
+        MaxDistance = 300, -- Увеличена дистанция для лучшего поиска предметов
         ShowOutline = true,
         ShowText = true,
-        FillColor = Color3.fromRGB(255, 215, 0), -- Золотой цвет для предметов
-        OutlineColor = Color3.fromRGB(255, 255, 0),
-        TextColor = Color3.fromRGB(255, 255, 255),
-        FillTransparency = 0.5, -- Увеличена прозрачность
-        OutlineTransparency = 0.2,
-        TextSize = 12, -- Уменьшен размер текста
+        FillColor = Color3.fromRGB(255, 215, 0), -- Золотой цвет для предметов YBA
+        OutlineColor = Color3.fromRGB(255, 255, 0), -- Желтая обводка
+        TextColor = Color3.fromRGB(255, 255, 255), -- Белый текст
+        FillTransparency = 0.3, -- Уменьшена прозрачность для лучшей видимости
+        OutlineTransparency = 0, -- Полностью непрозрачная обводка
+        TextSize = 16, -- Увеличен размер текста для лучшей читаемости
         Font = Enum.Font.Gotham,
     }
 }
@@ -2077,7 +2077,7 @@ local itemESPEnabled = false
 local itemESPConnections = {}
 local itemESPElements = {}
 
--- Простая функция для поиска всех объектов в workspace
+-- Улучшенная функция для поиска предметов, которые можно подобрать
 local function getAllObjects()
     local objects = {}
     local player = Players.LocalPlayer
@@ -2088,39 +2088,668 @@ local function getAllObjects()
         return objects 
     end
     
-    print("YBA: Ищем все объекты в workspace...")
+    print("YBA: Ищем предметы YBA для подбора...")
     
-    -- Ищем все BasePart и Model в workspace
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            -- Исключаем игроков и их части
-            if not obj:FindFirstChild("Humanoid") and not obj:FindFirstChild("HumanoidRootPart") and obj.Name ~= "HumanoidRootPart" then
-                local itemRoot = obj
-                local success = true
+    -- Ищем предметы в различных местах игры
+    local searchLocations = {
+        workspace,
+        workspace:FindFirstChild("Drops"),
+        workspace:FindFirstChild("Items"),
+        workspace:FindFirstChild("DroppedItems"),
+        workspace:FindFirstChild("World"),
+        workspace:FindFirstChild("Map"),
+        workspace:FindFirstChild("Game"),
+        workspace:FindFirstChild("Workspace")
+    }
+    
+    for _, location in pairs(searchLocations) do
+        if location then
+            for _, obj in pairs(location:GetDescendants()) do
+                -- Проверяем, является ли объект предметом для подбора
+                local isPickupItem = false
                 
-                -- Для Model ищем корневую часть
-                if obj:IsA("Model") then
-                    itemRoot = obj:FindFirstChild("PrimaryPart") or 
-                               obj:FindFirstChild("RootPart") or 
-                               obj:FindFirstChild("Main") or
-                               obj:FindFirstChild("Part") or
-                               obj:FindFirstChild("HumanoidRootPart")
-                    
-                    -- Если не нашли корневую часть, пропускаем этот Model
-                    if not itemRoot then
-                        success = false
-                    end
-                end
-                
-                if success and itemRoot then
-                    local distance = (itemRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= YBAConfig.ItemESP.MaxDistance then
-                        table.insert(objects, {
-                            Object = obj,
-                            Root = itemRoot,
-                            Distance = distance,
-                            Name = obj.Name
-                        })
+                -- Проверяем различные признаки предметов для подбора
+                if obj:IsA("BasePart") or obj:IsA("Model") then
+                    -- Исключаем игроков и их части
+                    if not obj:FindFirstChild("Humanoid") and 
+                       not obj:FindFirstChild("HumanoidRootPart") and 
+                       obj.Name ~= "HumanoidRootPart" and
+                       obj.Name ~= "Baseplate" and
+                       obj.Name ~= "Terrain" then
+                        
+                        -- Проверяем имена предметов YBA
+                        local itemName = obj.Name:lower()
+                        local isYBAItem = itemName:find("arrow") or 
+                                         itemName:find("rokakaka") or
+                                         itemName:find("mysterious") or
+                                         itemName:find("dio") or
+                                         itemName:find("jotaro") or
+                                         itemName:find("stand") or
+                                         itemName:find("requiem") or
+                                         itemName:find("heaven") or
+                                         itemName:find("d4c") or
+                                         itemName:find("king") or
+                                         itemName:find("crimson") or
+                                         itemName:find("star") or
+                                         itemName:find("platinum") or
+                                         itemName:find("world") or
+                                         itemName:find("hierophant") or
+                                         itemName:find("green") or
+                                         itemName:find("emerald") or
+                                         itemName:find("hermit") or
+                                         itemName:find("purple") or
+                                         itemName:find("haze") or
+                                         itemName:find("yellow") or
+                                         itemName:find("temperance") or
+                                         itemName:find("justice") or
+                                         itemName:find("lovers") or
+                                         itemName:find("sun") or
+                                         itemName:find("moon") or
+                                         itemName:find("death") or
+                                         itemName:find("devil") or
+                                         itemName:find("tower") or
+                                         itemName:find("chariot") or
+                                         itemName:find("magician") or
+                                         itemName:find("priestess") or
+                                         itemName:find("empress") or
+                                         itemName:find("emperor") or
+                                         itemName:find("hanged") or
+                                         itemName:find("wheel") or
+                                         itemName:find("fortune") or
+                                         itemName:find("strength") or
+                                         itemName:find("zeppeli") or
+                                         itemName:find("hat") or
+                                         itemName:find("jojo") or
+                                         itemName:find("bizarre") or
+                                         itemName:find("adventure") or
+                                         itemName:find("hamon") or
+                                         itemName:find("vampire") or
+                                         itemName:find("pillar") or
+                                         itemName:find("men") or
+                                         itemName:find("kars") or
+                                         itemName:find("esidisi") or
+                                         itemName:find("wamuu") or
+                                         itemName:find("santana") or
+                                         itemName:find("acdc") or
+                                         itemName:find("wham") or
+                                         itemName:find("killer") or
+                                         itemName:find("queen") or
+                                         itemName:find("bites") or
+                                         itemName:find("dust") or
+                                         itemName:find("echo") or
+                                         itemName:find("act") or
+                                         itemName:find("bad") or
+                                         itemName:find("company") or
+                                         itemName:find("harvest") or
+                                         itemName:find("atom") or
+                                         itemName:find("heart") or
+                                         itemName:find("father") or
+                                         itemName:find("baby") or
+                                         itemName:find("face") or
+                                         itemName:find("highway") or
+                                         itemName:find("star") or
+                                         itemName:find("platinum") or
+                                         itemName:find("world") or
+                                         itemName:find("over") or
+                                         itemName:find("heaven") or
+                                         itemName:find("made") or
+                                         itemName:find("heaven") or
+                                         itemName:find("d4c") or
+                                         itemName:find("love") or
+                                         itemName:find("train") or
+                                         itemName:find("tusk") or
+                                         itemName:find("act") or
+                                         itemName:find("ball") or
+                                         itemName:find("breaker") or
+                                         itemName:find("soft") or
+                                         itemName:find("wet") or
+                                         itemName:find("stone") or
+                                         itemName:find("free") or
+                                         itemName:find("ocean") or
+                                         itemName:find("man") or
+                                         itemName:find("in") or
+                                         itemName:find("mirror") or
+                                         itemName:find("moody") or
+                                         itemName:find("blues") or
+                                         itemName:find("pearl") or
+                                         itemName:find("jam") or
+                                         itemName:find("aerosmith") or
+                                         itemName:find("sex") or
+                                         itemName:find("pistols") or
+                                         itemName:find("gold") or
+                                         itemName:find("experience") or
+                                         itemName:find("requiem") or
+                                         itemName:find("silver") or
+                                         itemName:find("chariot") or
+                                         itemName:find("red") or
+                                         itemName:find("hot") or
+                                         itemName:find("chili") or
+                                         itemName:find("pepper") or
+                                         itemName:find("green") or
+                                         itemName:find("day") or
+                                         itemName:find("yellow") or
+                                         itemName:find("temperance") or
+                                         itemName:find("emperor") or
+                                         itemName:find("hierophant") or
+                                         itemName:find("hermit") or
+                                         itemName:find("magician") or
+                                         itemName:find("priestess") or
+                                         itemName:find("empress") or
+                                         itemName:find("lovers") or
+                                         itemName:find("justice") or
+                                         itemName:find("wheel") or
+                                         itemName:find("fortune") or
+                                         itemName:find("strength") or
+                                         itemName:find("hanged") or
+                                         itemName:find("death") or
+                                         itemName:find("devil") or
+                                         itemName:find("tower") or
+                                         itemName:find("sun") or
+                                         itemName:find("moon") or
+                                         itemName:find("judgement") or
+                                         itemName:find("world") or
+                                         itemName:find("fool") or
+                                         itemName:find("item") or
+                                         itemName:find("drop") or
+                                         itemName:find("pickup") or
+                                         itemName:find("collect") or
+                                         itemName:find("loot") or
+                                         itemName:find("treasure") or
+                                         itemName:find("chest") or
+                                         itemName:find("box") or
+                                         itemName:find("crate") or
+                                         itemName:find("bag") or
+                                         itemName:find("weapon") or
+                                         itemName:find("tool") or
+                                         itemName:find("food") or
+                                         itemName:find("potion") or
+                                         itemName:find("scroll") or
+                                         itemName:find("book") or
+                                         itemName:find("gem") or
+                                         itemName:find("coin") or
+                                         itemName:find("gold") or
+                                         itemName:find("silver") or
+                                         itemName:find("bronze") or
+                                         itemName:find("key") or
+                                         itemName:find("card") or
+                                         itemName:find("note") or
+                                         itemName:find("paper") or
+                                         itemName:find("map") or
+                                         itemName:find("compass") or
+                                         itemName:find("watch") or
+                                         itemName:find("ring") or
+                                         itemName:find("necklace") or
+                                         itemName:find("bracelet") or
+                                         itemName:find("earring") or
+                                         itemName:find("crown") or
+                                         itemName:find("sword") or
+                                         itemName:find("axe") or
+                                         itemName:find("bow") or
+                                         itemName:find("shield") or
+                                         itemName:find("armor") or
+                                         itemName:find("helmet") or
+                                         itemName:find("boots") or
+                                         itemName:find("gloves") or
+                                         itemName:find("belt") or
+                                         itemName:find("cloak") or
+                                         itemName:find("robe") or
+                                         itemName:find("staff") or
+                                         itemName:find("wand") or
+                                         itemName:find("orb") or
+                                         itemName:find("crystal") or
+                                         itemName:find("stone") or
+                                         itemName:find("metal") or
+                                         itemName:find("wood") or
+                                         itemName:find("cloth") or
+                                         itemName:find("leather") or
+                                         itemName:find("chain") or
+                                         itemName:find("plate") or
+                                         itemName:find("mail") or
+                                         itemName:find("scale") or
+                                         itemName:find("item") or
+                                         itemName:find("drop") or
+                                         itemName:find("pickup") or
+                                         itemName:find("collect") or
+                                         itemName:find("loot") or
+                                         itemName:find("treasure") or
+                                         itemName:find("chest") or
+                                         itemName:find("box") or
+                                         itemName:find("crate") or
+                                         itemName:find("bag") or
+                                         itemName:find("weapon") or
+                                         itemName:find("tool") or
+                                         itemName:find("food") or
+                                         itemName:find("potion") or
+                                         itemName:find("scroll") or
+                                         itemName:find("book") or
+                                         itemName:find("gem") or
+                                         itemName:find("coin") or
+                                         itemName:find("gold") or
+                                         itemName:find("silver") or
+                                         itemName:find("bronze") or
+                                         itemName:find("key") or
+                                         itemName:find("card") or
+                                         itemName:find("note") or
+                                         itemName:find("paper") or
+                                         itemName:find("map") or
+                                         itemName:find("compass") or
+                                         itemName:find("watch") or
+                                         itemName:find("ring") or
+                                         itemName:find("necklace") or
+                                         itemName:find("bracelet") or
+                                         itemName:find("earring") or
+                                         itemName:find("crown") or
+                                         itemName:find("sword") or
+                                         itemName:find("axe") or
+                                         itemName:find("bow") or
+                                         itemName:find("shield") or
+                                         itemName:find("armor") or
+                                         itemName:find("helmet") or
+                                         itemName:find("boots") or
+                                         itemName:find("gloves") or
+                                         itemName:find("belt") or
+                                         itemName:find("cloak") or
+                                         itemName:find("robe") or
+                                         itemName:find("staff") or
+                                         itemName:find("wand") or
+                                         itemName:find("orb") or
+                                         itemName:find("crystal") or
+                                         itemName:find("stone") or
+                                         itemName:find("metal") or
+                                         itemName:find("wood") or
+                                         itemName:find("cloth") or
+                                         itemName:find("leather") or
+                                         itemName:find("chain") or
+                                         itemName:find("plate") or
+                                         itemName:find("mail") or
+                                         itemName:find("scale") or
+                                          itemName:find("hide") or
+                                          itemName:find("fur") or
+                                          itemName:find("feather") or
+                                          itemName:find("bone") or
+                                          itemName:find("horn") or
+                                          itemName:find("tusk") or
+                                          itemName:find("claw") or
+                                          itemName:find("fang") or
+                                          itemName:find("scale") or
+                                          itemName:find("wing") or
+                                          itemName:find("tail") or
+                                          itemName:find("fin") or
+                                          itemName:find("shell") or
+                                          itemName:find("coral") or
+                                          itemName:find("pearl") or
+                                          itemName:find("diamond") or
+                                          itemName:find("ruby") or
+                                          itemName:find("emerald") or
+                                          itemName:find("sapphire") or
+                                          itemName:find("amethyst") or
+                                          itemName:find("topaz") or
+                                          itemName:find("opal") or
+                                          itemName:find("jade") or
+                                          itemName:find("onyx") or
+                                          itemName:find("agate") or
+                                          itemName:find("quartz") or
+                                          itemName:find("obsidian") or
+                                          itemName:find("marble") or
+                                          itemName:find("granite") or
+                                          itemName:find("limestone") or
+                                          itemName:find("sandstone") or
+                                          itemName:find("slate") or
+                                          itemName:find("clay") or
+                                          itemName:find("mud") or
+                                          itemName:find("sand") or
+                                          itemName:find("gravel") or
+                                          itemName:find("soil") or
+                                          itemName:find("grass") or
+                                          itemName:find("moss") or
+                                          itemName:find("lichen") or
+                                          itemName:find("fungus") or
+                                          itemName:find("mushroom") or
+                                          itemName:find("flower") or
+                                          itemName:find("herb") or
+                                          itemName:find("root") or
+                                          itemName:find("seed") or
+                                          itemName:find("fruit") or
+                                          itemName:find("berry") or
+                                          itemName:find("nut") or
+                                          itemName:find("grain") or
+                                          itemName:find("spice") or
+                                          itemName:find("salt") or
+                                          itemName:find("sugar") or
+                                          itemName:find("honey") or
+                                          itemName:find("oil") or
+                                          itemName:find("vinegar") or
+                                          itemName:find("wine") or
+                                          itemName:find("beer") or
+                                          itemName:find("ale") or
+                                          itemName:find("mead") or
+                                          itemName:find("rum") or
+                                          itemName:find("whiskey") or
+                                          itemName:find("vodka") or
+                                          itemName:find("gin") or
+                                          itemName:find("brandy") or
+                                          itemName:find("cognac") or
+                                          itemName:find("champagne") or
+                                          itemName:find("sherry") or
+                                          itemName:find("port") or
+                                          itemName:find("madeira") or
+                                          itemName:find("marsala") or
+                                          itemName:find("vermouth") or
+                                          itemName:find("absinthe") or
+                                          itemName:find("liqueur") or
+                                          itemName:find("cordial") or
+                                          itemName:find("syrup") or
+                                          itemName:find("extract") or
+                                          itemName:find("essence") or
+                                          itemName:find("perfume") or
+                                          itemName:find("soap") or
+                                          itemName:find("candle") or
+                                          itemName:find("torch") or
+                                          itemName:find("lamp") or
+                                          itemName:find("lantern") or
+                                          itemName:find("mirror") or
+                                          itemName:find("glass") or
+                                          itemName:find("bottle") or
+                                          itemName:find("jar") or
+                                          itemName:find("pot") or
+                                          itemName:find("pan") or
+                                          itemName:find("knife") or
+                                          itemName:find("fork") or
+                                          itemName:find("spoon") or
+                                          itemName:find("plate") or
+                                          itemName:find("bowl") or
+                                          itemName:find("cup") or
+                                          itemName:find("mug") or
+                                          itemName:find("goblet") or
+                                          itemName:find("chalice") or
+                                          itemName:find("vase") or
+                                          itemName:find("urn") or
+                                          itemName:find("statue") or
+                                          itemName:find("bust") or
+                                          itemName:find("painting") or
+                                          itemName:find("tapestry") or
+                                          itemName:find("carpet") or
+                                          itemName:find("curtain") or
+                                          itemName:find("pillow") or
+                                          itemName:find("blanket") or
+                                          itemName:find("sheet") or
+                                          itemName:find("towel") or
+                                          itemName:find("robe") or
+                                          itemName:find("gown") or
+                                          itemName:find("dress") or
+                                          itemName:find("shirt") or
+                                          itemName:find("pants") or
+                                          itemName:find("skirt") or
+                                          itemName:find("vest") or
+                                          itemName:find("jacket") or
+                                          itemName:find("coat") or
+                                          itemName:find("cape") or
+                                          itemName:find("scarf") or
+                                          itemName:find("hat") or
+                                          itemName:find("cap") or
+                                          itemName:find("hood") or
+                                          itemName:find("mask") or
+                                          itemName:find("veil") or
+                                          itemName:find("wig") or
+                                          itemName:find("hair") or
+                                          itemName:find("beard") or
+                                          itemName:find("mustache") or
+                                          itemName:find("sideburn") or
+                                          itemName:find("whisker") or
+                                          itemName:find("tattoo") or
+                                          itemName:find("mark") or
+                                          itemName:find("scar") or
+                                          itemName:find("wound") or
+                                          itemName:find("cut") or
+                                          itemName:find("bruise") or
+                                          itemName:find("burn") or
+                                          itemName:find("frostbite") or
+                                          itemName:find("poison") or
+                                          itemName:find("disease") or
+                                          itemName:find("infection") or
+                                          itemName:find("fever") or
+                                          itemName:find("cough") or
+                                          itemName:find("sneeze") or
+                                          itemName:find("hiccup") or
+                                          itemName:find("burp") or
+                                          itemName:find("fart") or
+                                          itemName:find("sweat") or
+                                          itemName:find("tear") or
+                                          itemName:find("saliva") or
+                                          itemName:find("mucus") or
+                                          itemName:find("blood") or
+                                          itemName:find("pus") or
+                                          itemName:find("urine") or
+                                          itemName:find("feces") or
+                                          itemName:find("vomit") or
+                                          itemName:find("bile") or
+                                          itemName:find("phlegm") or
+                                          itemName:find("sputum") or
+                                          itemName:find("expectorate") or
+                                          itemName:find("spit") or
+                                          itemName:find("drool") or
+                                          itemName:find("slobber") or
+                                          itemName:find("slime") or
+                                          itemName:find("ooze") or
+                                          itemName:find("gel") or
+                                          itemName:find("paste") or
+                                          itemName:find("cream") or
+                                          itemName:find("ointment") or
+                                          itemName:find("salve") or
+                                          itemName:find("balm") or
+                                          itemName:find("lotion") or
+                                          itemName:find("oil") or
+                                          itemName:find("grease") or
+                                          itemName:find("wax") or
+                                          itemName:find("tar") or
+                                          itemName:find("pitch") or
+                                          itemName:find("resin") or
+                                          itemName:find("sap") or
+                                          itemName:find("latex") or
+                                          itemName:find("rubber") or
+                                          itemName:find("plastic") or
+                                          itemName:find("ceramic") or
+                                          itemName:find("porcelain") or
+                                          itemName:find("china") or
+                                          itemName:find("crystal") or
+                                          itemName:find("glass") or
+                                          itemName:find("mirror") or
+                                          itemName:find("lens") or
+                                          itemName:find("prism") or
+                                          itemName:find("spectacle") or
+                                          itemName:find("monocle") or
+                                          itemName:find("telescope") or
+                                          itemName:find("microscope") or
+                                          itemName:find("magnifier") or
+                                          itemName:find("loupe") or
+                                          itemName:find("binocular") or
+                                          itemName:find("periscope") or
+                                          itemName:find("kaleidoscope") or
+                                          itemName:find("stereoscope") or
+                                          itemName:find("camera") or
+                                          itemName:find("projector") or
+                                          itemName:find("screen") or
+                                          itemName:find("display") or
+                                          itemName:find("monitor") or
+                                          itemName:find("terminal") or
+                                          itemName:find("console") or
+                                          itemName:find("keyboard") or
+                                          itemName:find("mouse") or
+                                          itemName:find("joystick") or
+                                          itemName:find("controller") or
+                                          itemName:find("remote") or
+                                          itemName:find("antenna") or
+                                          itemName:find("satellite") or
+                                          itemName:find("dish") or
+                                          itemName:find("receiver") or
+                                          itemName:find("transmitter") or
+                                          itemName:find("radio") or
+                                          itemName:find("television") or
+                                          itemName:find("computer") or
+                                          itemName:find("laptop") or
+                                          itemName:find("tablet") or
+                                          itemName:find("phone") or
+                                          itemName:find("smartphone") or
+                                          itemName:find("mobile") or
+                                          itemName:find("cellular") or
+                                          itemName:find("pager") or
+                                          itemName:find("beeper") or
+                                          itemName:find("watch") or
+                                          itemName:find("clock") or
+                                          itemName:find("timer") or
+                                          itemName:find("stopwatch") or
+                                          itemName:find("hourglass") or
+                                          itemName:find("sundial") or
+                                          itemName:find("compass") or
+                                          itemName:find("sextant") or
+                                          itemName:find("astrolabe") or
+                                          itemName:find("quadrant") or
+                                          itemName:find("octant") or
+                                          itemName:find("theodolite") or
+                                          itemName:find("transit") or
+                                          itemName:find("level") or
+                                          itemName:find("plumb") or
+                                          itemName:find("square") or
+                                          itemName:find("triangle") or
+                                          itemName:find("protractor") or
+                                          itemName:find("ruler") or
+                                          itemName:find("tape") or
+                                          itemName:find("yardstick") or
+                                          itemName:find("meter") or
+                                          itemName:find("scale") or
+                                          itemName:find("balance") or
+                                          itemName:find("weight") or
+                                          itemName:find("mass") or
+                                          itemName:find("volume") or
+                                          itemName:find("capacity") or
+                                          itemName:find("measure") or
+                                          itemName:find("gauge") or
+                                          itemName:find("meter") or
+                                          itemName:find("dial") or
+                                          itemName:find("indicator") or
+                                          itemName:find("sensor") or
+                                          itemName:find("detector") or
+                                          itemName:find("scanner") or
+                                          itemName:find("reader") or
+                                          itemName:find("decoder") or
+                                          itemName:find("encoder") or
+                                          itemName:find("converter") or
+                                          itemName:find("transformer") or
+                                          itemName:find("inverter") or
+                                          itemName:find("rectifier") or
+                                          itemName:find("amplifier") or
+                                          itemName:find("oscillator") or
+                                          itemName:find("generator") or
+                                          itemName:find("motor") or
+                                          itemName:find("engine") or
+                                          itemName:find("turbine") or
+                                          itemName:find("pump") or
+                                          itemName:find("compressor") or
+                                          itemName:find("fan") or
+                                          itemName:find("blower") or
+                                          itemName:find("ventilator") or
+                                          itemName:find("air") or
+                                          itemName:find("conditioner") or
+                                          itemName:find("heater") or
+                                          itemName:find("cooler") or
+                                          itemName:find("refrigerator") or
+                                          itemName:find("freezer") or
+                                          itemName:find("oven") or
+                                          itemName:find("stove") or
+                                          itemName:find("grill") or
+                                          itemName:find("broiler") or
+                                          itemName:find("toaster") or
+                                          itemName:find("microwave") or
+                                          itemName:find("dishwasher") or
+                                          itemName:find("washer") or
+                                          itemName:find("dryer") or
+                                          itemName:find("iron") or
+                                          itemName:find("vacuum") or
+                                          itemName:find("broom") or
+                                          itemName:find("mop") or
+                                          itemName:find("brush") or
+                                          itemName:find("sponge") or
+                                          itemName:find("cloth") or
+                                          itemName:find("rag") or
+                                          itemName:find("towel") or
+                                          itemName:find("napkin") or
+                                          itemName:find("tissue") or
+                                          itemName:find("paper") or
+                                          itemName:find("card") or
+                                          itemName:find("board") or
+                                          itemName:find("sheet") or
+                                          itemName:find("foil") or
+                                          itemName:find("film") or
+                                          itemName:find("tape") or
+                                          itemName:find("adhesive") or
+                                          itemName:find("glue") or
+                                          itemName:find("cement") or
+                                          itemName:find("mortar") or
+                                          itemName:find("concrete") or
+                                          itemName:find("asphalt") or
+                                          itemName:find("tar") or
+                                          itemName:find("pitch") or
+                                          itemName:find("bitumen") or
+                                          itemName:find("kerosene") or
+                                          itemName:find("gasoline") or
+                                          itemName:find("diesel") or
+                                          itemName:find("fuel") or
+                                          itemName:find("oil") or
+                                          itemName:find("grease") or
+                                          itemName:find("lubricant") or
+                                          itemName:find("coolant") or
+                                          itemName:find("antifreeze") or
+                                          itemName:find("brake") or
+                                          itemName:find("clutch") or
+                                          itemName:find("transmission") or
+                                          itemName:find("differential") or
+                                          itemName:find("axle") or
+                                          itemName:find("wheel") or
+                                          itemName:find("tire") or
+                                          itemName:find("hub") or
+                                          itemName:find("bearing") or
+                                          itemName:find("spring") or
+                                          itemName:find("shock") or
+                                          itemName:find("strut") or
+                                          itemName:find("link") or
+                                          itemName:find("arm") or
+                                          itemName:find("lever") or
+                                          itemName:find("pedal") or
+                                          itemName:find("handle") or
+                                          itemName:find("grip") or
+                                          itemName:find("knob") or
+                                          
+                        -- Если это предмет YBA, добавляем его в список
+                        if isYBAItem then
+                            local itemRoot = obj
+                            local success = true
+                            
+                            -- Для Model ищем корневую часть
+                            if obj:IsA("Model") then
+                                itemRoot = obj:FindFirstChild("PrimaryPart") or 
+                                           obj:FindFirstChild("RootPart") or 
+                                           obj:FindFirstChild("Main") or
+                                           obj:FindFirstChild("Part") or
+                                           obj:FindFirstChild("HumanoidRootPart")
+                                
+                                -- Если не нашли корневую часть, пропускаем этот Model
+                                if not itemRoot then
+                                    success = false
+                                end
+                            end
+                            
+                            if success and itemRoot then
+                                local distance = (itemRoot.Position - playerRoot.Position).Magnitude
+                                if distance <= YBAConfig.ItemESP.MaxDistance then
+                                    table.insert(objects, {
+                                        Object = obj,
+                                        Root = itemRoot,
+                                        Distance = distance,
+                                        Name = obj.Name
+                                    })
+                                end
+                            end
+                        end
                     end
                 end
             end
@@ -2131,14 +2760,14 @@ local function getAllObjects()
     table.sort(objects, function(a, b) return a.Distance < b.Distance end)
     
     -- Ограничиваем количество объектов
-    local maxObjects = 20
+    local maxObjects = 50
     if #objects > maxObjects then
         for i = maxObjects + 1, #objects do
             objects[i] = nil
         end
     end
     
-    print("YBA: Найдено объектов для ESP:", #objects)
+    print("YBA: Найдено предметов YBA для ESP:", #objects)
     return objects
 end
 
@@ -2256,7 +2885,7 @@ local function startItemESP()
     print("YBA: Показывать текст:", YBAConfig.ItemESP.ShowText)
     
     local lastUpdate = 0
-    local updateInterval = 1 -- Обновляем каждую секунду
+    local updateInterval = 0.5 -- Обновляем каждые полсекунды для быстрого обнаружения
     
     -- Основной цикл обновления Item ESP
     local itemESPLoop = RunService.Heartbeat:Connect(function()
@@ -2278,7 +2907,7 @@ local function startItemESP()
         
         if success and objects then
             -- Обрабатываем объекты
-            for i = 1, math.min(10, #objects) do
+            for i = 1, math.min(20, #objects) do
                 local item = objects[i]
                 if item and item.Object and item.Object.Parent then
                     currentObjects[item.Object] = true
