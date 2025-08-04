@@ -2144,24 +2144,20 @@ local function createStandDetachmentSystem()
         return true
     end
     
-    -- Функция для перемещения стенда к цели
+    -- Функция для плавного перемещения стенда к цели
     local function moveStandToTarget(targetPos)
         if not detachedStand then return false end
         
         local standRoot = detachedStand:FindFirstChild("HumanoidRootPart") or detachedStand:FindFirstChild("StandRoot") or detachedStand:FindFirstChild("RootPart")
         if not standRoot then return false end
         
-        -- Перемещаем стенд к цели
-        standRoot.CFrame = CFrame.new(targetPos)
-        
-        -- Создаем BodyVelocity для удержания стенда в позиции
+        -- Создаем BodyVelocity для плавного перемещения стенда
         local bv = standRoot:FindFirstChild("StandBodyVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", standRoot)
             bv.Name = "StandBodyVelocity"
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
-        bv.Velocity = Vector3.new(0, 0, 0)
         
         -- Создаем BodyGyro для стабилизации
         local bg = standRoot:FindFirstChild("StandBodyGyro")
@@ -2172,9 +2168,32 @@ local function createStandDetachmentSystem()
             bg.D = 1000
             bg.P = 2000
         end
-        bg.CFrame = CFrame.lookAt(targetPos, targetPos + Vector3.new(0, 0, 1))
         
-        print("YBA: Стенд перемещен к цели")
+        -- Вычисляем направление и расстояние до цели
+        local currentPos = standRoot.Position
+        local direction = (targetPos - currentPos).Unit
+        local distance = (targetPos - currentPos).Magnitude
+        
+        -- Устанавливаем скорость для плавного перемещения
+        local moveSpeed = 50 -- studs в секунду
+        bv.Velocity = direction * moveSpeed
+        
+        -- Стабилизируем поворот стенда
+        bg.CFrame = CFrame.lookAt(currentPos, targetPos)
+        
+        -- Создаем соединение для остановки стенда при достижении цели
+        local stopConnection
+        stopConnection = RunService.Heartbeat:Connect(function()
+            local newDistance = (targetPos - standRoot.Position).Magnitude
+            
+            if newDistance < 5 then -- Останавливаемся когда близко к цели
+                bv.Velocity = Vector3.new(0, 0, 0)
+                stopConnection:Disconnect()
+                print("YBA: Стенд достиг цели")
+            end
+        end)
+        
+        print("YBA: Стенд плавно перемещается к цели")
         return true
     end
     
@@ -2214,16 +2233,20 @@ local function createStandDetachmentSystem()
     local function sendDetachedStandAttack(targetPos, attackType)
         if not targetPos then return false end
         
-        -- Автоматически отсоединяем стенд, если он еще не отсоединен
+        -- Стенд уже должен быть отсоединен при включении функции
         if not detachedStand then
+            print("YBA: Стенд не отсоединен, попытка отсоединить...")
             if not detachStand() then
                 print("YBA: Не удалось отсоединить стенд для атаки")
                 return false
             end
         end
         
-        -- Перемещаем стенд к цели
+        -- Перемещаем стенд к цели плавно
         if moveStandToTarget(targetPos) then
+            -- Ждем немного для достижения цели
+            task.wait(0.1)
+            
             -- Отправляем команду атаки через стенд
             local replicatedStorage = game:GetService("ReplicatedStorage")
             local attackRemote = replicatedStorage:FindFirstChild("StandAttack")
@@ -2234,15 +2257,19 @@ local function createStandDetachmentSystem()
                 attackRemote.Parent = replicatedStorage
             end
             
+            local standRoot = detachedStand:FindFirstChild("HumanoidRootPart") or detachedStand:FindFirstChild("StandRoot") or detachedStand:FindFirstChild("RootPart")
+            local standPosition = standRoot and standRoot.Position or targetPos
+            
             local attackData = {
                 attackType = attackType or "detached_attack",
                 targetPosition = targetPos,
-                standPosition = detachedStand and (detachedStand:FindFirstChild("HumanoidRootPart") or detachedStand:FindFirstChild("StandRoot") or detachedStand:FindFirstChild("RootPart")).Position,
+                standPosition = standPosition,
                 detachedStand = true,
                 bypassRangeLimit = true,
                 infiniteRange = true,
                 noDistanceCheck = true,
                 forceAttack = true,
+                smoothMovement = true,
                 timestamp = tick()
             }
             
@@ -2482,6 +2509,13 @@ local function startStandRangeBypass()
     -- Активируем систему отсоединения стенда
     local standDetachmentSystem = createStandDetachmentSystem()
     
+    -- Автоматически отсоединяем стенд при включении функции
+    if standDetachmentSystem and standDetachmentSystem.detachStand then
+        task.wait(0.5) -- Небольшая задержка для инициализации
+        standDetachmentSystem.detachStand()
+        print("YBA: Стенд автоматически отсоединен при включении функции")
+    end
+    
     -- Также перехватываем InputBegan для клавиш атаки
     local attackKeys = {Enum.KeyCode.F, Enum.KeyCode.E, Enum.KeyCode.R, Enum.KeyCode.T, Enum.KeyCode.Y, Enum.KeyCode.Q}
     
@@ -2507,7 +2541,7 @@ local function startStandRangeBypass()
                         if distance > 50 then -- Уменьшаем порог до 50 studs
                             print("YBA: Атака на большом расстоянии", math.floor(distance), "studs - используем отсоединенный стенд")
                             
-                            -- Используем отсоединенный стенд
+                            -- Используем отсоединенный стенд (автоматически отсоединен)
                             if standDetachmentSystem and standDetachmentSystem.sendDetachedStandAttack then
                                 standDetachmentSystem.sendDetachedStandAttack(targetPos, "detached_attack")
                             elseif sendUltimateAttack then
@@ -2532,6 +2566,7 @@ local function startStandRangeBypass()
                                     adminOverride = true,
                                     ultimateBypass = true,
                                     detachedStand = true,
+                                    smoothMovement = true,
                                     timestamp = tick()
                                 }
                                 
@@ -3152,8 +3187,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if YBAConfig.BypassStandRangeLimit then
                 startStandRangeBypass()
                 print("YBA: Обход ограничения дистанции атаки стенда ВКЛЮЧЕН")
-                print("YBA: Теперь ваш стенд может атаковать на любом расстоянии!")
-                print("YBA: Используйте клавишу T для отсоединения стенда от персонажа")
+                print("YBA: Стенд автоматически отсоединен и готов к атакам на любом расстоянии!")
+                print("YBA: Стенд будет плавно перемещаться к целям")
+                print("YBA: Используйте клавишу T для ручного управления стендом")
                 print("YBA: Используйте клавишу Y для перемещения стенда к курсору")
             else
                 stopStandRangeBypass()
