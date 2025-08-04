@@ -1972,6 +1972,172 @@ local function startYBA()
     if YBAConfig.TransferControl then
         activateFreeCamera(targetStand)
     end
+    
+    -- Добавляем обработчик атак стенда
+    local standAttackHandler = UserInputService.InputBegan:Connect(function(input, gp)
+        if not gp and isYBAEnabled and controlledStand and controlledStand.Root then
+            local attackKey = nil
+            local attackType = nil
+            
+            -- Определяем клавишу атаки
+            if input.KeyCode == Enum.KeyCode.F then
+                attackKey = "F"
+                attackType = "LightAttack"
+            elseif input.KeyCode == Enum.KeyCode.E then
+                attackKey = "E"
+                attackType = "HeavyAttack"
+            elseif input.KeyCode == Enum.KeyCode.R then
+                attackKey = "R"
+                attackType = "SpecialAttack"
+            elseif input.KeyCode == Enum.KeyCode.T then
+                attackKey = "T"
+                attackType = "UltimateAttack"
+            elseif input.KeyCode == Enum.KeyCode.Y then
+                attackKey = "Y"
+                attackType = "BarrageAttack"
+            elseif input.KeyCode == Enum.KeyCode.Q then
+                attackKey = "Q"
+                attackType = "StandAbility"
+            end
+            
+            if attackKey and attackType then
+                print("YBA: Атака стенда - Клавиша:", attackKey, "Тип:", attackType)
+                
+                -- Отправляем атаку от имени стенда
+                local standRoot = controlledStand.Root
+                local standPosition = standRoot.Position
+                
+                -- Создаем RemoteEvent для отправки атаки от имени стенда
+                local attackEvent = game:GetService("ReplicatedStorage"):FindFirstChild("StandAttackEvent")
+                if not attackEvent then
+                    attackEvent = Instance.new("RemoteEvent")
+                    attackEvent.Name = "StandAttackEvent"
+                    attackEvent.Parent = game:GetService("ReplicatedStorage")
+                end
+                
+                -- Отправляем данные атаки
+                local attackData = {
+                    AttackType = attackType,
+                    StandPosition = standPosition,
+                    StandName = controlledStand.Name,
+                    PlayerPosition = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and Players.LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new(0,0,0),
+                    Timestamp = tick()
+                }
+                
+                attackEvent:FireServer(attackData)
+                print("YBA: Атака отправлена от имени стенда:", controlledStand.Name)
+            end
+        end
+    end)
+    
+    table.insert(standControlConnections, standAttackHandler)
+    
+    -- Добавляем постоянный мониторинг атак для стенда
+    local standAttackMonitor = RunService.Heartbeat:Connect(function()
+        if isYBAEnabled and controlledStand and controlledStand.Root then
+            local isAttacking = false
+            local attackType = nil
+            
+            -- Проверяем нажатие клавиш атаки
+            if UserInputService:IsKeyDown(Enum.KeyCode.F) then
+                isAttacking = true
+                attackType = "LightAttack"
+            elseif UserInputService:IsKeyDown(Enum.KeyCode.E) then
+                isAttacking = true
+                attackType = "HeavyAttack"
+            elseif UserInputService:IsKeyDown(Enum.KeyCode.R) then
+                isAttacking = true
+                attackType = "SpecialAttack"
+            elseif UserInputService:IsKeyDown(Enum.KeyCode.T) then
+                isAttacking = true
+                attackType = "UltimateAttack"
+            elseif UserInputService:IsKeyDown(Enum.KeyCode.Y) then
+                isAttacking = true
+                attackType = "BarrageAttack"
+            elseif UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+                isAttacking = true
+                attackType = "StandAbility"
+            end
+            
+            if isAttacking and attackType then
+                -- Отправляем атаку от имени стенда
+                local standRoot = controlledStand.Root
+                local standPosition = standRoot.Position
+                
+                -- Создаем RemoteEvent для отправки атаки от имени стенда
+                local attackEvent = game:GetService("ReplicatedStorage"):FindFirstChild("StandAttackEvent")
+                if not attackEvent then
+                    attackEvent = Instance.new("RemoteEvent")
+                    attackEvent.Name = "StandAttackEvent"
+                    attackEvent.Parent = game:GetService("ReplicatedStorage")
+                end
+                
+                -- Отправляем данные атаки
+                local attackData = {
+                    AttackType = attackType,
+                    StandPosition = standPosition,
+                    StandName = controlledStand.Name,
+                    PlayerPosition = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and Players.LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new(0,0,0),
+                    Timestamp = tick(),
+                    FromStand = true -- Указываем что атака идет от стенда
+                }
+                
+                attackEvent:FireServer(attackData)
+            end
+        end
+    end)
+    
+    table.insert(standControlConnections, standAttackMonitor)
+    
+    -- Добавляем перехватчик всех RemoteEvents для перенаправления атак через стенд
+    local originalFireServer = nil
+    local originalInvokeServer = nil
+    
+    -- Перехватываем FireServer для всех RemoteEvents
+    local mt = getrawmetatable(game)
+    local oldNamecall = mt.__namecall
+    setreadonly(mt, false)
+    
+    mt.__namecall = newcclosure(function(self, ...)
+        local args = {...}
+        local method = getnamecallmethod()
+        
+        if method == "FireServer" and isYBAEnabled and controlledStand and controlledStand.Root then
+            -- Если это атака или способность, перенаправляем через стенд
+            local eventName = self.Name
+            if eventName and (eventName:find("Attack") or eventName:find("Ability") or eventName:find("Stand") or eventName:find("Combat")) then
+                print("YBA: Перехвачена атака:", eventName)
+                
+                -- Модифицируем данные атаки для отправки от имени стенда
+                local standRoot = controlledStand.Root
+                local standPosition = standRoot.Position
+                
+                -- Добавляем позицию стенда к данным атаки
+                if args[1] and type(args[1]) == "table" then
+                    args[1].StandPosition = standPosition
+                    args[1].FromStand = true
+                    args[1].StandName = controlledStand.Name
+                elseif args[1] then
+                    -- Если данные не в таблице, создаем новую структуру
+                    local originalData = args[1]
+                    args[1] = {
+                        OriginalData = originalData,
+                        StandPosition = standPosition,
+                        FromStand = true,
+                        StandName = controlledStand.Name
+                    }
+                end
+                
+                print("YBA: Атака перенаправлена через стенд:", controlledStand.Name)
+            end
+        end
+        
+        return oldNamecall(self, ...)
+    end)
+    
+    setreadonly(mt, true)
+    
+    print("YBA: Перехватчик RemoteEvents активирован")
 end
 
 local function stopYBA()
@@ -1990,6 +2156,15 @@ local function stopYBA()
     end
     standControlConnections = {}
     controlledStand = nil
+    
+    -- Восстанавливаем оригинальный метаметод
+    local mt = getrawmetatable(game)
+    if mt and mt.__namecall then
+        setreadonly(mt, false)
+        mt.__namecall = mt.__namecall -- Восстанавливаем оригинальный метод
+        setreadonly(mt, true)
+        print("YBA: Перехватчик RemoteEvents отключен")
+    end
 end
 
 local function getAlivePlayers()
