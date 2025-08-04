@@ -182,9 +182,7 @@ local AntiTimeStopConfig = {
     Enabled = false,
     ToggleKey = nil,
     ForceMovement = true,
-    BypassMethod = "Velocity", -- "Velocity", "CFrame", "Tween"
     MovementSpeed = 2.0,
-    UpdateInterval = 0.01,
 }
 
 local isLongJumping = false
@@ -757,61 +755,40 @@ local function startAntiTimeStop()
         -- Проверяем, находится ли игрок в остановленном времени
         local isTimeStopped = false
         
-        -- Проверяем различные признаки остановки времени
+        -- Проверяем различные признаки остановки времени в YBA
         if currentHum.WalkSpeed == 0 or 
            currentHum.JumpPower == 0 or 
            workspace.Gravity == 0 or
-           (currentRoot.Velocity.Magnitude < 0.1 and currentHum.MoveDirection.Magnitude > 0) then
+           (currentRoot.Velocity.Magnitude < 0.1 and currentHum.MoveDirection.Magnitude > 0) or
+           -- Дополнительная проверка: если персонаж пытается двигаться, но не двигается
+           (currentHum.MoveDirection.Magnitude > 0 and currentRoot.Velocity.Magnitude < 0.5) then
             isTimeStopped = true
         end
         
         if isTimeStopped and AntiTimeStopConfig.ForceMovement then
-            -- Метод Velocity - принудительно устанавливаем скорость
-            if AntiTimeStopConfig.BypassMethod == "Velocity" then
-                local bv = currentRoot:FindFirstChild("BodyVelocity")
-                if not bv then
-                    bv = Instance.new("BodyVelocity", currentRoot)
-                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            -- Получаем направление движения от пользователя
+            local moveDirection = currentHum.MoveDirection
+            if moveDirection.Magnitude > 0 then
+                -- Перемещаем весь персонаж целиком через CFrame
+                local moveVector = moveDirection.Unit * AntiTimeStopConfig.MovementSpeed
+                local newCFrame = currentRoot.CFrame + moveVector
+                
+                -- Перемещаем весь персонаж, а не только корень
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") and part ~= currentRoot then
+                        local relativePosition = part.Position - currentRoot.Position
+                        part.CFrame = newCFrame + relativePosition
+                    end
                 end
                 
-                -- Получаем направление движения от пользователя
-                local moveDirection = currentHum.MoveDirection
-                if moveDirection.Magnitude > 0 then
-                    local targetVelocity = moveDirection.Unit * (AntiTimeStopConfig.MovementSpeed * 16)
-                    bv.Velocity = targetVelocity
-                else
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                end
-                
-            -- Метод CFrame - принудительно изменяем позицию
-            elseif AntiTimeStopConfig.BypassMethod == "CFrame" then
-                local moveDirection = currentHum.MoveDirection
-                if moveDirection.Magnitude > 0 then
-                    local newCFrame = currentRoot.CFrame + (moveDirection.Unit * AntiTimeStopConfig.MovementSpeed)
-                    currentRoot.CFrame = newCFrame
-                end
-                
-            -- Метод Tween - плавное перемещение
-            elseif AntiTimeStopConfig.BypassMethod == "Tween" then
-                local moveDirection = currentHum.MoveDirection
-                if moveDirection.Magnitude > 0 then
-                    local targetPosition = currentRoot.Position + (moveDirection.Unit * AntiTimeStopConfig.MovementSpeed)
-                    local tweenInfo = TweenInfo.new(AntiTimeStopConfig.UpdateInterval, Enum.EasingStyle.Linear)
-                    local tween = TweenService:Create(currentRoot, tweenInfo, {CFrame = CFrame.new(targetPosition)})
-                    tween:Play()
-                end
+                -- Перемещаем корень последним для синхронизации
+                currentRoot.CFrame = newCFrame
             end
             
             -- Восстанавливаем нормальные значения
             currentHum.WalkSpeed = originalWalkSpeed
             currentHum.JumpPower = originalJumpPower
             workspace.Gravity = originalGravity
-        else
-            -- Если время не остановлено, убираем BodyVelocity
-            local bv = currentRoot:FindFirstChild("BodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
         end
     end
     
@@ -3850,7 +3827,6 @@ local function updatePlayerList()
                not child.Text:find("Item ESP") and 
                not child.Text:find("Anti Time Stop") and 
                not child.Text:find("Movement Speed") and 
-               not child.Text:find("Bypass Method") and 
                not child.Text:find("Anti Time Stop Hotkey") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
@@ -3927,28 +3903,6 @@ speedInput("Custom Movement Speed", AntiTimeStopConfig.MovementSpeed, function(v
     AntiTimeStopConfig.MovementSpeed = v
 end)
 
--- Метод обхода
-local bypassMethodBtn = Instance.new("TextButton", innerContainer)
-bypassMethodBtn.Size = UDim2.new(1, -10, 0, 28)
-bypassMethodBtn.Text = "Bypass Method: " .. AntiTimeStopConfig.BypassMethod
-bypassMethodBtn.Font = Enum.Font.Gotham
-bypassMethodBtn.TextSize = 14
-bypassMethodBtn.TextColor3 = Color3.new(1,1,1)
-bypassMethodBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-bypassMethodBtn.AutoButtonColor = false
-Instance.new("UICorner", bypassMethodBtn).CornerRadius = UDim.new(0,6)
-
-bypassMethodBtn.MouseButton1Click:Connect(function()
-    if AntiTimeStopConfig.BypassMethod == "Velocity" then
-        AntiTimeStopConfig.BypassMethod = "CFrame"
-    elseif AntiTimeStopConfig.BypassMethod == "CFrame" then
-        AntiTimeStopConfig.BypassMethod = "Tween"
-    else
-        AntiTimeStopConfig.BypassMethod = "Velocity"
-    end
-    bypassMethodBtn.Text = "Bypass Method: " .. AntiTimeStopConfig.BypassMethod
-end)
-
 -- Кнопка настройки горячих клавиш
 local antiTimeStopKeyBtn = Instance.new("TextButton", innerContainer)
 antiTimeStopKeyBtn.Size = UDim2.new(1, -10, 0, 24)
@@ -3975,7 +3929,7 @@ end)
 -- Информационная панель
 local antiTimeStopInfo = Instance.new("TextLabel", innerContainer)
 antiTimeStopInfo.Size = UDim2.new(1, -10, 0, 40)
-antiTimeStopInfo.Text = "Anti Time Stop позволяет двигаться во время остановки времени другими игроками/NPC. Работает с любым стендом."
+antiTimeStopInfo.Text = "Anti Time Stop позволяет двигаться во время остановки времени другими игроками/NPC. Перемещает весь персонаж целиком. Работает с любым стендом."
 antiTimeStopInfo.Font = Enum.Font.Gotham
 antiTimeStopInfo.TextSize = 12
 antiTimeStopInfo.TextColor3 = Color3.fromRGB(200,200,200)
