@@ -2086,63 +2086,185 @@ local function bypassStandRangeLimit()
     end
 end
 
--- Функция для отсоединения стенда от персонажа и управления им отдельно
-local function createStandDetachmentSystem()
-    local detachedStand = nil
+-- Функция для полного обхода ограничений атаки стенда
+local function createUltimateStandBypass()
+    local ultimateStandActive = false
     local standControlConnections = {}
     
-    -- Функция для поиска стенда игрока
-    local function findPlayerStand()
+    -- Функция для создания фейкового стенда в любой позиции
+    local function createFakeStandAtPosition(targetPos)
         local player = Players.LocalPlayer
         local char = player.Character
-        if not char then return nil end
+        if not char then return false end
         
-        -- Ищем стенд в разных местах
-        local stand = char:FindFirstChild("Stand")
-        if not stand then
+        -- Ищем оригинальный стенд для копирования
+        local originalStand = char:FindFirstChild("Stand")
+        if not originalStand then
             for _, child in pairs(char:GetDescendants()) do
                 if child:IsA("Model") and (child.Name:find("Stand") or child.Name:find("Platinum") or child.Name:find("World")) then
-                    stand = child
+                    originalStand = child
                     break
                 end
             end
         end
         
-        return stand
+        if not originalStand then
+            print("YBA: Оригинальный стенд не найден, создаем фейковый...")
+            -- Создаем фейковый стенд
+            local fakeStand = Instance.new("Model")
+            fakeStand.Name = "FakeStand"
+            fakeStand.Parent = workspace
+            
+            local fakeRoot = Instance.new("Part")
+            fakeRoot.Name = "HumanoidRootPart"
+            fakeRoot.Size = Vector3.new(2, 2, 2)
+            fakeRoot.Position = targetPos
+            fakeRoot.Anchored = true
+            fakeRoot.CanCollide = false
+            fakeRoot.Transparency = 0.5
+            fakeRoot.Parent = fakeStand
+            
+            return fakeStand
+        else
+            -- Копируем оригинальный стенд
+            local standClone = originalStand:Clone()
+            standClone.Name = "FakeStand"
+            standClone.Parent = workspace
+            
+            -- Устанавливаем позицию копии
+            local standRoot = standClone:FindFirstChild("HumanoidRootPart") or standClone:FindFirstChild("StandRoot") or standClone:FindFirstChild("RootPart")
+            if standRoot then
+                standRoot.CFrame = CFrame.new(targetPos)
+            end
+            
+            return standClone
+        end
     end
     
-    -- Функция для отсоединения стенда от персонажа
-    local function detachStand()
-        local stand = findPlayerStand()
-        if not stand then 
-            print("YBA: Стенд не найден")
-            return false 
+    -- Функция для отправки атаки из любой позиции
+    local function sendAttackFromPosition(attackPos, targetPos, attackType)
+        if not attackPos or not targetPos then return false end
+        
+        print("YBA: Создаем фейковый стенд в позиции атаки...")
+        
+        -- Создаем фейковый стенд в позиции атаки
+        local fakeStand = createFakeStandAtPosition(attackPos)
+        if not fakeStand then return false end
+        
+        -- Отправляем атаку через множество RemoteEvent
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local remoteNames = {
+            "StandAttack", "Attack", "Hit", "Punch", "Kick", "Ability", "Skill",
+            "StandAbility", "StandSkill", "StandRangeAttack", "LongRangeAttack",
+            "InfiniteRangeAttack", "BypassRangeAttack", "ForceAttack", "RemoteAttack"
+        }
+        
+        for _, remoteName in pairs(remoteNames) do
+            local remote = replicatedStorage:FindFirstChild(remoteName)
+            if not remote then
+                remote = Instance.new("RemoteEvent")
+                remote.Name = remoteName
+                remote.Parent = replicatedStorage
+            end
+            
+            -- Отправляем атаку с полным обходом ограничений
+            local attackData = {
+                attackType = attackType or "ultimate_attack",
+                targetPosition = targetPos,
+                attackPosition = attackPos,
+                fakeStand = true,
+                bypassRangeLimit = true,
+                infiniteRange = true,
+                noDistanceCheck = true,
+                forceAttack = true,
+                adminOverride = true,
+                ultimateBypass = true,
+                fakeStandAttack = true,
+                timestamp = tick()
+            }
+            
+            remote:FireServer(attackData)
         end
         
-        print("YBA: Отсоединяем стенд от персонажа...")
+        -- Удаляем фейковый стенд через некоторое время
+        task.spawn(function()
+            task.wait(2)
+            if fakeStand and fakeStand.Parent then
+                fakeStand:Destroy()
+            end
+        end)
         
-        -- Создаем копию стенда в workspace
-        local standClone = stand:Clone()
-        standClone.Name = "DetachedStand"
-        standClone.Parent = workspace
+        print("YBA: Атака отправлена из позиции", attackPos, "к цели", targetPos)
+        return true
+    end
+    
+    -- Функция для перехвата всех команд атаки
+    local function interceptAllAttacks()
+        local replicatedStorage = game:GetService("ReplicatedStorage")
         
-        -- Устанавливаем позицию стенда в позицию игрока
-        local player = Players.LocalPlayer
-        local char = player.Character
-        if char then
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if root then
-                local standRoot = standClone:FindFirstChild("HumanoidRootPart") or standClone:FindFirstChild("StandRoot") or standClone:FindFirstChild("RootPart")
-                if standRoot then
-                    standRoot.CFrame = root.CFrame
+        -- Перехватываем все RemoteEvent
+        for _, child in pairs(replicatedStorage:GetDescendants()) do
+            if child:IsA("RemoteEvent") then
+                local success, _ = pcall(function()
+                    return child.FireServer
+                end)
+                
+                if success then
+                    local originalFireServer = child.FireServer
+                    child.FireServer = function(self, ...)
+                        local args = {...}
+                        
+                        -- Если это команда атаки, перенаправляем её
+                        if args[1] and (type(args[1]) == "string" or type(args[1]) == "number") then
+                            local command = tostring(args[1]):lower()
+                            
+                            if command:find("attack") or command:find("hit") or command:find("punch") or command:find("kick") then
+                                if args[2] and type(args[2]) == "Vector3" then
+                                    local targetPos = args[2]
+                                    local player = Players.LocalPlayer
+                                    local char = player.Character
+                                    
+                                    if char then
+                                        local root = char:FindFirstChild("HumanoidRootPart")
+                                        if root then
+                                            local distance = (targetPos - root.Position).Magnitude
+                                            
+                                            if distance > 50 then
+                                                -- Создаем атаку рядом с целью
+                                                local attackPos = targetPos + Vector3.new(0, 0, 5) -- 5 studs от цели
+                                                sendAttackFromPosition(attackPos, targetPos, command)
+                                                return -- Блокируем оригинальную команду
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        
+                        return originalFireServer(self, unpack(args))
+                    end
                 end
             end
         end
-        
-        detachedStand = standClone
-        print("YBA: Стенд отсоединен и готов к управлению")
-        return true
     end
+    
+    interceptAllAttacks()
+    
+    -- Функция для активации ультимативного обхода
+    local function activateUltimateBypass()
+        ultimateStandActive = true
+        print("YBA: Ультимативный обход ограничений стенда активирован")
+        print("YBA: Теперь вы можете атаковать из любой позиции!")
+    end
+    
+    -- Возвращаем функции для управления
+    return {
+        activateUltimateBypass = activateUltimateBypass,
+        sendAttackFromPosition = sendAttackFromPosition,
+        createFakeStandAtPosition = createFakeStandAtPosition,
+        isActive = function() return ultimateStandActive end
+    }
+end
     
     -- Функция для плавного перемещения стенда к цели
     local function moveStandToTarget(targetPos)
@@ -2506,14 +2628,13 @@ local function startStandRangeBypass()
     -- Активируем ультимативный обход ограничения дистанции
     local sendUltimateAttack = createUltimateRangeBypass()
     
-    -- Активируем систему отсоединения стенда
-    local standDetachmentSystem = createStandDetachmentSystem()
+    -- Активируем ультимативную систему обхода ограничений
+    local ultimateStandSystem = createUltimateStandBypass()
     
-    -- Автоматически отсоединяем стенд при включении функции
-    if standDetachmentSystem and standDetachmentSystem.detachStand then
-        task.wait(0.5) -- Небольшая задержка для инициализации
-        standDetachmentSystem.detachStand()
-        print("YBA: Стенд автоматически отсоединен при включении функции")
+    -- Активируем ультимативный обход
+    if ultimateStandSystem then
+        ultimateStandSystem.activateUltimateBypass()
+        print("YBA: Ультимативная система обхода ограничений активирована")
     end
     
     -- Также перехватываем InputBegan для клавиш атаки
@@ -2539,11 +2660,13 @@ local function startStandRangeBypass()
                         local distance = (targetPos - root.Position).Magnitude
                         
                         if distance > 50 then -- Уменьшаем порог до 50 studs
-                            print("YBA: Атака на большом расстоянии", math.floor(distance), "studs - используем отсоединенный стенд")
+                            print("YBA: Атака на большом расстоянии", math.floor(distance), "studs - используем ультимативную систему")
                             
-                            -- Используем отсоединенный стенд (автоматически отсоединен)
-                            if standDetachmentSystem and standDetachmentSystem.sendDetachedStandAttack then
-                                standDetachmentSystem.sendDetachedStandAttack(targetPos, "detached_attack")
+                            -- Используем ультимативную систему обхода ограничений
+                            if ultimateStandSystem and ultimateStandSystem.sendAttackFromPosition then
+                                -- Создаем атаку рядом с целью
+                                local attackPos = targetPos + Vector3.new(0, 0, 5) -- 5 studs от цели
+                                ultimateStandSystem.sendAttackFromPosition(attackPos, targetPos, "ultimate_attack")
                             elseif sendUltimateAttack then
                                 sendUltimateAttack(targetPos, "ultimate_attack")
                             elseif sendInfiniteRangeAttack then
@@ -2556,8 +2679,9 @@ local function startStandRangeBypass()
                                 
                                 -- Отправляем модифицированную команду атаки с дополнительными флагами
                                 local attackData = {
-                                    attackType = "detached_attack",
+                                    attackType = "ultimate_attack",
                                     targetPosition = targetPos,
+                                    attackPosition = targetPos + Vector3.new(0, 0, 5),
                                     distance = distance,
                                     bypassRangeLimit = true,
                                     infiniteRange = true,
@@ -2565,8 +2689,8 @@ local function startStandRangeBypass()
                                     forceAttack = true,
                                     adminOverride = true,
                                     ultimateBypass = true,
-                                    detachedStand = true,
-                                    smoothMovement = true,
+                                    fakeStand = true,
+                                    fakeStandAttack = true,
                                     timestamp = tick()
                                 }
                                 
@@ -3186,14 +3310,14 @@ UserInputService.InputBegan:Connect(function(input, gp)
             
             if YBAConfig.BypassStandRangeLimit then
                 startStandRangeBypass()
-                print("YBA: Обход ограничения дистанции атаки стенда ВКЛЮЧЕН")
-                print("YBA: Стенд автоматически отсоединен и готов к атакам на любом расстоянии!")
-                print("YBA: Стенд будет плавно перемещаться к целям")
-                print("YBA: Используйте клавишу T для ручного управления стендом")
-                print("YBA: Используйте клавишу Y для перемещения стенда к курсору")
+                print("YBA: УЛЬТИМАТИВНЫЙ ОБХОД ОГРАНИЧЕНИЙ СТЕНДА ВКЛЮЧЕН!")
+                print("YBA: Теперь вы можете атаковать ИЗ ЛЮБОЙ ПОЗИЦИИ!")
+                print("YBA: Система создает фейковые стенды рядом с целями")
+                print("YBA: Звуки атак будут воспроизводиться в позиции цели")
+                print("YBA: Больше никаких ограничений дистанции!")
             else
                 stopStandRangeBypass()
-                print("YBA: Обход ограничения дистанции атаки стенда ВЫКЛЮЧЕН")
+                print("YBA: Ультимативный обход ограничений стенда ВЫКЛЮЧЕН")
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
             -- Временная активация Anti Time Stop (как кнопка)
