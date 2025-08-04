@@ -151,6 +151,7 @@ local YBAConfig = {
             ["Diamond"] = true,
             ["Gold Coin"] = true,
             ["Steel Ball"] = true,
+            ["Clackers"] = true,
             ["Zeppeli's Headband"] = true,
             ["Ancient Scroll"] = true,
             ["Quinton's Glove"] = true,
@@ -2141,6 +2142,7 @@ local YBA_ITEM_NAMES = {
     ["Diamond"] = true,
     ["Gold Coin"] = true,
     ["Steel Ball"] = true,
+    ["Clackers"] = true,
     ["Zeppeli's Headband"] = true,
     ["Ancient Scroll"] = true,
     ["Quinton's Glove"] = true,
@@ -3818,6 +3820,7 @@ createItemToggle("Pure Rokakaka", YBAConfig.ItemESP.Items["Pure Rokakaka"])
 createItemToggle("Diamond", YBAConfig.ItemESP.Items["Diamond"])
 createItemToggle("Gold Coin", YBAConfig.ItemESP.Items["Gold Coin"])
 createItemToggle("Steel Ball", YBAConfig.ItemESP.Items["Steel Ball"])
+createItemToggle("Clackers", YBAConfig.ItemESP.Items["Clackers"])
 createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
 
 -- Части трупа святого
@@ -3927,7 +3930,7 @@ selectBasicBtn.MouseButton1Click:Connect(function()
     -- Включаем только основные предметы
     local basicItems = {
         "Mysterious Arrow", "Rokakaka", "Pure Rokakaka", "Diamond", 
-        "Gold Coin", "Steel Ball", "Lucky Arrow"
+        "Gold Coin", "Steel Ball", "Clackers", "Lucky Arrow"
     }
     
     for _, itemName in ipairs(basicItems) do
