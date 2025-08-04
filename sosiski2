@@ -269,7 +269,7 @@ local YBAFreeCamera = {} do
     local cameraDistance = 10 -- Расстояние от камеры до стенда
     local cameraHeight = 5   -- Высота камеры над стендом
 
-    local NAV_SPEED = 10 -- Увеличена скорость навигации для атаки на любом расстоянии
+    local NAV_SPEED = 2 -- Нормальная скорость навигации
 
     local input = {
         W = 0, A = 0, S = 0, D = 0,
@@ -340,7 +340,7 @@ local YBAFreeCamera = {} do
         if move.Magnitude > 0 then
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            bv.Velocity = worldMove * 1000 -- Увеличена скорость для атаки на любом расстоянии
+            bv.Velocity = worldMove * 50 -- Нормальная скорость движения стенда
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -1969,6 +1969,11 @@ local function startYBA()
     
     if YBAConfig.TransferControl then
         activateFreeCamera(targetStand)
+        -- Автоматически атакуем стендом при включении
+        spawn(function()
+            task.wait(0.5) -- Ждем немного для инициализации
+            attackWithStand(targetStand)
+        end)
     end
 end
 
@@ -2022,6 +2027,60 @@ local function getAlivePlayers()
     end
     
     return alivePlayers
+end
+
+-- Функция для телепортации стенда к ближайшему игроку
+local function teleportStandToNearestPlayer(stand)
+    if not stand or not stand.Root then
+        print("YBA: Ошибка - стенд не найден для телепортации")
+        return false
+    end
+    
+    local alivePlayers = getAlivePlayers()
+    if #alivePlayers == 0 then
+        print("YBA: Нет живых игроков для атаки")
+        return false
+    end
+    
+    -- Находим ближайшего игрока
+    local nearestPlayer = nil
+    local nearestDistance = math.huge
+    
+    for _, player in ipairs(alivePlayers) do
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (player.Character.HumanoidRootPart.Position - stand.Root.Position).Magnitude
+            if distance < nearestDistance then
+                nearestDistance = distance
+                nearestPlayer = player
+            end
+        end
+    end
+    
+    if nearestPlayer and nearestPlayer.Character and nearestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local targetPosition = nearestPlayer.Character.HumanoidRootPart.Position
+        stand.Root.CFrame = CFrame.new(targetPosition)
+        print("YBA: Стенд телепортирован к игроку:", nearestPlayer.Name, "на расстоянии:", nearestDistance)
+        return true
+    end
+    
+    return false
+end
+
+-- Функция для атаки стендом на любом расстоянии
+local function attackWithStand(stand)
+    if not stand or not stand.Root then
+        print("YBA: Ошибка - стенд не найден для атаки")
+        return false
+    end
+    
+    -- Сначала телепортируем стенд к ближайшему игроку
+    if teleportStandToNearestPlayer(stand) then
+        print("YBA: Стенд готов к атаке")
+        return true
+    else
+        print("YBA: Не удалось подготовить стенд к атаке")
+        return false
+    end
 end
 
 
@@ -2113,6 +2172,14 @@ UserInputService.InputBegan:Connect(function(input, gp)
             
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF") .. " (UNLIMITED)"
+            end
+        elseif input.KeyCode == Enum.KeyCode.X then
+            -- Быстрая атака стендом (клавиша X)
+            if YBAConfig.Enabled and controlledStand then
+                print("YBA: Быстрая атака стендом!")
+                attackWithStand(controlledStand)
+            else
+                print("YBA: Сначала включите YBA Stand Range и найдите стенд")
             end
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
             -- Временная активация Anti Time Stop (как кнопка)
@@ -3789,6 +3856,16 @@ unlimitedRangeLabel.TextSize = 12
 unlimitedRangeLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 unlimitedRangeLabel.BackgroundTransparency = 1
 unlimitedRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Информация о быстрой атаке
+local quickAttackLabel = Instance.new("TextLabel", innerContainer)
+quickAttackLabel.Size = UDim2.new(1, -10, 0, 20)
+quickAttackLabel.Text = "⚡ Press X for Quick Stand Attack!"
+quickAttackLabel.Font = Enum.Font.GothamBold
+quickAttackLabel.TextSize = 12
+quickAttackLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+quickAttackLabel.BackgroundTransparency = 1
+quickAttackLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local itemESPLabel = Instance.new("TextLabel", innerContainer)
 itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
