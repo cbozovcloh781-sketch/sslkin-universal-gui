@@ -111,14 +111,11 @@ local YBAConfig = {
     CameraFollowHeight = 6.1,
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
-    -- Новая функция для управления персонажем под стендом
+    -- Интегрированная функция подземного полета
     UndergroundControl = {
-        Enabled = true, -- Включено по умолчанию
-        ToggleKey = nil,
         UndergroundDistance = 30, -- Расстояние под землей в метрах
         FlightSpeed = 120, -- Скорость полета за стендом
         AutoNoClip = true, -- Автоматически включать NoClip
-        ReturnToOriginal = true, -- Возвращаться в исходную позицию при выключении
         OriginalPosition = nil, -- Исходная позиция персонажа
     },
     -- Item ESP Configuration
@@ -1987,6 +1984,9 @@ local function startYBA()
     if YBAConfig.TransferControl then
         activateFreeCamera(targetStand)
     end
+    
+    -- Автоматически запускаем подземный полет при включении Stand Range
+    startUndergroundControl()
 end
 
 local function stopYBA()
@@ -2005,6 +2005,9 @@ local function stopYBA()
     end
     standControlConnections = {}
     controlledStand = nil
+    
+    -- Останавливаем подземный полет и возвращаем персонажа в исходную позицию
+    stopUndergroundControl()
 end
 
 -- Функция для запуска управления персонажем под стендом (летающий режим)
@@ -2030,13 +2033,13 @@ local function startUndergroundControl()
     
     controlledStandForUnderground = stands[1].Root
     isUndergroundControlEnabled = true
-    YBAConfig.UndergroundControl.Enabled = true
     
     print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
     
-    -- Сохраняем исходную позицию
+    -- Сохраняем исходную позицию при первом запуске Stand Range
     if not YBAConfig.UndergroundControl.OriginalPosition then
         YBAConfig.UndergroundControl.OriginalPosition = root.Position
+        print("Исходная позиция сохранена:", root.Position)
     end
     
     -- Включаем NoClip если нужно
@@ -2157,7 +2160,6 @@ local function stopUndergroundControl()
     if not isUndergroundControlEnabled then return end
     
     isUndergroundControlEnabled = false
-    YBAConfig.UndergroundControl.Enabled = false
     
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -2188,8 +2190,8 @@ local function stopUndergroundControl()
     end
     undergroundControlConnections = {}
     
-    -- Возвращаем персонажа в исходную позицию если нужно
-    if YBAConfig.UndergroundControl.ReturnToOriginal and YBAConfig.UndergroundControl.OriginalPosition then
+    -- Возвращаем персонажа в исходную позицию
+    if YBAConfig.UndergroundControl.OriginalPosition then
         if root then
             print("Возвращаем персонажа в исходную позицию...")
             root.CFrame = CFrame.new(YBAConfig.UndergroundControl.OriginalPosition)
@@ -2326,16 +2328,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
             end
-        elseif YBAConfig.UndergroundControl.ToggleKey and input.KeyCode == YBAConfig.UndergroundControl.ToggleKey then
-            if YBAConfig.UndergroundControl.Enabled then
-                stopUndergroundControl()
-            else
-                startUndergroundControl()
-            end
-            
-            if guiCallbacks.undergroundControl then
-                guiCallbacks.undergroundControl.Text = "Underground Flight: " .. (YBAConfig.UndergroundControl.Enabled and "ON" or "OFF")
-            end
+
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
             -- Временная активация Anti Time Stop (как кнопка)
             if not isAntiTimeStopEnabled then
@@ -3998,32 +3991,8 @@ guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
 
--- Кнопка для полета под землей за стендом
-local undergroundControlToggleBtn = toggle("Underground Flight", YBAConfig.UndergroundControl.Enabled, function(v)
-    YBAConfig.UndergroundControl.Enabled = v
-    if v then 
-        startUndergroundControl() 
-    else 
-        stopUndergroundControl() 
-    end
-    if guiCallbacks.undergroundControl then
-        guiCallbacks.undergroundControl.Text = "Underground Flight: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.undergroundControl = undergroundControlToggleBtn
-
--- Автоматически запускаем функцию при загрузке скрипта
-if YBAConfig.UndergroundControl.Enabled then
-    task.spawn(function()
-        task.wait(1) -- Ждем 1 секунду для полной загрузки
-        startUndergroundControl()
-    end)
-end
-
-undergroundControlToggleBtn.AutoButtonColor = false
-
--- Ползунок для регулировки скорости полета
-slider("Flight Speed (50-300)", 50, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
+-- Ползунок для регулировки скорости полета под землей
+slider("Underground Flight Speed (50-300)", 50, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
     YBAConfig.UndergroundControl.FlightSpeed = v
 end)
 
