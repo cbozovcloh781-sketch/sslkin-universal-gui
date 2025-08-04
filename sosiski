@@ -3757,7 +3757,14 @@ divider6.Size = UDim2.new(1, -10, 0, 2)
 divider6.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider6.BorderSizePixel = 0
 
-sectionHeader("🟪 YBA Hacks")
+local standRangeLabel = Instance.new("TextLabel", innerContainer)
+standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
+standRangeLabel.Text = "stand range hack"
+standRangeLabel.Font = Enum.Font.Gotham
+standRangeLabel.TextSize = 12
+standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+standRangeLabel.BackgroundTransparency = 1
+standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
     YBAConfig.Enabled = v
@@ -3774,7 +3781,14 @@ guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
 
-sectionHeader("🎯 YBA Item ESP")
+local itemESPLabel = Instance.new("TextLabel", innerContainer)
+itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
+itemESPLabel.Text = "item esp"
+itemESPLabel.Font = Enum.Font.Gotham
+itemESPLabel.TextSize = 12
+itemESPLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+itemESPLabel.BackgroundTransparency = 1
+itemESPLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
     YBAConfig.ItemESP.Enabled = v
@@ -3846,7 +3860,14 @@ divider7.Size = UDim2.new(1, -10, 0, 2)
 divider7.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 divider7.BorderSizePixel = 0
 
-sectionHeader("⏰ Anti Time Stop")
+local antiTimeStopLabel = Instance.new("TextLabel", innerContainer)
+antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
+antiTimeStopLabel.Text = "anti time stop"
+antiTimeStopLabel.Font = Enum.Font.Gotham
+antiTimeStopLabel.TextSize = 12
+antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+antiTimeStopLabel.BackgroundTransparency = 1
+antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
     -- Игнорируем значение v, так как теперь это временная активация
