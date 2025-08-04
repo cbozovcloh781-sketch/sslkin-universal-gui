@@ -1995,13 +1995,8 @@ local function startYBA()
         activateFreeCamera(targetStand)
     end
     
-    -- Автоматически запускаем подземный полет при включении Stand Range
-    print("Запускаем подземный полет...")
-    if startUndergroundControl then
-        startUndergroundControl()
-    else
-        print("ОШИБКА: Функция startUndergroundControl не найдена!")
-    end
+    -- Подземный полет теперь включается отдельной кнопкой
+    print("Stand Range активирован")
 end
 
 local function stopYBA()
@@ -2025,10 +2020,8 @@ local function stopYBA()
     standControlConnections = {}
     controlledStand = nil
     
-    -- Останавливаем подземный полет и возвращаем персонажа в исходную позицию
-    if stopUndergroundControl then
-        stopUndergroundControl()
-    end
+    -- Подземный полет останавливается отдельной кнопкой
+    print("Stand Range деактивирован")
 end
 
 -- Функция для запуска управления персонажем под стендом (летающий режим)
@@ -4036,6 +4029,17 @@ end)
 guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
+
+-- Кнопка для полета под землей за стендом
+local undergroundControlToggleBtn = toggle("Underground Flight", false, function(v)
+    if v then 
+        startUndergroundControl() 
+    else 
+        stopUndergroundControl() 
+    end
+end)
+
+undergroundControlToggleBtn.AutoButtonColor = false
 
 -- Ползунок для регулировки скорости полета под землей
 slider("Underground Flight Speed (50-300)", 50, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
