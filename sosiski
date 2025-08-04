@@ -178,6 +178,15 @@ local speedHackConnections = {}
 local originalWalkSpeed = 16
 local originalJumpPower = 50
 
+local AntiTimeStopConfig = {
+    Enabled = false,
+    ToggleKey = nil,
+    ForceMovement = true,
+    MovementSpeed = 2.0,
+    DebugMode = false, -- Режим отладки для изучения модуля
+    OpenInDex = false, -- Открыть модуль в Dex Explorer
+}
+
 local isLongJumping = false
 local longJumpConnections = {}
 local originalLongJumpPower = 50
@@ -711,6 +720,391 @@ local function stopSpeedHack()
         end
     end
     speedHackConnections = {}
+end
+
+-- Anti Time Stop Functions
+local isAntiTimeStopActive = false
+local antiTimeStopConnections = {}
+
+local function startAntiTimeStop()
+    local plr = Players.LocalPlayer
+    local char = plr.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if not hum or not root then return end
+    
+    isAntiTimeStopActive = true
+    
+    -- Сохраняем оригинальные значения
+    local originalWalkSpeed = hum.WalkSpeed
+    local originalJumpPower = hum.JumpPower
+    local originalGravity = workspace.Gravity
+    
+    -- Функция для открытия модуля в Dex Explorer
+    local function openInDexExplorer(modulePath)
+        -- Пытаемся найти Dex Explorer
+        local dexExplorer = game:GetService("CoreGui"):FindFirstChild("Dex")
+        if dexExplorer then
+            print("Dex Explorer найден, пытаемся открыть модуль...")
+            -- Здесь можно попытаться программно открыть модуль
+            -- Но обычно Dex Explorer работает через UI
+        else
+            print("Dex Explorer не найден. Убедитесь, что он загружен.")
+        end
+        
+        print("Для открытия модуля в Dex Explorer:")
+        print("1. Откройте Dex Explorer")
+        print("2. В поиске введите: " .. modulePath)
+        print("3. Или перейдите по пути: " .. modulePath)
+    end
+    
+    -- Функция для изучения модулей ResistTimeStop у всех игроков
+    local function analyzeAllResistTimeStopModules()
+        local living = workspace:FindFirstChild("Living")
+        if living then
+            print("=== Поиск игроков с модулем ResistTimeStop ===")
+            local foundPlayers = {}
+            
+            -- Ищем всех игроков с модулем ResistTimeStop
+            for _, playerModule in pairs(living:GetChildren()) do
+                if playerModule:IsA("Folder") or playerModule:IsA("Model") then
+                    local resistTimeStop = playerModule:FindFirstChild("ResistTimeStop")
+                    if resistTimeStop then
+                        table.insert(foundPlayers, {
+                            PlayerName = playerModule.Name,
+                            Module = resistTimeStop
+                        })
+                        print("Найден игрок с ResistTimeStop:", playerModule.Name)
+                    end
+                end
+            end
+            
+            if #foundPlayers == 0 then
+                print("Игроки с модулем ResistTimeStop не найдены")
+                return
+            end
+            
+            print("Всего найдено игроков с ResistTimeStop:", #foundPlayers)
+            
+            -- Сначала анализируем наш собственный ResistTimeStop
+            local myPlayerModule = living:FindFirstChild(Players.LocalPlayer.Name)
+            if myPlayerModule then
+                local myResistTimeStop = myPlayerModule:FindFirstChild("ResistTimeStop")
+                if myResistTimeStop then
+                    print("\n=== Анализ нашего NumberValue ResistTimeStop ===")
+                    print("Тип объекта:", typeof(myResistTimeStop))
+                    print("Наше значение сопротивления:", myResistTimeStop.Value)
+                    local myObjectPath = "workspace.Living." .. Players.LocalPlayer.Name .. ".ResistTimeStop"
+                    print("Путь к нашему объекту для Dex Explorer:")
+                    print(myObjectPath)
+                    
+                    -- Если включен режим открытия в Dex Explorer
+                    if AntiTimeStopConfig.OpenInDex then
+                        print("=== ИНСТРУКЦИЯ ДЛЯ ИЗУЧЕНИЯ НАШЕГО СОПРОТИВЛЕНИЯ В DEX EXPLORER ===")
+                        print("1. Откройте Dex Explorer")
+                        print("2. Перейдите по пути: " .. myObjectPath)
+                        print("3. Кликните на объект ResistTimeStop (NumberValue)")
+                        print("4. В правой панели изучите значение свойства 'Value'")
+                        print("5. Это наше текущее сопротивление остановке времени")
+                        print("=== КОНЕЦ ИНСТРУКЦИИ ===")
+                    end
+                else
+                    print("\n=== У нас нет ResistTimeStop ===")
+                    print("Нам нужно создать собственный NumberValue ResistTimeStop")
+                end
+            end
+            
+            -- Анализируем каждый найденный модуль других игроков
+            for i, playerData in ipairs(foundPlayers) do
+                local playerName = playerData.PlayerName
+                local resistTimeStop = playerData.Module
+                
+                print("\n=== Анализ NumberValue ResistTimeStop игрока:", playerName, "===")
+                print("Тип объекта:", typeof(resistTimeStop))
+                print("Значение сопротивления:", resistTimeStop.Value)
+                local objectPath = "workspace.Living." .. playerName .. ".ResistTimeStop"
+                print("Путь к объекту для Dex Explorer:")
+                print(objectPath)
+                
+                -- Если включен режим открытия в Dex Explorer
+                if AntiTimeStopConfig.OpenInDex then
+                    print("=== ИНСТРУКЦИЯ ДЛЯ ИЗУЧЕНИЯ В DEX EXPLORER ===")
+                    print("1. Откройте Dex Explorer")
+                    print("2. Перейдите по пути: " .. objectPath)
+                    print("3. Кликните на объект ResistTimeStop")
+                    print("4. В правой панели изучите все свойства объекта")
+                    print("5. Разверните все дочерние элементы")
+                    print("6. Обратите внимание на значения BoolValue, NumberValue, StringValue")
+                    print("7. Запишите названия и значения всех свойств")
+                    print("=== КОНЕЦ ИНСТРУКЦИИ ===")
+                end
+                
+                -- Изучаем содержимое модуля
+                for _, child in pairs(resistTimeStop:GetDescendants()) do
+                    print("Дочерний элемент:", child.Name, "Тип:", typeof(child))
+                    if child:IsA("BoolValue") then
+                        print("  BoolValue:", child.Name, "=", child.Value)
+                    elseif child:IsA("NumberValue") then
+                        print("  NumberValue:", child.Name, "=", child.Value)
+                    elseif child:IsA("StringValue") then
+                        print("  StringValue:", child.Name, "=", child.Value)
+                    end
+                end
+                
+                -- Пытаемся изучить функции модуля
+                local success, moduleFunctions = pcall(function()
+                    return require(resistTimeStop)
+                end)
+                
+                if success and moduleFunctions then
+                    print("Функции модуля:")
+                    for key, value in pairs(moduleFunctions) do
+                        print("  ", key, "=", typeof(value))
+                    end
+                else
+                    print("Не удалось загрузить функции модуля:", moduleFunctions)
+                end
+            end
+            
+            print("\n=== Анализ значений сопротивления ===")
+            local totalResistance = 0
+            local playerCount = 0
+            for _, playerData in ipairs(foundPlayers) do
+                local resistValue = playerData.Module.Value
+                totalResistance = totalResistance + resistValue
+                playerCount = playerCount + 1
+                print("Игрок", playerData.PlayerName, "имеет сопротивление:", resistValue)
+            end
+            if playerCount > 0 then
+                local averageResistance = totalResistance / playerCount
+                print("Среднее значение сопротивления:", averageResistance)
+                print("Максимальное рекомендуемое значение:", math.max(999999, averageResistance * 10))
+            end
+            
+            print("\n=== Конец анализа всех NumberValue ResistTimeStop ===")
+            print("\n=== ОБЩАЯ ИНСТРУКЦИЯ ДЛЯ DEX EXPLORER ===")
+            print("1. Откройте Dex Explorer")
+            print("2. В поиске введите: ResistTimeStop")
+            print("3. Или перейдите по пути: workspace.Living.[имя_игрока].ResistTimeStop")
+            print("4. Кликните на объект ResistTimeStop (NumberValue)")
+            print("5. В правой панели изучите значение свойства 'Value'")
+            print("6. Обратите внимание на:")
+            print("   - Числовое значение сопротивления")
+            print("   - Различия в значениях между игроками")
+            print("   - Дочерние элементы, если они есть")
+            print("7. Запишите значения сопротивления всех игроков")
+            print("8. Определите максимальное значение для установки")
+            print("=== КОНЕЦ ИНСТРУКЦИИ ===")
+        end
+    end
+    
+    -- Функция для предотвращения остановки времени через ResistTimeStop
+    local function preventTimeStop()
+        if not isAntiTimeStopActive or not char or not char.Parent then
+            return
+        end
+        
+        local currentHum = char:FindFirstChildOfClass("Humanoid")
+        local currentRoot = char:FindFirstChild("HumanoidRootPart")
+        
+        if not currentHum or not currentRoot then return end
+        
+        -- Ищем игроков с модулем ResistTimeStop и изучаем их механизм
+        local living = workspace:FindFirstChild("Living")
+        if living then
+            -- Если включен режим отладки, анализируем все модули
+            if AntiTimeStopConfig.DebugMode then
+                analyzeAllResistTimeStopModules()
+                AntiTimeStopConfig.DebugMode = false -- Отключаем после первого анализа
+            end
+            
+            -- Ищем игроков с ResistTimeStop и пытаемся скопировать их механизм
+            local foundResistPlayers = {}
+            for _, playerModule in pairs(living:GetChildren()) do
+                if playerModule:IsA("Folder") or playerModule:IsA("Model") then
+                    local resistTimeStop = playerModule:FindFirstChild("ResistTimeStop")
+                    if resistTimeStop then
+                        table.insert(foundResistPlayers, {
+                            PlayerName = playerModule.Name,
+                            Module = resistTimeStop
+                        })
+                    end
+                end
+            end
+            
+            -- Работаем с нашим собственным ResistTimeStop
+            local myPlayerModule = living:FindFirstChild(Players.LocalPlayer.Name)
+            if myPlayerModule then
+                local myResistTimeStop = myPlayerModule:FindFirstChild("ResistTimeStop")
+                if myResistTimeStop then
+                    print("Найден наш ResistTimeStop с текущим значением:", myResistTimeStop.Value)
+                    
+                    -- Устанавливаем максимальное значение сопротивления для себя
+                    myResistTimeStop.Value = 999999
+                    print("Установлено максимальное сопротивление для себя:", myResistTimeStop.Value)
+                    
+                    -- Также проверяем дочерние элементы, если они есть
+                    for _, child in pairs(myResistTimeStop:GetDescendants()) do
+                        if child:IsA("BoolValue") then
+                            -- Активируем все BoolValue, которые могут быть связаны с сопротивлением
+                            if child.Name:lower():find("resist") or 
+                               child.Name:lower():find("active") or 
+                               child.Name:lower():find("enabled") or 
+                               child.Name:lower():find("start") or 
+                               child.Name:lower():find("begin") or 
+                               child.Name:lower():find("toggle") or 
+                               child.Name:lower():find("trigger") or
+                               child.Name:lower():find("time") or
+                               child.Name:lower():find("stop") then
+                                child.Value = true
+                                print("Активирован наш BoolValue:", child.Name, "=", child.Value)
+                            end
+                        elseif child:IsA("NumberValue") then
+                            -- Устанавливаем высокие значения для NumberValue, связанных с сопротивлением
+                            if child.Name:lower():find("resist") or 
+                               child.Name:lower():find("power") or 
+                               child.Name:lower():find("strength") or
+                               child.Name:lower():find("time") then
+                                child.Value = 999999
+                                print("Установлено наше NumberValue:", child.Name, "=", child.Value)
+                            end
+                        end
+                    end
+                else
+                    -- Если у нас нет ResistTimeStop, создаем его
+                    print("У нас нет ResistTimeStop, создаем собственный NumberValue")
+                    local newResistTimeStop = Instance.new("NumberValue", myPlayerModule)
+                    newResistTimeStop.Name = "ResistTimeStop"
+                    newResistTimeStop.Value = 999999 -- Максимальное значение сопротивления
+                    print("Создан наш собственный NumberValue ResistTimeStop со значением:", newResistTimeStop.Value)
+                end
+            end
+            
+            -- Анализируем значения сопротивления у других игроков (только для информации)
+            if #foundResistPlayers > 0 then
+                print("\n=== Анализ сопротивления у других игроков (только для информации) ===")
+                for _, playerData in ipairs(foundResistPlayers) do
+                    local playerName = playerData.PlayerName
+                    local resistTimeStop = playerData.Module
+                    print("Игрок", playerName, "имеет сопротивление:", resistTimeStop.Value)
+                end
+            end
+            else
+                -- Если игроков с ResistTimeStop нет, пытаемся создать собственный модуль
+                print("Игроки с модулем ResistTimeStop не найдены, пытаемся создать собственный модуль")
+                
+                -- Проверяем, есть ли у нас объект ResistTimeStop
+                local myPlayerModule = living:FindFirstChild(Players.LocalPlayer.Name)
+                if myPlayerModule then
+                    local myResistTimeStop = myPlayerModule:FindFirstChild("ResistTimeStop")
+                    if not myResistTimeStop then
+                        -- Создаем собственный NumberValue ResistTimeStop
+                        local newResistTimeStop = Instance.new("NumberValue", myPlayerModule)
+                        newResistTimeStop.Name = "ResistTimeStop"
+                        newResistTimeStop.Value = 999999 -- Максимальное значение сопротивления
+                        
+                        print("Создан собственный NumberValue ResistTimeStop со значением:", newResistTimeStop.Value)
+                    end
+                end
+            end
+        end
+        
+        -- Постоянно восстанавливаем способность к движению
+        if currentHum.WalkSpeed == 0 then
+            currentHum.WalkSpeed = originalWalkSpeed
+        end
+        
+        if currentHum.JumpPower == 0 then
+            currentHum.JumpPower = originalJumpPower
+        end
+        
+        if workspace.Gravity == 0 then
+            workspace.Gravity = originalGravity
+        end
+        
+        -- Принудительно устанавливаем NetworkOwnership для всех частей персонажа
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if part.NetworkOwner ~= Players.LocalPlayer then
+                    part:SetNetworkOwner(Players.LocalPlayer)
+                end
+            end
+        end
+        
+        -- Если персонаж пытается двигаться, но застыл, принудительно двигаем его
+        local moveDirection = currentHum.MoveDirection
+        if moveDirection.Magnitude > 0 and currentRoot.Velocity.Magnitude < 0.5 then
+            -- Принудительно устанавливаем скорость для корня
+            if not currentRoot:FindFirstChild("BodyVelocity") then
+                local bv = Instance.new("BodyVelocity", currentRoot)
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            end
+            
+            local bv = currentRoot:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = moveDirection.Unit * (AntiTimeStopConfig.MovementSpeed * 16)
+            end
+        else
+            -- Если не двигаемся, убираем BodyVelocity
+            local bv = currentRoot:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+        end
+    end
+    
+    -- Основной цикл предотвращения остановки времени
+    local antiTimeStopLoop = RunService.Heartbeat:Connect(function()
+        preventTimeStop()
+    end)
+    
+    -- Дополнительный цикл для более частых проверок
+    local antiTimeStopRenderLoop = RunService.RenderStepped:Connect(function()
+        preventTimeStop()
+    end)
+    
+    table.insert(antiTimeStopConnections, antiTimeStopLoop)
+    table.insert(antiTimeStopConnections, antiTimeStopRenderLoop)
+    
+    -- Обработчик добавления нового персонажа
+    local function onCharacterAdded(newChar)
+        task.wait(1) -- Ждем загрузки персонажа
+        if isAntiTimeStopActive then
+            startAntiTimeStop()
+        end
+    end
+    
+    local characterAddedConnection = plr.CharacterAdded:Connect(onCharacterAdded)
+    table.insert(antiTimeStopConnections, characterAddedConnection)
+end
+
+local function stopAntiTimeStop()
+    isAntiTimeStopActive = false
+    
+    -- Убираем BodyVelocity с корня персонажа
+    local char = Players.LocalPlayer.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+        end
+    end
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(antiTimeStopConnections) do
+        if connection then
+            if typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            elseif typeof(connection) == "Instance" then
+                pcall(function() connection:Destroy() end)
+            end
+        end
+    end
+    antiTimeStopConnections = {}
 end
 
 
@@ -1680,6 +2074,17 @@ UserInputService.InputBegan:Connect(function(input, gp)
             
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+            end
+        elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
+            AntiTimeStopConfig.Enabled = not AntiTimeStopConfig.Enabled
+            if AntiTimeStopConfig.Enabled then 
+                startAntiTimeStop() 
+            else 
+                stopAntiTimeStop() 
+            end
+            
+            if guiCallbacks.antiTimeStop then
+                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (AntiTimeStopConfig.Enabled and "ON" or "OFF")
             end
         -- Удален обработчик клавиши I для Item ESP
         end
@@ -3066,6 +3471,9 @@ local function updateStatusDisplay()
     if guiCallbacks.itemESP then
         guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
     end
+    if guiCallbacks.antiTimeStop then
+        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (AntiTimeStopConfig.Enabled and "ON" or "OFF")
+    end
 end
 
 RunService.Heartbeat:Connect(function()
@@ -3621,6 +4029,11 @@ local function updatePlayerList()
                not child.Text:find("Hotkey:") and 
                not child.Text:find("YBA Stand Range") and 
                not child.Text:find("Item ESP") and 
+               not child.Text:find("Anti Time Stop") and 
+               not child.Text:find("Movement Speed") and 
+               not child.Text:find("Debug Mode") and 
+               not child.Text:find("Open in Dex Explorer") and 
+               not child.Text:find("Anti Time Stop Hotkey") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
             end
@@ -3669,4 +4082,106 @@ task.spawn(function()
         updatePlayerList()
     end
 end)
+
+-- Anti Time Stop Settings
+local dividerAntiTimeStop = Instance.new("Frame", innerContainer)
+dividerAntiTimeStop.Size = UDim2.new(1, -10, 0, 2)
+dividerAntiTimeStop.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+dividerAntiTimeStop.BorderSizePixel = 0
+
+sectionHeader("⏰ Anti Time Stop Settings")
+
+local antiTimeStopToggleBtn = toggle("Anti Time Stop", AntiTimeStopConfig.Enabled, function(v)
+    AntiTimeStopConfig.Enabled = v
+    if v then startAntiTimeStop() else stopAntiTimeStop() end
+    
+    if guiCallbacks.antiTimeStop then
+        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: " .. (v and "ON" or "OFF")
+    end
+end)
+guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
+
+slider("Movement Speed", 0.5, 5.0, AntiTimeStopConfig.MovementSpeed, function(v)
+    AntiTimeStopConfig.MovementSpeed = v
+end)
+
+speedInput("Custom Movement Speed", AntiTimeStopConfig.MovementSpeed, function(v)
+    AntiTimeStopConfig.MovementSpeed = v
+end)
+
+-- Кнопка режима отладки
+local debugModeBtn = Instance.new("TextButton", innerContainer)
+debugModeBtn.Size = UDim2.new(1, -10, 0, 28)
+debugModeBtn.Text = "Debug Mode: " .. (AntiTimeStopConfig.DebugMode and "ON" or "OFF")
+debugModeBtn.Font = Enum.Font.Gotham
+debugModeBtn.TextSize = 14
+debugModeBtn.TextColor3 = Color3.new(1,1,1)
+debugModeBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+debugModeBtn.AutoButtonColor = false
+Instance.new("UICorner", debugModeBtn).CornerRadius = UDim.new(0,6)
+
+debugModeBtn.MouseButton1Click:Connect(function()
+    AntiTimeStopConfig.DebugMode = not AntiTimeStopConfig.DebugMode
+    debugModeBtn.Text = "Debug Mode: " .. (AntiTimeStopConfig.DebugMode and "ON" or "OFF")
+    if AntiTimeStopConfig.DebugMode then
+        print("Режим отладки включен. Анализ модуля ResistTimeStop будет выполнен при следующем запуске функции.")
+    end
+end)
+
+-- Кнопка открытия в Dex Explorer
+local dexExplorerBtn = Instance.new("TextButton", innerContainer)
+dexExplorerBtn.Size = UDim2.new(1, -10, 0, 28)
+dexExplorerBtn.Text = "Open in Dex Explorer: " .. (AntiTimeStopConfig.OpenInDex and "ON" or "OFF")
+dexExplorerBtn.Font = Enum.Font.Gotham
+dexExplorerBtn.TextSize = 14
+dexExplorerBtn.TextColor3 = Color3.new(1,1,1)
+dexExplorerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+dexExplorerBtn.AutoButtonColor = false
+Instance.new("UICorner", dexExplorerBtn).CornerRadius = UDim.new(0,6)
+
+dexExplorerBtn.MouseButton1Click:Connect(function()
+    AntiTimeStopConfig.OpenInDex = not AntiTimeStopConfig.OpenInDex
+    dexExplorerBtn.Text = "Open in Dex Explorer: " .. (AntiTimeStopConfig.OpenInDex and "ON" or "OFF")
+    if AntiTimeStopConfig.OpenInDex then
+        print("Режим открытия в Dex Explorer включен. Инструкции будут показаны при анализе модулей.")
+    end
+end)
+
+-- Кнопка настройки горячих клавиш
+local antiTimeStopKeyBtn = Instance.new("TextButton", innerContainer)
+antiTimeStopKeyBtn.Size = UDim2.new(1, -10, 0, 24)
+antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [" .. (AntiTimeStopConfig.ToggleKey and tostring(AntiTimeStopConfig.ToggleKey.Name) or "None") .. "]"
+antiTimeStopKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+antiTimeStopKeyBtn.TextColor3 = Color3.new(1,1,1)
+antiTimeStopKeyBtn.Font = Enum.Font.Gotham
+antiTimeStopKeyBtn.TextSize = 13
+antiTimeStopKeyBtn.AutoButtonColor = false
+Instance.new("UICorner", antiTimeStopKeyBtn).CornerRadius = UDim.new(0,6)
+
+antiTimeStopKeyBtn.MouseButton1Click:Connect(function()
+    antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [Press any key]"
+    local conn
+    conn = UserInputService.InputBegan:Connect(function(input, gp)
+        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
+            conn:Disconnect()
+            AntiTimeStopConfig.ToggleKey = input.KeyCode
+            antiTimeStopKeyBtn.Text = "Anti Time Stop Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+        end
+    end)
+end)
+
+-- Информационная панель
+local antiTimeStopInfo = Instance.new("TextLabel", innerContainer)
+antiTimeStopInfo.Size = UDim2.new(1, -10, 0, 40)
+anti Time Stop устанавливает максимальное сопротивление (999999) в вашем собственном NumberValue ResistTimeStop. Включите Debug Mode для анализа вашего сопротивления и сравнения с другими игроками."
+antiTimeStopInfo.Font = Enum.Font.Gotham
+antiTimeStopInfo.TextSize = 12
+antiTimeStopInfo.TextColor3 = Color3.fromRGB(200,200,200)
+antiTimeStopInfo.BackgroundColor3 = Color3.fromRGB(30,30,40)
+antiTimeStopInfo.BorderSizePixel = 1
+antiTimeStopInfo.BorderColor3 = Color3.fromRGB(100,100,120)
+antiTimeStopInfo.TextWrapped = true
+antiTimeStopInfo.TextXAlignment = Enum.TextXAlignment.Left
+antiTimeStopInfo.TextYAlignment = Enum.TextYAlignment.Top
+Instance.new("UICorner", antiTimeStopInfo).CornerRadius = UDim.new(0,4)
 
