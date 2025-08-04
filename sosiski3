@@ -99,7 +99,7 @@ local YBAConfig = {
     -- Item ESP Configuration
     ItemESP = {
         Enabled = false,
-        ToggleKey = Enum.KeyCode.I, -- Клавиша I по умолчанию для активации Item ESP
+        ToggleKey = nil, -- Нет клавиши по умолчанию
         MaxDistance = 1000, -- Дистанция для поиска предметов
         MaxRenderDistance = 5000, -- Максимальная дистанция рендеринга ESP
         UpdateInterval = 0.3, -- Интервал обновления в секундах
