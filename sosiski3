@@ -2232,7 +2232,7 @@ local function findYBAItems()
     -- Оптимизированный поиск в конкретной структуре папок
     local foundFolders = {}
     
-    local targetFolder = workspace:FindFirstChild("item_spawns")
+    local targetFolder = workspace:FindFirstChild("item_spawn")
     if targetFolder then
         local itemsFolder = targetFolder:FindFirstChild("items")
         if itemsFolder then
@@ -2242,7 +2242,7 @@ local function findYBAItems()
             print("YBA Item ESP: Папка 'items' не найдена в", targetFolder.Name)
         end
     else
-        print("YBA Item ESP: Папка 'item_spawns' не найдена в workspace")
+        print("YBA Item ESP: Папка 'item_spawn' не найдена в workspace")
     end
     
     -- Fallback: старый список папок (если основная структура не найдена)
@@ -2383,21 +2383,21 @@ local function findYBAItemsFast()
         return items 
     end
 
-    print("YBA Item ESP: Быстрый поиск в item_spawns.items...")
+    print("YBA Item ESP: Быстрый поиск в item_spawn.items...")
     
-    local targetFolder = workspace:FindFirstChild("item_spawns")
+    local targetFolder = workspace:FindFirstChild("item_spawn")
     if not targetFolder then
-        print("YBA Item ESP: Папка 'item_spawns' не найдена")
+        print("YBA Item ESP: Папка 'item_spawn' не найдена")
         return items
     end
     
     local itemsFolder = targetFolder:FindFirstChild("items")
     if not itemsFolder then
-        print("YBA Item ESP: Папка 'items' не найдена в item_spawns")
+        print("YBA Item ESP: Папка 'items' не найдена в item_spawn")
         return items
     end
     
-    print("YBA Item ESP: Найдена структура item_spawns.items")
+    print("YBA Item ESP: Найдена структура item_spawn.items")
     
     local foundCount = 0
     local debugCount = 0
@@ -4216,7 +4216,7 @@ end)
 -- Кнопка для тестирования быстрого поиска
 local testFastSearchBtn = Instance.new("TextButton", innerContainer)
 testFastSearchBtn.Size = UDim2.new(1, -10, 0, 28)
-testFastSearchBtn.Text = "⚡ TEST FAST SEARCH (item_spawns.items)"
+testFastSearchBtn.Text = "⚡ TEST FAST SEARCH (item_spawn.items)"
 testFastSearchBtn.Font = Enum.Font.GothamBold
 testFastSearchBtn.TextSize = 12
 testFastSearchBtn.TextColor3 = Color3.new(1,1,1)
