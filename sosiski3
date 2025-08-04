@@ -2229,31 +2229,47 @@ local function findYBAItems()
     print("YBA Item ESP: Позиция игрока:", playerRoot.Position)
     print("YBA Item ESP: Максимальная дистанция поиска:", YBAConfig.ItemESP.MaxDistance)
 
-    -- Расширенный список возможных папок для поиска предметов
-    local possibleFolders = {
-        workspace:FindFirstChild("Item_Spawns"),
-        workspace:FindFirstChild("item_spawns"),
-        workspace:FindFirstChild("Items"),
-        workspace:FindFirstChild("items"),
-        workspace:FindFirstChild("ItemSpawns"),
-        workspace:FindFirstChild("itemspawns"),
-        workspace:FindFirstChild("ItemSpawn"),
-        workspace:FindFirstChild("itemspawn"),
-        workspace:FindFirstChild("Spawns"),
-        workspace:FindFirstChild("spawns"),
-        workspace:FindFirstChild("World"),
-        workspace:FindFirstChild("world"),
-        workspace:FindFirstChild("Map"),
-        workspace:FindFirstChild("map"),
-        workspace:FindFirstChild("Game"),
-        workspace:FindFirstChild("game")
-    }
-    
+    -- Оптимизированный поиск в конкретной структуре папок
     local foundFolders = {}
-    for _, folder in ipairs(possibleFolders) do
-        if folder then
-            table.insert(foundFolders, folder)
-            print("YBA Item ESP: Найдена папка:", folder.Name)
+    
+    local targetFolder = workspace:FindFirstChild("item_spawns")
+    if targetFolder then
+        local itemsFolder = targetFolder:FindFirstChild("items")
+        if itemsFolder then
+            table.insert(foundFolders, itemsFolder)
+            print("YBA Item ESP: Найдена целевая папка:", targetFolder.Name .. "." .. itemsFolder.Name)
+        else
+            print("YBA Item ESP: Папка 'items' не найдена в", targetFolder.Name)
+        end
+    else
+        print("YBA Item ESP: Папка 'item_spawns' не найдена в workspace")
+    end
+    
+    -- Fallback: старый список папок (если основная структура не найдена)
+    if #foundFolders == 0 then
+        local possibleFolders = {
+            workspace:FindFirstChild("Item_Spawns"),
+            workspace:FindFirstChild("Items"),
+            workspace:FindFirstChild("items"),
+            workspace:FindFirstChild("ItemSpawns"),
+            workspace:FindFirstChild("itemspawns"),
+            workspace:FindFirstChild("ItemSpawn"),
+            workspace:FindFirstChild("itemspawn"),
+            workspace:FindFirstChild("Spawns"),
+            workspace:FindFirstChild("spawns"),
+            workspace:FindFirstChild("World"),
+            workspace:FindFirstChild("world"),
+            workspace:FindFirstChild("Map"),
+            workspace:FindFirstChild("map"),
+            workspace:FindFirstChild("Game"),
+            workspace:FindFirstChild("game")
+        }
+        
+        for _, folder in ipairs(possibleFolders) do
+            if folder then
+                table.insert(foundFolders, folder)
+                print("YBA Item ESP: Найдена fallback папка:", folder.Name)
+            end
         end
     end
     
@@ -2276,13 +2292,13 @@ local function findYBAItems()
     for _, folder in ipairs(foundFolders) do
         print("YBA Item ESP: Ищем в папке:", folder.Name)
         
-        -- Рекурсивная функция для поиска в папке и всех её подпапках
+        -- Оптимизированная функция для поиска в папке items
         local function searchInFolder(currentFolder, depth)
-            if depth > 5 then return end -- Ограничиваем глубину поиска
+            if depth > 3 then return end -- Уменьшили глубину поиска
             
             for _, child in ipairs(currentFolder:GetChildren()) do
                 debugCount = debugCount + 1
-                if debugCount % 100 == 0 then
+                if debugCount % 50 == 0 then
                     print("YBA Item ESP: Проверено объектов:", debugCount)
                 end
                 
@@ -2299,8 +2315,6 @@ local function findYBAItems()
                             for _, part in ipairs(child:GetDescendants()) do
                                 if part:IsA("MeshPart") or part:IsA("Part") then
                                     local distance = (part.Position - playerRoot.Position).Magnitude
-                                    
-                                    print("YBA Item ESP: Проверяем часть", part.Name, "на расстоянии", math.floor(distance), "м")
                                     
                                     if distance <= YBAConfig.ItemESP.MaxDistance then
                                         foundCount = foundCount + 1
@@ -2330,8 +2344,8 @@ local function findYBAItems()
                             end
                         end
                     end
-                elseif child:IsA("Folder") and depth < 3 then
-                    -- Рекурсивно ищем в подпапках
+                elseif child:IsA("Folder") and depth < 2 then
+                    -- Рекурсивно ищем в подпапках (уменьшили глубину)
                     searchInFolder(child, depth + 1)
                 end
             end
@@ -2354,6 +2368,87 @@ local function findYBAItems()
         print("  2. Дистанцию поиска (текущая:", YBAConfig.ItemESP.MaxDistance, "м)")
         print("  3. Структуру папок в workspace")
     end
+    
+    return items
+end
+
+-- Быстрая функция для поиска в структуре item_spawns.items
+local function findYBAItemsFast()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then 
+        print("YBA Item ESP: Игрок не найден (быстрый поиск)")
+        return items 
+    end
+
+    print("YBA Item ESP: Быстрый поиск в item_spawns.items...")
+    
+    local targetFolder = workspace:FindFirstChild("item_spawns")
+    if not targetFolder then
+        print("YBA Item ESP: Папка 'item_spawns' не найдена")
+        return items
+    end
+    
+    local itemsFolder = targetFolder:FindFirstChild("items")
+    if not itemsFolder then
+        print("YBA Item ESP: Папка 'items' не найдена в item_spawns")
+        return items
+    end
+    
+    print("YBA Item ESP: Найдена структура item_spawns.items")
+    
+    local foundCount = 0
+    local debugCount = 0
+
+    -- Ищем все модели в папке items
+    for _, child in ipairs(itemsFolder:GetChildren()) do
+        debugCount = debugCount + 1
+        
+        if child:IsA("Model") then
+            -- Проверяем, является ли модель предметом
+            if YBA_ITEM_NAMES[child.Name] then
+                print("YBA Item ESP: Быстрый поиск - найдена модель предмета:", child.Name)
+                
+                -- Ищем все MeshPart в модели
+                for _, part in ipairs(child:GetDescendants()) do
+                    if part:IsA("MeshPart") or part:IsA("Part") then
+                        local distance = (part.Position - playerRoot.Position).Magnitude
+                        
+                        if distance <= YBAConfig.ItemESP.MaxDistance then
+                            foundCount = foundCount + 1
+                            print("YBA Item ESP: Быстрый поиск - найден предмет", child.Name, "на расстоянии", math.floor(distance), "м")
+                            
+                            table.insert(items, {
+                                Object = part,
+                                Root = part,
+                                Distance = distance,
+                                Name = child.Name,
+                                Type = "YBA_Item",
+                                Folder = "item_spawns.items"
+                            })
+                            break
+                        end
+                    end
+                end
+            else
+                -- Отладочная информация для неизвестных моделей
+                if string.find(string.lower(child.Name), "arrow") or 
+                   string.find(string.lower(child.Name), "rokakaka") or
+                   string.find(string.lower(child.Name), "diamond") or
+                   string.find(string.lower(child.Name), "coin") then
+                    print("YBA Item ESP: Быстрый поиск - найдена неизвестная модель (возможно предмет):", child.Name)
+                end
+            end
+        end
+    end
+    
+    -- Сортируем предметы по расстоянию
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    
+    print("YBA Item ESP: Быстрый поиск - всего проверено объектов:", debugCount)
+    print("YBA Item ESP: Быстрый поиск - всего найдено предметов:", foundCount)
     
     return items
 end
@@ -2776,16 +2871,24 @@ local function startItemESP()
         lastUpdate = currentTime
         
         -- Получаем все предметы YBA
-        local success, items = pcall(findYBAItems)
+        local success, items = pcall(findYBAItemsFast)
         local currentItems = {}
         
-        -- Если обычный поиск не дал результатов, пробуем альтернативный
+        -- Если быстрый поиск не дал результатов, пробуем обычный
         if not success or not items or #items == 0 then
-            local success2, items2 = pcall(findYBAItemsAlternative)
+            local success2, items2 = pcall(findYBAItems)
             if success2 and items2 and #items2 > 0 then
                 items = items2
                 success = true
-                print("YBA Item ESP: Используем альтернативный поиск, найдено предметов:", #items)
+                print("YBA Item ESP: Используем обычный поиск, найдено предметов:", #items)
+            else
+                -- Если обычный поиск не дал результатов, пробуем альтернативный
+                local success3, items3 = pcall(findYBAItemsAlternative)
+                if success3 and items3 and #items3 > 0 then
+                    items = items3
+                    success = true
+                    print("YBA Item ESP: Используем альтернативный поиск, найдено предметов:", #items)
+                end
             end
         end
         
@@ -3961,27 +4064,39 @@ Instance.new("UICorner", forceSearchItemsBtn).CornerRadius = UDim.new(0,6)
 forceSearchItemsBtn.MouseButton1Click:Connect(function()
     print("YBA Item ESP: Принудительный поиск предметов YBA...")
     
-    -- Сначала пробуем обычный поиск
-    local success, items = pcall(findYBAItems)
+    -- Сначала пробуем быстрый поиск в item_spawns.items
+    local success, items = pcall(findYBAItemsFast)
     if success and items and #items > 0 then
-        print("YBA Item ESP: Обычный поиск - найдено предметов:", #items)
+        print("YBA Item ESP: Быстрый поиск - найдено предметов:", #items)
         for i = 1, math.min(10, #items) do
             local item = items[i]
             print("YBA Item ESP: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
         end
     else
-        print("YBA Item ESP: Обычный поиск не дал результатов, пробуем альтернативный...")
+        print("YBA Item ESP: Быстрый поиск не дал результатов, пробуем обычный...")
         
-        -- Если обычный поиск не дал результатов, пробуем альтернативный
-        local success2, items2 = pcall(findYBAItemsAlternative)
+        -- Если быстрый поиск не дал результатов, пробуем обычный
+        local success2, items2 = pcall(findYBAItems)
         if success2 and items2 and #items2 > 0 then
-            print("YBA Item ESP: Альтернативный поиск - найдено предметов:", #items2)
+            print("YBA Item ESP: Обычный поиск - найдено предметов:", #items2)
             for i = 1, math.min(10, #items2) do
                 local item = items2[i]
                 print("YBA Item ESP: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
             end
         else
-            print("YBA Item ESP: Ошибка при поиске предметов")
+            print("YBA Item ESP: Обычный поиск не дал результатов, пробуем альтернативный...")
+            
+            -- Если обычный поиск не дал результатов, пробуем альтернативный
+            local success3, items3 = pcall(findYBAItemsAlternative)
+            if success3 and items3 and #items3 > 0 then
+                print("YBA Item ESP: Альтернативный поиск - найдено предметов:", #items3)
+                for i = 1, math.min(10, #items3) do
+                    local item = items3[i]
+                    print("YBA Item ESP: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+                end
+            else
+                print("YBA Item ESP: Ошибка при поиске предметов")
+            end
         end
     end
 end)
@@ -4000,11 +4115,11 @@ Instance.new("UICorner", testESPBtn).CornerRadius = UDim.new(0,6)
 testESPBtn.MouseButton1Click:Connect(function()
     print("YBA Item ESP: Тестируем ESP на ближайшем предмете...")
     
-    -- Сначала пробуем обычный поиск
-    local success, items = pcall(findYBAItems)
+    -- Сначала пробуем быстрый поиск в item_spawns.items
+    local success, items = pcall(findYBAItemsFast)
     if success and items and #items > 0 then
         local nearestItem = items[1]
-        print("YBA Item ESP: Обычный поиск - ближайший предмет:", nearestItem.Name, "на расстоянии", math.floor(nearestItem.Distance), "м")
+        print("YBA Item ESP: Быстрый поиск - ближайший предмет:", nearestItem.Name, "на расстоянии", math.floor(nearestItem.Distance), "м")
         
         -- Создаем ESP для этого предмета
         local esp = createItemESP(nearestItem)
@@ -4014,13 +4129,13 @@ testESPBtn.MouseButton1Click:Connect(function()
             print("YBA Item ESP: Ошибка при создании ESP для:", nearestItem.Name)
         end
     else
-        print("YBA Item ESP: Обычный поиск не дал результатов, пробуем альтернативный...")
+        print("YBA Item ESP: Быстрый поиск не дал результатов, пробуем обычный...")
         
-        -- Если обычный поиск не дал результатов, пробуем альтернативный
-        local success2, items2 = pcall(findYBAItemsAlternative)
+        -- Если быстрый поиск не дал результатов, пробуем обычный
+        local success2, items2 = pcall(findYBAItems)
         if success2 and items2 and #items2 > 0 then
             local nearestItem = items2[1]
-            print("YBA Item ESP: Альтернативный поиск - ближайший предмет:", nearestItem.Name, "на расстоянии", math.floor(nearestItem.Distance), "м")
+            print("YBA Item ESP: Обычный поиск - ближайший предмет:", nearestItem.Name, "на расстоянии", math.floor(nearestItem.Distance), "м")
             
             -- Создаем ESP для этого предмета
             local esp = createItemESP(nearestItem)
@@ -4030,7 +4145,24 @@ testESPBtn.MouseButton1Click:Connect(function()
                 print("YBA Item ESP: Ошибка при создании ESP для:", nearestItem.Name)
             end
         else
-            print("YBA Item ESP: Предметы не найдены или произошла ошибка")
+            print("YBA Item ESP: Обычный поиск не дал результатов, пробуем альтернативный...")
+            
+            -- Если обычный поиск не дал результатов, пробуем альтернативный
+            local success3, items3 = pcall(findYBAItemsAlternative)
+            if success3 and items3 and #items3 > 0 then
+                local nearestItem = items3[1]
+                print("YBA Item ESP: Альтернативный поиск - ближайший предмет:", nearestItem.Name, "на расстоянии", math.floor(nearestItem.Distance), "м")
+                
+                -- Создаем ESP для этого предмета
+                local esp = createItemESP(nearestItem)
+                if esp then
+                    print("YBA Item ESP: ESP успешно создан для:", nearestItem.Name)
+                else
+                    print("YBA Item ESP: Ошибка при создании ESP для:", nearestItem.Name)
+                end
+            else
+                print("YBA Item ESP: Предметы не найдены или произошла ошибка")
+            end
         end
     end
 end)
@@ -4078,6 +4210,31 @@ testAlternativeSearchBtn.MouseButton1Click:Connect(function()
         end
     else
         print("YBA Item ESP: Альтернативный поиск не дал результатов")
+    end
+end)
+
+-- Кнопка для тестирования быстрого поиска
+local testFastSearchBtn = Instance.new("TextButton", innerContainer)
+testFastSearchBtn.Size = UDim2.new(1, -10, 0, 28)
+testFastSearchBtn.Text = "⚡ TEST FAST SEARCH (item_spawns.items)"
+testFastSearchBtn.Font = Enum.Font.GothamBold
+testFastSearchBtn.TextSize = 12
+testFastSearchBtn.TextColor3 = Color3.new(1,1,1)
+testFastSearchBtn.BackgroundColor3 = Color3.fromRGB(255,255,100)
+testFastSearchBtn.AutoButtonColor = false
+Instance.new("UICorner", testFastSearchBtn).CornerRadius = UDim.new(0,6)
+
+testFastSearchBtn.MouseButton1Click:Connect(function()
+    print("YBA Item ESP: Тестируем быстрый поиск в item_spawns.items...")
+    local success, items = pcall(findYBAItemsFast)
+    if success and items and #items > 0 then
+        print("YBA Item ESP: Быстрый поиск - найдено предметов:", #items)
+        for i = 1, math.min(10, #items) do
+            local item = items[i]
+            print("YBA Item ESP: Предмет", i, ":", item.Name, "на расстоянии", math.floor(item.Distance), "м")
+        end
+    else
+        print("YBA Item ESP: Быстрый поиск не дал результатов")
     end
 end)
 
