@@ -80,9 +80,9 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil,
     UseStealthMode = true,
-    TeleportSpeed = 1200,
+    TeleportSpeed = 800,
     ReturnSpeed = 2000,
-    BehindPlayerDistance = 3.0,
+    BehindPlayerDistance = 2.5,
     StabilizationTime = 0.5,
     MaxSpeedResetTime = 2.0,
     SpeedResetThreshold = 50,
@@ -95,12 +95,13 @@ local TeleportConfig = {
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
-    StandRange = 100000, -- Увеличена дистанция ударов стенда
+    StandRange = 10000000, -- Увеличена дистанция ударов стенда до 10 миллионов
+    StandSpeed = 1.0, -- Скорость движения стенда
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
     AutoFindStands = true,
-    MaxStandDistance = 10000, -- Увеличена дистанция захвата стенда
+    MaxStandDistance = 10000000, -- Увеличена дистанция захвата стенда до 10 миллионов
     CameraDistance = 15,
     CameraHeight = 5,
     StandControlSpeed = 1.0,
@@ -166,23 +167,6 @@ local YBAConfig = {
     }
 }
 
-local AntiTimeStopConfig = {
-    Enabled = false,
-    ToggleKey = nil,
-    MovementSpeed = 1.5, -- Скорость движения в остановленном времени
-    JumpPower = 50, -- Сила прыжка в остановленном времени
-    WalkSpeed = 16, -- Скорость ходьбы в остановленном времени
-    AutoActivate = true, -- Автоматически активировать при обнаружении time stop
-    DetectionRange = 100, -- Дистанция обнаружения time stop
-    VisualEffect = true, -- Визуальный эффект при активации
-    SoundEffect = false, -- Звуковой эффект при активации
-    AntiFreeze = true, -- Предотвращать заморозку персонажа
-    TimeStopBypass = true, -- Обходить остановку времени
-    MovementOverride = true, -- Переопределять движение в time stop
-    DisableOnAttack = true, -- Отключать BodyVelocity при атаке
-    ServerSync = true, -- Синхронизировать с сервером
-}
-
 local isFlying = false
 local flyConnections = {}
 local originalGravity = workspace.Gravity
@@ -224,15 +208,6 @@ local originalGravity = workspace.Gravity
 local originalYBAWalkSpeed = 16
 local originalYBAJumpPower = 50
 
-local isAntiTimeStopEnabled = false
-local antiTimeStopConnections = {}
-local originalAntiTimeStopWalkSpeed = 16
-local originalAntiTimeStopJumpPower = 50
-local timeStopDetected = false
-local timeStopStartTime = 0
-local timeStopDuration = 0
-local antiTimeStopEffect = nil
-
 local isStandControlActive = false
 local currentControlledStand = nil
 local standCameraConnections = {}
@@ -270,6 +245,7 @@ local YBAFreeCamera = {} do
     local cameraHeight = 5   -- Высота камеры над стендом
 
     local NAV_SPEED = 1
+    local SHIFT_MUL = 0.25
 
     local input = {
         W = 0, A = 0, S = 0, D = 0,
@@ -331,6 +307,10 @@ local YBAFreeCamera = {} do
         
         local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
 
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            move = move * SHIFT_MUL
+        end
+
         local bv = standRoot:FindFirstChild("BodyVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", standRoot)
@@ -340,7 +320,7 @@ local YBAFreeCamera = {} do
         if move.Magnitude > 0 then
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            bv.Velocity = worldMove * 30 -- Уменьшена скорость для лучшего контроля
+            bv.Velocity = worldMove * (30 * YBAConfig.StandSpeed) -- Используем настраиваемую скорость стенда
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -582,424 +562,6 @@ local function stopFly()
         end
     end
     flyConnections = {}
-end
-
--- Anti Time Stop Functions
-local function detectTimeStop()
-    local players = Players:GetPlayers()
-    local localPlayer = Players.LocalPlayer
-    local localChar = localPlayer.Character
-    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
-    
-    if not localRoot then return false end
-    
-    -- Проверяем всех игроков на наличие time stop способностей
-    for _, player in pairs(players) do
-        if player ~= localPlayer then
-            local char = player.Character
-            if char then
-                -- Проверяем стенд
-                local stand = char:FindFirstChild("Stand")
-                if stand then
-                    -- Проверяем наличие time stop способностей
-                    local standAbilities = stand:FindFirstChild("Abilities")
-                    if standAbilities then
-                        for _, ability in pairs(standAbilities:GetChildren()) do
-                            local abilityName = ability.Name:lower()
-                            if abilityName:find("time") or 
-                               abilityName:find("stop") or
-                               abilityName:find("za warudo") or
-                               abilityName:find("the world") or
-                               abilityName:find("timestop") or
-                               abilityName:find("time_stop") or
-                               abilityName:find("za") or
-                               abilityName:find("warudo") then
-                                return true, player, ability
-                            end
-                        end
-                    end
-                    
-                    -- Дополнительная проверка для других возможных названий
-                    local standName = stand.Name:lower()
-                    if standName:find("the world") or 
-                       standName:find("za warudo") or
-                       standName:find("dio") or
-                       standName:find("jotaro") or
-                       standName:find("star platinum") or
-                       standName:find("the world") then
-                        return true, player, stand
-                    end
-                end
-                
-                -- Проверяем все части персонажа на наличие time stop эффектов
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        local partName = part.Name:lower()
-                        if partName:find("time") or 
-                           partName:find("stop") or
-                           partName:find("freeze") or
-                           partName:find("timestop") then
-                            return true, player, part
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Дополнительная проверка: если игрок заморожен, возможно это time stop
-    if localChar then
-        local hum = localChar:FindFirstChildOfClass("Humanoid")
-        if hum then
-            -- Проверяем, не заморожен ли игрок
-            for _, part in pairs(localChar:GetDescendants()) do
-                if part:IsA("BasePart") and part.Anchored then
-                    -- Если часть заморожена, возможно это time stop
-                    return true, nil, nil
-                end
-            end
-        end
-    end
-    
-    return false
-end
-
-local function createAntiTimeStopEffect()
-    if not AntiTimeStopConfig.VisualEffect then return end
-    
-    local char = Players.LocalPlayer.Character
-    if not char then return end
-    
-    -- Создаем зеленую обводку персонажа
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "AntiTimeStopEffect"
-    highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Зеленый цвет
-    highlight.OutlineColor = Color3.fromRGB(0, 200, 0) -- Темно-зеленый контур
-    highlight.FillTransparency = 0.3
-    highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = char
-    
-    antiTimeStopEffect = highlight
-end
-
-local function removeAntiTimeStopEffect()
-    if antiTimeStopEffect then
-        antiTimeStopEffect:Destroy()
-        antiTimeStopEffect = nil
-    end
-end
-
-local function startAntiTimeStop()
-    local plr = Players.LocalPlayer
-    local char = plr.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not root then return end
-    
-    isAntiTimeStopEnabled = true
-    timeStopDetected = false
-    
-    -- Сохраняем оригинальные значения
-    originalAntiTimeStopWalkSpeed = hum.WalkSpeed
-    originalAntiTimeStopJumpPower = hum.JumpPower
-    
-    -- Устанавливаем значения для anti time stop
-    hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
-    hum.JumpPower = AntiTimeStopConfig.JumpPower
-    
-    createAntiTimeStopEffect()
-    
-    -- Агрессивная защита от заморозки
-    local antiFreezeLoop = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not char or not char.Parent then
-            return
-        end
-        
-        -- Принудительно разблокируем все части персонажа
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Anchored = false
-                part.CanCollide = true
-            end
-        end
-        
-        -- Убеждаемся что Humanoid активен
-        if hum then
-            hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
-            hum.JumpPower = AntiTimeStopConfig.JumpPower
-            hum.AutoRotate = true
-            hum.AutoJumpEnabled = true
-        end
-        
-        -- Автоматическая активация при обнаружении заморозки
-        if AntiTimeStopConfig.AutoActivate then
-            local isFrozen = false
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.Anchored then
-                    isFrozen = true
-                    break
-                end
-            end
-            
-            if isFrozen and not timeStopDetected then
-                timeStopDetected = true
-                timeStopStartTime = tick()
-                print("Auto-detected freeze! Activating Anti Time Stop...")
-                
-                -- Принудительно разблокируем
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Anchored = false
-                        part.CanCollide = true
-                    end
-                end
-            end
-        end
-    end)
-    
-    -- Обработка атак для предотвращения конфликтов (отключено для безопасности)
-    local attackDetection = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not timeStopDetected or not char or not char.Parent then
-            return
-        end
-        
-        -- Отключено для предотвращения смерти при атаке
-        -- Проверяем только нажатие клавиш атаки для визуального эффекта
-        local isAttacking = false
-        
-        if UserInputService:IsKeyDown(Enum.KeyCode.F) or 
-           UserInputService:IsKeyDown(Enum.KeyCode.E) or
-           UserInputService:IsKeyDown(Enum.KeyCode.R) or
-           UserInputService:IsKeyDown(Enum.KeyCode.T) or
-           UserInputService:IsKeyDown(Enum.KeyCode.Y) or
-           UserInputService:IsKeyDown(Enum.KeyCode.Q) then
-            isAttacking = true
-        end
-        
-        -- Только визуальный эффект при атаке
-        if isAttacking and antiTimeStopEffect then
-            antiTimeStopEffect.FillColor = Color3.fromRGB(255, 255, 0) -- Желтый при атаке
-        else
-            if antiTimeStopEffect then
-                antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 0) -- Зеленый обычно
-            end
-        end
-    end)
-    
-    -- Основной цикл обнаружения и обработки time stop
-    local timeStopDetection = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not char or not char.Parent then
-            return
-        end
-        
-        local detected, timeStopPlayer, timeStopAbility = detectTimeStop()
-        
-        if detected and not timeStopDetected then
-            timeStopDetected = true
-            timeStopStartTime = tick()
-            
-            print("Time Stop detected! Activating Anti Time Stop...")
-            
-            -- Активируем защиту от time stop
-            if AntiTimeStopConfig.AntiFreeze then
-                -- Принудительно разблокируем персонажа
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Anchored = false
-                        part.CanCollide = true
-                    end
-                end
-            end
-            
-            if AntiTimeStopConfig.MovementOverride then
-                -- Переопределяем движение в time stop
-                hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
-                hum.JumpPower = AntiTimeStopConfig.JumpPower
-                
-                -- Создаем BodyVelocity для принудительного движения
-                local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-                if not bv then
-                    bv = Instance.new("BodyVelocity", root)
-                    bv.Name = "AntiTimeStopBodyVelocity"
-                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                end
-                
-                -- Создаем BodyGyro для стабилизации
-                local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-                if not bg then
-                    bg = Instance.new("BodyGyro", root)
-                    bg.Name = "AntiTimeStopBodyGyro"
-                    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-                    bg.D = 1000
-                    bg.P = 2000
-                end
-            end
-            
-            if AntiTimeStopConfig.SoundEffect then
-                -- Воспроизводим звуковой эффект
-                local sound = Instance.new("Sound", root)
-                sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
-                sound.Volume = 0.5
-                sound:Play()
-                game:GetService("Debris"):AddItem(sound, 2)
-            end
-            
-        elseif not detected and timeStopDetected then
-            timeStopDetected = false
-            timeStopDuration = tick() - timeStopStartTime
-            
-            print("Time Stop ended. Duration: " .. timeStopDuration .. " seconds")
-            
-            -- Восстанавливаем нормальное состояние
-            hum.WalkSpeed = originalAntiTimeStopWalkSpeed
-            hum.JumpPower = originalAntiTimeStopJumpPower
-            
-            -- Удаляем BodyVelocity и BodyGyro
-            local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-            
-            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-            if bg then
-                bg:Destroy()
-            end
-            
-            removeAntiTimeStopEffect()
-        end
-    end)
-    
-    -- Обработка движения в time stop
-    local movementOverride = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not timeStopDetected or not char or not char.Parent then
-            return
-        end
-        
-        if AntiTimeStopConfig.MovementOverride then
-            local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-            
-            if bv and bg then
-                -- Обрабатываем ввод для движения
-                local moveVector = Vector3.new(0, 0, 0)
-                local cam = workspace.CurrentCamera
-                
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                    moveVector = moveVector + cam.CFrame.lookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                    moveVector = moveVector - cam.CFrame.lookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                    moveVector = moveVector - cam.CFrame.rightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                    moveVector = moveVector + cam.CFrame.rightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                    moveVector = moveVector + Vector3.new(0, 1, 0)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-                    moveVector = moveVector - Vector3.new(0, 1, 0)
-                end
-                
-                if moveVector.Magnitude > 0 then
-                    moveVector = moveVector.Unit * (AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed)
-                    bv.Velocity = moveVector
-                    
-                    -- Стабилизируем поворот
-                    bg.CFrame = cam.CFrame
-                    
-                    -- Синхронизируем с сервером через изменение позиции
-                    if AntiTimeStopConfig.ServerSync then
-                        local newCFrame = root.CFrame + (moveVector * 0.016) -- 60 FPS
-                        root.CFrame = newCFrame
-                        
-                        -- Альтернативный метод через RemoteEvent
-                        local remoteEvent = game:GetService("ReplicatedStorage"):FindFirstChild("AntiTimeStopMovement")
-                        if not remoteEvent then
-                            remoteEvent = Instance.new("RemoteEvent")
-                            remoteEvent.Name = "AntiTimeStopMovement"
-                            remoteEvent.Parent = game:GetService("ReplicatedStorage")
-                        end
-                        
-                        -- Отправляем позицию на сервер
-                        remoteEvent:FireServer(newCFrame)
-                    end
-                    
-                    -- Добавляем небольшой эффект для визуализации движения в time stop
-                    if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                        antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 255) -- Голубой цвет при движении
-                    end
-                else
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                    
-                    -- Возвращаем обычный цвет эффекта
-                    if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                        antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 0) -- Зеленый цвет
-                    end
-                end
-            end
-        end
-    end)
-    
-    -- Обработчик событий для предотвращения смерти (отключено для безопасности)
-    local damageProtection = char.Humanoid.Died:Connect(function()
-        -- Отключено для предотвращения конфликтов с системой боя
-    end)
-    
-    -- Обработчик изменения здоровья (отключено для безопасности)
-    local healthChanged = hum.HealthChanged:Connect(function(health)
-        -- Отключено для предотвращения конфликтов с системой боя
-    end)
-    
-    table.insert(antiTimeStopConnections, antiFreezeLoop)
-    table.insert(antiTimeStopConnections, attackDetection)
-    table.insert(antiTimeStopConnections, timeStopDetection)
-    table.insert(antiTimeStopConnections, movementOverride)
-    table.insert(antiTimeStopConnections, damageProtection)
-    table.insert(antiTimeStopConnections, healthChanged)
-end
-
-local function stopAntiTimeStop()
-    isAntiTimeStopEnabled = false
-    timeStopDetected = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if hum then
-        hum.WalkSpeed = originalAntiTimeStopWalkSpeed
-        hum.JumpPower = originalAntiTimeStopJumpPower
-        hum.AutoRotate = true
-        hum.AutoJumpEnabled = true
-    end
-    
-    if root then
-        local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-        
-        local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-        if bg then
-            bg:Destroy()
-        end
-    end
-    
-    removeAntiTimeStopEffect()
-    
-    for _, connection in ipairs(antiTimeStopConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    antiTimeStopConnections = {}
-    
-    print("Anti Time Stop disabled")
 end
 
 
@@ -1319,8 +881,10 @@ local function createStealthTeleport()
     end
     
     isTeleporting = true
+    isStabilizing = false
     speedResetTimer = 0
     lastSpeedCheck = tick()
+    lastBehindDistance = 0
     
     
     if not TeleportConfig.OriginalPosition then
@@ -1369,17 +933,21 @@ local function createStealthTeleport()
         speedResetTimer = speedResetTimer + (currentTime - lastSpeedCheck)
         lastSpeedCheck = currentTime
         
-        -- Улучшенный сброс скорости (только если не близко к цели)
+        -- Плавный сброс скорости
         if speedResetTimer >= TeleportConfig.MaxSpeedResetTime then
             speedResetTimer = 0
             
             local bv = root:FindFirstChild("BodyVelocity")
-            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold and distance > 5 then
-                bv.Velocity = bv.Velocity * 0.8
+            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold then
+                bv.Velocity = bv.Velocity * 0.7
+                task.wait(0.1)
+                if bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold * 0.5 then
+                    bv.Velocity = bv.Velocity * 0.5
+                end
             end
 
-            if humanoid and humanoid.WalkSpeed > 16 and distance > 5 then
-                humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 1, 16)
+            if humanoid and humanoid.WalkSpeed > 16 then
+                humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 2, 16)
             end
         end
         
@@ -1389,17 +957,16 @@ local function createStealthTeleport()
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
 
-                    -- Более частое обновление для движущихся целей
-        if lastTeleportPosition then
-            local targetMovement = (targetPos - lastTeleportPosition).Magnitude
-            if targetMovement > 3 then
-                task.wait(0.02) -- Уменьшаем задержку для быстрых целей
+            if lastTeleportPosition then
+                local targetMovement = (targetPos - lastTeleportPosition).Magnitude
+                if targetMovement > 5 then
+                    task.wait(0.05)
+                end
             end
-        end
-        lastTeleportPosition = targetPos
+            lastTeleportPosition = targetPos
             
-            -- Улучшенная логика позиционирования за спиной
             local targetCFrame = currentTargetRoot.CFrame
+            local targetLookVector = targetCFrame.LookVector
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
             local behindDistance = (behindPosition.Position - currentPos).Magnitude
             
@@ -1407,75 +974,78 @@ local function createStealthTeleport()
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
                 bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                -- Плавное начало движения
                 bv.Velocity = Vector3.new(0, 0, 0)
             end
             
-            -- BodyGyro для стабильного поворота
-            local bg = root:FindFirstChild("BodyGyro")
-            if not bg then
-                bg = Instance.new("BodyGyro", root)
-                bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-                bg.D = 50
-                bg.P = 1000
+
+            if behindDistance < TeleportConfig.StabilizationThreshold and not isStabilizing then
+                isStabilizing = true
+                stabilizationStartTime = tick()
+                lastTeleportPosition = behindPosition.Position
+
+                bv.Velocity = bv.Velocity * 0.5
+                task.wait(0.05)
+                bv.Velocity = Vector3.new(0, 0, 0)
             end
             
-            -- Поворот персонажа в ту же сторону, что и цель
-            local targetLookVector = targetCFrame.LookVector
-            bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetLookVector)
-            
-            -- Улучшенная логика следования за движущейся целью
-            local targetVelocity = currentTargetRoot.Velocity
-            local targetSpeed = targetVelocity.Magnitude
-            
-            -- Предсказание позиции цели с учетом её скорости
-            local predictionTime = 0.1 -- Время предсказания
-            local predictedPosition = behindPosition.Position + (targetVelocity * predictionTime)
-            local predictedDistance = (predictedPosition - currentPos).Magnitude
-            
-            -- Адаптивная скорость в зависимости от скорости цели
-            local adaptiveSpeed = TeleportConfig.TeleportSpeed
-            if targetSpeed > 80 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0 -- Максимальная скорость для очень быстрых целей
-            elseif targetSpeed > 50 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.5 -- Увеличиваем скорость для быстрых целей
-            elseif targetSpeed > 20 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.2
-            end
-            
-            if predictedDistance > 1.5 then
-                -- Быстрое движение к предсказанной позиции
-                local direction = (predictedPosition - currentPos).Unit
-                local currentVelocity = bv.Velocity
-                local targetVelocity = direction * adaptiveSpeed
+            if isStabilizing then
+                local stabilizationTime = tick() - stabilizationStartTime
                 
-                -- Более агрессивное ускорение для быстрых целей
-                local accelerationFactor = 0.15
-                if targetSpeed > 80 then
-                    accelerationFactor = 0.5 -- Максимальное ускорение для очень быстрых целей
-                elseif targetSpeed > 50 then
-                    accelerationFactor = 0.4
-                elseif targetSpeed > 30 then
-                    accelerationFactor = 0.3
+                if stabilizationTime < TeleportConfig.StabilizationTime then
+                    local newBehindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+                    local correctionDirection = (newBehindPosition.Position - currentPos)
+                    local correctionMagnitude = correctionDirection.Magnitude
+
+                    if correctionMagnitude > 0.3 then
+                        local correctionSpeed = math.min(correctionMagnitude * TeleportConfig.MaxCorrectionSpeed, TeleportConfig.MaxCorrectionSpeed)
+                        bv.Velocity = correctionDirection.Unit * correctionSpeed
+                    else
+                        bv.Velocity = bv.Velocity * (1 - TeleportConfig.SmoothingFactor)
+                        if bv.Velocity.Magnitude < 5 then
+                            bv.Velocity = Vector3.new(0, 0, 0)
+                        end
+                    end
+                else
+                    isStabilizing = false
+                    stabilizationStartTime = nil
+                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
                 end
-                local velocityDiff = targetVelocity - currentVelocity
-                local acceleration = velocityDiff * accelerationFactor
-                
-                bv.Velocity = currentVelocity + acceleration
             else
-                -- Точное следование за целью
-                local direction = (predictedPosition - currentPos).Unit
-                local correctionSpeed = math.min(predictedDistance * 15, 30)
+                local currentVelocity = bv.Velocity
+                local newDirection = (behindPosition.Position - currentPos).Unit
+                local targetSpeed = 0
                 
-                -- Увеличиваем скорость коррекции для движущихся целей
-                if targetSpeed > 10 then
-                    correctionSpeed = correctionSpeed * 1.5
+                if distance > 10 then
+                    targetSpeed = TeleportConfig.TeleportSpeed
+                elseif distance > 4 then
+                    targetSpeed = TeleportConfig.TeleportSpeed * 0.6
+                elseif distance > 2 then
+                    targetSpeed = TeleportConfig.TeleportSpeed * 0.4
+                else
+                    targetSpeed = TeleportConfig.TeleportSpeed * 0.2
+                end
+
+                local currentSpeed = currentVelocity.Magnitude
+                local speedDiff = targetSpeed - currentSpeed
+                local acceleration = math.sign(speedDiff) * math.min(math.abs(speedDiff), TeleportConfig.TeleportSpeed * 0.1)
+
+                if math.abs(speedDiff) < 10 and currentSpeed > 0 then
+                    targetSpeed = currentSpeed
                 end
                 
-                bv.Velocity = direction * correctionSpeed
-                
-                -- Останавливаемся только если очень близко и цель не движется быстро
-                if predictedDistance < 0.3 and targetSpeed < 5 then
-                    bv.Velocity = Vector3.new(0, 0, 0)
+                if currentVelocity.Magnitude > 0 then
+                    local currentDirection = currentVelocity.Unit
+                    local directionDot = currentDirection:Dot(newDirection)
+                    
+                    if directionDot < 0.5 then
+                        bv.Velocity = newDirection * (currentSpeed * 0.8)
+                    else
+                        local smoothedDirection = (currentDirection + newDirection).Unit
+                        bv.Velocity = smoothedDirection * (currentSpeed + acceleration)
+                    end
+                else
+                    bv.Velocity = newDirection * targetSpeed
                 end
             end
         end
@@ -1502,9 +1072,12 @@ local function startTeleport()
     end
     
     isTeleporting = true
+    isStabilizing = false
+    stabilizationStartTime = nil
     lastTeleportPosition = nil
     speedResetTimer = 0
     lastSpeedCheck = tick()
+    lastBehindDistance = 0
     
     
     TeleportConfig.OriginalPosition = root.Position
@@ -1564,8 +1137,11 @@ end
 
 local function stopTeleport()
     isTeleporting = false
+    isStabilizing = false
+    stabilizationStartTime = nil
     lastTeleportPosition = nil
     speedResetTimer = 0
+    lastBehindDistance = 0
     TeleportConfig.Enabled = false
     
     local char = Players.LocalPlayer.Character
@@ -1593,11 +1169,6 @@ local function stopTeleport()
         bv.Velocity = Vector3.new(0, 0, 0)
         task.wait(0.1) 
         bv:Destroy()
-    end
-    
-    local bg = root and root:FindFirstChild("BodyGyro")
-    if bg then
-        bg:Destroy()
     end
     
     
@@ -1645,11 +1216,6 @@ local function stopTeleport()
                     returnBv.Velocity = Vector3.new(0, 0, 0)
                     task.wait(0.5) 
                     returnBv:Destroy()
-                end
-                
-                local returnBg = root:FindFirstChild("BodyGyro")
-                if returnBg then
-                    returnBg:Destroy()
                 end
                 
                 
@@ -1743,7 +1309,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= YBAConfig.StandRange then
                         foundCount = foundCount + 1
                         table.insert(stands, {
                             Model = obj,
@@ -1763,7 +1329,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= YBAConfig.StandRange then
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -2115,39 +1681,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
             
             if guiCallbacks.yba then
                 guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
-            end
-        elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
-            -- Временная активация Anti Time Stop (как кнопка)
-            if not isAntiTimeStopEnabled then
-                -- Включаем Anti Time Stop
-                AntiTimeStopConfig.Enabled = true
-                startAntiTimeStop()
-                
-                if guiCallbacks.antiTimeStop then
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
-                end
-                
-                -- Асинхронно ждем 0.5 секунды и выключаем
-                spawn(function()
-                    task.wait(0.5)
-                    
-                    -- Выключаем Anti Time Stop
-                    AntiTimeStopConfig.Enabled = false
-                    stopAntiTimeStop()
-                    
-                    if guiCallbacks.antiTimeStop then
-                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-                    end
-                end)
-            else
-                -- Если уже активно, показываем сообщение
-                if guiCallbacks.antiTimeStop then
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-                    spawn(function()
-                        task.wait(1)
-                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-                    end)
-                end
             end
         -- Удален обработчик клавиши I для Item ESP
         end
@@ -3534,13 +3067,6 @@ local function updateStatusDisplay()
     if guiCallbacks.itemESP then
         guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
     end
-    if guiCallbacks.antiTimeStop then
-        if isAntiTimeStopEnabled then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVE"
-        else
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-        end
-    end
 end
 
 RunService.Heartbeat:Connect(function()
@@ -3649,8 +3175,6 @@ forceNoClipKeyBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
-
-
 local divider4 = Instance.new("Frame", innerContainer)
 divider4.Size = UDim2.new(1, -10, 0, 2)
 divider4.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
@@ -3747,21 +3271,7 @@ slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
     InfiniteJumpConfig.JumpPower = v
 end)
 
-local divider6 = Instance.new("Frame", innerContainer)
-divider6.Size = UDim2.new(1, -10, 0, 2)
-divider6.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider6.BorderSizePixel = 0
-
 sectionHeader("🟪 YBA Hacks")
-
-local standRangeLabel = Instance.new("TextLabel", innerContainer)
-standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
-standRangeLabel.Text = "stand range hack"
-standRangeLabel.Font = Enum.Font.Gotham
-standRangeLabel.TextSize = 12
-standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-standRangeLabel.BackgroundTransparency = 1
-standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local ybaToggleBtn = toggle("YBA Stand Range", YBAConfig.Enabled, function(v)
     YBAConfig.Enabled = v
@@ -3778,14 +3288,13 @@ guiCallbacks.yba = ybaToggleBtn
 
 ybaToggleBtn.AutoButtonColor = false
 
-local itemESPLabel = Instance.new("TextLabel", innerContainer)
-itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
-itemESPLabel.Text = "item esp"
-itemESPLabel.Font = Enum.Font.Gotham
-itemESPLabel.TextSize = 12
-itemESPLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-itemESPLabel.BackgroundTransparency = 1
-itemESPLabel.TextXAlignment = Enum.TextXAlignment.Left
+-- Ползунок для скорости стенда
+slider("Stand Speed", 0.1, 5.0, YBAConfig.StandSpeed, function(v)
+    YBAConfig.StandSpeed = v
+    print("YBA Stand Speed установлен в:", v)
+end)
+
+sectionHeader("🎯 YBA Item ESP")
 
 local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
     YBAConfig.ItemESP.Enabled = v
@@ -3851,63 +3360,6 @@ createItemToggle("DIO's Bone", YBAConfig.ItemESP.Items["DIO's Bone"])
 createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"])
 createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
 createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
-
-local divider7 = Instance.new("Frame", innerContainer)
-divider7.Size = UDim2.new(1, -10, 0, 2)
-divider7.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider7.BorderSizePixel = 0
-
-local antiTimeStopLabel = Instance.new("TextLabel", innerContainer)
-antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
-antiTimeStopLabel.Text = "anti time stop"
-antiTimeStopLabel.Font = Enum.Font.Gotham
-antiTimeStopLabel.TextSize = 12
-antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-antiTimeStopLabel.BackgroundTransparency = 1
-antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
-    -- Игнорируем значение v, так как теперь это временная активация
-    if not isAntiTimeStopEnabled then
-        -- Включаем Anti Time Stop
-        AntiTimeStopConfig.Enabled = true
-        startAntiTimeStop()
-        
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
-        end
-        
-        -- Асинхронно ждем 0.5 секунды и выключаем
-        spawn(function()
-            task.wait(0.5)
-            
-            -- Выключаем Anti Time Stop
-            AntiTimeStopConfig.Enabled = false
-            stopAntiTimeStop()
-            
-            if guiCallbacks.antiTimeStop then
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end
-        end)
-    else
-        -- Если уже активно, показываем сообщение
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-            spawn(function()
-                task.wait(1)
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end)
-        end
-    end
-end)
-guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
-
-
-
-local divider8 = Instance.new("Frame", innerContainer)
-divider8.Size = UDim2.new(1, -10, 0, 2)
-divider8.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider8.BorderSizePixel = 0
 
 sectionHeader("🟩 Teleport Settings")
 
