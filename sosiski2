@@ -113,7 +113,7 @@ local YBAConfig = {
     StandRotationSpeed = 0.05,
     -- Интегрированная функция подземного полета
     UndergroundControl = {
-        FlightSpeed = 120, -- Скорость полета за стендом (25-300)
+        FlightSpeed = 50, -- Скорость полета за стендом (25-300)
         AutoNoClip = true, -- Автоматически включать NoClip
         OriginalPosition = nil, -- Исходная позиция персонажа
     },
@@ -209,6 +209,7 @@ local originalLongJumpPower = 50
 local isUndergroundControlEnabled = false
 local undergroundControlConnections = {}
 local controlledStandForUnderground = nil
+local isShiftPressed = false -- Отслеживание нажатия Shift для ускорения
 
 local isInfiniteJumping = false
 local infiniteJumpConnections = {}
@@ -353,6 +354,13 @@ local YBAFreeCamera = {} do
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
             -- Используем настраиваемую скорость из UndergroundControl (только целые числа)
             local standSpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed)
+            
+            -- Добавляем ускорение при нажатии Shift
+            if isShiftPressed then
+                standSpeed = standSpeed + 50
+                print("Ускорение активировано - скорость:", standSpeed)
+            end
+            
             bv.Velocity = worldMove * standSpeed
 
             if moveY ~= 0 then
@@ -2207,6 +2215,12 @@ local function startUndergroundControl()
         if distance > 2 then
             -- Быстрое приближение к стенду
             local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed) -- Гарантируем целое число
+            
+            -- Добавляем ускорение при нажатии Shift
+            if isShiftPressed then
+                flySpeed = flySpeed + 50
+            end
+            
             local currentVelocity = bv.Velocity
             local targetVelocity = direction * flySpeed
             local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.15
@@ -2214,6 +2228,12 @@ local function startUndergroundControl()
         elseif distance > 0.5 then
             -- Медленное точное позиционирование
             local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed * 0.2) -- 20% от основной скорости, целое число
+            
+            -- Добавляем ускорение при нажатии Shift (тоже для точного позиционирования)
+            if isShiftPressed then
+                flySpeed = flySpeed + 10 -- Меньшее ускорение для точного позиционирования
+            end
+            
             local currentVelocity = bv.Velocity
             local targetVelocity = direction * flySpeed
             local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.1
@@ -2471,6 +2491,21 @@ UserInputService.InputBegan:Connect(function(input, gp)
             end
         -- Удален обработчик клавиши I для Item ESP
         end
+    end
+end)
+
+-- Обработчики клавиш для ускорения Shift в Stand Range Hack
+UserInputService.InputBegan:Connect(function(input, gp)
+    if not gp and input.KeyCode == Enum.KeyCode.LeftShift then
+        isShiftPressed = true
+        print("Shift нажат - ускорение активировано")
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gp)
+    if input.KeyCode == Enum.KeyCode.LeftShift then
+        isShiftPressed = false
+        print("Shift отпущен - ускорение деактивировано")
     end
 end)
 
@@ -4114,6 +4149,7 @@ slider("Flight & Stand Speed (25-300)", 25, 300, YBAConfig.UndergroundControl.Fl
     local wholeNumber = math.floor(v) -- Округляем до целого числа
     YBAConfig.UndergroundControl.FlightSpeed = wholeNumber
     print("Скорость полета и стенда установлена:", wholeNumber)
+    print("Нажмите Shift для ускорения на +50 единиц")
 end)
 
 local dividerAntiTimeStop = Instance.new("Frame", innerContainer)
