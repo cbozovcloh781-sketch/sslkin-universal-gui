@@ -596,22 +596,27 @@ local function detectTimeStop()
     
     if not localRoot then return false end
     
+    -- Проверяем всех игроков на наличие time stop способностей
     for _, player in pairs(players) do
         if player ~= localPlayer then
             local char = player.Character
             if char then
+                -- Проверяем стенд
                 local stand = char:FindFirstChild("Stand")
                 if stand then
                     -- Проверяем наличие time stop способностей
                     local standAbilities = stand:FindFirstChild("Abilities")
                     if standAbilities then
                         for _, ability in pairs(standAbilities:GetChildren()) do
-                            if ability.Name:lower():find("time") or 
-                               ability.Name:lower():find("stop") or
-                               ability.Name:lower():find("za warudo") or
-                               ability.Name:lower():find("the world") or
-                               ability.Name:lower():find("timestop") or
-                               ability.Name:lower():find("time_stop") then
+                            local abilityName = ability.Name:lower()
+                            if abilityName:find("time") or 
+                               abilityName:find("stop") or
+                               abilityName:find("za warudo") or
+                               abilityName:find("the world") or
+                               abilityName:find("timestop") or
+                               abilityName:find("time_stop") or
+                               abilityName:find("za") or
+                               abilityName:find("warudo") then
                                 return true, player, ability
                             end
                         end
@@ -622,9 +627,38 @@ local function detectTimeStop()
                     if standName:find("the world") or 
                        standName:find("za warudo") or
                        standName:find("dio") or
-                       standName:find("jotaro") then
+                       standName:find("jotaro") or
+                       standName:find("star platinum") or
+                       standName:find("the world") then
                         return true, player, stand
                     end
+                end
+                
+                -- Проверяем все части персонажа на наличие time stop эффектов
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        local partName = part.Name:lower()
+                        if partName:find("time") or 
+                           partName:find("stop") or
+                           partName:find("freeze") or
+                           partName:find("timestop") then
+                            return true, player, part
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Дополнительная проверка: если игрок заморожен, возможно это time stop
+    if localChar then
+        local hum = localChar:FindFirstChildOfClass("Humanoid")
+        if hum then
+            -- Проверяем, не заморожен ли игрок
+            for _, part in pairs(localChar:GetDescendants()) do
+                if part:IsA("BasePart") and part.Anchored then
+                    -- Если часть заморожена, возможно это time stop
+                    return true, nil, nil
                 end
             end
         end
@@ -703,6 +737,72 @@ local function startAntiTimeStop()
     
     createAntiTimeStopEffect()
     
+    -- Агрессивная защита от заморозки
+    local antiFreezeLoop = RunService.Heartbeat:Connect(function()
+        if not isAntiTimeStopEnabled or not char or not char.Parent then
+            return
+        end
+        
+        -- Принудительно разблокируем все части персонажа
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = false
+                part.CanCollide = true
+            end
+        end
+        
+        -- Убеждаемся что Humanoid активен
+        if hum then
+            hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
+            hum.JumpPower = AntiTimeStopConfig.JumpPower
+            hum.AutoRotate = true
+            hum.AutoJumpEnabled = true
+        end
+        
+        -- Автоматическая активация при обнаружении заморозки
+        if AntiTimeStopConfig.AutoActivate then
+            local isFrozen = false
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.Anchored then
+                    isFrozen = true
+                    break
+                end
+            end
+            
+            if isFrozen and not timeStopDetected then
+                timeStopDetected = true
+                timeStopStartTime = tick()
+                print("Auto-detected freeze! Activating Anti Time Stop...")
+                
+                -- Принудительно разблокируем
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Anchored = false
+                        part.CanCollide = true
+                    end
+                end
+                
+                -- Создаем BodyVelocity для движения
+                local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
+                if not bv then
+                    bv = Instance.new("BodyVelocity", root)
+                    bv.Name = "AntiTimeStopBodyVelocity"
+                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                end
+                
+                -- Создаем BodyGyro для стабилизации
+                local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+                if not bg then
+                    bg = Instance.new("BodyGyro", root)
+                    bg.Name = "AntiTimeStopBodyGyro"
+                    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+                    bg.D = 1000
+                    bg.P = 2000
+                end
+            end
+        end
+    end)
+    
     -- Основной цикл обнаружения и обработки time stop
     local timeStopDetection = RunService.Heartbeat:Connect(function()
         if not isAntiTimeStopEnabled or not char or not char.Parent then
@@ -715,12 +815,15 @@ local function startAntiTimeStop()
             timeStopDetected = true
             timeStopStartTime = tick()
             
+            print("Time Stop detected! Activating Anti Time Stop...")
+            
             -- Активируем защиту от time stop
             if AntiTimeStopConfig.AntiFreeze then
-                -- Предотвращаем заморозку персонажа
+                -- Принудительно разблокируем персонажа
                 for _, part in pairs(char:GetDescendants()) do
                     if part:IsA("BasePart") then
                         part.Anchored = false
+                        part.CanCollide = true
                     end
                 end
             end
@@ -737,6 +840,16 @@ local function startAntiTimeStop()
                     bv.Name = "AntiTimeStopBodyVelocity"
                     bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
                 end
+                
+                -- Создаем BodyGyro для стабилизации
+                local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+                if not bg then
+                    bg = Instance.new("BodyGyro", root)
+                    bg.Name = "AntiTimeStopBodyGyro"
+                    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+                    bg.D = 1000
+                    bg.P = 2000
+                end
             end
             
             if AntiTimeStopConfig.SoundEffect then
@@ -752,14 +865,21 @@ local function startAntiTimeStop()
             timeStopDetected = false
             timeStopDuration = tick() - timeStopStartTime
             
+            print("Time Stop ended. Duration: " .. timeStopDuration .. " seconds")
+            
             -- Восстанавливаем нормальное состояние
             hum.WalkSpeed = originalAntiTimeStopWalkSpeed
             hum.JumpPower = originalAntiTimeStopJumpPower
             
-            -- Удаляем BodyVelocity
+            -- Удаляем BodyVelocity и BodyGyro
             local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
             if bv then
                 bv:Destroy()
+            end
+            
+            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+            if bg then
+                bg:Destroy()
             end
             
             removeAntiTimeStopEffect()
@@ -774,7 +894,9 @@ local function startAntiTimeStop()
         
         if AntiTimeStopConfig.MovementOverride then
             local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-            if bv then
+            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+            
+            if bv and bg then
                 -- Обрабатываем ввод для движения
                 local moveVector = Vector3.new(0, 0, 0)
                 local cam = workspace.CurrentCamera
@@ -802,6 +924,9 @@ local function startAntiTimeStop()
                     moveVector = moveVector.Unit * (AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed)
                     bv.Velocity = moveVector
                     
+                    -- Стабилизируем поворот
+                    bg.CFrame = cam.CFrame
+                    
                     -- Добавляем небольшой эффект для визуализации движения в time stop
                     if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
                         antiTimeStopEffect.Color = Color3.fromRGB(255, 255, 0) -- Желтый цвет при движении
@@ -818,6 +943,7 @@ local function startAntiTimeStop()
         end
     end)
     
+    table.insert(antiTimeStopConnections, antiFreezeLoop)
     table.insert(antiTimeStopConnections, timeStopDetection)
     table.insert(antiTimeStopConnections, movementOverride)
 end
@@ -833,12 +959,19 @@ local function stopAntiTimeStop()
     if hum then
         hum.WalkSpeed = originalAntiTimeStopWalkSpeed
         hum.JumpPower = originalAntiTimeStopJumpPower
+        hum.AutoRotate = true
+        hum.AutoJumpEnabled = true
     end
     
     if root then
         local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
         if bv then
             bv:Destroy()
+        end
+        
+        local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
+        if bg then
+            bg:Destroy()
         end
     end
     
@@ -850,6 +983,8 @@ local function stopAntiTimeStop()
         end
     end
     antiTimeStopConnections = {}
+    
+    print("Anti Time Stop disabled")
 end
 
 
@@ -3646,6 +3781,42 @@ end)
 
 slider("Jump Power", 25, 100, AntiTimeStopConfig.JumpPower, function(v)
     AntiTimeStopConfig.JumpPower = v
+end)
+
+local forceAntiTimeStopBtn = Instance.new("TextButton", innerContainer)
+forceAntiTimeStopBtn.Size = UDim2.new(1, -10, 0, 28)
+forceAntiTimeStopBtn.Text = "FORCE ANTI TIME STOP ACTIVATE"
+forceAntiTimeStopBtn.Font = Enum.Font.GothamBold
+forceAntiTimeStopBtn.TextSize = 14
+forceAntiTimeStopBtn.TextColor3 = Color3.new(1,1,1)
+forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,255)
+forceAntiTimeStopBtn.AutoButtonColor = false
+Instance.new("UICorner", forceAntiTimeStopBtn).CornerRadius = UDim.new(0,6)
+
+forceAntiTimeStopBtn.MouseButton1Click:Connect(function()
+    if not isAntiTimeStopEnabled then
+        startAntiTimeStop()
+        AntiTimeStopConfig.Enabled = true
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ON"
+        end
+        forceAntiTimeStopBtn.Text = "ANTI TIME STOP ACTIVATED"
+        forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
+        task.wait(2)
+        forceAntiTimeStopBtn.Text = "FORCE ANTI TIME STOP ACTIVATE"
+        forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,255)
+    else
+        stopAntiTimeStop()
+        AntiTimeStopConfig.Enabled = false
+        if guiCallbacks.antiTimeStop then
+            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: OFF"
+        end
+        forceAntiTimeStopBtn.Text = "ANTI TIME STOP DEACTIVATED"
+        forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+        task.wait(2)
+        forceAntiTimeStopBtn.Text = "FORCE ANTI TIME STOP ACTIVATE"
+        forceAntiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,255)
+    end
 end)
 
 local divider7 = Instance.new("Frame", innerContainer)
