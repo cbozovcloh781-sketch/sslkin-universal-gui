@@ -794,8 +794,9 @@ local function startAntiTimeStop()
                 local playerName = playerData.PlayerName
                 local resistTimeStop = playerData.Module
                 
-                print("\n=== Анализ объекта ResistTimeStop игрока:", playerName, "===")
+                print("\n=== Анализ NumberValue ResistTimeStop игрока:", playerName, "===")
                 print("Тип объекта:", typeof(resistTimeStop))
+                print("Значение сопротивления:", resistTimeStop.Value)
                 local objectPath = "workspace.Living." .. playerName .. ".ResistTimeStop"
                 print("Путь к объекту для Dex Explorer:")
                 print(objectPath)
@@ -840,18 +841,34 @@ local function startAntiTimeStop()
                 end
             end
             
-            print("\n=== Конец анализа всех объектов ResistTimeStop ===")
+            print("\n=== Анализ значений сопротивления ===")
+            local totalResistance = 0
+            local playerCount = 0
+            for _, playerData in ipairs(foundPlayers) do
+                local resistValue = playerData.Module.Value
+                totalResistance = totalResistance + resistValue
+                playerCount = playerCount + 1
+                print("Игрок", playerData.PlayerName, "имеет сопротивление:", resistValue)
+            end
+            if playerCount > 0 then
+                local averageResistance = totalResistance / playerCount
+                print("Среднее значение сопротивления:", averageResistance)
+                print("Максимальное рекомендуемое значение:", math.max(999999, averageResistance * 10))
+            end
+            
+            print("\n=== Конец анализа всех NumberValue ResistTimeStop ===")
             print("\n=== ОБЩАЯ ИНСТРУКЦИЯ ДЛЯ DEX EXPLORER ===")
             print("1. Откройте Dex Explorer")
             print("2. В поиске введите: ResistTimeStop")
             print("3. Или перейдите по пути: workspace.Living.[имя_игрока].ResistTimeStop")
-            print("4. Кликните на объект ResistTimeStop")
-            print("5. В правой панели изучите все свойства и дочерние элементы")
+            print("4. Кликните на объект ResistTimeStop (NumberValue)")
+            print("5. В правой панели изучите значение свойства 'Value'")
             print("6. Обратите внимание на:")
-            print("   - Тип объекта (BoolValue, NumberValue, Folder и т.д.)")
-            print("   - Значения всех дочерних элементов")
-            print("   - Названия свойств, связанных с сопротивлением")
-            print("7. Запишите все найденные свойства и их значения")
+            print("   - Числовое значение сопротивления")
+            print("   - Различия в значениях между игроками")
+            print("   - Дочерние элементы, если они есть")
+            print("7. Запишите значения сопротивления всех игроков")
+            print("8. Определите максимальное значение для установки")
             print("=== КОНЕЦ ИНСТРУКЦИИ ===")
         end
     end
@@ -942,10 +959,17 @@ local function startAntiTimeStop()
                             end
                         end
                     else
-                        -- Если это не ModuleScript, а другой тип объекта (Folder, BoolValue и т.д.)
-                        print("ResistTimeStop является объектом типа:", typeof(resistTimeStop))
+                        -- ResistTimeStop является NumberValue
+                        print("ResistTimeStop является NumberValue с текущим значением:", resistTimeStop.Value)
                         
-                        -- Пытаемся изменить свойства объекта
+                        -- Сохраняем оригинальное значение для восстановления
+                        local originalValue = resistTimeStop.Value
+                        
+                        -- Устанавливаем максимальное значение для сопротивления остановке времени
+                        resistTimeStop.Value = 999999
+                        print("Установлено максимальное значение сопротивления:", resistTimeStop.Value)
+                        
+                        -- Также проверяем дочерние элементы, если они есть
                         for _, child in pairs(resistTimeStop:GetDescendants()) do
                             if child:IsA("BoolValue") then
                                 -- Активируем все BoolValue, которые могут быть связаны с сопротивлением
@@ -972,40 +996,23 @@ local function startAntiTimeStop()
                                 end
                             end
                         end
-                        
-                        -- Также пытаемся изменить свойства самого объекта
-                        if resistTimeStop:IsA("BoolValue") then
-                            resistTimeStop.Value = true
-                            print("Активирован основной объект ResistTimeStop")
-                        elseif resistTimeStop:IsA("NumberValue") then
-                            resistTimeStop.Value = 999999
-                            print("Установлено высокое значение для основного объекта ResistTimeStop")
-                        end
                     end
                 end
             else
                 -- Если игроков с ResistTimeStop нет, пытаемся создать собственный модуль
                 print("Игроки с модулем ResistTimeStop не найдены, пытаемся создать собственный модуль")
                 
-                -- Проверяем, есть ли у нас модуль ResistTimeStop
+                -- Проверяем, есть ли у нас объект ResistTimeStop
                 local myPlayerModule = living:FindFirstChild(Players.LocalPlayer.Name)
                 if myPlayerModule then
                     local myResistTimeStop = myPlayerModule:FindFirstChild("ResistTimeStop")
                     if not myResistTimeStop then
-                        -- Создаем собственный модуль ResistTimeStop
-                        local newResistTimeStop = Instance.new("ModuleScript", myPlayerModule)
+                        -- Создаем собственный NumberValue ResistTimeStop
+                        local newResistTimeStop = Instance.new("NumberValue", myPlayerModule)
                         newResistTimeStop.Name = "ResistTimeStop"
+                        newResistTimeStop.Value = 999999 -- Максимальное значение сопротивления
                         
-                        -- Создаем базовую структуру модуля
-                        local enabledValue = Instance.new("BoolValue", newResistTimeStop)
-                        enabledValue.Name = "Enabled"
-                        enabledValue.Value = true
-                        
-                        local activeValue = Instance.new("BoolValue", newResistTimeStop)
-                        activeValue.Name = "Active"
-                        activeValue.Value = true
-                        
-                        print("Создан собственный модуль ResistTimeStop")
+                        print("Создан собственный NumberValue ResistTimeStop со значением:", newResistTimeStop.Value)
                     end
                 end
             end
@@ -4239,7 +4246,7 @@ end)
 -- Информационная панель
 local antiTimeStopInfo = Instance.new("TextLabel", innerContainer)
 antiTimeStopInfo.Size = UDim2.new(1, -10, 0, 40)
-antiTimeStopInfo.Text = "Anti Time Stop ищет игроков с объектом ResistTimeStop и изучает их механизм сопротивления. Включите Debug Mode для анализа объектов и Open in Dex Explorer для получения инструкций по изучению свойств в Dex Explorer."
+antiTimeStopInfo.Text = "Anti Time Stop ищет игроков с NumberValue ResistTimeStop и устанавливает максимальное значение сопротивления (999999). Включите Debug Mode для анализа значений сопротивления у всех игроков."
 antiTimeStopInfo.Font = Enum.Font.Gotham
 antiTimeStopInfo.TextSize = 12
 antiTimeStopInfo.TextColor3 = Color3.fromRGB(200,200,200)
