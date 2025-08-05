@@ -153,8 +153,6 @@ local YBAConfig = {
             ["Lucky Stone Mask"] = true,
             ["Rib Cage of The Saint's Corpse"] = true,
             ["DIO's Diary"] = true,
-            ["DIO's Bone"] = true,
-            ["DIO's Diary Page"] = true,
         }
     }
 }
@@ -314,8 +312,6 @@ local Languages = {
         RibCage = "Rib Cage of The Saint's Corpse",
         AncientScroll = "Ancient Scroll",
         DiosDiary = "DIO's Diary",
-        DiosBone = "DIO's Bone",
-        DiosDiaryPage = "DIO's Diary Page",
         LuckyStoneMask = "Lucky Stone Mask",
         LuckyArrow = "Lucky Arrow",
     },
@@ -370,8 +366,6 @@ local Languages = {
         RibCage = "Ребро святого корпуса",
         AncientScroll = "Древний свиток",
         DiosDiary = "Дневник ДИО",
-        DiosBone = "Кость ДИО",
-        DiosDiaryPage = "Страница дневника ДИО",
         LuckyStoneMask = "Счастливая каменная маска",
         LuckyArrow = "Счастливая стрела",
     }
@@ -2804,8 +2798,6 @@ local YBA_ITEM_NAMES = {
     
     ["Ancient Scroll"] = true,
     ["DIO's Diary"] = true,
-    ["DIO's Bone"] = true,
-    ["DIO's Diary Page"] = true,
     ["Lucky Stone Mask"] = true,
 }
 
@@ -2897,6 +2889,25 @@ local function findYBAItems()
                                     break
                                 end
                             end
+                        -- Дополнительная проверка для дневника ДИО
+                        elseif string.find(string.lower(itemName), "diary") and YBAConfig.ItemESP.Items["DIO's Diary"] then
+                            for _, part in ipairs(child:GetDescendants()) do
+                                if part:IsA("MeshPart") or part:IsA("Part") then
+                                    local distance = (part.Position - playerRoot.Position).Magnitude
+                                    
+                                    foundCount = foundCount + 1
+                                    
+                                    table.insert(items, {
+                                        Object = part,
+                                        Root = part,
+                                        Distance = distance,
+                                        Name = "DIO's Diary", -- Стандартизируем название
+                                        Type = "YBA_Item",
+                                        Folder = currentFolder.Name
+                                    })
+                                    break
+                                end
+                            end
                         end
                     end
                 elseif child:IsA("Folder") and depth < 2 then
@@ -2952,12 +2963,33 @@ local function findYBAItemsFast()
                         local distance = (part.Position - playerRoot.Position).Magnitude
                         
                         foundCount = foundCount + 1
+                        print("YBA Item ESP: Найден предмет", itemName, "на расстоянии", math.floor(distance), "м")
                         
                         table.insert(items, {
                             Object = part,
                             Root = part,
                             Distance = distance,
                             Name = itemName,
+                            Type = "YBA_Item",
+                            Folder = "Item_Spawns.Items"
+                        })
+                        break
+                    end
+                end
+            -- Дополнительная проверка для дневника ДИО (может называться по-разному)
+            elseif string.find(string.lower(itemName), "diary") and YBAConfig.ItemESP.Items["DIO's Diary"] then
+                for _, part in ipairs(child:GetDescendants()) do
+                    if part:IsA("MeshPart") or part:IsA("Part") then
+                        local distance = (part.Position - playerRoot.Position).Magnitude
+                        
+                        foundCount = foundCount + 1
+                        print("YBA Item ESP: Найден дневник (по поиску)", itemName, "на расстоянии", math.floor(distance), "м")
+                        
+                        table.insert(items, {
+                            Object = part,
+                            Root = part,
+                            Distance = distance,
+                            Name = "DIO's Diary", -- Стандартизируем название
                             Type = "YBA_Item",
                             Folder = "Item_Spawns.Items"
                         })
@@ -2972,7 +3004,6 @@ local function findYBAItemsFast()
                    string.find(lowerName, "coin") or
                    string.find(lowerName, "corpse") or
                    string.find(lowerName, "diary") or
-                   string.find(lowerName, "disc") or
                    string.find(lowerName, "mask") or
                    string.find(lowerName, "scroll") or
                    string.find(lowerName, "glove") or
@@ -3054,6 +3085,30 @@ local function findYBAItemsAlternative()
                                         Root = part,
                                         Distance = distance,
                                         Name = child.Name,
+                                        Type = "YBA_Item",
+                                        Folder = "Workspace"
+                                    })
+                                    break
+                                end
+                            end
+                        end
+                    -- Дополнительная проверка для дневника ДИО (альтернативный поиск)
+                    elseif string.find(string.lower(child.Name), "diary") and YBAConfig.ItemESP.Items["DIO's Diary"] then
+                        print("YBA Item ESP: Альтернативный поиск - найден дневник:", child.Name)
+
+                        for _, part in ipairs(child:GetDescendants()) do
+                            if part:IsA("MeshPart") or part:IsA("Part") then
+                                local distance = (part.Position - playerRoot.Position).Magnitude
+                                
+                                if distance <= YBAConfig.ItemESP.MaxDistance then
+                                    foundCount = foundCount + 1
+                                    print("YBA Item ESP: Альтернативный поиск - найден дневник", child.Name, "на расстоянии", math.floor(distance), "м")
+                                    
+                                    table.insert(items, {
+                                        Object = part,
+                                        Root = part,
+                                        Distance = distance,
+                                        Name = "DIO's Diary", -- Стандартизируем название
                                         Type = "YBA_Item",
                                         Folder = "Workspace"
                                     })
@@ -3153,9 +3208,7 @@ local function createItemESP(item)
         elseif string.find(itemName, "Corpse") then
             return Color3.fromRGB(255, 0, 0) 
         elseif string.find(itemName, "Diary") then
-            return Color3.fromRGB(255, 165, 0) 
-        elseif string.find(itemName, "Disc") then
-            return Color3.fromRGB(0, 255, 0)
+            return Color3.fromRGB(255, 165, 0)
         else
             return YBAConfig.ItemESP.FillColor 
         end
@@ -3314,9 +3367,7 @@ local function updateItemESP(item)
         elseif string.find(itemName, "Corpse") then
             return Color3.fromRGB(255, 0, 0) 
         elseif string.find(itemName, "Diary") then
-            return Color3.fromRGB(255, 165, 0) 
-        elseif string.find(itemName, "Disc") then
-            return Color3.fromRGB(0, 255, 0) 
+            return Color3.fromRGB(255, 165, 0)
         else
             return YBAConfig.ItemESP.FillColor 
         end
@@ -4651,8 +4702,6 @@ function showContent(tabName)
         createItemToggle(getText("RibCage"), YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
         createItemToggle(getText("AncientScroll"), YBAConfig.ItemESP.Items["Ancient Scroll"])
         createItemToggle(getText("DiosDiary"), YBAConfig.ItemESP.Items["DIO's Diary"])
-        createItemToggle(getText("DiosBone"), YBAConfig.ItemESP.Items["DIO's Bone"])
-        createItemToggle(getText("DiosDiaryPage"), YBAConfig.ItemESP.Items["DIO's Diary Page"])
         createItemToggle(getText("LuckyStoneMask"), YBAConfig.ItemESP.Items["Lucky Stone Mask"])
         createItemToggle(getText("LuckyArrow"), YBAConfig.ItemESP.Items["Lucky Arrow"])
         
