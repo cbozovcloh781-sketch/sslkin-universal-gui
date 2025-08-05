@@ -216,6 +216,7 @@ local tabs = {
 
 local tabButtons = {}
 local tabFrames = {}
+local tabContainers = {}
 
 -- Helper: Toggle switch
 local function createToggle(parent, label, state, callback)
@@ -460,11 +461,11 @@ for i, tab in ipairs(tabs) do
     end)
 
     -- Store container
-    tabFrame.Container = container
+    tabContainers[tab.name] = container
 end
 
 -- === ESP TAB ===
-local espContainer = tabFrames["ESP"].Container
+local espContainer = tabContainers["ESP"]
 
 createToggle(espContainer, "ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
 createToggle(espContainer, "Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
@@ -478,7 +479,7 @@ createSlider(espContainer, "Fill Transparency", 0, 1, Config.ESP.FillTransparenc
 createSlider(espContainer, "Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
 
 -- === AIMBOT TAB ===
-local aimbotContainer = tabFrames["Aimbot"].Container
+local aimbotContainer = tabContainers["Aimbot"]
 
 createToggle(aimbotContainer, "Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
 createToggle(aimbotContainer, "Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
@@ -488,13 +489,13 @@ createToggle(aimbotContainer, "FOV Rainbow", Config.Aimbot.FOVRainbow, function(
 createColorPicker(aimbotContainer, "Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
 
 -- === FLY TAB ===
-local flyContainer = tabFrames["Fly"].Container
+local flyContainer = tabContainers["Fly"]
 
 createToggle(flyContainer, "Fly", FlyConfig.Enabled, function(v) FlyConfig.Enabled = v if v then startFly() else stopFly() end end)
 createSlider(flyContainer, "Fly Speed", 0.1, 10, FlyConfig.Speed, function(v) FlyConfig.Speed = v end)
 
 -- === NOCLIP TAB ===
-local noClipContainer = tabFrames["NoClip"].Container
+local noClipContainer = tabContainers["NoClip"]
 
 createToggle(noClipContainer, "NoClip", NoClipConfig.Enabled, function(v) NoClipConfig.Enabled = v if v then startNoClip() else stopNoClip() end end)
 createButton(noClipContainer, "Force NoClip Toggle", function()
@@ -506,14 +507,14 @@ createButton(noClipContainer, "Force NoClip Toggle", function()
 end)
 
 -- === SPEED TAB ===
-local speedContainer = tabFrames["Speed"].Container
+local speedContainer = tabContainers["Speed"]
 
 createToggle(speedContainer, "SpeedHack", SpeedHackConfig.Enabled, function(v) SpeedHackConfig.Enabled = v if v then startSpeedHack() else stopSpeedHack() end end)
 createToggle(speedContainer, "Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v) SpeedHackConfig.UseJumpPower = v end)
 createSlider(speedContainer, "SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v) SpeedHackConfig.Speed = v end)
 
 -- === JUMP TAB ===
-local jumpContainer = tabFrames["Jump"].Container
+local jumpContainer = tabContainers["Jump"]
 
 createToggle(jumpContainer, "Long Jump", LongJumpConfig.Enabled, function(v) LongJumpConfig.Enabled = v if v then startLongJump() else stopLongJump() end end)
 createSlider(jumpContainer, "Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v) LongJumpConfig.JumpPower = v end)
@@ -521,7 +522,7 @@ createToggle(jumpContainer, "Infinite Jump", InfiniteJumpConfig.Enabled, functio
 createSlider(jumpContainer, "Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v) InfiniteJumpConfig.JumpPower = v end)
 
 -- === YBA TAB ===
-local ybaContainer = tabFrames["YBA"].Container
+local ybaContainer = tabContainers["YBA"]
 
 createToggle(ybaContainer, "Stand Range Hack", YBAConfig.Enabled, function(v) YBAConfig.Enabled = v if v then startYBA() else stopYBA() end end)
 createToggle(ybaContainer, "Underground Flight", false, function(v) if v then startUndergroundControl() else stopUndergroundControl() end end)
@@ -544,7 +545,7 @@ for _, itemName in ipairs(itemNames) do
 end
 
 -- === TELEPORT TAB ===
-local teleportContainer = tabFrames["Teleport"].Container
+local teleportContainer = tabContainers["Teleport"]
 
 createToggle(teleportContainer, "Teleport", TeleportConfig.Enabled, function(v) TeleportConfig.Enabled = v if v then startTeleport() else stopTeleport() end end)
 createButton(teleportContainer, "Start Teleport", function()
@@ -618,7 +619,7 @@ end
 createPlayerList(teleportContainer)
 
 -- === SETTINGS TAB ===
-local settingsContainer = tabFrames["Settings"].Container
+local settingsContainer = tabContainers["Settings"]
 
 createButton(settingsContainer, "Update Player List", function()
     print("Player list updated")
