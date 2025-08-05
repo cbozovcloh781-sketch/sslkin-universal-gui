@@ -3579,6 +3579,62 @@ local function createToggle(label, default, callback)
     return btn
 end
 
+local function createToggleSlider(label, default, callback)
+    local container = Instance.new("Frame", functionsContainer)
+    container.Size = UDim2.new(1, -10, 0, 40)
+    container.Position = UDim2.new(0, 5, 0, currentY)
+    container.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", container)
+    lbl.Text = label
+    lbl.Size = UDim2.new(0.7, 0, 1, 0)
+    lbl.Position = UDim2.new(0, 0, 0, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 14
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Ползунок фон
+    local sliderBack = Instance.new("Frame", container)
+    sliderBack.Position = UDim2.new(0.7, 5, 0.3, 0)
+    sliderBack.Size = UDim2.new(0, 50, 0, 20)
+    sliderBack.BackgroundColor3 = default and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(100, 100, 100)
+    sliderBack.BorderSizePixel = 0
+    Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(1, 0)
+
+    -- Ползунок кружок
+    local sliderKnob = Instance.new("Frame", sliderBack)
+    sliderKnob.Size = UDim2.new(0, 16, 0, 16)
+    sliderKnob.Position = default and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+    sliderKnob.BackgroundColor3 = Color3.new(1, 1, 1)
+    sliderKnob.BorderSizePixel = 0
+    Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
+
+    -- Анимация и клик
+    local isEnabled = default
+    sliderBack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isEnabled = not isEnabled
+            
+            -- Анимация
+            local targetPos = isEnabled and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+            local targetColor = isEnabled and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(100, 100, 100)
+            
+            local tween1 = TweenService:Create(sliderKnob, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Position = targetPos})
+            local tween2 = TweenService:Create(sliderBack, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundColor3 = targetColor})
+            
+            tween1:Play()
+            tween2:Play()
+            
+            callback(isEnabled)
+        end
+    end)
+    
+    currentY = currentY + 40 + padding
+    return container
+end
+
 local function createSlider(label, min, max, value, callback)
     local container = Instance.new("Frame", functionsContainer)
     container.Size = UDim2.new(1, -10, 0, 36)
@@ -3793,22 +3849,7 @@ function showContent(tabName)
         
         -- ESP Settings
         createSectionHeader("🔷ESP Settings")
-        local espBtn = Instance.new("TextButton", functionsContainer)
-        espBtn.Size = UDim2.new(1, -10, 0, 28)
-        espBtn.Position = UDim2.new(0, 5, 0, currentY)
-        espBtn.Text = "ESP: " .. (Config.ESP.Enabled and "ON" or "OFF")
-        espBtn.Font = Enum.Font.Gotham
-        espBtn.TextSize = 14
-        espBtn.TextColor3 = Color3.new(1,1,1)
-        espBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-        espBtn.AutoButtonColor = false
-        Instance.new("UICorner", espBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        espBtn.MouseButton1Click:Connect(function()
-            Config.ESP.Enabled = not Config.ESP.Enabled
-            espBtn.Text = "ESP: " .. (Config.ESP.Enabled and "ON" or "OFF")
-        end)
+        createToggleSlider("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
         createToggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
         createToggle("Show Outline", Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
         createToggle("Show Lines", Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
@@ -3824,22 +3865,7 @@ function showContent(tabName)
         
         -- Aimbot Settings
         createSectionHeader("🔷Aimbot Settings")
-        local aimbotBtn = Instance.new("TextButton", functionsContainer)
-        aimbotBtn.Size = UDim2.new(1, -10, 0, 28)
-        aimbotBtn.Position = UDim2.new(0, 5, 0, currentY)
-        aimbotBtn.Text = "Aimbot: " .. (Config.Aimbot.Enabled and "ON" or "OFF")
-        aimbotBtn.Font = Enum.Font.Gotham
-        aimbotBtn.TextSize = 14
-        aimbotBtn.TextColor3 = Color3.new(1,1,1)
-        aimbotBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-        aimbotBtn.AutoButtonColor = false
-        Instance.new("UICorner", aimbotBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        aimbotBtn.MouseButton1Click:Connect(function()
-            Config.Aimbot.Enabled = not Config.Aimbot.Enabled
-            aimbotBtn.Text = "Aimbot: " .. (Config.Aimbot.Enabled and "ON" or "OFF")
-        end)
+        createToggleSlider("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
         createToggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
         createToggle("Visibility Check", Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
         createSlider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
@@ -3850,22 +3876,9 @@ function showContent(tabName)
         
         -- Fly Settings
         createSectionHeader("🟨 Fly Settings")
-        local flyBtn = Instance.new("TextButton", functionsContainer)
-        flyBtn.Size = UDim2.new(1, -10, 0, 28)
-        flyBtn.Position = UDim2.new(0, 5, 0, currentY)
-        flyBtn.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
-        flyBtn.Font = Enum.Font.Gotham
-        flyBtn.TextSize = 14
-        flyBtn.TextColor3 = Color3.new(1,1,1)
-        flyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-        flyBtn.AutoButtonColor = false
-        Instance.new("UICorner", flyBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        flyBtn.MouseButton1Click:Connect(function()
-            FlyConfig.Enabled = not FlyConfig.Enabled
-            flyBtn.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
-            if FlyConfig.Enabled then startFly() else stopFly() end
+        createToggleSlider("Fly", FlyConfig.Enabled, function(v)
+            FlyConfig.Enabled = v
+            if v then startFly() else stopFly() end
         end)
         
         createSlider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
@@ -3907,22 +3920,9 @@ function showContent(tabName)
         
         -- SpeedHack Settings
         createSectionHeader("🟦 SpeedHack Settings")
-        local speedHackBtn = Instance.new("TextButton", functionsContainer)
-        speedHackBtn.Size = UDim2.new(1, -10, 0, 28)
-        speedHackBtn.Position = UDim2.new(0, 5, 0, currentY)
-        speedHackBtn.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
-        speedHackBtn.Font = Enum.Font.Gotham
-        speedHackBtn.TextSize = 14
-        speedHackBtn.TextColor3 = Color3.new(1,1,1)
-        speedHackBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-        speedHackBtn.AutoButtonColor = false
-        Instance.new("UICorner", speedHackBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        speedHackBtn.MouseButton1Click:Connect(function()
-            SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
-            speedHackBtn.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
-            if SpeedHackConfig.Enabled then startSpeedHack() else stopSpeedHack() end
+        createToggleSlider("SpeedHack", SpeedHackConfig.Enabled, function(v)
+            SpeedHackConfig.Enabled = v
+            if v then startSpeedHack() else stopSpeedHack() end
         end)
         
         createToggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
@@ -3965,22 +3965,9 @@ function showContent(tabName)
         
         -- Jump Settings
         createSectionHeader("🦘 Jump Settings")
-        local longJumpBtn = Instance.new("TextButton", functionsContainer)
-        longJumpBtn.Size = UDim2.new(1, -10, 0, 28)
-        longJumpBtn.Position = UDim2.new(0, 5, 0, currentY)
-        longJumpBtn.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
-        longJumpBtn.Font = Enum.Font.Gotham
-        longJumpBtn.TextSize = 14
-        longJumpBtn.TextColor3 = Color3.new(1,1,1)
-        longJumpBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-        longJumpBtn.AutoButtonColor = false
-        Instance.new("UICorner", longJumpBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        longJumpBtn.MouseButton1Click:Connect(function()
-            LongJumpConfig.Enabled = not LongJumpConfig.Enabled
-            longJumpBtn.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
-            if LongJumpConfig.Enabled then startLongJump() else stopLongJump() end
+        createToggleSlider("Long Jump", LongJumpConfig.Enabled, function(v)
+            LongJumpConfig.Enabled = v
+            if v then startLongJump() else stopLongJump() end
         end)
         
         createSlider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
@@ -3994,22 +3981,9 @@ function showContent(tabName)
             end
         end)
         
-        local infiniteJumpBtn = Instance.new("TextButton", functionsContainer)
-        infiniteJumpBtn.Size = UDim2.new(1, -10, 0, 28)
-        infiniteJumpBtn.Position = UDim2.new(0, 5, 0, currentY)
-        infiniteJumpBtn.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
-        infiniteJumpBtn.Font = Enum.Font.Gotham
-        infiniteJumpBtn.TextSize = 14
-        infiniteJumpBtn.TextColor3 = Color3.new(1,1,1)
-        infiniteJumpBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-        infiniteJumpBtn.AutoButtonColor = false
-        Instance.new("UICorner", infiniteJumpBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        infiniteJumpBtn.MouseButton1Click:Connect(function()
-            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
-            infiniteJumpBtn.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
-            if InfiniteJumpConfig.Enabled then startInfiniteJump() else stopInfiniteJump() end
+        createToggleSlider("Infinite Jump", InfiniteJumpConfig.Enabled, function(v)
+            InfiniteJumpConfig.Enabled = v
+            if v then startInfiniteJump() else stopInfiniteJump() end
         end)
         
         createSlider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
