@@ -3318,1130 +3318,389 @@ local function stopItemESP()
 end
 
 
+-- Создание нового интерфейса в стиле Arceus X V55
 local screenGui = Instance.new("ScreenGui", CoreGui)
-screenGui.Name = "SslkinGui"
+screenGui.Name = "ArceusXGui"
 screenGui.ResetOnSpawn = false
 
-local frame = Instance.new("Frame", screenGui)
-frame.Name = "MainFrame"
-frame.Position = UDim2.new(0, 20, 0.5, -200)
-frame.Size = UDim2.new(0, 300, 0, 0)
-frame.AutomaticSize = Enum.AutomaticSize.Y
-frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
+-- Основной контейнер
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Name = "MainFrame"
+mainFrame.Position = UDim2.new(0, 20, 0.5, -250)
+mainFrame.Size = UDim2.new(0, 400, 0, 500)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
 
-local titleBar = Instance.new("Frame", frame)
-titleBar.Name = "TitleBar"
-titleBar.Size = UDim2.new(1, 0, 0, 36)
-titleBar.Position = UDim2.new(0, 0, 0, 0)
-titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+-- Скругление углов для основного фрейма
+local mainCorner = Instance.new("UICorner", mainFrame)
+mainCorner.CornerRadius = UDim.new(0, 8)
 
-local titleText = Instance.new("TextLabel", titleBar)
-titleText.Name = "TitleText"
-titleText.Size = UDim2.new(1, -40, 1, 0)
-titleText.Position = UDim2.new(0, 10, 0, 0)
-titleText.BackgroundTransparency = 1
-titleText.Text = "SSLKIN UNI-GUI"
-titleText.Font = Enum.Font.GothamBold
-titleText.TextSize = 14
-titleText.TextColor3 = Color3.new(1, 1, 1)
-titleText.TextXAlignment = Enum.TextXAlignment.Left
+-- Левая панель навигации
+local leftPanel = Instance.new("Frame", mainFrame)
+leftPanel.Name = "LeftPanel"
+leftPanel.Size = UDim2.new(0, 120, 1, 0)
+leftPanel.Position = UDim2.new(0, 0, 0, 0)
+leftPanel.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+leftPanel.BorderSizePixel = 0
 
-local collapseBtn = Instance.new("TextButton", titleBar)
-collapseBtn.Name = "Collapse"
-collapseBtn.Size = UDim2.new(0, 26, 0, 26)
-collapseBtn.Position = UDim2.new(1, -30, 0.5, -13)
-collapseBtn.Text = "−"
-collapseBtn.Font = Enum.Font.GothamBold
-collapseBtn.TextSize = 18
-collapseBtn.TextColor3 = Color3.new(1, 1, 1)
-collapseBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-Instance.new("UICorner", collapseBtn).CornerRadius = UDim.new(0, 6)
+local leftCorner = Instance.new("UICorner", leftPanel)
+leftCorner.CornerRadius = UDim.new(0, 8)
 
-local scroll = Instance.new("ScrollingFrame", frame)
-scroll.Position = UDim2.new(0, 0, 0, 30)
-scroll.Size = UDim2.new(1, 0, 1, -46)
-scroll.CanvasSize = UDim2.new(0, 0, 3, 0)
-scroll.ScrollBarThickness = 6
-scroll.BackgroundTransparency = 1
-scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-scroll.ClipsDescendants = true
+-- Логотип и заголовок
+local logoFrame = Instance.new("Frame", leftPanel)
+logoFrame.Name = "LogoFrame"
+logoFrame.Size = UDim2.new(1, 0, 0, 80)
+logoFrame.Position = UDim2.new(0, 0, 0, 0)
+logoFrame.BackgroundTransparency = 1
 
-local innerContainer = Instance.new("Frame", scroll)
-innerContainer.Name = "InnerContainer"
-innerContainer.BackgroundTransparency = 1
-innerContainer.Size = UDim2.new(1, -20, 0, 0)
-innerContainer.Position = UDim2.new(0, 10, 0, 0)
-innerContainer.AutomaticSize = Enum.AutomaticSize.Y
-innerContainer.ClipsDescendants = false
+local logoText = Instance.new("TextLabel", logoFrame)
+logoText.Name = "LogoText"
+logoText.Size = UDim2.new(1, 0, 0, 40)
+logoText.Position = UDim2.new(0, 0, 0, 10)
+logoText.Text = "Arceus X"
+logoText.Font = Enum.Font.GothamBold
+logoText.TextSize = 18
+logoText.TextColor3 = Color3.new(1, 1, 1)
+logoText.BackgroundTransparency = 1
+logoText.TextXAlignment = Enum.TextXAlignment.Center
 
-local function toggleMenu()
-    Config.MenuCollapsed = not Config.MenuCollapsed
-    local collapsed = Config.MenuCollapsed
-    local size = collapsed and UDim2.new(0, 280, 0, 40) or UDim2.new(0, 280, 0, 800)
-    local text = collapsed and "+" or "−"
-    local color = collapsed and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+local versionText = Instance.new("TextLabel", logoFrame)
+versionText.Name = "VersionText"
+versionText.Size = UDim2.new(1, 0, 0, 20)
+versionText.Position = UDim2.new(0, 0, 0, 50)
+versionText.Text = "V55"
+versionText.Font = Enum.Font.Gotham
+versionText.TextSize = 12
+versionText.TextColor3 = Color3.new(1, 1, 1)
+versionText.BackgroundTransparency = 1
+versionText.TextXAlignment = Enum.TextXAlignment.Center
 
-    TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = size
-    }):Play()
+-- Навигационные кнопки
+local navButtons = {
+    {name = "Player", icon = "👤"},
+    {name = "Executor", icon = "⚡"},
+    {name = "Script Hub", icon = "📜"},
+    {name = "Games Hub", icon = "🎮"},
+    {name = "Settings", icon = "⚙️"}
+}
 
-    TweenService:Create(collapseBtn, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundColor3 = color
-    }):Play()
+local selectedTab = "Games Hub"
 
-    collapseBtn.Text = text
-    scroll.Visible = not collapsed
-end
-
-collapseBtn.MouseButton1Click:Connect(toggleMenu)
-
-UserInputService.InputBegan:Connect(function(input, gp)
-    if not gp and input.KeyCode == Enum.KeyCode.Insert then
-        toggleMenu()
+for i, buttonData in ipairs(navButtons) do
+    local navButton = Instance.new("TextButton", leftPanel)
+    navButton.Name = buttonData.name .. "Button"
+    navButton.Size = UDim2.new(1, -20, 0, 40)
+    navButton.Position = UDim2.new(0, 10, 0, 100 + (i-1) * 50)
+    navButton.Text = buttonData.icon .. " " .. buttonData.name
+    navButton.Font = Enum.Font.Gotham
+    navButton.TextSize = 14
+    navButton.TextColor3 = Color3.new(1, 1, 1)
+    navButton.BackgroundColor3 = buttonData.name == selectedTab and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(30, 30, 35)
+    navButton.BorderSizePixel = 0
+    navButton.AutoButtonColor = false
+    
+    local buttonCorner = Instance.new("UICorner", navButton)
+    buttonCorner.CornerRadius = UDim.new(0, 6)
+    
+    -- Подсветка выбранной вкладки
+    if buttonData.name == selectedTab then
+        local highlight = Instance.new("Frame", navButton)
+        highlight.Name = "Highlight"
+        highlight.Size = UDim2.new(0, 3, 1, 0)
+        highlight.Position = UDim2.new(0, 0, 0, 0)
+        highlight.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        highlight.BorderSizePixel = 0
+        
+        local highlightCorner = Instance.new("UICorner", highlight)
+        highlightCorner.CornerRadius = UDim.new(0, 2)
     end
-end)
-
-local UIListLayout = Instance.new("UIListLayout", innerContainer)
-UIListLayout.Padding = UDim.new(0, 8)
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-
-local function sectionHeader(text)
-	
-	local spacer = Instance.new("Frame", innerContainer)
-	spacer.Size = UDim2.new(1, 0, 0, 10)
-	spacer.BackgroundTransparency = 1
-	
-	local lbl = Instance.new("TextLabel", innerContainer)
-	lbl.Text = text
-	lbl.Size = UDim2.new(1, -10, 0, 30)
-	lbl.Font = Enum.Font.GothamBold
-	lbl.TextSize = 16
-	lbl.TextColor3 = Color3.fromRGB(255,255,255)
-	lbl.BackgroundTransparency = 1
-end
-
-local function toggle(label, default, callback)
-	local btn = Instance.new("TextButton", innerContainer)
-	btn.Size = UDim2.new(1, -10, 0, 28)
-	btn.Text = label .. ": " .. (default and "ON" or "OFF")
-	btn.Font = Enum.Font.Gotham
-	btn.TextSize = 14
-	btn.TextColor3 = Color3.new(1,1,1)
-	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	btn.AutoButtonColor = false
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
-
-	btn.MouseButton1Click:Connect(function()
-		default = not default
-		btn.Text = label .. ": " .. (default and "ON" or "OFF")
-		callback(default)
-	end)
-	
-	return btn
-end
-
-local function slider(label, min, max, value, callback)
-	local container = Instance.new("Frame", innerContainer)
-	container.Size = UDim2.new(1, -10, 0, 36)
-	container.BackgroundTransparency = 1
-
-	local lbl = Instance.new("TextLabel", container)
-	lbl.Text = label .. ": " .. value
-	lbl.Size = UDim2.new(1, 0, 0.5, 0)
-	lbl.Font = Enum.Font.Gotham
-	lbl.TextSize = 13
-	lbl.TextColor3 = Color3.new(1,1,1)
-	lbl.BackgroundTransparency = 1
-
-	local sliderBack = Instance.new("Frame", container)
-	sliderBack.Position = UDim2.new(0,0,0.5,4)
-	sliderBack.Size = UDim2.new(1, 0, 0, 6)
-	sliderBack.BackgroundColor3 = Color3.fromRGB(50,50,50)
-	Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(1,0)
-
-	local sliderFill = Instance.new("Frame", sliderBack)
-	sliderFill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
-	sliderFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1,0)
-
-	local dragging = false
-	sliderBack.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-		end
-	end)
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
-	end)
-	RunService.RenderStepped:Connect(function()
-		if dragging then
-			local pos = UserInputService:GetMouseLocation().X
-			local abs = sliderBack.AbsolutePosition.X
-			local width = sliderBack.AbsoluteSize.X
-			local pct = math.clamp((pos - abs) / width, 0, 1)
-			local newVal = math.floor((min + (max - min) * pct) * 10) / 10
-			sliderFill.Size = UDim2.new(pct, 0, 1, 0)
-			lbl.Text = label .. ": " .. newVal
-			callback(newVal)
-		end
-	end)
-end
-
-local function colorPicker(labelText, currentColor, callback)
-    local lbl = Instance.new("TextLabel", innerContainer)
-    lbl.Text = labelText
-    lbl.TextColor3 = Color3.new(1,1,1)
-    lbl.BackgroundTransparency = 1
-    lbl.Size = UDim2.new(1, -10, 0, 20)
-    lbl.Font = Enum.Font.SourceSans
-    lbl.TextSize = 14
-
-    local colors = {
-        Color3.fromRGB(255, 255, 255),
-        Color3.fromRGB(255, 0, 0),
-        Color3.fromRGB(0, 255, 0),
-        Color3.fromRGB(0, 0, 255),
-        Color3.fromRGB(255, 255, 0),
-        Color3.fromRGB(255, 0, 255),
-        Color3.fromRGB(0, 255, 255),
-        Color3.fromRGB(128, 128, 128),
-        Color3.fromRGB(255, 165, 0),
-    }
-
-    local row = Instance.new("Frame", innerContainer)
-    row.Size = UDim2.new(1, -10, 0, 28)
-    row.BackgroundTransparency = 1
-
-    local layout = Instance.new("UIListLayout", row)
-    layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    layout.Padding = UDim.new(0, 4)
-
-    for _, clr in pairs(colors) do
-        local btn = Instance.new("TextButton", row)
-        btn.Size = UDim2.new(0, 24, 0, 24)
-        btn.BackgroundColor3 = clr
-        btn.Text = ""
-        btn.AutoButtonColor = false
-        btn.MouseButton1Click:Connect(function()
-            callback(clr)
-        end)
-    end
-end
-
-local function speedInput(label, currentSpeed, callback)
-    local container = Instance.new("Frame", innerContainer)
-    container.Size = UDim2.new(1, -10, 0, 36)
-    container.BackgroundTransparency = 1
-
-    local lbl = Instance.new("TextLabel", container)
-    lbl.Text = label .. ": " .. currentSpeed
-    lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
-    lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 13
-    lbl.TextColor3 = Color3.new(1,1,1)
-    lbl.BackgroundTransparency = 1
-
-    local inputBox = Instance.new("TextBox", container)
-    inputBox.Position = UDim2.new(0.7, 5, 0.25, 0)
-    inputBox.Size = UDim2.new(0.3, -5, 0.5, 0)
-    inputBox.Text = tostring(currentSpeed)
-    inputBox.Font = Enum.Font.Gotham
-    inputBox.TextSize = 12
-    inputBox.TextColor3 = Color3.new(1,1,1)
-    inputBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
-    inputBox.PlaceholderText = "Speed"
-    Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0,4)
-
-    inputBox.FocusLost:Connect(function()
-        local newSpeed = tonumber(inputBox.Text)
-        if newSpeed and newSpeed > 0 then
-            callback(newSpeed)
-            lbl.Text = label .. ": " .. newSpeed
-        else
-            inputBox.Text = tostring(currentSpeed)
-        end
-    end)
-
-    return lbl, inputBox
-end
-
-local function playerSelector(label, currentPlayer, callback)
-    local container = Instance.new("Frame", innerContainer)
-    container.Size = UDim2.new(1, -10, 0, 36)
-    container.BackgroundTransparency = 1
-
-    local lbl = Instance.new("TextLabel", container)
-    lbl.Text = label .. ": " .. (currentPlayer and currentPlayer.Name or "None")
-    lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
-    lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 13
-    lbl.TextColor3 = Color3.new(1,1,1)
-    lbl.BackgroundTransparency = 1
-
-    local selectBtn = Instance.new("TextButton", container)
-    selectBtn.Position = UDim2.new(0.7, 5, 0.25, 0)
-    selectBtn.Size = UDim2.new(0.3, -5, 0.5, 0)
-    selectBtn.Text = "Выбрать игрока"
-    selectBtn.Font = Enum.Font.Gotham
-    selectBtn.TextSize = 12
-    selectBtn.TextColor3 = Color3.new(1,1,1)
-    selectBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-    Instance.new("UICorner", selectBtn).CornerRadius = UDim.new(0,4)
-
-    selectBtn.MouseButton1Click:Connect(function()
-        print("=== КНОПКА ВЫБОРА ИГРОКА НАЖАТА ===")
-        
-        
-        createPlayerSelectionWindow()
-        
-        
-        if TeleportConfig.TargetPlayer then
-            lbl.Text = label .. ": " .. TeleportConfig.TargetPlayer.Name
-            callback(TeleportConfig.TargetPlayer)
-        end
-    end)
-
-    return lbl, selectBtn
-end
-
-
-local function keyBindButton(name, currentKey, callback)
-    local btn = Instance.new("TextButton", innerContainer)
-    btn.Size = UDim2.new(1, -10, 0, 24)
-    btn.Text = name .. " Hotkey: [" .. (currentKey and tostring(currentKey.Name) or "None") .. "]"
-    btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 13
-    btn.AutoButtonColor = false
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
-
-    btn.MouseButton1Click:Connect(function()
-        btn.Text = name .. " Hotkey: [Press any key]"
-        local conn
-        conn = UserInputService.InputBegan:Connect(function(input, gp)
-            if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
-                conn:Disconnect()
-                callback(input.KeyCode)
-                btn.Text = name .. " Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+    
+    navButton.MouseButton1Click:Connect(function()
+        -- Обновляем выбранную вкладку
+        for _, btn in pairs(leftPanel:GetChildren()) do
+            if btn:IsA("TextButton") then
+                btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+                local highlight = btn:FindFirstChild("Highlight")
+                if highlight then
+                    highlight:Destroy()
+                end
             end
-        end)
+        end
+        
+        navButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        selectedTab = buttonData.name
+        
+        -- Добавляем подсветку
+        local highlight = Instance.new("Frame", navButton)
+        highlight.Name = "Highlight"
+        highlight.Size = UDim2.new(0, 3, 1, 0)
+        highlight.Position = UDim2.new(0, 0, 0, 0)
+        highlight.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        highlight.BorderSizePixel = 0
+        
+        local highlightCorner = Instance.new("UICorner", highlight)
+        highlightCorner.CornerRadius = UDim.new(0, 2)
+        
+        -- Показываем соответствующий контент
+        showContent(buttonData.name)
     end)
 end
 
+-- Правая панель контента
+local rightPanel = Instance.new("Frame", mainFrame)
+rightPanel.Name = "RightPanel"
+rightPanel.Size = UDim2.new(1, -120, 1, 0)
+rightPanel.Position = UDim2.new(0, 120, 0, 0)
+rightPanel.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+rightPanel.BorderSizePixel = 0
 
-keyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
-    Config.ESP.ToggleKey = newKey
+local rightCorner = Instance.new("UICorner", rightPanel)
+rightCorner.CornerRadius = UDim.new(0, 8)
+
+-- Кнопка закрытия
+local closeButton = Instance.new("TextButton", rightPanel)
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -35, 0, 5)
+closeButton.Text = "X"
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 16
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+closeButton.BorderSizePixel = 0
+closeButton.AutoButtonColor = false
+
+local closeCorner = Instance.new("UICorner", closeButton)
+closeCorner.CornerRadius = UDim.new(0, 6)
+
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
 end)
 
-keyBindButton("Aimbot", Config.Aimbot.ToggleKey, function(newKey)
-    Config.Aimbot.ToggleKey = newKey
-end)
+-- Заголовок контента
+local contentTitle = Instance.new("TextLabel", rightPanel)
+contentTitle.Name = "ContentTitle"
+contentTitle.Size = UDim2.new(1, -20, 0, 40)
+contentTitle.Position = UDim2.new(0, 10, 0, 10)
+contentTitle.Text = "GLOBAL FUNCTIONS"
+contentTitle.Font = Enum.Font.GothamBold
+contentTitle.TextSize = 18
+contentTitle.TextColor3 = Color3.new(1, 1, 1)
+contentTitle.BackgroundTransparency = 1
+contentTitle.TextXAlignment = Enum.TextXAlignment.Center
 
-keyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
-    FlyConfig.ToggleKey = newKey
-end)
+-- Контейнер для кнопок функций
+local functionsContainer = Instance.new("Frame", rightPanel)
+functionsContainer.Name = "FunctionsContainer"
+functionsContainer.Size = UDim2.new(1, -20, 1, -80)
+functionsContainer.Position = UDim2.new(0, 10, 0, 60)
+functionsContainer.BackgroundTransparency = 1
 
-keyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
-    NoClipConfig.ToggleKey = newKey
-end)
+local functionsLayout = Instance.new("UIListLayout", functionsContainer)
+functionsLayout.Padding = UDim.new(0, 10)
+functionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-keyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
-    SpeedHackConfig.ToggleKey = newKey
-end)
-
-keyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
-    TeleportConfig.ToggleKey = newKey
-end)
-
-keyBindButton("Stand Range Hack", YBAConfig.ToggleKey, function(newKey)
-    YBAConfig.ToggleKey = newKey
-end)
-
-sectionHeader("🔷ESP Settings")
-toggle("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
-toggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
-toggle("Show Outline", Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
-toggle("Show Lines", Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
-toggle("Rainbow Colors", Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
-
-colorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
-colorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
-colorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor = c end)
-slider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
-slider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
-
-local divider1 = Instance.new("Frame", innerContainer)
-divider1.Size = UDim2.new(1, -10, 0, 2)
-divider1.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider1.BorderSizePixel = 0
-
-sectionHeader("🔷Aimbot Settings")
-toggle("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
-toggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
-toggle("Visibility Check", Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
-slider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
-toggle("FOV Rainbow", Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
-colorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
-
-local divider2 = Instance.new("Frame", innerContainer)
-divider2.Size = UDim2.new(1, -10, 0, 2)
-divider2.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider2.BorderSizePixel = 0
-
-local guiCallbacks = {}
-
-local function updateStatusDisplay()
-    if guiCallbacks.fly then
-        guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
-    end
-    if guiCallbacks.noClip then
-        guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
-    end
-    if guiCallbacks.speedHack then
-        guiCallbacks.speedHack.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
-    end
-    if guiCallbacks.teleport then
-        guiCallbacks.teleport.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
-    end
-    if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "Stand Range Hack: " .. (YBAConfig.Enabled and "ON" or "OFF")
-    end
-    if guiCallbacks.itemESP then
-        guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
-    end
-    if guiCallbacks.antiTimeStop then
-        if isAntiTimeStopEnabled then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVE"
-        else
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-        end
-    end
-end
-
-RunService.Heartbeat:Connect(function()
-    updateStatusDisplay()
-end)
-
-sectionHeader("🟨 Fly Settings")
-
-local flyToggleBtn = toggle("Fly", FlyConfig.Enabled, function(v)
-    FlyConfig.Enabled = v
-    if v then startFly() else stopFly() end
+-- Функции для создания кнопок
+local function createFunctionButton(text, callback)
+    local button = Instance.new("TextButton", functionsContainer)
+    button.Size = UDim2.new(1, 0, 0, 50)
+    button.Text = text
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 16
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    button.BorderSizePixel = 0
+    button.AutoButtonColor = false
     
-    if guiCallbacks.fly then
-        guiCallbacks.fly.Text = "Fly: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.fly = flyToggleBtn
-
-slider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
-    FlyConfig.Speed = v
-end)
-
-speedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
-    FlyConfig.Speed = v
-end)
-
-local divider3 = Instance.new("Frame", innerContainer)
-divider3.Size = UDim2.new(1, -10, 0, 2)
-divider3.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider3.BorderSizePixel = 0
-
-sectionHeader("🟪 NoClip Settings")
-
-local noClipStatusLabel = Instance.new("TextLabel", innerContainer)
-noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
-noClipStatusLabel.Text = "NoClip Status: OFF"
-noClipStatusLabel.Font = Enum.Font.GothamBold
-noClipStatusLabel.TextSize = 12
-noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-noClipStatusLabel.BackgroundTransparency = 1
-noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local forceNoClipBtn = Instance.new("TextButton", innerContainer)
-forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
-forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-forceNoClipBtn.Font = Enum.Font.GothamBold
-forceNoClipBtn.TextSize = 14
-forceNoClipBtn.TextColor3 = Color3.new(1,1,1)
-forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-forceNoClipBtn.AutoButtonColor = false
-Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
-
-local function updateNoClipStatus()
-    if isNoClipping then
-        noClipStatusLabel.Text = "NoClip Status: ON"
-        noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
-        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-    else
-        noClipStatusLabel.Text = "NoClip Status: OFF"
-        noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-    end
-end
-
-forceNoClipBtn.MouseButton1Click:Connect(function()
-    if isNoClipping then
-        stopNoClip()
-        forceNoClipBtn.Text = "NOCLIP DISABLED"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-        task.wait(1)
-        updateNoClipStatus()
-    else
-        startNoClip()
-        forceNoClipBtn.Text = "NOCLIP ENABLED"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
-        task.wait(1)
-        updateNoClipStatus()
-    end
-end)
-
-RunService.Heartbeat:Connect(function()
-    updateNoClipStatus()
-end)
-
-local forceNoClipKeyBtn = Instance.new("TextButton", innerContainer)
-forceNoClipKeyBtn.Size = UDim2.new(1, -10, 0, 24)
-forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. (NoClipConfig.ForceToggleKey and tostring(NoClipConfig.ForceToggleKey.Name) or "None") .. "]"
-forceNoClipKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-forceNoClipKeyBtn.TextColor3 = Color3.new(1,1,1)
-forceNoClipKeyBtn.Font = Enum.Font.Gotham
-forceNoClipKeyBtn.TextSize = 13
-forceNoClipKeyBtn.AutoButtonColor = false
-Instance.new("UICorner", forceNoClipKeyBtn).CornerRadius = UDim.new(0,6)
-
-forceNoClipKeyBtn.MouseButton1Click:Connect(function()
-    forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [Press any key]"
-    local conn
-    conn = UserInputService.InputBegan:Connect(function(input, gp)
-        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
-            conn:Disconnect()
-            NoClipConfig.ForceToggleKey = input.KeyCode
-            forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
-        end
+    local buttonCorner = Instance.new("UICorner", button)
+    buttonCorner.CornerRadius = UDim.new(0, 8)
+    
+    -- Эффект при наведении
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+        }):Play()
     end)
-end)
-
-
-
-local divider4 = Instance.new("Frame", innerContainer)
-divider4.Size = UDim2.new(1, -10, 0, 2)
-divider4.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider4.BorderSizePixel = 0
-
-sectionHeader("🟦 SpeedHack Settings")
-
-local speedHackToggleBtn = toggle("SpeedHack", SpeedHackConfig.Enabled, function(v)
-    SpeedHackConfig.Enabled = v
-    if v then startSpeedHack() else stopSpeedHack() end
     
-    if guiCallbacks.speedHack then
-        guiCallbacks.speedHack.Text = "SpeedHack: " .. (v and "ON" or "OFF")
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        }):Play()
+    end)
+    
+    if callback then
+        button.MouseButton1Click:Connect(callback)
     end
-end)
-guiCallbacks.speedHack = speedHackToggleBtn
-
-toggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
-    SpeedHackConfig.UseJumpPower = v
     
+    return button
+end
+
+-- Создаем кнопки функций
+local speedHackButton = createFunctionButton("SPEED HACK", function()
+    SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
     if SpeedHackConfig.Enabled then
-        stopSpeedHack()
         startSpeedHack()
-    end
-end)
-
-slider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
-    SpeedHackConfig.Speed = v
-    
-    if SpeedHackConfig.Enabled then
-        local char = Players.LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = v * 16
-            if SpeedHackConfig.UseJumpPower then
-                hum.JumpPower = v * 50
-            end
-        end
-    end
-end)
-
-speedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
-    SpeedHackConfig.Speed = v
-    if SpeedHackConfig.Enabled then
-        local char = Players.LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = v * 16
-            if SpeedHackConfig.UseJumpPower then
-                hum.JumpPower = v * 50
-            end
-        end
-    end
-end)
-
-local divider5 = Instance.new("Frame", innerContainer)
-divider5.Position = UDim2.new(0, 5, 0, yOffset)
-divider5.Size = UDim2.new(1, -10, 0, 2)
-divider5.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider5.BorderSizePixel = 0
-
-sectionHeader("🦘 Jump Settings")
-
-local longJumpToggleBtn = toggle("Long Jump", LongJumpConfig.Enabled, function(v)
-    LongJumpConfig.Enabled = v
-    if v then startLongJump() else stopLongJump() end
-    if guiCallbacks.longJump then
-        guiCallbacks.longJump.Text = "Long Jump: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.longJump = longJumpToggleBtn
-
-slider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
-    LongJumpConfig.JumpPower = v
-    if LongJumpConfig.Enabled then
-        local char = Players.LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.JumpPower = v
-        end
-    end
-end)
-
-local infiniteJumpToggleBtn = toggle("Infinite Jump", InfiniteJumpConfig.Enabled, function(v)
-    InfiniteJumpConfig.Enabled = v
-    if v then startInfiniteJump() else stopInfiniteJump() end
-    if guiCallbacks.infiniteJump then
-        guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.infiniteJump = infiniteJumpToggleBtn
-
-slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
-    InfiniteJumpConfig.JumpPower = v
-end)
-
-local divider6 = Instance.new("Frame", innerContainer)
-divider6.Size = UDim2.new(1, -10, 0, 2)
-divider6.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider6.BorderSizePixel = 0
-
-sectionHeader("🟪 YBA Hacks")
-
-local standRangeLabel = Instance.new("TextLabel", innerContainer)
-standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
-standRangeLabel.Text = "stand range hack"
-standRangeLabel.Font = Enum.Font.Gotham
-standRangeLabel.TextSize = 12
-standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-standRangeLabel.BackgroundTransparency = 1
-standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local ybaToggleBtn = toggle("Stand Range Hack", YBAConfig.Enabled, function(v)
-    YBAConfig.Enabled = v
-    if v then 
-        startYBA() 
-    else 
-        stopYBA() 
-    end
-    if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "Stand Range Hack: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.yba = ybaToggleBtn
-
-ybaToggleBtn.AutoButtonColor = false
-
-local undergroundControlToggleBtn = toggle("Underground Flight", false, function(v)
-    if v then 
-        startUndergroundControl() 
-    else 
-        stopUndergroundControl() 
-    end
-end)
-
-undergroundControlToggleBtn.AutoButtonColor = false
-
-slider("Flight & Stand Speed (25-300)", 25, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
-    local wholeNumber = math.floor(v)
-    YBAConfig.UndergroundControl.FlightSpeed = wholeNumber
-    print("Скорость полета и стенда установлена:", wholeNumber)
-    print("Нажмите Ctrl для ускорения на +50 единиц")
-end)
-
-local dividerAntiTimeStop = Instance.new("Frame", innerContainer)
-dividerAntiTimeStop.Size = UDim2.new(1, -10, 0, 2)
-dividerAntiTimeStop.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-dividerAntiTimeStop.BorderSizePixel = 0
-
-local antiTimeStopLabel = Instance.new("TextLabel", innerContainer)
-antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
-antiTimeStopLabel.Text = "anti time stop"
-antiTimeStopLabel.Font = Enum.Font.Gotham
-antiTimeStopLabel.TextSize = 12
-antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-antiTimeStopLabel.BackgroundTransparency = 1
-antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
-    if not isAntiTimeStopEnabled then
-        AntiTimeStopConfig.Enabled = true
-        startAntiTimeStop()
-        
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
-        end
-        
-        spawn(function()
-            task.wait(0.5)
-            
-            AntiTimeStopConfig.Enabled = false
-            stopAntiTimeStop()
-            
-            if guiCallbacks.antiTimeStop then
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end
-        end)
     else
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-            spawn(function()
-                task.wait(1)
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end)
-        end
-    end
-end)
-guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
-
-local itemESPLabel = Instance.new("TextLabel", innerContainer)
-itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
-itemESPLabel.Text = "item esp"
-itemESPLabel.Font = Enum.Font.Gotham
-itemESPLabel.TextSize = 12
-itemESPLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-itemESPLabel.BackgroundTransparency = 1
-itemESPLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
-    YBAConfig.ItemESP.Enabled = v
-    if v then 
-        startItemESP() 
-    else 
-        stopItemESP() 
-    end
-    if guiCallbacks.itemESP then
-        guiCallbacks.itemESP.Text = "Item ESP: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.itemESP = itemESPToggleBtn
-
-itemESPToggleBtn.AutoButtonColor = false
-
-local itemSelectionHeader = Instance.new("TextLabel", innerContainer)
-itemSelectionHeader.Size = UDim2.new(1, -10, 0, 25)
-itemSelectionHeader.Text = "📦 ITEM SELECTION"
-itemSelectionHeader.Font = Enum.Font.GothamBold
-itemSelectionHeader.TextSize = 14
-itemSelectionHeader.TextColor3 = Color3.fromRGB(255, 255, 0)
-itemSelectionHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-itemSelectionHeader.BorderSizePixel = 1
-itemSelectionHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
-itemSelectionHeader.TextXAlignment = Enum.TextXAlignment.Left
-Instance.new("UICorner", itemSelectionHeader).CornerRadius = UDim.new(0,4)
-
-local function createItemToggle(itemName, defaultState)
-    local btn = toggle(itemName, defaultState, function(v)
-        YBAConfig.ItemESP.Items[itemName] = v
-        print("YBA Item ESP: Предмет", itemName, "установлен в", v and "ON" or "OFF")
-
-        if YBAConfig.ItemESP.Enabled then
-            if not v then
-                for obj, esp in pairs(itemESPElements) do
-                    if esp.itemName == itemName then
-                        pcall(removeItemESP, {Object = obj})
-                    end
-                end
-            end
-        end
-    end)
-    return btn
-end
-
-createItemToggle("Mysterious Arrow", YBAConfig.ItemESP.Items["Mysterious Arrow"])
-createItemToggle("Rokakaka", YBAConfig.ItemESP.Items["Rokakaka"])
-createItemToggle("Pure Rokakaka", YBAConfig.ItemESP.Items["Pure Rokakaka"])
-createItemToggle("Diamond", YBAConfig.ItemESP.Items["Diamond"])
-createItemToggle("Gold Coin", YBAConfig.ItemESP.Items["Gold Coin"])
-createItemToggle("Steel Ball", YBAConfig.ItemESP.Items["Steel Ball"])
-createItemToggle("Clackers", YBAConfig.ItemESP.Items["Clackers"])
-createItemToggle("Caesar's Headband", YBAConfig.ItemESP.Items["Caesar's Headband"])
-createItemToggle("Zeppeli's Hat", YBAConfig.ItemESP.Items["Zeppeli's Hat"])
-createItemToggle("Zeppeli's Scarf", YBAConfig.ItemESP.Items["Zeppeli's Scarf"])
-createItemToggle("Quinton's Glove", YBAConfig.ItemESP.Items["Quinton's Glove"])
-createItemToggle("Stone Mask", YBAConfig.ItemESP.Items["Stone Mask"])
-createItemToggle("Rib Cage of The Saint's Corpse", YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
-createItemToggle("Ancient Scroll", YBAConfig.ItemESP.Items["Ancient Scroll"])
-createItemToggle("DIO's Diary", YBAConfig.ItemESP.Items["DIO's Diary"])
-createItemToggle("DIO's Bone", YBAConfig.ItemESP.Items["DIO's Bone"])
-createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"])
-createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
-createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
-
-
-
-
-
-local divider8 = Instance.new("Frame", innerContainer)
-divider8.Size = UDim2.new(1, -10, 0, 2)
-divider8.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider8.BorderSizePixel = 0
-
-sectionHeader("🟩 Teleport Settings")
-
-local teleportSpacer = Instance.new("Frame", innerContainer)
-teleportSpacer.Size = UDim2.new(1, -10, 0, 10)
-teleportSpacer.BackgroundTransparency = 1
-
-local selectedPlayerLabel = Instance.new("TextLabel", innerContainer)
-selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
-selectedPlayerLabel.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
-selectedPlayerLabel.Font = Enum.Font.GothamBold
-selectedPlayerLabel.TextSize = 14
-selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
-selectedPlayerLabel.BackgroundTransparency = 1
-selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local startTeleportBtn = Instance.new("TextButton", innerContainer)
-startTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
-startTeleportBtn.Text = "START TELEPORT"
-startTeleportBtn.Font = Enum.Font.GothamBold
-startTeleportBtn.TextSize = 14
-startTeleportBtn.TextColor3 = Color3.new(1,1,1)
-startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-startTeleportBtn.AutoButtonColor = false
-Instance.new("UICorner", startTeleportBtn).CornerRadius = UDim.new(0,6)
-
-startTeleportBtn.MouseButton1Click:Connect(function()
-    if not TeleportConfig.TargetPlayer then
-        startTeleportBtn.Text = "Select player first!"
-        task.wait(2)
-        startTeleportBtn.Text = "START TELEPORT"
-        return
-    end
-    
-    if TeleportConfig.Enabled then
-        stopTeleport()
-        TeleportConfig.Enabled = false
-        startTeleportBtn.Text = "START TELEPORT"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    else
-        startTeleport()
-        TeleportConfig.Enabled = true
-        startTeleportBtn.Text = "STOP TELEPORT"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+        stopSpeedHack()
     end
 end)
 
-local stopTeleportBtn = Instance.new("TextButton", innerContainer)
-stopTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
-stopTeleportBtn.Text = "STOP TELEPORT"
-stopTeleportBtn.Font = Enum.Font.GothamBold
-stopTeleportBtn.TextSize = 14
-stopTeleportBtn.TextColor3 = Color3.new(1,1,1)
-stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-stopTeleportBtn.AutoButtonColor = false
-Instance.new("UICorner", stopTeleportBtn).CornerRadius = UDim.new(0,6)
-
-stopTeleportBtn.MouseButton1Click:Connect(function()
-    if TeleportConfig.Enabled then
-        stopTeleport()
-        TeleportConfig.Enabled = false
-        startTeleportBtn.Text = "START TELEPORT"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-        stopTeleportBtn.Text = "Teleport stopped"
-        task.wait(2)
-        stopTeleportBtn.Text = "STOP TELEPORT"
-    else
-        stopTeleportBtn.Text = "Teleport not active"
-        task.wait(2)
-        stopTeleportBtn.Text = "STOP TELEPORT"
-    end
+local btoolsButton = createFunctionButton("BTOOLS", function()
+    -- Функция для BTOOLS
+    print("BTOOLS activated")
 end)
 
-local function createPlayerListInMenu()
-    local allPlayers = Players:GetPlayers()
-    local alivePlayers = {}
-    
-    for _, player in ipairs(allPlayers) do
-        if player and player ~= Players.LocalPlayer then
-            table.insert(alivePlayers, player)
-        end
-    end
-    
-    table.sort(alivePlayers, function(a, b)
-        return a.Name:lower() < b.Name:lower()
-    end)
-    
-    print("Создаем отсортированный список игроков в меню: " .. #alivePlayers .. " игроков")
-    
-    local currentLetter = ""
-    for i, player in ipairs(alivePlayers) do
-        local firstLetter = player.Name:sub(1,1):upper()
-        
-        if firstLetter ~= currentLetter then
-            currentLetter = firstLetter
-            
-            local letterHeader = Instance.new("TextLabel", innerContainer)
-            letterHeader.Size = UDim2.new(1, -10, 0, 20)
-            letterHeader.Text = "--- " .. currentLetter .. " ---"
-            letterHeader.Font = Enum.Font.GothamBold
-            letterHeader.TextSize = 12
-            letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
-            letterHeader.BackgroundColor3 = Color3.fromRGB(30,30,40)
-            letterHeader.BorderSizePixel = 0
-            letterHeader.TextXAlignment = Enum.TextXAlignment.Center
-            Instance.new("UICorner", letterHeader).CornerRadius = UDim.new(0,4)
-        end
-        
-        local playerBtn = Instance.new("TextButton", innerContainer)
-        playerBtn.Size = UDim2.new(1, -10, 0, 30)
-        playerBtn.Text = player.Name
-        playerBtn.Font = Enum.Font.Gotham
-        playerBtn.TextSize = 12
-        playerBtn.TextColor3 = Color3.new(1,1,1)
-        playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-        playerBtn.AutoButtonColor = false
-        playerBtn.BorderSizePixel = 1
-        playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
-        Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
-        
-        playerBtn.MouseEnter:Connect(function()
-            playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
-            playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
-        end)
-        
-        playerBtn.MouseLeave:Connect(function()
-            playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-            playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
-        end)
-        
-        playerBtn.MouseButton1Click:Connect(function()
-            for _, btn in ipairs(innerContainer:GetChildren()) do
-                if btn:IsA("TextButton") and 
-                   btn ~= startTeleportBtn and 
-                   btn ~= stopTeleportBtn and 
-                   btn ~= updatePlayersBtn and
-                   btn.Size.Y.Offset == 30 then
-                    btn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-                    btn.BorderColor3 = Color3.fromRGB(100,100,120)
-                end
-            end
-            
-            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
-            
-            TeleportConfig.TargetPlayer = player
-            TeleportConfig.SelectedPlayerName = player.Name
-            TeleportConfig.OriginalPosition = nil 
-            selectedPlayerLabel.Text = "Selected Player: " .. player.Name
-        end)
-    end
-end
-createPlayerListInMenu()
+local antiCheatButton = createFunctionButton("ROBLOX ANTI-CHEAT BYPASS", function()
+    -- Функция для обхода анти-чита
+    print("Anti-cheat bypass activated")
+end)
 
-guiCallbacks.teleport = selectedPlayerLabel
+local feFlingButton = createFunctionButton("FE FLING", function()
+    -- Функция для FE FLING
+    print("FE FLING activated")
+end)
 
-local function updatePlayerList()
-    local tempContainer = Instance.new("Frame")
-    tempContainer.Name = "TempPlayerList"
-    tempContainer.Parent = nil
-    
-    local allPlayers = Players:GetPlayers()
-    local alivePlayers = {}
-    for _, player in ipairs(allPlayers) do
-        if player and player ~= Players.LocalPlayer then
-            table.insert(alivePlayers, player)
-        end
-    end
-    
-    table.sort(alivePlayers, function(a, b)
-        return a.Name:lower() < b.Name:lower()
-    end)
-    
-    local currentLetter = ""
-    for i, player in ipairs(alivePlayers) do
-        local firstLetter = player.Name:sub(1,1):upper()
-        
-        if firstLetter ~= currentLetter then
-            currentLetter = firstLetter
-            
-            local letterHeader = Instance.new("TextLabel", tempContainer)
-            letterHeader.Size = UDim2.new(1, -10, 0, 20)
-            letterHeader.Text = "--- " .. currentLetter .. " ---"
-            letterHeader.Font = Enum.Font.GothamBold
-            letterHeader.TextSize = 12
-            letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
-            letterHeader.BackgroundColor3 = Color3.fromRGB(30,30,40)
-            letterHeader.BorderSizePixel = 0
-            letterHeader.TextXAlignment = Enum.TextXAlignment.Center
-            Instance.new("UICorner", letterHeader).CornerRadius = UDim.new(0,4)
-        end
-        
-        local playerBtn = Instance.new("TextButton", tempContainer)
-        playerBtn.Size = UDim2.new(1, -10, 0, 30)
-        playerBtn.Text = player.Name
-        playerBtn.Font = Enum.Font.Gotham
-        playerBtn.TextSize = 12
-        playerBtn.TextColor3 = Color3.new(1,1,1)
-        playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-        playerBtn.AutoButtonColor = false
-        playerBtn.BorderSizePixel = 1
-        playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
-        Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
-        
-        playerBtn.MouseEnter:Connect(function()
-            playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
-            playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
-        end)
-        
-        playerBtn.MouseLeave:Connect(function()
-            playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-            playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
-        end)
-        
-        playerBtn.MouseButton1Click:Connect(function()
-            for _, btn in ipairs(innerContainer:GetChildren()) do
-                if btn:IsA("TextButton") and 
-                   btn ~= startTeleportBtn and 
-                   btn ~= stopTeleportBtn and 
-                   btn ~= updatePlayersBtn and
-                   btn.Size.Y.Offset == 30 then
-                    btn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-                    btn.BorderColor3 = Color3.fromRGB(100,100,120)
-                end
-            end
-            
-            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
-            
-            TeleportConfig.TargetPlayer = player
-            TeleportConfig.SelectedPlayerName = player.Name
-            TeleportConfig.OriginalPosition = nil 
-            selectedPlayerLabel.Text = "Selected Player: " .. player.Name
-        end)
-    end
-    
-    for _, child in ipairs(innerContainer:GetChildren()) do
+-- Статус Speed Hack внизу
+local statusFrame = Instance.new("Frame", rightPanel)
+statusFrame.Name = "StatusFrame"
+statusFrame.Size = UDim2.new(1, -20, 0, 30)
+statusFrame.Position = UDim2.new(0, 10, 1, -35)
+statusFrame.BackgroundTransparency = 1
+
+local speedHackStatus = Instance.new("TextLabel", statusFrame)
+speedHackStatus.Name = "SpeedHackStatus"
+speedHackStatus.Size = UDim2.new(0, 200, 1, 0)
+speedHackStatus.Position = UDim2.new(0, 0, 0, 0)
+speedHackStatus.Text = "Speed Hack: 0"
+speedHackStatus.Font = Enum.Font.Gotham
+speedHackStatus.TextSize = 14
+speedHackStatus.TextColor3 = Color3.new(1, 1, 1)
+speedHackStatus.BackgroundTransparency = 1
+speedHackStatus.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Слайдер для Speed Hack
+local speedSlider = Instance.new("Frame", statusFrame)
+speedSlider.Name = "SpeedSlider"
+speedSlider.Size = UDim2.new(0, 20, 0, 20)
+speedSlider.Position = UDim2.new(0, 210, 0, 5)
+speedSlider.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+speedSlider.BorderSizePixel = 0
+
+local sliderCorner = Instance.new("UICorner", speedSlider)
+sliderCorner.CornerRadius = UDim.new(0.5, 0)
+
+-- Функция для показа контента
+function showContent(tabName)
+    -- Очищаем контейнер
+    for _, child in pairs(functionsContainer:GetChildren()) do
         if child:IsA("TextButton") then
-            if child.Text and child.Text:len() > 0 and 
-               not child.Text:find("UPDATE") and 
-               not child.Text:find("ESP") and 
-               not child.Text:find("Aimbot") and 
-               not child.Text:find("Fly") and 
-               not child.Text:find("NoClip") and 
-               not child.Text:find("SpeedHack") and 
-               not child.Text:find("Team Check") and 
-               not child.Text:find("Show Outline") and 
-               not child.Text:find("Show Lines") and 
-               not child.Text:find("Rainbow Colors") and 
-               not child.Text:find("Fill Color") and 
-               not child.Text:find("Outline Color") and 
-               not child.Text:find("Text Color") and 
-               not child.Text:find("Fill Transparency") and 
-               not child.Text:find("Outline Transparency") and 
-               not child.Text:find("Visibility Check") and 
-               not child.Text:find("FOV Radius") and 
-               not child.Text:find("FOV Rainbow") and 
-               not child.Text:find("Aimbot FOV Color") and 
-               not child.Text:find("Fly Speed") and 
-               not child.Text:find("Custom Fly Speed") and 
-               not child.Text:find("Use JumpPower Method") and 
-               not child.Text:find("SpeedHack Speed") and 
-               not child.Text:find("Custom SpeedHack Speed") and 
-               not child.Text:find("START TELEPORT") and 
-               not child.Text:find("STOP TELEPORT") and 
-               not child.Text:find("Hotkey:") and 
-               not child.Text:find("Stand Range Hack") and 
-               not child.Text:find("Item ESP") and 
-               child.Size.Y.Offset == 30 then
-                child:Destroy()
-            end
-        end
-    end
-    
-    for _, child in ipairs(innerContainer:GetChildren()) do
-        if child:IsA("TextLabel") and child.Text and child.Text:find("---") then
             child:Destroy()
         end
     end
     
-    for _, child in ipairs(tempContainer:GetChildren()) do
-        child.Parent = innerContainer
+    if tabName == "Games Hub" then
+        -- Показываем глобальные функции
+        contentTitle.Text = "GLOBAL FUNCTIONS"
+        
+        createFunctionButton("SPEED HACK", function()
+            SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
+            if SpeedHackConfig.Enabled then
+                startSpeedHack()
+            else
+                stopSpeedHack()
+            end
+        end)
+        
+        createFunctionButton("BTOOLS", function()
+            print("BTOOLS activated")
+        end)
+        
+        createFunctionButton("ROBLOX ANTI-CHEAT BYPASS", function()
+            print("Anti-cheat bypass activated")
+        end)
+        
+        createFunctionButton("FE FLING", function()
+            print("FE FLING activated")
+        end)
+        
+    elseif tabName == "Player" then
+        contentTitle.Text = "PLAYER FUNCTIONS"
+        
+        createFunctionButton("FLY", function()
+            FlyConfig.Enabled = not FlyConfig.Enabled
+            if FlyConfig.Enabled then
+                startFly()
+            else
+                stopFly()
+            end
+        end)
+        
+        createFunctionButton("NOCLIP", function()
+            if isNoClipping then
+                stopNoClip()
+            else
+                startNoClip()
+            end
+        end)
+        
+        createFunctionButton("INFINITE JUMP", function()
+            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
+        end)
+        
+    elseif tabName == "Executor" then
+        contentTitle.Text = "EXECUTOR FUNCTIONS"
+        
+        createFunctionButton("EXECUTE SCRIPT", function()
+            print("Script execution")
+        end)
+        
+        createFunctionButton("CLEAR OUTPUT", function()
+            print("Output cleared")
+        end)
+        
+    elseif tabName == "Script Hub" then
+        contentTitle.Text = "SCRIPT HUB"
+        
+        createFunctionButton("LOAD SCRIPTS", function()
+            print("Loading scripts")
+        end)
+        
+        createFunctionButton("SCRIPT MANAGER", function()
+            print("Script manager")
+        end)
+        
+    elseif tabName == "Settings" then
+        contentTitle.Text = "SETTINGS"
+        
+        createFunctionButton("CONFIGURATION", function()
+            print("Configuration")
+        end)
+        
+        createFunctionButton("THEME SETTINGS", function()
+            print("Theme settings")
+        end)
     end
-    
-    tempContainer:Destroy()
 end
 
-local updatePlayersBtn = Instance.new("TextButton", innerContainer)
-updatePlayersBtn.Size = UDim2.new(1, -10, 0, 28)
-updatePlayersBtn.Text = "UPDATE PLAYER LIST"
-updatePlayersBtn.Font = Enum.Font.GothamBold
-updatePlayersBtn.TextSize = 14
-updatePlayersBtn.TextColor3 = Color3.new(1,1,1)
-updatePlayersBtn.BackgroundColor3 = Color3.fromRGB(100,150,255)
-updatePlayersBtn.AutoButtonColor = false
-Instance.new("UICorner", updatePlayersBtn).CornerRadius = UDim.new(0,6)
+-- Показываем контент по умолчанию
+showContent("Games Hub")
 
-updatePlayersBtn.MouseButton1Click:Connect(function()
-    updatePlayersBtn.Text = "UPDATING..."
-    updatePlayerList()
-    task.wait(1)
-    updatePlayersBtn.Text = "LIST UPDATED!"
-    task.wait(2)
-    updatePlayersBtn.Text = "UPDATE PLAYER LIST"
-    
-    task.spawn(function()
-        task.wait(5)
-    end)
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(30)
-        updatePlayerList()
+-- Обновление статуса Speed Hack
+RunService.Heartbeat:Connect(function()
+    if SpeedHackConfig.Enabled then
+        speedHackStatus.Text = "Speed Hack: " .. SpeedHackConfig.Speed
+        speedHackStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        speedHackStatus.Text = "Speed Hack: 0"
+        speedHackStatus.TextColor3 = Color3.new(1, 1, 1)
     end
 end)
 
-local stopReturnBtn = Instance.new("TextButton", innerContainer)
-stopReturnBtn.Size = UDim2.new(1, -10, 0, 28)
-stopReturnBtn.Text = "STOP RETURN"
-stopReturnBtn.Font = Enum.Font.GothamBold
-stopReturnBtn.TextSize = 14
-stopReturnBtn.TextColor3 = Color3.new(1,1,1)
-stopReturnBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-stopReturnBtn.AutoButtonColor = false
-Instance.new("UICorner", stopReturnBtn).CornerRadius = UDim.new(0,6)
-
-stopReturnBtn.MouseButton1Click:Connect(function()
-    if _G.returnConnections then
-        for _, connection in ipairs(_G.returnConnections) do
-            if connection then pcall(function() connection:Disconnect() end) end
-        end
-        _G.returnConnections = nil
+-- Переключение меню по Insert
+UserInputService.InputBegan:Connect(function(input, gp)
+    if not gp and input.KeyCode == Enum.KeyCode.Insert then
+        mainFrame.Visible = not mainFrame.Visible
     end
-    if _G.returnLoop then
-        pcall(function() _G.returnLoop:Disconnect() end)
-        _G.returnLoop = nil
-    end
-    TeleportConfig.OriginalPosition = nil
 end)
