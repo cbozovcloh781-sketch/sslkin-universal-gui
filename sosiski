@@ -3320,7 +3320,7 @@ end
 
 -- Создание нового интерфейса в стиле Arceus X V55
 local screenGui = Instance.new("ScreenGui", CoreGui)
-screenGui.Name = "ArceusXGui"
+screenGui.Name = "SslkinGui"
 screenGui.ResetOnSpawn = false
 
 -- Основной контейнер
@@ -3359,7 +3359,7 @@ local logoText = Instance.new("TextLabel", logoFrame)
 logoText.Name = "LogoText"
 logoText.Size = UDim2.new(1, 0, 0, 40)
 logoText.Position = UDim2.new(0, 0, 0, 10)
-logoText.Text = "Arceus X"
+logoText.Text = "SSLKIN"
 logoText.Font = Enum.Font.GothamBold
 logoText.TextSize = 18
 logoText.TextColor3 = Color3.new(1, 1, 1)
@@ -3370,23 +3370,20 @@ local versionText = Instance.new("TextLabel", logoFrame)
 versionText.Name = "VersionText"
 versionText.Size = UDim2.new(1, 0, 0, 20)
 versionText.Position = UDim2.new(0, 0, 0, 50)
-versionText.Text = "V55"
+versionText.Text = "UNIVERSAL SCRIPT"
 versionText.Font = Enum.Font.Gotham
-versionText.TextSize = 12
+versionText.TextSize = 10
 versionText.TextColor3 = Color3.new(1, 1, 1)
 versionText.BackgroundTransparency = 1
 versionText.TextXAlignment = Enum.TextXAlignment.Center
 
 -- Навигационные кнопки
 local navButtons = {
-    {name = "Player", icon = "👤"},
-    {name = "Executor", icon = "⚡"},
-    {name = "Script Hub", icon = "📜"},
-    {name = "Games Hub", icon = "🎮"},
-    {name = "Settings", icon = "⚙️"}
+    {name = "Main", icon = "🏠"},
+    {name = "YBA Hacks", icon = "⚔️"}
 }
 
-local selectedTab = "Games Hub"
+local selectedTab = "Main"
 
 for i, buttonData in ipairs(navButtons) do
     local navButton = Instance.new("TextButton", leftPanel)
@@ -3484,7 +3481,7 @@ local contentTitle = Instance.new("TextLabel", rightPanel)
 contentTitle.Name = "ContentTitle"
 contentTitle.Size = UDim2.new(1, -20, 0, 40)
 contentTitle.Position = UDim2.new(0, 10, 0, 10)
-contentTitle.Text = "GLOBAL FUNCTIONS"
+contentTitle.Text = "MAIN FUNCTIONS"
 contentTitle.Font = Enum.Font.GothamBold
 contentTitle.TextSize = 18
 contentTitle.TextColor3 = Color3.new(1, 1, 1)
@@ -3502,65 +3499,587 @@ local functionsLayout = Instance.new("UIListLayout", functionsContainer)
 functionsLayout.Padding = UDim.new(0, 10)
 functionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Функции для создания кнопок
-local function createFunctionButton(text, callback)
-    local button = Instance.new("TextButton", functionsContainer)
-    button.Size = UDim2.new(1, 0, 0, 50)
-    button.Text = text
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 16
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    button.BorderSizePixel = 0
-    button.AutoButtonColor = false
+-- Функции для создания элементов интерфейса
+local function createSectionHeader(text)
+    local spacer = Instance.new("Frame", functionsContainer)
+    spacer.Size = UDim2.new(1, 0, 0, 10)
+    spacer.BackgroundTransparency = 1
     
-    local buttonCorner = Instance.new("UICorner", button)
-    buttonCorner.CornerRadius = UDim.new(0, 8)
-    
-    -- Эффект при наведении
-    button.MouseEnter:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.2), {
-            BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-        }):Play()
-    end)
-    
-    button.MouseLeave:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.2), {
-            BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-        }):Play()
-    end)
-    
-    if callback then
-        button.MouseButton1Click:Connect(callback)
-    end
-    
-    return button
+    local lbl = Instance.new("TextLabel", functionsContainer)
+    lbl.Text = text
+    lbl.Size = UDim2.new(1, -10, 0, 30)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 16
+    lbl.TextColor3 = Color3.fromRGB(255,255,255)
+    lbl.BackgroundTransparency = 1
+    return lbl
 end
 
--- Создаем кнопки функций
-local speedHackButton = createFunctionButton("SPEED HACK", function()
-    SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
-    if SpeedHackConfig.Enabled then
-        startSpeedHack()
-    else
-        stopSpeedHack()
+local function createToggle(label, default, callback)
+    local btn = Instance.new("TextButton", functionsContainer)
+    btn.Size = UDim2.new(1, -10, 0, 28)
+    btn.Text = label .. ": " .. (default and "ON" or "OFF")
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    btn.AutoButtonColor = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+
+    btn.MouseButton1Click:Connect(function()
+        default = not default
+        btn.Text = label .. ": " .. (default and "ON" or "OFF")
+        callback(default)
+    end)
+    
+    return btn
+end
+
+local function createSlider(label, min, max, value, callback)
+    local container = Instance.new("Frame", functionsContainer)
+    container.Size = UDim2.new(1, -10, 0, 36)
+    container.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", container)
+    lbl.Text = label .. ": " .. value
+    lbl.Size = UDim2.new(1, 0, 0.5, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
+
+    local sliderBack = Instance.new("Frame", container)
+    sliderBack.Position = UDim2.new(0,0,0.5,4)
+    sliderBack.Size = UDim2.new(1, 0, 0, 6)
+    sliderBack.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(1,0)
+
+    local sliderFill = Instance.new("Frame", sliderBack)
+    sliderFill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
+    sliderFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1,0)
+
+    local dragging = false
+    sliderBack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    RunService.RenderStepped:Connect(function()
+        if dragging then
+            local pos = UserInputService:GetMouseLocation().X
+            local abs = sliderBack.AbsolutePosition.X
+            local width = sliderBack.AbsoluteSize.X
+            local pct = math.clamp((pos - abs) / width, 0, 1)
+            local newVal = math.floor((min + (max - min) * pct) * 10) / 10
+            sliderFill.Size = UDim2.new(pct, 0, 1, 0)
+            lbl.Text = label .. ": " .. newVal
+            callback(newVal)
+        end
+    end)
+end
+
+local function createColorPicker(labelText, currentColor, callback)
+    local lbl = Instance.new("TextLabel", functionsContainer)
+    lbl.Text = labelText
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
+    lbl.Size = UDim2.new(1, -10, 0, 20)
+    lbl.Font = Enum.Font.SourceSans
+    lbl.TextSize = 14
+
+    local colors = {
+        Color3.fromRGB(255, 255, 255),
+        Color3.fromRGB(255, 0, 0),
+        Color3.fromRGB(0, 255, 0),
+        Color3.fromRGB(0, 0, 255),
+        Color3.fromRGB(255, 255, 0),
+        Color3.fromRGB(255, 0, 255),
+        Color3.fromRGB(0, 255, 255),
+        Color3.fromRGB(128, 128, 128),
+        Color3.fromRGB(255, 165, 0),
+    }
+
+    local row = Instance.new("Frame", functionsContainer)
+    row.Size = UDim2.new(1, -10, 0, 28)
+    row.BackgroundTransparency = 1
+
+    local layout = Instance.new("UIListLayout", row)
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    layout.Padding = UDim.new(0, 4)
+
+    for _, clr in pairs(colors) do
+        local btn = Instance.new("TextButton", row)
+        btn.Size = UDim2.new(0, 24, 0, 24)
+        btn.BackgroundColor3 = clr
+        btn.Text = ""
+        btn.AutoButtonColor = false
+        btn.MouseButton1Click:Connect(function()
+            callback(clr)
+        end)
     end
-end)
+end
 
-local btoolsButton = createFunctionButton("BTOOLS", function()
-    -- Функция для BTOOLS
-    print("BTOOLS activated")
-end)
+local function createSpeedInput(label, currentSpeed, callback)
+    local container = Instance.new("Frame", functionsContainer)
+    container.Size = UDim2.new(1, -10, 0, 36)
+    container.BackgroundTransparency = 1
 
-local antiCheatButton = createFunctionButton("ROBLOX ANTI-CHEAT BYPASS", function()
-    -- Функция для обхода анти-чита
-    print("Anti-cheat bypass activated")
-end)
+    local lbl = Instance.new("TextLabel", container)
+    lbl.Text = label .. ": " .. currentSpeed
+    lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
 
-local feFlingButton = createFunctionButton("FE FLING", function()
-    -- Функция для FE FLING
-    print("FE FLING activated")
-end)
+    local inputBox = Instance.new("TextBox", container)
+    inputBox.Position = UDim2.new(0.7, 5, 0.25, 0)
+    inputBox.Size = UDim2.new(0.3, -5, 0.5, 0)
+    inputBox.Text = tostring(currentSpeed)
+    inputBox.Font = Enum.Font.Gotham
+    inputBox.TextSize = 12
+    inputBox.TextColor3 = Color3.new(1,1,1)
+    inputBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    inputBox.PlaceholderText = "Speed"
+    Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0,4)
+
+    inputBox.FocusLost:Connect(function()
+        local newSpeed = tonumber(inputBox.Text)
+        if newSpeed and newSpeed > 0 then
+            callback(newSpeed)
+            lbl.Text = label .. ": " .. newSpeed
+        else
+            inputBox.Text = tostring(currentSpeed)
+        end
+    end)
+
+    return lbl, inputBox
+end
+
+local function createKeyBindButton(name, currentKey, callback)
+    local btn = Instance.new("TextButton", functionsContainer)
+    btn.Size = UDim2.new(1, -10, 0, 24)
+    btn.Text = name .. " Hotkey: [" .. (currentKey and tostring(currentKey.Name) or "None") .. "]"
+    btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 13
+    btn.AutoButtonColor = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+
+    btn.MouseButton1Click:Connect(function()
+        btn.Text = name .. " Hotkey: [Press any key]"
+        local conn
+        conn = UserInputService.InputBegan:Connect(function(input, gp)
+            if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
+                conn:Disconnect()
+                callback(input.KeyCode)
+                btn.Text = name .. " Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+            end
+        end)
+    end)
+end
+
+local function createDivider()
+    local divider = Instance.new("Frame", functionsContainer)
+    divider.Size = UDim2.new(1, -10, 0, 2)
+    divider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    divider.BorderSizePixel = 0
+end
+
+-- Функция для показа контента
+function showContent(tabName)
+    -- Очищаем контейнер
+    for _, child in pairs(functionsContainer:GetChildren()) do
+        child:Destroy()
+    end
+    
+    if tabName == "Main" then
+        contentTitle.Text = "MAIN FUNCTIONS"
+        
+        -- Hotkeys
+        createKeyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
+            Config.ESP.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("Aimbot", Config.Aimbot.ToggleKey, function(newKey)
+            Config.Aimbot.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
+            FlyConfig.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
+            NoClipConfig.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
+            SpeedHackConfig.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
+            TeleportConfig.ToggleKey = newKey
+        end)
+        
+        createDivider()
+        
+        -- ESP Settings
+        createSectionHeader("🔷ESP Settings")
+        createToggle("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
+        createToggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
+        createToggle("Show Outline", Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
+        createToggle("Show Lines", Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
+        createToggle("Rainbow Colors", Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
+        
+        createColorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
+        createColorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
+        createColorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor = c end)
+        createSlider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
+        createSlider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
+        
+        createDivider()
+        
+        -- Aimbot Settings
+        createSectionHeader("🔷Aimbot Settings")
+        createToggle("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
+        createToggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
+        createToggle("Visibility Check", Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
+        createSlider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
+        createToggle("FOV Rainbow", Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
+        createColorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
+        
+        createDivider()
+        
+        -- Fly Settings
+        createSectionHeader("🟨 Fly Settings")
+        local flyToggleBtn = createToggle("Fly", FlyConfig.Enabled, function(v)
+            FlyConfig.Enabled = v
+            if v then startFly() else stopFly() end
+        end)
+        
+        createSlider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
+            FlyConfig.Speed = v
+        end)
+        
+        createSpeedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
+            FlyConfig.Speed = v
+        end)
+        
+        createDivider()
+        
+        -- NoClip Settings
+        createSectionHeader("🟪 NoClip Settings")
+        local noClipStatusLabel = Instance.new("TextLabel", functionsContainer)
+        noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
+        noClipStatusLabel.Text = "NoClip Status: OFF"
+        noClipStatusLabel.Font = Enum.Font.GothamBold
+        noClipStatusLabel.TextSize = 12
+        noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+        noClipStatusLabel.BackgroundTransparency = 1
+        noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local forceNoClipBtn = Instance.new("TextButton", functionsContainer)
+        forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
+        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+        forceNoClipBtn.Font = Enum.Font.GothamBold
+        forceNoClipBtn.TextSize = 14
+        forceNoClipBtn.TextColor3 = Color3.new(1,1,1)
+        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+        forceNoClipBtn.AutoButtonColor = false
+        Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
+        
+        forceNoClipBtn.MouseButton1Click:Connect(function()
+            if isNoClipping then
+                stopNoClip()
+                forceNoClipBtn.Text = "NOCLIP DISABLED"
+                forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+                task.wait(1)
+                forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+                forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+            else
+                startNoClip()
+                forceNoClipBtn.Text = "NOCLIP ENABLED"
+                forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
+                task.wait(1)
+                forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
+                forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+            end
+        end)
+        
+        createDivider()
+        
+        -- SpeedHack Settings
+        createSectionHeader("🟦 SpeedHack Settings")
+        local speedHackToggleBtn = createToggle("SpeedHack", SpeedHackConfig.Enabled, function(v)
+            SpeedHackConfig.Enabled = v
+            if v then startSpeedHack() else stopSpeedHack() end
+        end)
+        
+        createToggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
+            SpeedHackConfig.UseJumpPower = v
+            if SpeedHackConfig.Enabled then
+                stopSpeedHack()
+                startSpeedHack()
+            end
+        end)
+        
+        createSlider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
+            SpeedHackConfig.Speed = v
+            if SpeedHackConfig.Enabled then
+                local char = Players.LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.WalkSpeed = v * 16
+                    if SpeedHackConfig.UseJumpPower then
+                        hum.JumpPower = v * 50
+                    end
+                end
+            end
+        end)
+        
+        createSpeedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
+            SpeedHackConfig.Speed = v
+            if SpeedHackConfig.Enabled then
+                local char = Players.LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.WalkSpeed = v * 16
+                    if SpeedHackConfig.UseJumpPower then
+                        hum.JumpPower = v * 50
+                    end
+                end
+            end
+        end)
+        
+        createDivider()
+        
+        -- Jump Settings
+        createSectionHeader("🦘 Jump Settings")
+        local longJumpToggleBtn = createToggle("Long Jump", LongJumpConfig.Enabled, function(v)
+            LongJumpConfig.Enabled = v
+            if v then startLongJump() else stopLongJump() end
+        end)
+        
+        createSlider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
+            LongJumpConfig.JumpPower = v
+            if LongJumpConfig.Enabled then
+                local char = Players.LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.JumpPower = v
+                end
+            end
+        end)
+        
+        local infiniteJumpToggleBtn = createToggle("Infinite Jump", InfiniteJumpConfig.Enabled, function(v)
+            InfiniteJumpConfig.Enabled = v
+            if v then startInfiniteJump() else stopInfiniteJump() end
+        end)
+        
+        createSlider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
+            InfiniteJumpConfig.JumpPower = v
+        end)
+        
+        createDivider()
+        
+        -- Teleport Settings
+        createSectionHeader("🟩 Teleport Settings")
+        local selectedPlayerLabel = Instance.new("TextLabel", functionsContainer)
+        selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
+        selectedPlayerLabel.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
+        selectedPlayerLabel.Font = Enum.Font.GothamBold
+        selectedPlayerLabel.TextSize = 14
+        selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
+        selectedPlayerLabel.BackgroundTransparency = 1
+        selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local startTeleportBtn = Instance.new("TextButton", functionsContainer)
+        startTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
+        startTeleportBtn.Text = "START TELEPORT"
+        startTeleportBtn.Font = Enum.Font.GothamBold
+        startTeleportBtn.TextSize = 14
+        startTeleportBtn.TextColor3 = Color3.new(1,1,1)
+        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+        startTeleportBtn.AutoButtonColor = false
+        Instance.new("UICorner", startTeleportBtn).CornerRadius = UDim.new(0,6)
+        
+        startTeleportBtn.MouseButton1Click:Connect(function()
+            if not TeleportConfig.TargetPlayer then
+                startTeleportBtn.Text = "Select player first!"
+                task.wait(2)
+                startTeleportBtn.Text = "START TELEPORT"
+                return
+            end
+            
+            if TeleportConfig.Enabled then
+                stopTeleport()
+                TeleportConfig.Enabled = false
+                startTeleportBtn.Text = "START TELEPORT"
+                startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+            else
+                startTeleport()
+                TeleportConfig.Enabled = true
+                startTeleportBtn.Text = "STOP TELEPORT"
+                startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+            end
+        end)
+        
+        local stopTeleportBtn = Instance.new("TextButton", functionsContainer)
+        stopTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
+        stopTeleportBtn.Text = "STOP TELEPORT"
+        stopTeleportBtn.Font = Enum.Font.GothamBold
+        stopTeleportBtn.TextSize = 14
+        stopTeleportBtn.TextColor3 = Color3.new(1,1,1)
+        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+        stopTeleportBtn.AutoButtonColor = false
+        Instance.new("UICorner", stopTeleportBtn).CornerRadius = UDim.new(0,6)
+        
+        stopTeleportBtn.MouseButton1Click:Connect(function()
+            if TeleportConfig.Enabled then
+                stopTeleport()
+                TeleportConfig.Enabled = false
+                startTeleportBtn.Text = "START TELEPORT"
+                startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+                stopTeleportBtn.Text = "Teleport stopped"
+                task.wait(2)
+                stopTeleportBtn.Text = "STOP TELEPORT"
+            else
+                stopTeleportBtn.Text = "Teleport not active"
+                task.wait(2)
+                stopTeleportBtn.Text = "STOP TELEPORT"
+            end
+        end)
+        
+    elseif tabName == "YBA Hacks" then
+        contentTitle.Text = "YBA HACKS"
+        
+        -- YBA Stand Range
+        local standRangeLabel = Instance.new("TextLabel", functionsContainer)
+        standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
+        standRangeLabel.Text = "stand range hack"
+        standRangeLabel.Font = Enum.Font.Gotham
+        standRangeLabel.TextSize = 12
+        standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        standRangeLabel.BackgroundTransparency = 1
+        standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local ybaToggleBtn = createToggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+            YBAConfig.Enabled = v
+            if v then 
+                startYBA() 
+            else 
+                stopYBA() 
+            end
+        end)
+        
+        -- Item ESP
+        local itemESPLabel = Instance.new("TextLabel", functionsContainer)
+        itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
+        itemESPLabel.Text = "item esp"
+        itemESPLabel.Font = Enum.Font.Gotham
+        itemESPLabel.TextSize = 12
+        itemESPLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        itemESPLabel.BackgroundTransparency = 1
+        itemESPLabel.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local itemESPToggleBtn = createToggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
+            YBAConfig.ItemESP.Enabled = v
+            if v then 
+                startItemESP() 
+            else 
+                stopItemESP() 
+            end
+        end)
+        
+        -- Item Selection
+        local itemSelectionHeader = Instance.new("TextLabel", functionsContainer)
+        itemSelectionHeader.Size = UDim2.new(1, -10, 0, 25)
+        itemSelectionHeader.Text = "📦 ITEM SELECTION"
+        itemSelectionHeader.Font = Enum.Font.GothamBold
+        itemSelectionHeader.TextSize = 14
+        itemSelectionHeader.TextColor3 = Color3.fromRGB(255, 255, 0)
+        itemSelectionHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        itemSelectionHeader.BorderSizePixel = 1
+        itemSelectionHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        itemSelectionHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", itemSelectionHeader).CornerRadius = UDim.new(0,4)
+        
+        local function createItemToggle(itemName, defaultState)
+            local btn = createToggle(itemName, defaultState, function(v)
+                YBAConfig.ItemESP.Items[itemName] = v
+                print("YBA Item ESP: Предмет", itemName, "установлен в", v and "ON" or "OFF")
+                
+                if YBAConfig.ItemESP.Enabled then
+                    if not v then
+                        for obj, esp in pairs(itemESPElements) do
+                            if esp.itemName == itemName then
+                                pcall(removeItemESP, {Object = obj})
+                            end
+                        end
+                    end
+                end
+            end)
+            return btn
+        end
+        
+        createItemToggle("Mysterious Arrow", YBAConfig.ItemESP.Items["Mysterious Arrow"])
+        createItemToggle("Rokakaka", YBAConfig.ItemESP.Items["Rokakaka"])
+        createItemToggle("Pure Rokakaka", YBAConfig.ItemESP.Items["Pure Rokakaka"])
+        createItemToggle("Diamond", YBAConfig.ItemESP.Items["Diamond"])
+        createItemToggle("Gold Coin", YBAConfig.ItemESP.Items["Gold Coin"])
+        createItemToggle("Steel Ball", YBAConfig.ItemESP.Items["Steel Ball"])
+        createItemToggle("Clackers", YBAConfig.ItemESP.Items["Clackers"])
+        createItemToggle("Caesar's Headband", YBAConfig.ItemESP.Items["Caesar's Headband"])
+        createItemToggle("Zeppeli's Hat", YBAConfig.ItemESP.Items["Zeppeli's Hat"])
+        createItemToggle("Zeppeli's Scarf", YBAConfig.ItemESP.Items["Zeppeli's Scarf"])
+        createItemToggle("Quinton's Glove", YBAConfig.ItemESP.Items["Quinton's Glove"])
+        createItemToggle("Stone Mask", YBAConfig.ItemESP.Items["Stone Mask"])
+        createItemToggle("Rib Cage of The Saint's Corpse", YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
+        createItemToggle("Ancient Scroll", YBAConfig.ItemESP.Items["Ancient Scroll"])
+        createItemToggle("DIO's Diary", YBAConfig.ItemESP.Items["DIO's Diary"])
+        createItemToggle("DIO's Bone", YBAConfig.ItemESP.Items["DIO's Bone"])
+        createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"])
+        createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
+        createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
+        
+        createDivider()
+        
+        -- Anti Time Stop
+        local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
+        antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
+        antiTimeStopLabel.Text = "anti time stop"
+        antiTimeStopLabel.Font = Enum.Font.Gotham
+        antiTimeStopLabel.TextSize = 12
+        antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        antiTimeStopLabel.BackgroundTransparency = 1
+        antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local antiTimeStopToggleBtn = createToggle("Anti Time Stop (0.5s)", false, function(v)
+            if not isAntiTimeStopEnabled then
+                AntiTimeStopConfig.Enabled = true
+                startAntiTimeStop()
+                
+                spawn(function()
+                    task.wait(0.5)
+                    
+                    AntiTimeStopConfig.Enabled = false
+                    stopAntiTimeStop()
+                end)
+            end
+        end)
+    end
+end
+
+-- Показываем контент по умолчанию
+showContent("Main")
 
 -- Статус Speed Hack внизу
 local statusFrame = Instance.new("Frame", rightPanel)
@@ -3590,102 +4109,6 @@ speedSlider.BorderSizePixel = 0
 
 local sliderCorner = Instance.new("UICorner", speedSlider)
 sliderCorner.CornerRadius = UDim.new(0.5, 0)
-
--- Функция для показа контента
-function showContent(tabName)
-    -- Очищаем контейнер
-    for _, child in pairs(functionsContainer:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
-    
-    if tabName == "Games Hub" then
-        -- Показываем глобальные функции
-        contentTitle.Text = "GLOBAL FUNCTIONS"
-        
-        createFunctionButton("SPEED HACK", function()
-            SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
-            if SpeedHackConfig.Enabled then
-                startSpeedHack()
-            else
-                stopSpeedHack()
-            end
-        end)
-        
-        createFunctionButton("BTOOLS", function()
-            print("BTOOLS activated")
-        end)
-        
-        createFunctionButton("ROBLOX ANTI-CHEAT BYPASS", function()
-            print("Anti-cheat bypass activated")
-        end)
-        
-        createFunctionButton("FE FLING", function()
-            print("FE FLING activated")
-        end)
-        
-    elseif tabName == "Player" then
-        contentTitle.Text = "PLAYER FUNCTIONS"
-        
-        createFunctionButton("FLY", function()
-            FlyConfig.Enabled = not FlyConfig.Enabled
-            if FlyConfig.Enabled then
-                startFly()
-            else
-                stopFly()
-            end
-        end)
-        
-        createFunctionButton("NOCLIP", function()
-            if isNoClipping then
-                stopNoClip()
-            else
-                startNoClip()
-            end
-        end)
-        
-        createFunctionButton("INFINITE JUMP", function()
-            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
-        end)
-        
-    elseif tabName == "Executor" then
-        contentTitle.Text = "EXECUTOR FUNCTIONS"
-        
-        createFunctionButton("EXECUTE SCRIPT", function()
-            print("Script execution")
-        end)
-        
-        createFunctionButton("CLEAR OUTPUT", function()
-            print("Output cleared")
-        end)
-        
-    elseif tabName == "Script Hub" then
-        contentTitle.Text = "SCRIPT HUB"
-        
-        createFunctionButton("LOAD SCRIPTS", function()
-            print("Loading scripts")
-        end)
-        
-        createFunctionButton("SCRIPT MANAGER", function()
-            print("Script manager")
-        end)
-        
-    elseif tabName == "Settings" then
-        contentTitle.Text = "SETTINGS"
-        
-        createFunctionButton("CONFIGURATION", function()
-            print("Configuration")
-        end)
-        
-        createFunctionButton("THEME SETTINGS", function()
-            print("Theme settings")
-        end)
-    end
-end
-
--- Показываем контент по умолчанию
-showContent("Games Hub")
 
 -- Обновление статуса Speed Hack
 RunService.Heartbeat:Connect(function()
