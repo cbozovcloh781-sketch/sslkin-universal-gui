@@ -3850,10 +3850,10 @@ function showContent(tabName)
         -- ESP Settings
         createSectionHeader("🔷ESP Settings")
         createToggleSlider("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
-        createToggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
-        createToggle("Show Outline", Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
-        createToggle("Show Lines", Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
-        createToggle("Rainbow Colors", Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
+        createToggleSlider("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
+        createToggleSlider("Show Outline", Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
+        createToggleSlider("Show Lines", Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
+        createToggleSlider("Rainbow Colors", Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
         
         createColorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
         createColorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
@@ -3866,10 +3866,10 @@ function showContent(tabName)
         -- Aimbot Settings
         createSectionHeader("🔷Aimbot Settings")
         createToggleSlider("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
-        createToggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
-        createToggle("Visibility Check", Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
+        createToggleSlider("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
+        createToggleSlider("Visibility Check", Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
         createSlider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
-        createToggle("FOV Rainbow", Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
+        createToggleSlider("FOV Rainbow", Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
         createColorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
         
         createDivider()
@@ -3904,7 +3904,7 @@ function showContent(tabName)
         noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
-        local forceNoClipToggle = createToggle("Force NoClip", isNoClipping, function(v)
+        local forceNoClipToggle = createToggleSlider("Force NoClip", isNoClipping, function(v)
             if v then
                 startNoClip()
                 noClipStatusLabel.Text = "NoClip Status: ON"
@@ -3925,7 +3925,7 @@ function showContent(tabName)
             if v then startSpeedHack() else stopSpeedHack() end
         end)
         
-        createToggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
+        createToggleSlider("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
             SpeedHackConfig.UseJumpPower = v
             if SpeedHackConfig.Enabled then
                 stopSpeedHack()
@@ -4103,7 +4103,7 @@ function showContent(tabName)
         standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
-        local ybaToggleBtn = createToggle("YBA Stand Range", YBAConfig.Enabled, function(v)
+        local ybaToggleBtn = createToggleSlider("YBA Stand Range", YBAConfig.Enabled, function(v)
             YBAConfig.Enabled = v
             if v then 
                 startYBA() 
@@ -4113,7 +4113,7 @@ function showContent(tabName)
         end)
         
         -- Underground Flight
-        local undergroundFlightToggleBtn = createToggle("Underground Flight", isUndergroundControlEnabled, function(v)
+        local undergroundFlightToggleBtn = createToggleSlider("Underground Flight", isUndergroundControlEnabled, function(v)
             if v then
                 if startUndergroundControl then
                     startUndergroundControl()
@@ -4184,7 +4184,7 @@ function showContent(tabName)
         itemESPLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
-        local itemESPToggleBtn = createToggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
+        local itemESPToggleBtn = createToggleSlider("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
             YBAConfig.ItemESP.Enabled = v
             if v then 
                 startItemESP() 
@@ -4209,7 +4209,7 @@ function showContent(tabName)
         currentY = currentY + 25 + padding
         
         local function createItemToggle(itemName, defaultState)
-            local btn = createToggle(itemName, defaultState, function(v)
+            local btn = createToggleSlider(itemName, defaultState, function(v)
                 YBAConfig.ItemESP.Items[itemName] = v
                 print("YBA Item ESP: Предмет", itemName, "установлен в", v and "ON" or "OFF")
                 
