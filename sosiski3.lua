@@ -105,103 +105,98 @@ if not TeleportConfig then
     }
 end
 
--- Enhanced function connection system
-local function getFunction(name, fallback)
-    -- Try multiple ways to find the function
-    local success, func = pcall(function()
-        return _G[name] or getfenv(1)[name] or getfenv(2)[name] or getfenv(3)[name]
+-- Direct function connection to sosiski script
+local function callFunction(name, ...)
+    local success, result = pcall(function()
+        if _G[name] and type(_G[name]) == "function" then
+            return _G[name](...)
+        elseif getfenv(1)[name] and type(getfenv(1)[name]) == "function" then
+            return getfenv(1)[name](...)
+        else
+            print("Function " .. name .. " not found in global environment")
+            return false
+        end
     end)
     
-    if success and func and type(func) == "function" then
-        print("Successfully connected to function: " .. name)
-        return func
-    else
-        print("Function " .. name .. " not found, using fallback")
-        return fallback
+    if not success then
+        print("Error calling function " .. name .. ": " .. tostring(result))
+        return false
     end
+    
+    return result
 end
 
--- Get real functions or use placeholders with better error handling
-local startFly = getFunction("startFly", function() 
-    print("Fly started - function not found") 
-    if FlyConfig then FlyConfig.Enabled = true end
-end)
-local stopFly = getFunction("stopFly", function() 
-    print("Fly stopped - function not found") 
-    if FlyConfig then FlyConfig.Enabled = false end
-end)
-local startNoClip = getFunction("startNoClip", function() 
-    print("NoClip started - function not found") 
-    if NoClipConfig then NoClipConfig.Enabled = true end
-end)
-local stopNoClip = getFunction("stopNoClip", function() 
-    print("NoClip stopped - function not found") 
-    if NoClipConfig then NoClipConfig.Enabled = false end
-end)
-local startSpeedHack = getFunction("startSpeedHack", function() 
-    print("SpeedHack started - function not found") 
-    if SpeedHackConfig then SpeedHackConfig.Enabled = true end
-end)
-local stopSpeedHack = getFunction("stopSpeedHack", function() 
-    print("SpeedHack stopped - function not found") 
-    if SpeedHackConfig then SpeedHackConfig.Enabled = false end
-end)
-local startLongJump = getFunction("startLongJump", function() 
-    print("LongJump started - function not found") 
-    if LongJumpConfig then LongJumpConfig.Enabled = true end
-end)
-local stopLongJump = getFunction("stopLongJump", function() 
-    print("LongJump stopped - function not found") 
-    if LongJumpConfig then LongJumpConfig.Enabled = false end
-end)
-local startInfiniteJump = getFunction("startInfiniteJump", function() 
-    print("InfiniteJump started - function not found") 
-    if InfiniteJumpConfig then InfiniteJumpConfig.Enabled = true end
-end)
-local stopInfiniteJump = getFunction("stopInfiniteJump", function() 
-    print("InfiniteJump stopped - function not found") 
-    if InfiniteJumpConfig then InfiniteJumpConfig.Enabled = false end
-end)
-local startYBA = getFunction("startYBA", function() 
-    print("YBA started - function not found") 
-    if YBAConfig then YBAConfig.Enabled = true end
-end)
-local stopYBA = getFunction("stopYBA", function() 
-    print("YBA stopped - function not found") 
-    if YBAConfig then YBAConfig.Enabled = false end
-end)
-local startUndergroundControl = getFunction("startUndergroundControl", function() 
-    print("UndergroundControl started - function not found") 
-    if YBAConfig and YBAConfig.UndergroundControl then 
-        YBAConfig.UndergroundControl.Enabled = true 
-    end
-end)
-local stopUndergroundControl = getFunction("stopUndergroundControl", function() 
-    print("UndergroundControl stopped - function not found") 
-    if YBAConfig and YBAConfig.UndergroundControl then 
-        YBAConfig.UndergroundControl.Enabled = false 
-    end
-end)
-local startItemESP = getFunction("startItemESP", function() 
-    print("ItemESP started - function not found") 
-    if YBAConfig and YBAConfig.ItemESP then 
-        YBAConfig.ItemESP.Enabled = true 
-    end
-end)
-local stopItemESP = getFunction("stopItemESP", function() 
-    print("ItemESP stopped - function not found") 
-    if YBAConfig and YBAConfig.ItemESP then 
-        YBAConfig.ItemESP.Enabled = false 
-    end
-end)
-local startTeleport = getFunction("startTeleport", function() 
-    print("Teleport started - function not found") 
-    if TeleportConfig then TeleportConfig.Enabled = true end
-end)
-local stopTeleport = getFunction("stopTeleport", function() 
-    print("Teleport stopped - function not found") 
-    if TeleportConfig then TeleportConfig.Enabled = false end
-end)
+-- Function wrappers that connect to your sosiski script
+local function startFly()
+    return callFunction("startFly")
+end
+
+local function stopFly()
+    return callFunction("stopFly")
+end
+
+local function startNoClip()
+    return callFunction("startNoClip")
+end
+
+local function stopNoClip()
+    return callFunction("stopNoClip")
+end
+local function startSpeedHack()
+    return callFunction("startSpeedHack")
+end
+
+local function stopSpeedHack()
+    return callFunction("stopSpeedHack")
+end
+
+local function startLongJump()
+    return callFunction("startLongJump")
+end
+
+local function stopLongJump()
+    return callFunction("stopLongJump")
+end
+
+local function startInfiniteJump()
+    return callFunction("startInfiniteJump")
+end
+
+local function stopInfiniteJump()
+    return callFunction("stopInfiniteJump")
+end
+
+local function startYBA()
+    return callFunction("startYBA")
+end
+
+local function stopYBA()
+    return callFunction("stopYBA")
+end
+
+local function startUndergroundControl()
+    return callFunction("startUndergroundControl")
+end
+
+local function stopUndergroundControl()
+    return callFunction("stopUndergroundControl")
+end
+
+local function startItemESP()
+    return callFunction("startItemESP")
+end
+
+local function stopItemESP()
+    return callFunction("stopItemESP")
+end
+
+local function startTeleport()
+    return callFunction("startTeleport")
+end
+
+local function stopTeleport()
+    return callFunction("stopTeleport")
+end
 
 -- Try to get global variables and configurations from main script
 local function getGlobal(name, default)
@@ -279,7 +274,7 @@ setMenuVisible(true)
 -- Кнопка скрытия (крестик)
 local closeBtn = Instance.new("TextButton", mainFrame)
 closeBtn.Size = UDim2.new(0, 32, 0, 32)
-closeBtn.Position = UDim2.new(1, -40, 0, -5)
+closeBtn.Position = UDim2.new(1, -40, 0, -15)
 closeBtn.Text = "×"
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 22
@@ -563,7 +558,7 @@ for i, tab in ipairs(tabs) do
             -- Container
         local container = Instance.new("Frame", scrollFrame)
         container.Size = UDim2.new(1, -20, 0, 0)
-        container.Position = UDim2.new(0, 10, 0, 40)
+        container.Position = UDim2.new(0, 10, 0, 50)
         container.BackgroundTransparency = 1
         container.AutomaticSize = Enum.AutomaticSize.Y
 
@@ -613,15 +608,9 @@ local flyContainer = tabContainers["Fly"]
 createToggle(flyContainer, "Fly", FlyConfig.Enabled, function(v) 
     FlyConfig.Enabled = v 
     if v then 
-        local success, result = pcall(startFly)
-        if not success then
-            print("Error starting Fly: " .. tostring(result))
-        end
+        startFly()
     else 
-        local success, result = pcall(stopFly)
-        if not success then
-            print("Error stopping Fly: " .. tostring(result))
-        end
+        stopFly()
     end 
 end)
 createSlider(flyContainer, "Fly Speed", 0.1, 10, FlyConfig.Speed, function(v) FlyConfig.Speed = v end)
@@ -632,28 +621,16 @@ local noClipContainer = tabContainers["NoClip"]
 createToggle(noClipContainer, "NoClip", NoClipConfig.Enabled, function(v) 
     NoClipConfig.Enabled = v 
     if v then 
-        local success, result = pcall(startNoClip)
-        if not success then
-            print("Error starting NoClip: " .. tostring(result))
-        end
+        startNoClip()
     else 
-        local success, result = pcall(stopNoClip)
-        if not success then
-            print("Error stopping NoClip: " .. tostring(result))
-        end
+        stopNoClip()
     end 
 end)
 createButton(noClipContainer, "Force NoClip Toggle", function()
     if isNoClipping then
-        local success, result = pcall(stopNoClip)
-        if not success then
-            print("Error stopping NoClip: " .. tostring(result))
-        end
+        stopNoClip()
     else
-        local success, result = pcall(startNoClip)
-        if not success then
-            print("Error starting NoClip: " .. tostring(result))
-        end
+        startNoClip()
     end
 end)
 
@@ -663,15 +640,9 @@ local speedContainer = tabContainers["Speed"]
 createToggle(speedContainer, "SpeedHack", SpeedHackConfig.Enabled, function(v) 
     SpeedHackConfig.Enabled = v 
     if v then 
-        local success, result = pcall(startSpeedHack)
-        if not success then
-            print("Error starting SpeedHack: " .. tostring(result))
-        end
+        startSpeedHack()
     else 
-        local success, result = pcall(stopSpeedHack)
-        if not success then
-            print("Error stopping SpeedHack: " .. tostring(result))
-        end
+        stopSpeedHack()
     end 
 end)
 createToggle(speedContainer, "Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v) SpeedHackConfig.UseJumpPower = v end)
@@ -683,30 +654,18 @@ local jumpContainer = tabContainers["Jump"]
 createToggle(jumpContainer, "Long Jump", LongJumpConfig.Enabled, function(v) 
     LongJumpConfig.Enabled = v 
     if v then 
-        local success, result = pcall(startLongJump)
-        if not success then
-            print("Error starting LongJump: " .. tostring(result))
-        end
+        startLongJump()
     else 
-        local success, result = pcall(stopLongJump)
-        if not success then
-            print("Error stopping LongJump: " .. tostring(result))
-        end
+        stopLongJump()
     end 
 end)
 createSlider(jumpContainer, "Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v) LongJumpConfig.JumpPower = v end)
 createToggle(jumpContainer, "Infinite Jump", InfiniteJumpConfig.Enabled, function(v) 
     InfiniteJumpConfig.Enabled = v 
     if v then 
-        local success, result = pcall(startInfiniteJump)
-        if not success then
-            print("Error starting InfiniteJump: " .. tostring(result))
-        end
+        startInfiniteJump()
     else 
-        local success, result = pcall(stopInfiniteJump)
-        if not success then
-            print("Error stopping InfiniteJump: " .. tostring(result))
-        end
+        stopInfiniteJump()
     end 
 end)
 createSlider(jumpContainer, "Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v) InfiniteJumpConfig.JumpPower = v end)
@@ -717,42 +676,24 @@ local ybaContainer = tabContainers["YBA"]
 createToggle(ybaContainer, "Stand Range Hack", YBAConfig.Enabled, function(v) 
     YBAConfig.Enabled = v 
     if v then 
-        local success, result = pcall(startYBA)
-        if not success then
-            print("Error starting YBA: " .. tostring(result))
-        end
+        startYBA()
     else 
-        local success, result = pcall(stopYBA)
-        if not success then
-            print("Error stopping YBA: " .. tostring(result))
-        end
+        stopYBA()
     end 
 end)
 createToggle(ybaContainer, "Underground Flight", false, function(v) 
     if v then 
-        local success, result = pcall(startUndergroundControl)
-        if not success then
-            print("Error starting UndergroundControl: " .. tostring(result))
-        end
+        startUndergroundControl()
     else 
-        local success, result = pcall(stopUndergroundControl)
-        if not success then
-            print("Error stopping UndergroundControl: " .. tostring(result))
-        end
+        stopUndergroundControl()
     end 
 end)
 createToggle(ybaContainer, "Item ESP", YBAConfig.ItemESP.Enabled, function(v) 
     YBAConfig.ItemESP.Enabled = v 
     if v then 
-        local success, result = pcall(startItemESP)
-        if not success then
-            print("Error starting ItemESP: " .. tostring(result))
-        end
+        startItemESP()
     else 
-        local success, result = pcall(stopItemESP)
-        if not success then
-            print("Error stopping ItemESP: " .. tostring(result))
-        end
+        stopItemESP()
     end 
 end)
 createSlider(ybaContainer, "Flight & Stand Speed", 25, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v) YBAConfig.UndergroundControl.FlightSpeed = math.floor(v) end)
@@ -778,15 +719,9 @@ local teleportContainer = tabContainers["Teleport"]
 createToggle(teleportContainer, "Teleport", TeleportConfig.Enabled, function(v) 
     TeleportConfig.Enabled = v 
     if v then 
-        local success, result = pcall(startTeleport)
-        if not success then
-            print("Error starting Teleport: " .. tostring(result))
-        end
+        startTeleport()
     else 
-        local success, result = pcall(stopTeleport)
-        if not success then
-            print("Error stopping Teleport: " .. tostring(result))
-        end
+        stopTeleport()
     end 
 end)
 createButton(teleportContainer, "Start Teleport", function()
@@ -795,25 +730,16 @@ createButton(teleportContainer, "Start Teleport", function()
         return
     end
     if TeleportConfig.Enabled then
-        local success, result = pcall(stopTeleport)
-        if not success then
-            print("Error stopping Teleport: " .. tostring(result))
-        end
+        stopTeleport()
         TeleportConfig.Enabled = false
     else
-        local success, result = pcall(startTeleport)
-        if not success then
-            print("Error starting Teleport: " .. tostring(result))
-        end
+        startTeleport()
         TeleportConfig.Enabled = true
     end
 end)
 createButton(teleportContainer, "Stop Teleport", function()
     if TeleportConfig.Enabled then
-        local success, result = pcall(stopTeleport)
-        if not success then
-            print("Error stopping Teleport: " .. tostring(result))
-        end
+        stopTeleport()
         TeleportConfig.Enabled = false
     end
 end)
