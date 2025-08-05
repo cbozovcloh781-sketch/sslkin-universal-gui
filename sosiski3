@@ -3318,25 +3318,33 @@ local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
 screenGui.ResetOnSpawn = false
 
--- Основной контейнер
+-- Основной контейнер с размытием
 local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Name = "MainFrame"
 mainFrame.Position = UDim2.new(0, 20, 0.5, -250)
 mainFrame.Size = UDim2.new(0, 400, 0, 500)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-mainFrame.BackgroundTransparency = 0.15
+mainFrame.BackgroundTransparency = 0.2
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Draggable = true
 
--- Размытие фона
-local blur = Instance.new("BlurEffect", game.Lighting)
-blur.Name = "MenuBlur"
-blur.Size = 10
+-- Добавляем размытый фон к меню
+local menuBlur = Instance.new("Frame", mainFrame)
+menuBlur.Name = "MenuBlur"
+menuBlur.Size = UDim2.new(1, 0, 1, 0)
+menuBlur.Position = UDim2.new(0, 0, 0, 0)
+menuBlur.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+menuBlur.BackgroundTransparency = 0.3
+menuBlur.BorderSizePixel = 0
+menuBlur.ZIndex = -1
 
--- Сохраняем минимальный размер
-local minWidth = 400
-local minHeight = 500
+local menuBlurCorner = Instance.new("UICorner", menuBlur)
+menuBlurCorner.CornerRadius = UDim.new(0, 8)
+
+-- Минимальный размер (убираем ограничения для свободного изменения)
+local minWidth = 200
+local minHeight = 150
 
 -- Скругление углов для основного фрейма
 local mainCorner = Instance.new("UICorner", mainFrame)
@@ -3481,40 +3489,43 @@ closeCorner.CornerRadius = UDim.new(0, 6)
 
 closeButton.MouseButton1Click:Connect(function()
     mainFrame.Visible = false
-    -- Удаляем размытие при закрытии
-    if blur then
-        blur:Destroy()
-    end
     -- Создаем кнопку для повторного открытия
     createReopenButton()
 end)
 
--- Опознавательный знак для изменения размера в левом нижнем углу
+-- Опознавательный знак для изменения размера в правом нижнем углу (как в Windows)
 local resizeHandle = Instance.new("Frame", mainFrame)
 resizeHandle.Name = "ResizeHandle"
-resizeHandle.Size = UDim2.new(0, 20, 0, 20)
-resizeHandle.Position = UDim2.new(0, 0, 1, -20)
-resizeHandle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-resizeHandle.BackgroundTransparency = 0.3
+resizeHandle.Size = UDim2.new(0, 15, 0, 15)
+resizeHandle.Position = UDim2.new(1, -15, 1, -15)
+resizeHandle.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
+resizeHandle.BackgroundTransparency = 0.2
 resizeHandle.BorderSizePixel = 0
-resizeHandle.ZIndex = 10
+resizeHandle.ZIndex = 15
 
-local resizeCorner = Instance.new("UICorner", resizeHandle)
-resizeCorner.CornerRadius = UDim.new(0, 4)
+-- Добавляем линии как в Windows
+local line1 = Instance.new("Frame", resizeHandle)
+line1.Size = UDim2.new(0, 2, 0, 10)
+line1.Position = UDim2.new(0, 8, 0, 2)
+line1.BackgroundColor3 = Color3.new(0.8, 0.8, 0.8)
+line1.BorderSizePixel = 0
+line1.Rotation = 45
 
--- Добавляем иконку изменения размера
-local resizeIcon = Instance.new("TextLabel", resizeHandle)
-resizeIcon.Size = UDim2.new(1, 0, 1, 0)
-resizeIcon.Position = UDim2.new(0, 0, 0, 0)
-resizeIcon.Text = "↖"
-resizeIcon.Font = Enum.Font.GothamBold
-resizeIcon.TextSize = 12
-resizeIcon.TextColor3 = Color3.new(1, 1, 1)
-resizeIcon.BackgroundTransparency = 1
-resizeIcon.TextXAlignment = Enum.TextXAlignment.Center
-resizeIcon.TextYAlignment = Enum.TextYAlignment.Center
+local line2 = Instance.new("Frame", resizeHandle)
+line2.Size = UDim2.new(0, 2, 0, 6)
+line2.Position = UDim2.new(0, 5, 0, 6)
+line2.BackgroundColor3 = Color3.new(0.8, 0.8, 0.8)
+line2.BorderSizePixel = 0
+line2.Rotation = 45
 
--- Функция изменения размера
+local line3 = Instance.new("Frame", resizeHandle)
+line3.Size = UDim2.new(0, 2, 0, 2)
+line3.Position = UDim2.new(0, 2, 0, 10)
+line3.BackgroundColor3 = Color3.new(0.8, 0.8, 0.8)
+line3.BorderSizePixel = 0
+line3.Rotation = 45
+
+-- Функция изменения размера (свободное изменение как в Windows)
 local isResizing = false
 local startMousePos = Vector2.new(0, 0)
 local startFrameSize = UDim2.new(0, 400, 0, 500)
@@ -3528,7 +3539,7 @@ resizeHandle.InputBegan:Connect(function(input)
         -- Отключаем перетаскивание основного фрейма
         mainFrame.Draggable = false
         
-        -- Меняем курсор на resize (визуально)
+        -- Меняем визуал handle при использовании
         resizeHandle.BackgroundTransparency = 0.1
     end
 end)
@@ -3537,7 +3548,7 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 and isResizing then
         isResizing = false
         mainFrame.Draggable = true
-        resizeHandle.BackgroundTransparency = 0.3
+        resizeHandle.BackgroundTransparency = 0.2
     end
 end)
 
@@ -3547,21 +3558,9 @@ RunService.RenderStepped:Connect(function()
         local deltaX = currentMousePos.X - startMousePos.X
         local deltaY = currentMousePos.Y - startMousePos.Y
         
-        -- Вычисляем новый размер (пропорционально)
-        local aspectRatio = startFrameSize.X.Offset / startFrameSize.Y.Offset
+        -- Свободное изменение размера (как в Windows)
         local newWidth = math.max(minWidth, startFrameSize.X.Offset + deltaX)
         local newHeight = math.max(minHeight, startFrameSize.Y.Offset + deltaY)
-        
-        -- Сохраняем пропорции, используя наибольшее изменение
-        if math.abs(deltaX) > math.abs(deltaY) then
-            newHeight = newWidth / aspectRatio
-        else
-            newWidth = newHeight * aspectRatio
-        end
-        
-        -- Применяем минимальные ограничения
-        newWidth = math.max(minWidth, newWidth)
-        newHeight = math.max(minHeight, newHeight)
         
         mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
     end
@@ -3592,12 +3591,6 @@ function createReopenButton()
     
     reopenButton.MouseButton1Click:Connect(function()
         mainFrame.Visible = true
-        -- Восстанавливаем размытие при открытии
-        if not game.Lighting:FindFirstChild("MenuBlur") then
-            blur = Instance.new("BlurEffect", game.Lighting)
-            blur.Name = "MenuBlur"
-            blur.Size = 10
-        end
         reopenButton:Destroy()
     end)
 end
@@ -4364,19 +4357,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if existingButton then
                 existingButton:Destroy()
             end
-            -- Восстанавливаем размытие
-            if not game.Lighting:FindFirstChild("MenuBlur") then
-                blur = Instance.new("BlurEffect", game.Lighting)
-                blur.Name = "MenuBlur"
-                blur.Size = 10
-            end
         else
             -- Создаем кнопку повторного открытия если меню закрыто
             createReopenButton()
-            -- Удаляем размытие
-            if blur then
-                blur:Destroy()
-            end
         end
     end
 end)
