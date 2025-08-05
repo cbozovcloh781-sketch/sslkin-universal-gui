@@ -1,3327 +1,244 @@
-if not game:IsLoaded() then game.Loaded:Wait() end
-
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local CoreGui = game:GetService("CoreGui")
-
-
-local Config = {
-    ESP = {
-        Enabled     = true,
-        TeamCheck   = false,
-        ShowOutline = true,
-        ShowLines   = false,
-        Rainbow     = false,
-        FillColor   = Color3.fromRGB(255,255,255),
-        OutlineColor= Color3.fromRGB(255,255,255),
-        TextColor   = Color3.fromRGB(255,255,255),
-        LineColor   = Color3.fromRGB(255,255,255),
-        FillTransparency    = 0.5,
-        OutlineTransparency = 0,
-        Font        = Enum.Font.SciFi,
-        TeamColor   = Color3.fromRGB(0,255,0),
-        EnemyColor  = Color3.fromRGB(255,0,0),
-        ToggleKey   = nil,
-    },
-    Aimbot = {
-        Enabled         = false,
-        TeamCheck       = false,
-        VisibilityCheck = true,
-        FOV             = 150,
-        ToggleKey       = nil,
-        FOVColor        = Color3.fromRGB(255,128,128),
-        FOVRainbow      = false,
-    },
-    MenuCollapsed = false,
-}
-
-
-local FlyConfig = {
-    Enabled = false,
-    Speed = 1,
-    ToggleKey = nil,
-}
-
-
-local NoClipConfig = {
-    Enabled = false,
-    ToggleKey = nil,
-    ForceToggleKey = nil,
-}
-
-
-local SpeedHackConfig = {
-    Enabled = false,
-    Speed = 1,
-    ToggleKey = nil,
-    UseJumpPower = false,
-}
-
-local LongJumpConfig = {
-    Enabled = false,
-    JumpPower = 150,
-    ToggleKey = nil,
-}
-
-local InfiniteJumpConfig = {
-    Enabled = false,
-    JumpPower = 50,
-    ToggleKey = nil,
-}
-
-
-local TeleportConfig = {
-    Enabled = false,
-    TargetPlayer = nil,
-    OriginalPosition = nil,
-    ToggleKey = nil,
-    SelectedPlayerName = nil,
-    UseStealthMode = true,
-    TeleportSpeed = 1200,
-    ReturnSpeed = 2000,
-    BehindPlayerDistance = 3.0,
-    StabilizationTime = 0.5,
-    MaxSpeedResetTime = 2.0,
-    SpeedResetThreshold = 50,
-    InstantTurnSpeed = 600,
-    SmoothingFactor = 0.15,
-    MaxCorrectionSpeed = 300,
-    StabilizationThreshold = 0.8,
-}
-
-local YBAConfig = {
-    Enabled = false,
-    ToggleKey = nil,
-    StandRange = 100000,
-    FreezePlayer = true,
-    SwitchCamera = true,
-    TransferControl = true,
-    AutoFindStands = true,
-    MaxStandDistance = 10000,
-    CameraDistance = 15,
-    CameraHeight = 5,
-    StandControlSpeed = 1.0,
-    StandControlSmoothing = 0.1,
-    MouseSensitivity = 0.01,
-    CameraSmoothing = 0.08,
-    CameraFollowDistance = 20.2,
-    CameraFollowHeight = 6.1,
-    MouseLookSensitivity = 0.003,
-    StandRotationSpeed = 0.05,
-    UndergroundControl = {
-        FlightSpeed = 50,
-        AutoNoClip = true,
-        OriginalPosition = nil,
-    },
-    ItemESP = {
-        Enabled = false,
-        ToggleKey = nil,
-        MaxDistance = 1000,
-        MaxRenderDistance = 5000,
-        UpdateInterval = 0.3,
-        ShowOutline = true,
-        ShowText = true,
-        ShowFill = true,
-        FillColor = Color3.fromRGB(255, 215, 0),
-        OutlineColor = Color3.fromRGB(255, 255, 0),
-        TextColor = Color3.fromRGB(255, 255, 255),
-        TextBackgroundColor = Color3.fromRGB(0, 0, 0),
-        FillTransparency = 0.3,
-        OutlineTransparency = 0.1,
-        TextBackgroundTransparency = 0.3,
-        TextSize = 10,
-        DistanceTextSize = 9,
-        Font = Enum.Font.GothamBold,
-        Items = {
-            ["Mysterious Arrow"] = true,
-            ["Rokakaka"] = true,
-            ["Pure Rokakaka"] = true,
-            ["Diamond"] = true,
-            ["Gold Coin"] = true,
-            ["Steel Ball"] = true,
-            ["Clackers"] = true,
-            ["Caesar's Headband"] = true,
-            ["Zeppeli's Hat"] = true,
-            ["Zeppeli's Scarf"] = true,
-            ["Ancient Scroll"] = true,
-            ["Quinton's Glove"] = true,
-            ["Stone Mask"] = true,
-            ["Lucky Arrow"] = true,
-            ["Lucky Stone Mask"] = true,
-            ["Rib Cage of The Saint's Corpse"] = true,
-            ["DIO's Diary"] = true,
-            ["DIO's Bone"] = true,
-            ["DIO's Diary Page"] = true,
-        }
-    }
-}
-
-local AntiTimeStopConfig = {
-    Enabled = false,
-    ToggleKey = nil,
-    MovementSpeed = 1.5,
-    JumpPower = 50,
-    WalkSpeed = 16,
-    AutoActivate = true,
-    DetectionRange = 100,
-    VisualEffect = true,
-    SoundEffect = false,
-    AntiFreeze = true,
-    TimeStopBypass = true,
-    MovementOverride = true,
-    DisableOnAttack = true,
-    ServerSync = true,
-}
-
-local isFlying = false
-local flyConnections = {}
-local originalGravity = workspace.Gravity
-
-local isNoClipping = false
-local noClipConnections = {}
-
-local isSpeedHacking = false
-local speedHackConnections = {}
-local originalWalkSpeed = 16
-local originalJumpPower = 50
-
-local isLongJumping = false
-local longJumpConnections = {}
-local originalLongJumpPower = 50
-
--- Переменные для управления персонажем под стендом
-local isUndergroundControlEnabled = false
-local undergroundControlConnections = {}
-local controlledStandForUnderground = nil
-local isShiftPressed = false
-
-local isInfiniteJumping = false
-local infiniteJumpConnections = {}
-local lastJumpTime = 0
-
-local isTeleporting = false
-local teleportConnections = {}
-local playerSelectionWindow = nil
-local lastTeleportPosition = nil
-local stabilizationStartTime = nil
-local isStabilizing = false
-local speedResetTimer = 0
-local lastSpeedCheck = tick()
-local lastBehindDistance = 0
-
-local isYBAEnabled = false
-local ybaConnections = {}
-local originalPlayerPosition = nil
-local originalPlayerCFrame = nil
-local originalCameraCFrame = nil
-local controlledStand = nil
-local standControlConnections = {}
-local originalGravity = workspace.Gravity
-local originalYBAWalkSpeed = 16
-local originalYBAJumpPower = 50
-
-local isAntiTimeStopEnabled = false
-local antiTimeStopConnections = {}
-local originalAntiTimeStopWalkSpeed = 16
-local originalAntiTimeStopJumpPower = 50
-local timeStopDetected = false
-local timeStopStartTime = 0
-local timeStopDuration = 0
-local antiTimeStopEffect = nil
-
-local isStandControlActive = false
-local currentControlledStand = nil
-local standCameraConnections = {}
-local originalStandCameraCFrame = nil
-local standControlActive = false
-
-local freeCameraActive = false
-local freeCameraConnections = {}
-local freeCameraRotation = Vector2.new(0, 0)
-local freeCameraDistance = 10
-local freeCameraHeight = 5
-local freeCameraTarget = nil
-local freeCameraLastMousePos = Vector2.new(0, 0)
-local lastCameraUpdate = nil
-
-local itemESPConnections = {}
-local itemESPElements = {}
-local itemESPEnabled = false
-
-local YBAFreeCamera = {} do
-    local RunService = game:GetService("RunService")
-    local UserInputService = game:GetService("UserInputService")
-    local ContextActionService = game:GetService("ContextActionService")
-    local Camera = workspace.CurrentCamera
-
-    local fcRunning = false
-    local INPUT_PRIORITY = Enum.ContextActionPriority.High.Value
-
-    local cameraPos = Vector3.new()
-    local cameraRot = Vector2.new()
-    local cameraFov = 70
-    local targetStand = nil
-    local originalCameraCFrame = nil
-    local cameraDistance = 10
-    local cameraHeight = 5
-
-    local NAV_SPEED = 1
-
-    local input = {
-        W = 0, A = 0, S = 0, D = 0,
-        Space = 0, LeftControl = 0,
-        Up = 0, Down = 0,
-        MouseDelta = Vector2.new(),
-        MouseWheel = 0
-    }
-
-    local function onKey(actionName, inputState, inputObj)
-        input[inputObj.KeyCode.Name] = (inputState == Enum.UserInputState.Begin) and 1 or 0
-        return Enum.ContextActionResult.Sink
-    end
-
-    local function onMouse(actionName, inputState, inputObj)
-        input.MouseDelta = Vector2.new(-inputObj.Delta.y, -inputObj.Delta.x)
-        return Enum.ContextActionResult.Sink
-    end
-
-    local function onMouseWheel(actionName, inputState, inputObj)
-        if inputObj.UserInputType == Enum.UserInputType.MouseWheel then
-            input.MouseWheel = -inputObj.Position.Z
-        end
-        return Enum.ContextActionResult.Sink
-    end
-
-    local function startInput()
-        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
-            ContextActionService:BindActionAtPriority("FreecamKey_"..key, onKey, false, INPUT_PRIORITY, Enum.KeyCode[key])
-        end
-        ContextActionService:BindActionAtPriority("FreecamMouse", onMouse, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
-        ContextActionService:BindActionAtPriority("FreecamMouseWheel", onMouseWheel, false, INPUT_PRIORITY, Enum.UserInputType.MouseWheel)
-    end
-
-    local function stopInput()
-        for k in pairs(input) do
-            if typeof(input[k]) == "number" then input[k] = 0 end
-        end
-        input.MouseDelta = Vector2.new()
-        input.MouseWheel = 0
-        ContextActionService:UnbindAction("FreecamMouse")
-        ContextActionService:UnbindAction("FreecamMouseWheel")
-        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
-            ContextActionService:UnbindAction("FreecamKey_"..key)
-        end
-    end
-
-    local function stepFreecam(dt)
-        if not targetStand or not targetStand.Root or not targetStand.Root.Parent then
-            return
-        end
-
-        local standRoot = targetStand.Root
-        local standPosition = standRoot.Position
-
-        local moveX = input.D - input.A
-        local moveZ = input.S - input.W
-        local moveY = input.Space - input.LeftControl
-        
-        local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
-
-        local bv = standRoot:FindFirstChild("BodyVelocity")
-        if not bv then
-            bv = Instance.new("BodyVelocity", standRoot)
-            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-        end
-        
-        if move.Magnitude > 0 then
-            local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
-            local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            local standSpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed)
-            
-            if isShiftPressed then
-                standSpeed = standSpeed + 50
-                print("Ускорение активировано - скорость:", standSpeed)
-            end
-            
-            bv.Velocity = worldMove * standSpeed
-
-            if moveY ~= 0 then
-                print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
-            end
-        else
-            bv.Velocity = Vector3.new(0, 0, 0)
-        end
-
-        local pan = input.MouseDelta * math.rad(0.8)
-        input.MouseDelta = Vector2.new()
-
-        if input.MouseWheel ~= 0 then
-            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 20)
-            input.MouseWheel = 0
-        end
-
-        cameraRot = cameraRot + pan
-        cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
-
-        local player = Players.LocalPlayer
-        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local playerRoot = player.Character.HumanoidRootPart
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            
-            if humanoid then
-                local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
-                playerRoot.CFrame = targetCFrame
-
-                humanoid.AutoRotate = false
-            end
-        end
-
-        local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
-        local cameraOffset = Vector3.new(0, cameraHeight - 2, cameraDistance) 
-        local cf = CFrame.new(standPosition) * rot * CFrame.new(cameraOffset)
-
-        cameraPos = cf.Position
-        Camera.CFrame = cf
-    end
-
-    function YBAFreeCamera.Start(stand)
-        if fcRunning then 
-            YBAFreeCamera.Stop() 
-        end
-        
-        if not stand or not stand.Root then
-            print("YBA: Ошибка - стенд не найден")
-            return false
-        end
-        
-        targetStand = stand
-        originalCameraCFrame = Camera.CFrame
-        
-        local standPosition = stand.Root.Position
-        cameraPos = standPosition + Vector3.new(0, cameraHeight - 2, cameraDistance) 
-        cameraRot = Vector2.new()
-        cameraFov = Camera.FieldOfView
-
-        local player = Players.LocalPlayer
-        if player and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = false 
-            end
-        end
-        
-        Camera.CameraType = Enum.CameraType.Scriptable
-        RunService:BindToRenderStep("YBAFreecam", Enum.RenderPriority.Camera.Value, stepFreecam)
-        startInput()
-        fcRunning = true
-        
-        print("YBA: Управление стендом активировано: " .. stand.Name)
-        return true
-    end
-
-    function YBAFreeCamera.Stop()
-        if not fcRunning then return end
-        stopInput()
-        RunService:UnbindFromRenderStep("YBAFreecam")
-        Camera.CameraType = Enum.CameraType.Custom
-
-        if targetStand and targetStand.Root then
-            local bv = targetStand.Root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-        end
-
-        local player = Players.LocalPlayer
-        if player and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = true
-            end
-        end
-        
-        if originalCameraCFrame then
-            Camera.CFrame = originalCameraCFrame
-        end
-        
-        targetStand = nil
-        originalCameraCFrame = nil
-        fcRunning = false
-        
-        print("YBA: Управление стендом отключено")
-    end
-
-    function YBAFreeCamera.Toggle(stand)
-        if fcRunning then
-            YBAFreeCamera.Stop()
-            return false
-        else
-            return YBAFreeCamera.Start(stand)
-        end
-    end
-end
-
-local function startFly()
-    local plr = Players.LocalPlayer
-    local char = plr.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not root then return end
-    
-    isFlying = true
-    
-    local flyOriginalJumpPower = hum.JumpPower
-    local flyOriginalJumpHeight = hum.JumpHeight
-    local flyOriginalGravity = workspace.Gravity
-    local flyOriginalHipHeight = hum.HipHeight
-    
-    hum.JumpPower = 0
-    hum.JumpHeight = 0
-    workspace.Gravity = 0
-    hum.HipHeight = 0
-    
-    local ctrl = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
-    
-    local inputDown = UserInputService.InputBegan:Connect(function(input, gp)
-        if gp then return end
-        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1
-        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
-        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
-        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 1
-        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 1
-        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = -1 end
-    end)
-    
-    local inputUp = UserInputService.InputEnded:Connect(function(input, gp)
-        if gp then return end
-        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
-        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
-        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
-        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0
-        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 0
-        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = 0 end
-    end)
-    
-    local renderConnection = RunService.RenderStepped:Connect(function()
-        if not isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
-            if hum then
-                hum.JumpPower = flyOriginalJumpPower
-                hum.JumpHeight = flyOriginalJumpHeight
-                hum.HipHeight = flyOriginalHipHeight
-            end
-            if not isNoClipping then
-                workspace.Gravity = flyOriginalGravity
-            end
-            
-            inputDown:Disconnect()
-            inputUp:Disconnect()
-            renderConnection:Disconnect()
-            return
-        end
-        
-        local cam = workspace.CurrentCamera
-        if not cam then return end
-        
-        
-        local forward = cam.CFrame.lookVector
-        local right = cam.CFrame.rightVector
-        local up = Vector3.new(0, 1, 0)
-        
-        local moveVector = Vector3.new(0, 0, 0)
-        moveVector = moveVector + (forward * (ctrl.f + ctrl.b))
-        moveVector = moveVector + (right * (ctrl.r + ctrl.l))
-        moveVector = moveVector + (up * (ctrl.u + ctrl.d))
-        
-        if moveVector.Magnitude > 0 then
-            moveVector = moveVector.Unit * (FlyConfig.Speed * 10)
-            local bv = root:FindFirstChild("BodyVelocity")
-            if not bv then
-                bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-            end
-            bv.Velocity = moveVector
-        else
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv.Velocity = Vector3.new(0, 0, 0)
-            end
-        end
-    end)
-    
-    table.insert(flyConnections, inputDown)
-    table.insert(flyConnections, inputUp)
-    table.insert(flyConnections, renderConnection)
-end
-
-local function stopFly()
-    isFlying = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if hum then
-        
-        hum.JumpPower = 50
-        hum.JumpHeight = 7.2
-        hum.HipHeight = 2
-    end
-    
-    workspace.Gravity = 196.2
-    
-    
-    if root then
-        local bv = root:FindFirstChild("BodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-    end
-    
-    
-    for _, connection in ipairs(flyConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    flyConnections = {}
-end
-
--- Anti Time Stop Functions
-local function detectTimeStop()
-    local players = Players:GetPlayers()
-    local localPlayer = Players.LocalPlayer
-    local localChar = localPlayer.Character
-    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
-    
-    if not localRoot then return false end
-    
-    for _, player in pairs(players) do
-        if player ~= localPlayer then
-            local char = player.Character
-            if char then
-                local stand = char:FindFirstChild("Stand")
-                if stand then
-                    local standAbilities = stand:FindFirstChild("Abilities")
-                    if standAbilities then
-                        for _, ability in pairs(standAbilities:GetChildren()) do
-                            local abilityName = ability.Name:lower()
-                            if abilityName:find("time") or 
-                               abilityName:find("stop") or
-                               abilityName:find("za warudo") or
-                               abilityName:find("the world") or
-                               abilityName:find("timestop") or
-                               abilityName:find("time_stop") or
-                               abilityName:find("za") or
-                               abilityName:find("warudo") then
-                                return true, player, ability
-                            end
-                        end
-                    end
-                    
-                    local standName = stand.Name:lower()
-                    if standName:find("the world") or 
-                       standName:find("za warudo") or
-                       standName:find("dio") or
-                       standName:find("jotaro") or
-                       standName:find("star platinum") or
-                       standName:find("the world") then
-                        return true, player, stand
-                    end
-                end
-                
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        local partName = part.Name:lower()
-                        if partName:find("time") or 
-                           partName:find("stop") or
-                           partName:find("freeze") or
-                           partName:find("timestop") then
-                            return true, player, part
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    if localChar then
-        local hum = localChar:FindFirstChildOfClass("Humanoid")
-        if hum then
-            for _, part in pairs(localChar:GetDescendants()) do
-                if part:IsA("BasePart") and part.Anchored then
-                    return true, nil, nil
-                end
-            end
-        end
-    end
-    
-    return false
-end
-
-local function createAntiTimeStopEffect()
-    if not AntiTimeStopConfig.VisualEffect then return end
-    
-    local char = Players.LocalPlayer.Character
-    if not char then return end
-    
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "AntiTimeStopEffect"
-    highlight.FillColor = Color3.fromRGB(0, 255, 0)
-    highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
-    highlight.FillTransparency = 0.3
-    highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = char
-    
-    antiTimeStopEffect = highlight
-end
-
-local function removeAntiTimeStopEffect()
-    if antiTimeStopEffect then
-        antiTimeStopEffect:Destroy()
-        antiTimeStopEffect = nil
-    end
-end
-
-local function startAntiTimeStop()
-    local plr = Players.LocalPlayer
-    local char = plr.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not root then return end
-    
-    isAntiTimeStopEnabled = true
-    timeStopDetected = false
-    
-    originalAntiTimeStopWalkSpeed = hum.WalkSpeed
-    originalAntiTimeStopJumpPower = hum.JumpPower
-    
-    hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
-    hum.JumpPower = AntiTimeStopConfig.JumpPower
-    
-    createAntiTimeStopEffect()
-    
-    local antiFreezeLoop = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not char or not char.Parent then
-            return
-        end
-        
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Anchored = false
-                part.CanCollide = true
-            end
-        end
-        
-        if hum then
-            hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
-            hum.JumpPower = AntiTimeStopConfig.JumpPower
-            hum.AutoRotate = true
-            hum.AutoJumpEnabled = true
-        end
-        
-        if AntiTimeStopConfig.AutoActivate then
-            local isFrozen = false
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.Anchored then
-                    isFrozen = true
-                    break
-                end
-            end
-            
-            if isFrozen and not timeStopDetected then
-                timeStopDetected = true
-                timeStopStartTime = tick()
-                print("Auto-detected freeze! Activating Anti Time Stop...")
-                
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Anchored = false
-                        part.CanCollide = true
-                    end
-                end
-            end
-        end
-    end)
-    
-    local attackDetection = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not timeStopDetected or not char or not char.Parent then
-            return
-        end
-        
-        local isAttacking = false
-        
-        if UserInputService:IsKeyDown(Enum.KeyCode.F) or 
-           UserInputService:IsKeyDown(Enum.KeyCode.E) or
-           UserInputService:IsKeyDown(Enum.KeyCode.R) or
-           UserInputService:IsKeyDown(Enum.KeyCode.T) or
-           UserInputService:IsKeyDown(Enum.KeyCode.Y) or
-           UserInputService:IsKeyDown(Enum.KeyCode.Q) then
-            isAttacking = true
-        end
-        
-        if isAttacking and antiTimeStopEffect then
-            antiTimeStopEffect.FillColor = Color3.fromRGB(255, 255, 0)
-        else
-            if antiTimeStopEffect then
-                antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 0)
-            end
-        end
-    end)
-    
-    local timeStopDetection = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not char or not char.Parent then
-            return
-        end
-        
-        local detected, timeStopPlayer, timeStopAbility = detectTimeStop()
-        
-        if detected and not timeStopDetected then
-            timeStopDetected = true
-            timeStopStartTime = tick()
-            
-            if AntiTimeStopConfig.AntiFreeze then
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Anchored = false
-                        part.CanCollide = true
-                    end
-                end
-            end
-            
-            if AntiTimeStopConfig.MovementOverride then
-                local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-                if not bv then
-                    bv = Instance.new("BodyVelocity", root)
-                    bv.Name = "AntiTimeStopBodyVelocity"
-                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                end
-                
-                local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-                if not bg then
-                    bg = Instance.new("BodyGyro", root)
-                    bg.Name = "AntiTimeStopBodyGyro"
-                    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-                    bg.D = 1000
-                    bg.P = 2000
-                end
-            end
-            
-            if AntiTimeStopConfig.SoundEffect then
-                local sound = Instance.new("Sound", root)
-                sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
-                sound.Volume = 0.5
-                sound:Play()
-                game:GetService("Debris"):AddItem(sound, 2)
-            end
-            
-        elseif not detected and timeStopDetected then
-            timeStopDetected = false
-            timeStopDuration = tick() - timeStopStartTime
-            
-            hum.WalkSpeed = originalAntiTimeStopWalkSpeed
-            hum.JumpPower = originalAntiTimeStopJumpPower
-            
-            local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-            
-            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-            if bg then
-                bg:Destroy()
-            end
-            
-            removeAntiTimeStopEffect()
-        end
-    end)
-    
-    local movementOverride = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not timeStopDetected or not char or not char.Parent then
-            return
-        end
-        
-        if AntiTimeStopConfig.MovementOverride then
-            local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-            
-            if bv and bg then
-                local moveVector = Vector3.new(0, 0, 0)
-                local cam = workspace.CurrentCamera
-                
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                    moveVector = moveVector + cam.CFrame.lookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                    moveVector = moveVector - cam.CFrame.lookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                    moveVector = moveVector - cam.CFrame.rightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                    moveVector = moveVector + cam.CFrame.rightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                    moveVector = moveVector + Vector3.new(0, 1, 0)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-                    moveVector = moveVector - Vector3.new(0, 1, 0)
-                end
-                
-                if moveVector.Magnitude > 0 then
-                    moveVector = moveVector.Unit * (AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed)
-                    bv.Velocity = moveVector
-                    
-                    bg.CFrame = cam.CFrame
-                    
-                    if AntiTimeStopConfig.ServerSync then
-                        local newCFrame = root.CFrame + (moveVector * 0.016)
-                        root.CFrame = newCFrame
-                        
-                        local remoteEvent = game:GetService("ReplicatedStorage"):FindFirstChild("AntiTimeStopMovement")
-                        if not remoteEvent then
-                            remoteEvent = Instance.new("RemoteEvent")
-                            remoteEvent.Name = "AntiTimeStopMovement"
-                            remoteEvent.Parent = game:GetService("ReplicatedStorage")
-                        end
-                        
-                        remoteEvent:FireServer(newCFrame)
-                    end
-                    
-                    if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                        antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 255)
-                    end
-                else
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                    
-                    if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                        antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 0)
-                    end
-                end
-            end
-        end
-    end)
-    
-    local damageProtection = char.Humanoid.Died:Connect(function()
-    end)
-    
-    local healthChanged = hum.HealthChanged:Connect(function(health)
-    end)
-    
-    table.insert(antiTimeStopConnections, antiFreezeLoop)
-    table.insert(antiTimeStopConnections, attackDetection)
-    table.insert(antiTimeStopConnections, timeStopDetection)
-    table.insert(antiTimeStopConnections, movementOverride)
-    table.insert(antiTimeStopConnections, damageProtection)
-    table.insert(antiTimeStopConnections, healthChanged)
-end
-
-local function stopAntiTimeStop()
-    isAntiTimeStopEnabled = false
-    timeStopDetected = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if hum then
-        hum.WalkSpeed = originalAntiTimeStopWalkSpeed
-        hum.JumpPower = originalAntiTimeStopJumpPower
-        hum.AutoRotate = true
-        hum.AutoJumpEnabled = true
-    end
-    
-    if root then
-        local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-        
-        local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-        if bg then
-            bg:Destroy()
-        end
-    end
-    
-    removeAntiTimeStopEffect()
-    
-    for _, connection in ipairs(antiTimeStopConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    antiTimeStopConnections = {}
-    
-    print("Anti Time Stop disabled")
-end
-
-
-local function startNoClip()
-    local char = Players.LocalPlayer.Character
-    if not char then return end
-    
-    isNoClipping = true
-    
-    
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") and part.CanCollide then
-            part.CanCollide = false
-        end
-    end
-    
-    
-    local function noclip()
-        if not char or not char.Parent then return end
-        
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
-            end
-        end
-    end
-    
-    
-    local noClipLoop = RunService.Heartbeat:Connect(function()
-        if not isNoClipping or not char or not char.Parent then
-            return
-        end
-        noclip()
-    end)
-    
-    table.insert(noClipConnections, noClipLoop)
-    
-    
-    local function setupNoClipForPart(part)
-        if part:IsA("BasePart") and part.CanCollide then
-            part.CanCollide = false
-        end
-    end
-    
-    local descendantAdded = char.DescendantAdded:Connect(setupNoClipForPart)
-    table.insert(noClipConnections, descendantAdded)
-    
-    
-    task.spawn(function()
-        task.wait(0.5)
-        if isNoClipping and char and char.Parent then
-            noclip()
-        end
-    end)
-end
-
-local function stopNoClip()
-    isNoClipping = false
-    
-    local char = Players.LocalPlayer.Character
-    if not char then return end
-    
-    
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = true
-        end
-    end
-    
-    
-    for _, connection in ipairs(noClipConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            elseif typeof(connection) == "Instance" then
-                pcall(function() connection:Destroy() end)
-            end
-        end
-    end
-    noClipConnections = {}
-end
-
-local function startSpeedHack()
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    
-    isSpeedHacking = true
-    originalWalkSpeed = hum.WalkSpeed
-    originalJumpPower = hum.JumpPower
-    
-    hum.WalkSpeed = SpeedHackConfig.Speed * 16
-    
-    if SpeedHackConfig.UseJumpPower then
-        hum.JumpPower = SpeedHackConfig.Speed * 50
-    end
-    
-    local function onCharacterAdded(newChar)
-        local newHum = newChar:WaitForChild("Humanoid")
-        if isSpeedHacking then
-            newHum.WalkSpeed = SpeedHackConfig.Speed * 16
-            if SpeedHackConfig.UseJumpPower then
-                newHum.JumpPower = SpeedHackConfig.Speed * 50
-            end
-        end
-    end
-    
-    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-    table.insert(speedHackConnections, characterAddedConnection)
-    
-    local speedLoop = RunService.Heartbeat:Connect(function()
-        if not isSpeedHacking then return end
-        
-        local currentChar = Players.LocalPlayer.Character
-        local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
-        
-        if currentHum then
-            if currentHum.WalkSpeed ~= SpeedHackConfig.Speed * 16 then
-                currentHum.WalkSpeed = SpeedHackConfig.Speed * 16
-            end
-            
-            if SpeedHackConfig.UseJumpPower and currentHum.JumpPower ~= SpeedHackConfig.Speed * 50 then
-                currentHum.JumpPower = SpeedHackConfig.Speed * 50
-            end
-        end
-    end)
-    
-    table.insert(speedHackConnections, speedLoop)
-end
-
-local function stopSpeedHack()
-    isSpeedHacking = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.WalkSpeed = originalWalkSpeed
-        hum.JumpPower = originalJumpPower
-    end
-    
-    for _, connection in ipairs(speedHackConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            elseif typeof(connection) == "Instance" then
-                pcall(function() connection:Destroy() end)
-            end
-        end
-    end
-    speedHackConnections = {}
-end
-
-
-local function startLongJump()
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    
-    isLongJumping = true
-    originalLongJumpPower = hum.JumpPower
-    
-    hum.JumpPower = LongJumpConfig.JumpPower
-    
-    
-    local function onCharacterAdded(newChar)
-        local newHum = newChar:WaitForChild("Humanoid")
-        if isLongJumping then
-            newHum.JumpPower = LongJumpConfig.JumpPower
-        end
-    end
-    
-    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-    table.insert(longJumpConnections, characterAddedConnection)
-    
-    
-    local longJumpLoop = RunService.Heartbeat:Connect(function()
-        if not isLongJumping then return end
-        
-        local currentChar = Players.LocalPlayer.Character
-        local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
-        
-        if currentHum and currentHum.JumpPower ~= LongJumpConfig.JumpPower then
-            currentHum.JumpPower = LongJumpConfig.JumpPower
-        end
-    end)
-    
-    table.insert(longJumpConnections, longJumpLoop)
-end
-
-local function stopLongJump()
-    isLongJumping = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.JumpPower = originalLongJumpPower
-    end
-    
-    
-    for _, connection in ipairs(longJumpConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            elseif typeof(connection) == "Instance" then
-                pcall(function() connection:Destroy() end)
-            end
-        end
-    end
-    longJumpConnections = {}
-end
-
-
-local function startInfiniteJump()
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not root then return end
-    
-    isInfiniteJumping = true
-    lastJumpTime = 0
-    
-    
-    local function onJumpRequest()
-        if not isInfiniteJumping then return end
-        
-        local currentTime = tick()
-        if currentTime - lastJumpTime < 0.1 then return end 
-        
-        lastJumpTime = currentTime
-        
-        
-        local bv = Instance.new("BodyVelocity", root)
-        bv.MaxForce = Vector3.new(0, math.huge, 0)
-        bv.Velocity = Vector3.new(0, InfiniteJumpConfig.JumpPower, 0)
-        
-        
-        task.spawn(function()
-            task.wait(0.3)
-            if bv and bv.Parent then
-                bv:Destroy()
-            end
-        end)
-    end
-    
-    
-    local jumpConnection = hum.Jumping:Connect(onJumpRequest)
-    table.insert(infiniteJumpConnections, jumpConnection)
-    
-    
-    local function onInputBegan(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.Space then
-            onJumpRequest()
-        end
-    end
-    
-    local inputConnection = UserInputService.InputBegan:Connect(onInputBegan)
-    table.insert(infiniteJumpConnections, inputConnection)
-    
-    
-    local function onCharacterAdded(newChar)
-        if isInfiniteJumping then
-            task.wait(1) 
-            startInfiniteJump() 
-        end
-    end
-    
-    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-    table.insert(infiniteJumpConnections, characterAddedConnection)
-end
-
-local function stopInfiniteJump()
-    isInfiniteJumping = false
-    lastJumpTime = 0
-    
-    
-    for _, connection in ipairs(infiniteJumpConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            elseif typeof(connection) == "Instance" then
-                pcall(function() connection:Destroy() end)
-            end
-        end
-    end
-    infiniteJumpConnections = {}
-    
-    
-    local char = Players.LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if root then
-        for _, child in pairs(root:GetChildren()) do
-            if child:IsA("BodyVelocity") then
-                child:Destroy()
-            end
-        end
-    end
-end
-
-
-local function createStealthTeleport()
-    if not TeleportConfig.TargetPlayer then 
-        return 
-    end
-    
-    local char = Players.LocalPlayer.Character
-    local targetChar = TeleportConfig.TargetPlayer.Character
-    if not char or not targetChar then 
-        return 
-    end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChild("Humanoid")
-    if not root or not targetRoot or not humanoid then 
-        return 
-    end
-    
-    isTeleporting = true
-    speedResetTimer = 0
-    lastSpeedCheck = tick()
-    
-    
-    if not TeleportConfig.OriginalPosition then
-        TeleportConfig.OriginalPosition = root.Position
-    end
-    
-    
-    if not isNoClipping then
-        startNoClip()
-    end
-    
-    
-    task.spawn(function()
-        task.wait(0.1) 
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        
-        local char = Players.LocalPlayer.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end)
-    
-    local stealthTeleportLoop = RunService.Heartbeat:Connect(function()
-        if not isTeleporting or not targetChar or not targetChar.Parent then
-            return
-        end
-        
-        
-        if isNoClipping and char and char.Parent then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
-        end
-        
-        
-        local currentTime = tick()
-        speedResetTimer = speedResetTimer + (currentTime - lastSpeedCheck)
-        lastSpeedCheck = currentTime
-        
-        if speedResetTimer >= TeleportConfig.MaxSpeedResetTime then
-            speedResetTimer = 0
-            
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold and distance > 5 then
-                bv.Velocity = bv.Velocity * 0.8
-            end
-
-            if humanoid and humanoid.WalkSpeed > 16 and distance > 5 then
-                humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 1, 16)
-            end
-        end
-        
-        local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-        if currentTargetRoot then
-            local targetPos = currentTargetRoot.Position
-            local currentPos = root.Position
-            local distance = (targetPos - currentPos).Magnitude
-
-                    if lastTeleportPosition then
-                local targetMovement = (targetPos - lastTeleportPosition).Magnitude
-                if targetMovement > 3 then
-                    task.wait(0.02)
-                end
-            end
-            lastTeleportPosition = targetPos
-            
-            local targetCFrame = currentTargetRoot.CFrame
-            local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
-            local behindDistance = (behindPosition.Position - currentPos).Magnitude
-            
-            local bv = root:FindFirstChild("BodyVelocity")
-            if not bv then
-                bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                bv.Velocity = Vector3.new(0, 0, 0)
-            end
-            
-            local bg = root:FindFirstChild("BodyGyro")
-            if not bg then
-                bg = Instance.new("BodyGyro", root)
-                bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-                bg.D = 50
-                bg.P = 1000
-            end
-            
-            local targetLookVector = targetCFrame.LookVector
-            bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetLookVector)
-            
-            local targetVelocity = currentTargetRoot.Velocity
-            local targetSpeed = targetVelocity.Magnitude
-            
-            local predictionTime = 0.1
-            local predictedPosition = behindPosition.Position + (targetVelocity * predictionTime)
-            local predictedDistance = (predictedPosition - currentPos).Magnitude
-            
-            local adaptiveSpeed = TeleportConfig.TeleportSpeed
-            if targetSpeed > 80 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0
-            elseif targetSpeed > 50 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.5
-            elseif targetSpeed > 20 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.2
-            end
-            
-            if predictedDistance > 1.5 then
-                local direction = (predictedPosition - currentPos).Unit
-                local currentVelocity = bv.Velocity
-                local targetVelocity = direction * adaptiveSpeed
-                
-                local accelerationFactor = 0.15
-                if targetSpeed > 80 then
-                    accelerationFactor = 0.5
-                elseif targetSpeed > 50 then
-                    accelerationFactor = 0.4
-                elseif targetSpeed > 30 then
-                    accelerationFactor = 0.3
-                end
-                local velocityDiff = targetVelocity - currentVelocity
-                local acceleration = velocityDiff * accelerationFactor
-                
-                bv.Velocity = currentVelocity + acceleration
-            else
-                local direction = (predictedPosition - currentPos).Unit
-                local correctionSpeed = math.min(predictedDistance * 15, 30)
-                
-                if targetSpeed > 10 then
-                    correctionSpeed = correctionSpeed * 1.5
-                end
-                
-                bv.Velocity = direction * correctionSpeed
-                
-                if predictedDistance < 0.3 and targetSpeed < 5 then
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                end
-            end
-        end
-    end)
-    
-    table.insert(teleportConnections, stealthTeleportLoop)
-end
-
-local function startTeleport()
-    if not TeleportConfig.TargetPlayer then 
-        return 
-    end
-    
-    local char = Players.LocalPlayer.Character
-    local targetChar = TeleportConfig.TargetPlayer.Character
-    if not char or not targetChar then 
-        return 
-    end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-    if not root or not targetRoot then 
-        return 
-    end
-    
-    isTeleporting = true
-    lastTeleportPosition = nil
-    speedResetTimer = 0
-    lastSpeedCheck = tick()
-    
-    
-    TeleportConfig.OriginalPosition = root.Position
-    
-    
-    if not isNoClipping then
-        startNoClip()
-    end
-    
-    
-    task.spawn(function()
-        task.wait(0.1) 
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        
-        local char = Players.LocalPlayer.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end)
-    
-    if startTeleportBtn then
-        startTeleportBtn.Text = "TELEPORT ACTIVE"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-    end
-    if stopTeleportBtn then
-        stopTeleportBtn.Text = "STOP TELEPORT"
-        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    end
-    
-    createStealthTeleport()
-    
-    
-    task.spawn(function()
-        task.wait(0.2)
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        
-        local char = Players.LocalPlayer.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end)
-end
-
-local function stopTeleport()
-    isTeleporting = false
-    lastTeleportPosition = nil
-    speedResetTimer = 0
-    TeleportConfig.Enabled = false
-    
-    local char = Players.LocalPlayer.Character
-    if not char then 
-        return 
-    end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChild("Humanoid")
-    
-    
-    for _, connection in ipairs(teleportConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            end
-        end
-    end
-    teleportConnections = {}
-    
-    
-    local bv = root and root:FindFirstChild("BodyVelocity")
-    if bv then
-        
-        bv.Velocity = Vector3.new(0, 0, 0)
-        task.wait(0.1) 
-        bv:Destroy()
-    end
-    
-    local bg = root and root:FindFirstChild("BodyGyro")
-    if bg then
-        bg:Destroy()
-    end
-    
-    
-    if humanoid then
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
-    end
-    
-    
-    if root and TeleportConfig.OriginalPosition then
-        
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        
-        local returnConnections = {}
-        
-        local returnLoop = RunService.Heartbeat:Connect(function()
-            if not root or not root.Parent then
-                return
-            end
-            
-            local currentPos = root.Position
-            local returnPos = TeleportConfig.OriginalPosition
-            local distance = (returnPos - currentPos).Magnitude
-            
-            if distance > 3 then
-                local returnBv = root:FindFirstChild("BodyVelocity")
-                if not returnBv then
-                    returnBv = Instance.new("BodyVelocity", root)
-                    returnBv.MaxForce = Vector3.new(1e6, 1e6, 1e6) 
-                end
-                
-                local returnDirection = (returnPos - currentPos).Unit
-                local returnSpeed = TeleportConfig.ReturnSpeed
-                
-                returnSpeed = returnSpeed + math.random(-5, 5)
-                
-                returnBv.Velocity = returnDirection * returnSpeed
-            else
-                
-                local returnBv = root:FindFirstChild("BodyVelocity")
-                if returnBv then
-                    returnBv.Velocity = Vector3.new(0, 0, 0)
-                    task.wait(0.5) 
-                    returnBv:Destroy()
-                end
-                
-                local returnBg = root:FindFirstChild("BodyGyro")
-                if returnBg then
-                    returnBg:Destroy()
-                end
-                
-                
-                root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
-                TeleportConfig.OriginalPosition = nil
-                
-                
-                local freezeBv = Instance.new("BodyVelocity", root)
-                freezeBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                freezeBv.Velocity = Vector3.new(0, 0, 0)
-                
-                task.wait(2) 
-                
-                if freezeBv then
-                    freezeBv:Destroy()
-                end
-                
-                
-                task.spawn(function()
-                    task.wait(5)
-                    if isNoClipping then
-                        stopNoClip()
-                    end
-                end)
-                
-                
-                for _, connection in ipairs(returnConnections) do
-                    if connection then
-                        pcall(function() connection:Disconnect() end)
-                    end
-                end
-                
-                if returnLoop then
-                    returnLoop:Disconnect()
-                end
-            end
-        end)
-        
-        table.insert(returnConnections, returnLoop)
-    end
-    
-    
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
-    end
-    
-    if startTeleportBtn then
-        startTeleportBtn.Text = "START TELEPORT"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    end
-    if stopTeleportBtn then
-        stopTeleportBtn.Text = "STOP TELEPORT"
-        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-    end
-end
-
-local function findStands()
-    local stands = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    
-    if not playerRoot then 
-        return stands 
-    end
-    
-    local standNames = {
-        "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
-        "Star Platinum", "The World", "Hierophant Green", "Magician's Red",
-        "Hermit Purple", "Silver Chariot", "Tower of Gray", "Dark Blue Moon",
-        "Strength", "Wheel of Fortune", "Hanged Man", "Emperor", "Empress",
-        "Judgment", "High Priestess", "Death Thirteen", "Lovers", "Sun",
-        "Bastet", "Thunder McQueen", "Anubis", "Khnum", "Tohth", "Horus",
-        "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth"
-    }
-    
-    local foundCount = 0
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") then
-            local isStand = false
-            for _, standName in ipairs(standNames) do
-                if obj.Name:find(standName) or obj.Name:lower():find(standName:lower()) then
-                    isStand = true
-                    break
-                end
-            end
-            
-            if isStand then
-                local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
-                if standRoot then
-                    local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
-                        foundCount = foundCount + 1
-                        table.insert(stands, {
-                            Model = obj,
-                            Root = standRoot,
-                            Distance = distance,
-                            Name = obj.Name
-                        })
-                    end
-                end
-            end
-        end
-    end
-    
-    if #stands == 0 then
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
-                local standRoot = obj:FindFirstChild("HumanoidRootPart")
-                if standRoot then
-                    local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
-                        table.insert(stands, {
-                            Model = obj,
-                            Root = standRoot,
-                            Distance = distance,
-                            Name = obj.Name
-                        })
-                    end
-                end
-            end
-        end
-    end
-    
-    table.sort(stands, function(a, b) return a.Distance < b.Distance end)
-    return stands
-end
-
-
-
-local function freezePlayer()
-    local player = Players.LocalPlayer
-    local char = player.Character
-    if not char then return end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChild("Humanoid")
-    
-    if root then
-        originalPlayerPosition = root.Position
-        originalPlayerCFrame = root.CFrame
-        
-        local bv = root:FindFirstChild("BodyVelocity")
-        if not bv then
-            bv = Instance.new("BodyVelocity", root)
-            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-        end
-        bv.Velocity = Vector3.new(0, 0, 0)
-        
-        local gyro = root:FindFirstChild("BodyGyro")
-        if not gyro then
-            gyro = Instance.new("BodyGyro", root)
-            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-        end
-        gyro.CFrame = root.CFrame
-        
-        local camera = workspace.CurrentCamera
-        if camera then
-            camera.CameraType = Enum.CameraType.Scriptable
-        end
-    end
-    
-    if humanoid then
-        originalYBAWalkSpeed = humanoid.WalkSpeed
-        originalYBAJumpPower = humanoid.JumpPower
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-        
-        humanoid.AutoRotate = false
-        humanoid.AutoJumpEnabled = false
-    end
-end
-
-local function unfreezePlayer()
-    local player = Players.LocalPlayer
-    local char = player.Character
-    if not char then return end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChild("Humanoid")
-    
-    if root then
-        local bv = root:FindFirstChild("BodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-        
-        local gyro = root:FindFirstChild("BodyGyro")
-        if gyro then
-            gyro:Destroy()
-        end
-    end
-    
-    if humanoid then
-        humanoid.WalkSpeed = originalYBAWalkSpeed
-        humanoid.JumpPower = originalYBAJumpPower
-        
-        humanoid.AutoRotate = true
-        humanoid.AutoJumpEnabled = true
-    end
-end
-
-local function activateFreeCamera(stand)
-    if not stand or not stand.Root then 
-        print("YBA: Ошибка - стенд или его Root не найден")
-        return false
-    end
-    
-    print("YBA: Активируем управление стендом: " .. stand.Name)
-
-    if YBAConfig.FreezePlayer then
-        print("YBA: Замораживаем игрока...")
-        freezePlayer()
-    end
-
-    freeCameraActive = true
-    freeCameraTarget = stand
-
-    if YBAFreeCamera.Start(stand) then
-        print("YBA: Управление стендом активировано от третьего лица")
-        return true
-    else
-        print("YBA: Не удалось активировать управление стендом")
-        return false
-    end
-end
-
-local function disableFreeCamera()
-    if not freeCameraActive then return end
-    
-    print("YBA: Отключаем управление стендом")
-    
-    freeCameraActive = false
-    freeCameraTarget = nil
-
-    YBAFreeCamera.Stop()
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.AutoRotate = true
-        end
-    end
-
-    for _, connection in ipairs(freeCameraConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    freeCameraConnections = {}
-    
-    print("YBA: Управление стендом отключено")
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = originalYBAWalkSpeed
-            humanoid.JumpPower = originalYBAJumpPower
-        end
-
-        local root = player.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-            
-            local gyro = root:FindFirstChild("BodyGyro")
-            if gyro then
-                gyro:Destroy()
-            end
-        end
-    end
-end
-
-local function controlStand(stand)
-    if not stand or not stand.Root then 
-        print("YBA: Ошибка - стенд или его Root не найден")
-        return 
-    end
-    
-    print("YBA: Начинаем управление стендом: " .. stand.Name)
-    controlledStand = stand
-
-    if activateFreeCamera(stand) then
-        print("YBA: Свободная камера активирована для стенда: " .. stand.Name)
-    else
-        print("YBA: Не удалось активировать свободную камеру для стенда: " .. stand.Name)
-    end
-end
-
-local function startYBA()
-    if isYBAEnabled then return end
-    isYBAEnabled = true
-    YBAConfig.Enabled = true
-    if not findStands then return end
-    local stands = findStands()
-    if #stands == 0 then return end
-    local targetStand = stands[1]
-    if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
-    if YBAConfig.SwitchCamera then end
-    if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        local deathConnection = humanoid.Died:Connect(function()
-            stopYBA()
-        end)
-        table.insert(standControlConnections, deathConnection)
-    end
-    task.spawn(function()
-        task.wait(5)
-        if not isYBAEnabled then return end
-        if startUndergroundControl then startUndergroundControl() end
-    end)
-end
-
-local function stopYBA()
-    if not isYBAEnabled then return end
-    
-    isYBAEnabled = false
-    YBAConfig.Enabled = false
-    
-    if disableFreeCamera then
-        disableFreeCamera()
-    end
-    if unfreezePlayer then
-        unfreezePlayer()
-    end
-    
-    for _, connection in ipairs(standControlConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    standControlConnections = {}
-    controlledStand = nil
-    
-    print("Stand Range Hack деактивирован")
-    print("Автоматически отключаем Underground Flight...")
-    if stopUndergroundControl then
-        stopUndergroundControl()
-    end
-end
-
--- Функция для запуска управления персонажем под стендом (летающий режим)
-local function startUndergroundControl()
-    print("=== ЗАПУСК ПОДЗЕМНОГО ПОЛЕТА ===")
-    
-    if isUndergroundControlEnabled then 
-        print("Подземный полет уже активен!")
-        return 
-    end
-    
-    local plr = Players.LocalPlayer
-    local char = plr.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not root then 
-        print("Персонаж не найден!")
-        return 
-    end
-    
-    print("Персонаж найден, позиция:", root.Position)
-    
-    if not findStands then
-        print("Функция findStands не найдена!")
-        return
-    end
-    
-    local stands = findStands()
-    if #stands == 0 then
-        print("Стенды не найдены! Убедитесь, что у вас есть стенд.")
-        return
-    end
-    
-    controlledStandForUnderground = stands[1].Root
-    isUndergroundControlEnabled = true
-    
-    print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
-    print("Перемещаем персонажа под стенд на 30 метров вниз")
-    
-    if not YBAConfig.UndergroundControl.OriginalPosition then
-        YBAConfig.UndergroundControl.OriginalPosition = root.Position
-        print("Исходная позиция сохранена:", root.Position)
-    end
-    
-    if YBAConfig.UndergroundControl.AutoNoClip and not isNoClipping and startNoClip then
-        startNoClip()
-        print("NoClip включен для подземного полета")
-    elseif not startNoClip then
-        print("ОШИБКА: Функция startNoClip не найдена!")
-    end
-    
-    local flyOriginalJumpPower = hum.JumpPower
-    local flyOriginalJumpHeight = hum.JumpHeight
-    local flyOriginalGravity = workspace.Gravity
-    local flyOriginalHipHeight = hum.HipHeight
-    
-    hum.JumpPower = 0
-    hum.JumpHeight = 0
-    workspace.Gravity = 0
-    hum.HipHeight = 0
-    
-    local standPos = controlledStandForUnderground.Position
-    local undergroundPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
-    
-    print("Стенд позиция:", standPos)
-    print("Целевая подземная позиция:", undergroundPos)
-    print("Текущая позиция персонажа:", root.Position)
-    
-    local initialBv = Instance.new("BodyVelocity", root)
-    initialBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    local direction = (undergroundPos - root.Position).Unit
-    local speed = 200
-    initialBv.Velocity = direction * speed
-    
-    print("Создан BodyVelocity со скоростью:", initialBv.Velocity)
-    
-    task.spawn(function()
-        task.wait(1)
-        if initialBv and initialBv.Parent then
-            initialBv:Destroy()
-            print("Начальный BodyVelocity удален")
-        end
-    end)
-    
-    print("Запускаем основной цикл подземного полета...")
-    local undergroundFlyLoop = RunService.RenderStepped:Connect(function()
-        if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
-            print("Подземный полет остановлен - стенд не найден или функция отключена")
-            if hum then
-                hum.JumpPower = flyOriginalJumpPower
-                hum.JumpHeight = flyOriginalJumpHeight
-                hum.HipHeight = flyOriginalHipHeight
-            end
-            if not isNoClipping then
-                workspace.Gravity = flyOriginalGravity
-            end
-            return
-        end
-        
-        local char = Players.LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then 
-            if isUndergroundControlEnabled then
-                stopUndergroundControl()
-            end
-            return 
-        end
-        
-        local standPos = controlledStandForUnderground.Position
-        local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
-        
-        local bv = root:FindFirstChild("BodyVelocity")
-        if not bv then
-            bv = Instance.new("BodyVelocity", root)
-            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-        end
-        
-        local direction = (targetPos - root.Position).Unit
-        local distance = (targetPos - root.Position).Magnitude
-        
-        if distance > 2 then
-            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed)
-            
-            if isShiftPressed then
-                flySpeed = flySpeed + 50
-            end
-            
-            local currentVelocity = bv.Velocity
-            local targetVelocity = direction * flySpeed
-            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.15
-            bv.Velocity = smoothedVelocity
-        elseif distance > 0.5 then
-            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed * 0.2)
-            
-            if isShiftPressed then
-                flySpeed = flySpeed + 10
-            end
-            
-            local currentVelocity = bv.Velocity
-            local targetVelocity = direction * flySpeed
-            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.1
-            bv.Velocity = smoothedVelocity
-        else
-            bv.Velocity = Vector3.new(0, 0, 0)
-        end
-    end)
-    
-    table.insert(undergroundControlConnections, undergroundFlyLoop)
-    
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        local deathConnection = humanoid.Died:Connect(function()
-            print("Игрок умер, отключаем Underground Flight...")
-            stopUndergroundControl()
-        end)
-        table.insert(undergroundControlConnections, deathConnection)
-    end
-    
-    print("Полет под землей за стендом активирован!")
-    print("Персонаж перенесен под стенд на расстоянии 30 метров под землей")
-end
-
--- Функция для остановки управления персонажем под стендом
-local function stopUndergroundControl()
-    if not isUndergroundControlEnabled then return end
-    
-    isUndergroundControlEnabled = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if hum then
-        hum.JumpPower = 50
-        hum.JumpHeight = 7.2
-        hum.HipHeight = 2
-    end
-    
-    workspace.Gravity = 196.2
-    
-    if root then
-        local bv = root:FindFirstChild("BodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-    end
-    
-    for _, connection in ipairs(undergroundControlConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    undergroundControlConnections = {}
-    
-    if YBAConfig.UndergroundControl.OriginalPosition then
-        if root then
-            print("Плавно возвращаем персонажа в исходную позицию...")
-            
-            local returnBv = Instance.new("BodyVelocity", root)
-            returnBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-            
-            local direction = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Unit
-            local distance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
-            local returnSpeed = 100
-            
-            returnBv.Velocity = direction * returnSpeed
-            
-            local returnConnection = RunService.Heartbeat:Connect(function()
-                local currentDistance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
-                
-                if currentDistance < 2 then
-                    returnBv:Destroy()
-                    returnConnection:Disconnect()
-                    YBAConfig.UndergroundControl.OriginalPosition = nil
-                    print("Персонаж успешно возвращен в исходную позицию")
-                end
-            end)
-        end
-    end
-    
-    controlledStandForUnderground = nil
-    
-    print("Полет под землей за стендом отключен!")
-end
-
-local function getAlivePlayers()
-    local alivePlayers = {}
-    
-    if not Players then
-        return alivePlayers
-    end
-    
-    if not Players.LocalPlayer then
-        return alivePlayers
-    end
-    
-    local allPlayers = Players:GetPlayers()
-    if not allPlayers then
-        return alivePlayers
-    end
-    
-    for i, player in ipairs(allPlayers) do
-        if player then
-            if player ~= Players.LocalPlayer then
-                if player.Character then
-                    local humanoid = player.Character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        if humanoid.Health > 0 then
-                            table.insert(alivePlayers, player)
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return alivePlayers
-end
-
-
-UserInputService.InputBegan:Connect(function(input, gp)
-    if not gp then
-        if FlyConfig.ToggleKey and input.KeyCode == FlyConfig.ToggleKey then
-            FlyConfig.Enabled = not FlyConfig.Enabled
-            if FlyConfig.Enabled then 
-                startFly() 
-            else 
-                stopFly() 
-            end
-            
-            if guiCallbacks.fly then
-                guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
-            end
-        elseif NoClipConfig.ToggleKey and input.KeyCode == NoClipConfig.ToggleKey then
-            NoClipConfig.Enabled = not NoClipConfig.Enabled
-            if NoClipConfig.Enabled then 
-                startNoClip() 
-            else 
-                stopNoClip() 
-            end
-            
-            if guiCallbacks.noClip then
-                guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
-            end
-        elseif SpeedHackConfig.ToggleKey and input.KeyCode == SpeedHackConfig.ToggleKey then
-            SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
-            if SpeedHackConfig.Enabled then 
-                startSpeedHack() 
-            else 
-                stopSpeedHack() 
-            end
-            
-            if guiCallbacks.speedHack then
-                guiCallbacks.speedHack.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
-            end
-        elseif TeleportConfig.ToggleKey and input.KeyCode == TeleportConfig.ToggleKey then
-            if TeleportConfig.Enabled then
-                stopTeleport()
-                TeleportConfig.Enabled = false
-            else
-                if TeleportConfig.TargetPlayer then
-                    startTeleport()
-                    TeleportConfig.Enabled = true
-                else
-                    print("Сначала выберите игрока для телепортации")
-                end
-            end
-            
-            if guiCallbacks.teleport then
-                guiCallbacks.teleport.Text = "Выбранный игрок: " .. (TeleportConfig.SelectedPlayerName or "Не выбран")
-            end
-        elseif LongJumpConfig.ToggleKey and input.KeyCode == LongJumpConfig.ToggleKey then
-            LongJumpConfig.Enabled = not LongJumpConfig.Enabled
-            if LongJumpConfig.Enabled then 
-                startLongJump() 
-            else 
-                stopLongJump() 
-            end
-            
-            if guiCallbacks.longJump then
-                guiCallbacks.longJump.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
-            end
-        elseif InfiniteJumpConfig.ToggleKey and input.KeyCode == InfiniteJumpConfig.ToggleKey then
-            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
-            if InfiniteJumpConfig.Enabled then 
-                startInfiniteJump() 
-            else 
-                stopInfiniteJump() 
-            end
-            
-            if guiCallbacks.infiniteJump then
-                guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
-            end
-        elseif NoClipConfig.ForceToggleKey and input.KeyCode == NoClipConfig.ForceToggleKey then
-            if isNoClipping then
-                stopNoClip()
-            else
-                startNoClip()
-            end
-        elseif YBAConfig.ToggleKey and input.KeyCode == YBAConfig.ToggleKey then
-            if YBAConfig.Enabled then
-                stopYBA()
-            else
-                startYBA()
-            end
-            
-            if guiCallbacks.yba then
-                guiCallbacks.yba.Text = "Stand Range Hack: " .. (YBAConfig.Enabled and "ON" or "OFF")
-            end
-
-        elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
-            if not isAntiTimeStopEnabled then
-                AntiTimeStopConfig.Enabled = true
-                startAntiTimeStop()
-                
-                if guiCallbacks.antiTimeStop then
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
-                end
-                
-                spawn(function()
-                    task.wait(0.5)
-                    
-                    AntiTimeStopConfig.Enabled = false
-                    stopAntiTimeStop()
-                    
-                    if guiCallbacks.antiTimeStop then
-                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-                    end
-                end)
-            else
-                if guiCallbacks.antiTimeStop then
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-                    spawn(function()
-                        task.wait(1)
-                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-                    end)
-                end
-            end
-        end
-    end
-end)
-
--- Обработчики клавиш для ускорения Ctrl в Stand Range Hack
-UserInputService.InputBegan:Connect(function(input, gp)
-    if not gp and input.KeyCode == Enum.KeyCode.LeftControl then
-        isShiftPressed = true
-        print("Ctrl нажат - ускорение активировано")
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gp)
-    if input.KeyCode == Enum.KeyCode.LeftControl then
-        isShiftPressed = false
-        print("Ctrl отпущен - ускорение деактивировано")
-    end
-end)
-
-
-local ESPs, Lines = {}, {}
-local FOVCircle
-
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Thickness = 2
-FOVCircle.NumSides = 100
-FOVCircle.Filled = false
-FOVCircle.Visible = false
-
-
-local function getName(p)
-    return p.Name
-end
-local function getHealth(p)
-    local h = p.Character and p.Character:FindFirstChild("Humanoid")
-    return (h and h.Health>0) and math.floor(h.Health) or 0
-end
-local function isAlive(p) return getHealth(p)>0 end
-local function getRainbow() return Color3.fromHSV((tick()%5)/5,1,1) end
-local function getESPColor(p)
-    if Config.ESP.Rainbow then return getRainbow() end
-    if Config.ESP.TeamCheck then return (p.TeamColor==Players.LocalPlayer.TeamColor) and Config.ESP.TeamColor or Config.ESP.EnemyColor end
-    return Config.ESP.FillColor
-end
-local function getOutlineColor(p)
-    if Config.ESP.Rainbow then return getRainbow() end
-    if Config.ESP.TeamCheck then return (p.TeamColor==Players.LocalPlayer.TeamColor) and Config.ESP.TeamColor or Config.ESP.EnemyColor end
-    return Config.ESP.OutlineColor
-end
-local function rayVisible(p)
-    if not Config.Aimbot.VisibilityCheck then return true end
-    local cam=workspace.CurrentCamera
-    local head=p.Character and p.Character:FindFirstChild("Head") if not head then return false end
-    local rp=RaycastParams.new()
-    rp.FilterType=Enum.RaycastFilterType.Blacklist
-    rp.FilterDescendantsInstances={Players.LocalPlayer.Character,p.Character}
-    return not workspace:Raycast(cam.CFrame.Position, head.Position-cam.CFrame.Position, rp)
-end
-
-
-local function createOrUpdateESP(p)
-    if not ESPs[p] then
-        local hl=Instance.new("Highlight"); hl.Adornee=p.Character; hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent=p.Character
-        local bg=Instance.new("BillboardGui",p.Character); bg.AlwaysOnTop=true; bg.Size=UDim2.new(0,200,0,30); bg.StudsOffset=Vector3.new(0,2,0)
-        local tl=Instance.new("TextLabel",bg); tl.Size=UDim2.new(1,0,1,0); tl.BackgroundTransparency=1; tl.Font=Config.ESP.Font; tl.TextSize=18
-        ESPs[p]={hl=hl,bg=bg,tl=tl}
-    end
-    local d=ESPs[p]
-    d.hl.FillColor=getESPColor(p); d.hl.FillTransparency=Config.ESP.FillTransparency
-    d.hl.OutlineColor=getOutlineColor(p); d.hl.OutlineTransparency=Config.ESP.ShowOutline and Config.ESP.OutlineTransparency or 1
-    d.tl.TextColor3=Config.ESP.TextColor
-    d.tl.Text=string.format("%s | HP:%d | %dm",getName(p),getHealth(p),math.floor((Players.LocalPlayer.Character.HumanoidRootPart.Position-p.Character.HumanoidRootPart.Position).Magnitude))
-end
-
-local function removeESP(p)
-    if ESPs[p] then 
-        if ESPs[p].hl and ESPs[p].hl.Parent then ESPs[p].hl:Destroy() end
-        if ESPs[p].bg and ESPs[p].bg.Parent then ESPs[p].bg:Destroy() end
-        ESPs[p]=nil 
-    end
-    if Lines[p] then Lines[p]:Remove(); Lines[p]=nil end
-end
-
-
-local function isPlayerAlive(player)
-    if not player then 
-        return false 
-    end
-    
-    if not player.Name then
-        return false
-    end
-    
-    if not player.Character then 
-        return false 
-    end
-    local humanoid = player.Character:FindFirstChild("Humanoid")
-    if not humanoid then 
-        return false 
-    end
-    local isAlive = humanoid.Health > 0
-    return isAlive
-end
-
-local function isPlayerOnServer(player)
-    if not player or not player.Character then return false end
-    local humanoid = player.Character:FindFirstChild("Humanoid")
-    if not humanoid then return false end
-    return humanoid.Health > 0 and humanoid.Parent ~= nil
-end
-
-
-local function onPlayerDied(player)
-    removeESP(player)
-end
-
-local function onPlayerRespawned(player)
-    if Config.ESP.Enabled and player ~= Players.LocalPlayer then
-        spawn(function()
-            wait(2) 
-            if isPlayerAlive(player) then
-                createOrUpdateESP(player)
-            end
-        end)
-    end
-end
-
-
-local function setupPlayerESP(player)
-    if player == Players.LocalPlayer then return end
-    
-    
-    local function onCharacterAdded(char)
-        local humanoid = char:WaitForChild("Humanoid")
-        
-        
-        humanoid.Died:Connect(function()
-            onPlayerDied(player)
-        end)
-        
-        
-        humanoid.StateChanged:Connect(function(_, new)
-            if new == Enum.HumanoidStateType.Dead then
-                onPlayerDied(player)
-            elseif new == Enum.HumanoidStateType.Running then
-                onPlayerRespawned(player)
-            end
-        end)
-        
-        
-        char.AncestryChanged:Connect(function(_, parent)
-            if not parent then
-                onPlayerDied(player)
-            end
-        end)
-    end
-    
-    if player.Character then
-        onCharacterAdded(player.Character)
-    end
-    player.CharacterAdded:Connect(onCharacterAdded)
-    player.CharacterRemoving:Connect(function()
-        onPlayerDied(player)
-    end)
-end
-
-
-for _, player in ipairs(Players:GetPlayers()) do
-    setupPlayerESP(player)
-end
-
-
-Players.PlayerAdded:Connect(setupPlayerESP)
-
-
-Players.PlayerRemoving:Connect(function(player)
-    removeESP(player)
-end)
-
-local function getClosestTarget()
-    local cam = workspace.CurrentCamera
-    local closest, minDist = nil, Config.Aimbot.FOV
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p == Players.LocalPlayer then continue end
-        if Config.Aimbot.TeamCheck and p.Team == Players.LocalPlayer.Team then continue end
-        if not isAlive(p) then continue end
-        if Config.Aimbot.VisibilityCheck and not rayVisible(p) then continue end
-
-        local head = p.Character and p.Character:FindFirstChild("Head")
-        if not head then continue end
-        local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
-        if not onScreen then continue end
-
-        local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
-        if dist < minDist then
-            closest = head
-            minDist = dist
-        end
-    end
-    return closest
-end
-
-
-RunService.RenderStepped:Connect(function()
-    local cam = workspace.CurrentCamera
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == Players.LocalPlayer then continue end
-        
-        local char = player.Character
-        local hum = char and char:FindFirstChild("Humanoid")
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        
-        if isPlayerAlive(player) and root then
-            if Config.ESP.Enabled then
-                createOrUpdateESP(player)
-                if Config.ESP.ShowLines then
-                    if not Lines[player] then
-                        local ln = Drawing.new("Line")
-                        ln.Thickness = 2
-                        ln.Transparency = 1
-                        Lines[player] = ln
-                    end
-                    local pos, onScreen = cam:WorldToViewportPoint(root.Position)
-                    Lines[player].Visible = onScreen
-                    if onScreen then
-                        Lines[player].From = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y)
-                        Lines[player].To = Vector2.new(pos.X, pos.Y)
-                        Lines[player].Color = getESPColor(player)
-                    end
-                elseif Lines[player] then
-                    Lines[player].Visible = false
-                end
-            else
-                removeESP(player)
-            end
-        else
-            
-            removeESP(player)
-        end
-    end
-
-    
-if Config.Aimbot.Enabled then
-    local target = getClosestTarget()
-    if target then
-        local cam = workspace.CurrentCamera
-        cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target.Position)
-    end
-end
-
-
-local cam = workspace.CurrentCamera
-FOVCircle.Visible = Config.Aimbot.Enabled
-FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
-FOVCircle.Color = Config.Aimbot.FOVRainbow and getRainbow() or Config.Aimbot.FOVColor
-FOVCircle.Radius = Config.Aimbot.FOV
-
-
-    
-end)
-
-
-UserInputService.InputBegan:Connect(function(inp, gp)
-    if gp then return end
-    if inp.UserInputType == Enum.UserInputType.Keyboard then
-        if Config.ESP.ToggleKey and inp.KeyCode == Config.ESP.ToggleKey then
-            Config.ESP.Enabled = not Config.ESP.Enabled
-            print("ESP toggled:", Config.ESP.Enabled)
-        elseif Config.Aimbot.ToggleKey and inp.KeyCode == Config.Aimbot.ToggleKey then
-            Config.Aimbot.Enabled = not Config.Aimbot.Enabled
-            print("Aimbot toggled:", Config.Aimbot.Enabled)
-        end
-    end
-end)
-
-
-local itemESPEnabled = false
-local itemESPConnections = {}
-local itemESPElements = {}
-
-local YBA_ITEM_NAMES = {
-    ["Mysterious Arrow"] = true,
-    ["Rokakaka"] = true,
-    ["Pure Rokakaka"] = true,
-    ["Diamond"] = true,
-    ["Gold Coin"] = true,
-    ["Steel Ball"] = true,
-    ["Clackers"] = true,
-    ["Caesar's Headband"] = true,
-    ["Zeppeli's Hat"] = true,
-    ["Zeppeli's Scarf"] = true,
-    ["Ancient Scroll"] = true,
-    ["Quinton's Glove"] = true,
-    ["Stone Mask"] = true,
-    ["Lucky Arrow"] = true,
-    ["Lucky Stone Mask"] = true,
-
-    ["Rib Cage of The Saint's Corpse"] = true,
-    
-    ["Ancient Scroll"] = true,
-    ["DIO's Diary"] = true,
-    ["DIO's Bone"] = true,
-    ["DIO's Diary Page"] = true,
-    ["Lucky Stone Mask"] = true,
-}
-
-local function findYBAItems()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then 
-        return items 
-    end
-
-    local foundFolders = {}
-    
-    local targetFolder = workspace:FindFirstChild("Item_Spawns")
-    if targetFolder then
-        local itemsFolder = targetFolder:FindFirstChild("Items")
-        if itemsFolder then
-            table.insert(foundFolders, itemsFolder)
-        end
-    end
-    
-    if #foundFolders == 0 then
-        local possibleFolders = {
-            workspace:FindFirstChild("Items"),
-            workspace:FindFirstChild("items"),
-            workspace:FindFirstChild("ItemSpawns"),
-            workspace:FindFirstChild("itemspawns"),
-            workspace:FindFirstChild("ItemSpawn"),
-            workspace:FindFirstChild("itemspawn"),
-            workspace:FindFirstChild("Spawns"),
-            workspace:FindFirstChild("spawns"),
-            workspace:FindFirstChild("World"),
-            workspace:FindFirstChild("world"),
-            workspace:FindFirstChild("Map"),
-            workspace:FindFirstChild("map"),
-            workspace:FindFirstChild("Game"),
-            workspace:FindFirstChild("game")
-        }
-        
-        for _, folder in ipairs(possibleFolders) do
-            if folder then
-                table.insert(foundFolders, folder)
-            end
-        end
-    end
-    
-    if #foundFolders == 0 then 
-        return items 
-    end
-    
-    local foundCount = 0
-    local searchedModels = {}
-    local debugCount = 0
-
-    for _, folder in ipairs(foundFolders) do
-        local function searchInFolder(currentFolder, depth)
-            if depth > 3 then return end
-            
-            for _, child in ipairs(currentFolder:GetChildren()) do
-                debugCount = debugCount + 1
-                
-                if child:IsA("Model") then
-                    if not searchedModels[child] then
-                        searchedModels[child] = true
-                        
-                        local proximityPrompt = child:FindFirstChild("ProximityPrompt")
-                        local itemName = child.Name
-                        
-                        if proximityPrompt then
-                            itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
-                        end
-                        
-                        if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
-                            for _, part in ipairs(child:GetDescendants()) do
-                                if part:IsA("MeshPart") or part:IsA("Part") then
-                                    local distance = (part.Position - playerRoot.Position).Magnitude
-                                    
-                                    foundCount = foundCount + 1
-                                    
-                                    table.insert(items, {
-                                        Object = part,
-                                        Root = part,
-                                        Distance = distance,
-                                        Name = itemName,
-                                        Type = "YBA_Item",
-                                        Folder = currentFolder.Name
-                                    })
-                                    break
-                                end
-                            end
-                        end
-                    end
-                elseif child:IsA("Folder") and depth < 2 then
-                    searchInFolder(child, depth + 1)
-                end
-            end
-        end
-        
-        searchInFolder(folder, 0)
-    end
-    
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    return items
-end
-
-local function findYBAItemsFast()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then 
-        return items 
-    end
-    
-    local targetFolder = workspace:FindFirstChild("Item_Spawns")
-    if not targetFolder then
-        return items
-    end
-    
-    local itemsFolder = targetFolder:FindFirstChild("Items")
-    if not itemsFolder then
-        return items
-    end
-    
-    local foundCount = 0
-    local debugCount = 0
-
-    for _, child in ipairs(itemsFolder:GetChildren()) do
-        debugCount = debugCount + 1
-        
-        if child:IsA("Model") then
-            local proximityPrompt = child:FindFirstChild("ProximityPrompt")
-            local itemName = child.Name
-            
-            if proximityPrompt then
-                itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
-            end
-            
-            if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
-                for _, part in ipairs(child:GetDescendants()) do
-                    if part:IsA("MeshPart") or part:IsA("Part") then
-                        local distance = (part.Position - playerRoot.Position).Magnitude
-                        
-                        foundCount = foundCount + 1
-                        
-                        table.insert(items, {
-                            Object = part,
-                            Root = part,
-                            Distance = distance,
-                            Name = itemName,
-                            Type = "YBA_Item",
-                            Folder = "Item_Spawns.Items"
-                        })
-                        break
-                    end
-                end
-            else
-                local lowerName = string.lower(itemName)
-                if string.find(lowerName, "arrow") or 
-                   string.find(lowerName, "rokakaka") or
-                   string.find(lowerName, "diamond") or
-                   string.find(lowerName, "coin") or
-                   string.find(lowerName, "corpse") or
-                   string.find(lowerName, "diary") or
-                   string.find(lowerName, "disc") or
-                   string.find(lowerName, "mask") or
-                   string.find(lowerName, "scroll") or
-                   string.find(lowerName, "glove") or
-                   string.find(lowerName, "headband") or
-                   string.find(lowerName, "ball") then
-                    
-                    for _, part in ipairs(child:GetDescendants()) do
-                        if part:IsA("MeshPart") or part:IsA("Part") then
-                            local distance = (part.Position - playerRoot.Position).Magnitude
-                            
-                            if distance <= YBAConfig.ItemESP.MaxDistance then
-                                foundCount = foundCount + 1
-                                print("YBA Item ESP: Быстрый поиск - найден возможный предмет", itemName, "на расстоянии", math.floor(distance), "м")
-                                
-                                table.insert(items, {
-                                    Object = part,
-                                    Root = part,
-                                    Distance = distance,
-                                    Name = itemName,
-                                    Type = "YBA_Item",
-                                    Folder = "Item_Spawns.Items"
-                                })
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    return items
-end
-
-local function findYBAItemsAlternative()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then 
-        print("YBA Item ESP: Игрок не найден (альтернативный поиск)")
-        return items 
-    end
-
-    print("YBA Item ESP: Альтернативный поиск по всему workspace...")
-    
-    local foundCount = 0
-    local searchedModels = {}
-    local debugCount = 0
-
-    local function searchInWorkspace(parent, depth)
-        if depth > 10 then return end
-        
-        for _, child in ipairs(parent:GetChildren()) do
-            debugCount = debugCount + 1
-            if debugCount % 500 == 0 then
-                print("YBA Item ESP: Альтернативный поиск - проверено объектов:", debugCount)
-            end
-            
-            if child:IsA("Model") then
-                if not searchedModels[child] then
-                    searchedModels[child] = true
-
-                    if YBA_ITEM_NAMES[child.Name] and YBAConfig.ItemESP.Items[child.Name] then
-                        print("YBA Item ESP: Альтернативный поиск - найдена модель предмета:", child.Name)
-
-                        for _, part in ipairs(child:GetDescendants()) do
-                            if part:IsA("MeshPart") or part:IsA("Part") then
-                                local distance = (part.Position - playerRoot.Position).Magnitude
-                                
-                                if distance <= YBAConfig.ItemESP.MaxDistance then
-                                    foundCount = foundCount + 1
-                                    print("YBA Item ESP: Альтернативный поиск - найден предмет", child.Name, "на расстоянии", math.floor(distance), "м")
-                                    
-                                    table.insert(items, {
-                                        Object = part,
-                                        Root = part,
-                                        Distance = distance,
-                                        Name = child.Name,
-                                        Type = "YBA_Item",
-                                        Folder = "Workspace"
-                                    })
-                                    break
-                                end
-                            end
-                        end
-                    else
-                        if string.find(string.lower(child.Name), "arrow") or 
-                           string.find(string.lower(child.Name), "rokakaka") or
-                           string.find(string.lower(child.Name), "diamond") or
-                           string.find(string.lower(child.Name), "coin") then
-                            print("YBA Item ESP: Альтернативный поиск - найдена неизвестная модель (возможно предмет):", child.Name)
-                        end
-                    end
-                end
-            elseif child:IsA("Folder") and depth < 5 then
-                searchInWorkspace(child, depth + 1)
-            end
-        end
-    end
-
-    searchInWorkspace(workspace, 0)
-
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    print("YBA Item ESP: Альтернативный поиск - всего проверено объектов:", debugCount)
-    print("YBA Item ESP: Альтернативный поиск - всего найдено предметов:", foundCount)
-    
-    return items
-end
-
-local function debugWorkspaceStructure()
-    print("YBA Item ESP: === ОТЛАДКА СТРУКТУРЫ WORKSPACE ===")
-    
-    local function printFolderStructure(parent, prefix, maxDepth)
-        if maxDepth <= 0 then return end
-        
-        for _, child in ipairs(parent:GetChildren()) do
-            local childType = child.ClassName
-            local childName = child.Name
-            
-            print(prefix .. "├─ " .. childName .. " (" .. childType .. ")")
-
-            if child:IsA("Folder") then
-                printFolderStructure(child, prefix .. "│  ", maxDepth - 1)
-            end
-
-            if child:IsA("Model") then
-                local hasMeshPart = false
-                local hasPart = false
-                for _, descendant in ipairs(child:GetDescendants()) do
-                    if descendant:IsA("MeshPart") then
-                        hasMeshPart = true
-                    elseif descendant:IsA("Part") then
-                        hasPart = true
-                    end
-                end
-                if hasMeshPart or hasPart then
-                    print(prefix .. "│  └─ [Содержит MeshPart/Part]")
-                end
-            end
-        end
-    end
-    
-    print("YBA Item ESP: Структура workspace (первые 3 уровня):")
-    printFolderStructure(workspace, "", 3)
-    
-    print("YBA Item ESP: === КОНЕЦ ОТЛАДКИ ===")
-end
-
-local function createItemESP(item)
-    if itemESPElements[item.Object] then
-        return itemESPElements[item.Object]
-    end
-    
-    if not item.Object or not item.Object.Parent then
-        return nil
-    end
-
-    if item.Distance > YBAConfig.ItemESP.MaxRenderDistance then
-        return nil
-    end
-    
-    print("YBA Item ESP: Создаем ESP для предмета:", item.Name)
-    
-    local esp = {}
-    esp.itemName = item.Name 
-
-    local function getItemColor(itemName)
-        if string.find(itemName, "Arrow") then
-            return Color3.fromRGB(255, 215, 0) 
-        elseif string.find(itemName, "Rokakaka") then
-            return Color3.fromRGB(255, 0, 255) 
-        elseif string.find(itemName, "Diamond") then
-            return Color3.fromRGB(0, 255, 255) 
-        elseif string.find(itemName, "Corpse") then
-            return Color3.fromRGB(255, 0, 0) 
-        elseif string.find(itemName, "Diary") then
-            return Color3.fromRGB(255, 165, 0) 
-        elseif string.find(itemName, "Disc") then
-            return Color3.fromRGB(0, 255, 0)
-        else
-            return YBAConfig.ItemESP.FillColor 
-        end
-    end
-    
-    local itemColor = getItemColor(item.Name)
-
-    if YBAConfig.ItemESP.ShowOutline or YBAConfig.ItemESP.ShowFill then
-        local success, highlight = pcall(function()
-            local hl = Instance.new("Highlight")
-            hl.Adornee = item.Object
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
-            hl.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
-            hl.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
-            hl.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
-            hl.Parent = item.Object
-
-            local pulseConnection
-            pulseConnection = RunService.Heartbeat:Connect(function()
-                if not hl.Parent then
-                    pulseConnection:Disconnect()
-                    return
-                end
-                
-                local time = tick()
-                local pulse = math.sin(time * 4) * 0.4 + 0.6
-                hl.FillTransparency = YBAConfig.ItemESP.FillTransparency + (1 - pulse) * 0.4
-                hl.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency + (1 - pulse) * 0.2
-            end)
-            
-            esp.pulseConnection = pulseConnection
-            
-            return hl
-        end)
-        
-        if success and highlight then
-            esp.highlight = highlight
-            print("YBA Item ESP: Highlight создан для:", item.Name)
-        else
-            print("YBA Item ESP: Ошибка при создании Highlight для:", item.Name)
-        end
-    end
-
-    if YBAConfig.ItemESP.ShowText then
-        local success, billboard = pcall(function()
-            local bg = Instance.new("BillboardGui")
-            bg.AlwaysOnTop = true
-            bg.Size = UDim2.new(0, 200, 0, 50) 
-            bg.StudsOffset = Vector3.new(0, 3, 0) 
-            bg.Parent = item.Object
-
-            local background = Instance.new("Frame", bg)
-            background.Size = UDim2.new(1, 0, 1, 0)
-            background.Position = UDim2.new(0, 0, 0, 0)
-            background.BackgroundColor3 = YBAConfig.ItemESP.TextBackgroundColor
-            background.BackgroundTransparency = YBAConfig.ItemESP.TextBackgroundTransparency
-            background.BorderSizePixel = 0
-            background.ZIndex = 1
-            
-            local corner = Instance.new("UICorner", background)
-            corner.CornerRadius = UDim.new(0, 6) 
-
-            local border = Instance.new("Frame", bg)
-            border.Size = UDim2.new(1, 2, 1, 2)
-            border.Position = UDim2.new(0, -1, 0, -1)
-            border.BackgroundColor3 = itemColor
-            border.BorderSizePixel = 0
-            border.ZIndex = 0
-            
-            local borderCorner = Instance.new("UICorner", border)
-            borderCorner.CornerRadius = UDim.new(0, 8) 
-
-            local tl = Instance.new("TextLabel", bg)
-            tl.Size = UDim2.new(1, -6, 0.6, 0) 
-            tl.Position = UDim2.new(0, 3, 0, 2)
-            tl.BackgroundTransparency = 1
-            tl.Font = YBAConfig.ItemESP.Font
-            tl.TextSize = YBAConfig.ItemESP.TextSize
-            tl.TextColor3 = YBAConfig.ItemESP.TextColor
-            tl.TextXAlignment = Enum.TextXAlignment.Center
-            tl.TextYAlignment = Enum.TextYAlignment.Center
-            tl.Text = string.format("🎯 %s", item.Name)
-            tl.ZIndex = 3
-
-            local distanceLabel = Instance.new("TextLabel", bg)
-            distanceLabel.Size = UDim2.new(1, -6, 0.4, 0) 
-            distanceLabel.Position = UDim2.new(0, 3, 0.6, 0) 
-            distanceLabel.BackgroundTransparency = 1
-            distanceLabel.Font = Enum.Font.Gotham
-            distanceLabel.TextSize = YBAConfig.ItemESP.DistanceTextSize
-            distanceLabel.TextColor3 = YBAConfig.ItemESP.TextColor
-            distanceLabel.TextXAlignment = Enum.TextXAlignment.Center
-            distanceLabel.TextYAlignment = Enum.TextYAlignment.Center
-            distanceLabel.Text = string.format("📏 %dm", math.floor(item.Distance)) 
-            distanceLabel.ZIndex = 3
-            
-            return {
-                billboard = bg, 
-                text = tl, 
-                distanceLabel = distanceLabel,
-                background = background,
-                border = border
-            }
-        end)
-        
-        if success and billboard then
-            esp.billboard = billboard.billboard
-            esp.text = billboard.text
-            esp.distanceLabel = billboard.distanceLabel
-            esp.background = billboard.background
-            esp.border = billboard.border
-            print("YBA Item ESP: BillboardGui создан для:", item.Name)
-        else
-            print("YBA Item ESP: Ошибка при создании BillboardGui для:", item.Name)
-        end
-    end
-    
-    itemESPElements[item.Object] = esp
-    return esp
-end
-
-local function updateItemESP(item)
-    local esp = itemESPElements[item.Object]
-    if not esp then return end
-
-    if true then
-        if not item.Object or not item.Object.Parent then
-            print("YBA Item ESP: Предмет больше не существует, удаляем ESP:", item.Name)
-            removeItemESP(item)
-            return
-        end
-
-        local currentParent = item.Object.Parent
-        while currentParent and currentParent ~= workspace do
-            if currentParent.Name == "Items" and currentParent.Parent and currentParent.Parent.Name == "Item_Spawns" then
-                break
-            end
-            currentParent = currentParent.Parent
-        end
-        
-        if not currentParent or currentParent == workspace then
-            print("YBA Item ESP: Предмет перемещен из папки Items, удаляем ESP:", item.Name)
-            removeItemESP(item)
-            return
-        end
-    end
-
-    local function getItemColor(itemName)
-        if string.find(itemName, "Arrow") then
-            return Color3.fromRGB(255, 215, 0) 
-        elseif string.find(itemName, "Rokakaka") then
-            return Color3.fromRGB(255, 0, 255)
-        elseif string.find(itemName, "Diamond") then
-            return Color3.fromRGB(0, 255, 255)
-        elseif string.find(itemName, "Corpse") then
-            return Color3.fromRGB(255, 0, 0) 
-        elseif string.find(itemName, "Diary") then
-            return Color3.fromRGB(255, 165, 0) 
-        elseif string.find(itemName, "Disc") then
-            return Color3.fromRGB(0, 255, 0) 
-        else
-            return YBAConfig.ItemESP.FillColor 
-        end
-    end
-    
-    local itemColor = getItemColor(item.Name)
-
-    if esp.text and esp.text.Parent then
-        pcall(function()
-            esp.text.Text = string.format("🎯 %s", item.Name)
-        end)
-    end
-
-    if esp.distanceLabel and esp.distanceLabel.Parent then
-        pcall(function()
-            esp.distanceLabel.Text = string.format("📏 %dm", math.floor(item.Distance)) 
-        end)
-    end
-
-    if esp.highlight and esp.highlight.Parent then
-        pcall(function()
-            esp.highlight.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
-            esp.highlight.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
-            esp.highlight.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
-            esp.highlight.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
-        end)
-    end
-
-    if esp.border and esp.border.Parent then
-        pcall(function()
-            esp.border.BackgroundColor3 = itemColor
-        end)
-    end
-end
-
-local function removeItemESP(item)
-    local esp = itemESPElements[item.Object]
-    if not esp then return end
-
-    if esp.pulseConnection then
-        esp.pulseConnection:Disconnect()
-        esp.pulseConnection = nil
-    end
-
-    pcall(function()
-        if esp.highlight and esp.highlight.Parent then
-            esp.highlight:Destroy()
-        end
-    end)
-
-    pcall(function()
-        if esp.billboard and esp.billboard.Parent then
-            esp.billboard:Destroy()
-        end
-    end)
-
-    esp.highlight = nil
-    esp.billboard = nil
-    esp.text = nil
-    esp.distanceLabel = nil
-    esp.background = nil
-    esp.border = nil
-    
-    itemESPElements[item.Object] = nil
-end
-
-local function startItemESP()
-    if itemESPEnabled then 
-        print("YBA Item ESP: Уже активирован!")
-        return 
-    end
-    itemESPEnabled = true
-    
-    print("YBA Item ESP: Активирован!")
-    print("YBA Item ESP: Максимальная дистанция:", YBAConfig.ItemESP.MaxDistance)
-    print("YBA Item ESP: Показывать обводку:", YBAConfig.ItemESP.ShowOutline)
-    print("YBA Item ESP: Показывать текст:", YBAConfig.ItemESP.ShowText)
-
-    local testItems = findYBAItems()
-    print("YBA Item ESP: Активирован! Найдено предметов:", #testItems)
-    
-    local lastUpdate = 0
-    local updateInterval = YBAConfig.ItemESP.UpdateInterval 
-
-    local itemESPLoop = RunService.Heartbeat:Connect(function()
-        if not YBAConfig.ItemESP.Enabled then
-            stopItemESP()
-            return
-        end
-
-        local currentTime = tick()
-        if currentTime - lastUpdate < updateInterval then
-            return
-        end
-        lastUpdate = currentTime
-
-        local success, items = pcall(findYBAItemsFast)
-        local currentItems = {}
-
-        if not success or not items or #items == 0 then
-            local success2, items2 = pcall(findYBAItems)
-            if success2 and items2 and #items2 > 0 then
-                items = items2
-                success = true
-                print("YBA Item ESP: Используем обычный поиск, найдено предметов:", #items)
-            else
-                local success3, items3 = pcall(findYBAItemsAlternative)
-                if success3 and items3 and #items3 > 0 then
-                    items = items3
-                    success = true
-                    print("YBA Item ESP: Используем альтернативный поиск, найдено предметов:", #items)
-                end
-            end
-        end
-        
-        if success and items then
-            for i = 1, math.min(100, #items) do 
-                local item = items[i]
-                if item and item.Object and item.Object.Parent then
-                    if YBAConfig.ItemESP.Items[item.Name] then
-                        currentItems[item.Object] = true
-
-                        if not itemESPElements[item.Object] then
-                            pcall(createItemESP, item)
-                        else
-                            pcall(updateItemESP, item)
-                        end
-                    else
-                        if itemESPElements[item.Object] then
-                            pcall(removeItemESP, item)
-                        end
-                    end
-                end
-            end
-
-            if math.floor(currentTime) % 5 == 0 then
-                print("YBA Item ESP: Активных ESP:", #items, "| Максимальная дистанция:", YBAConfig.ItemESP.MaxDistance)
-            end
-        end
-
-        for obj, esp in pairs(itemESPElements) do
-            if not currentItems[obj] then
-                pcall(removeItemESP, {Object = obj})
-            end
-        end
-    end)
-    
-    table.insert(itemESPConnections, itemESPLoop)
-
-    local cleanupLoop = RunService.Heartbeat:Connect(function()
-        if not YBAConfig.ItemESP.Enabled then
-            return
-        end
-        
-        for obj, esp in pairs(itemESPElements) do
-            if not obj or not obj.Parent then
-                pcall(removeItemESP, {Object = obj})
-            end
-        end
-    end)
-    
-    table.insert(itemESPConnections, cleanupLoop)
-end
-
-local function stopItemESP()
-    if not itemESPEnabled then return end
-    itemESPEnabled = false
-    
-    print("YBA Item ESP: Деактивирован!")
-
-    for obj, esp in pairs(itemESPElements) do
-        pcall(removeItemESP, {Object = obj})
-    end
-
-    for _, connection in ipairs(itemESPConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    itemESPConnections = {}
-end
-
 -- Frostware Modern Menu - Fixed Version
+-- 
+-- INSTRUCTIONS:
+-- 1. Load your main script (sosiski) FIRST
+-- 2. Then load this menu script (sosiski3.lua)
+-- 3. The menu will automatically connect to your main script functions
+-- 4. If functions are not found, you'll see "function not found" messages in console
+--
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
 
 local FrostwareGui = Instance.new("ScreenGui", CoreGui)
 FrostwareGui.Name = "FrostwareGui"
 FrostwareGui.ResetOnSpawn = false
+
+-- Default configurations (if not defined elsewhere)
+if not Config then
+    Config = {
+        ESP = {
+            Enabled = false,
+            TeamCheck = false,
+            ShowOutline = true,
+            ShowLines = false,
+            Rainbow = false,
+            FillColor = Color3.fromRGB(255, 255, 255),
+            OutlineColor = Color3.fromRGB(255, 0, 0),
+            TextColor = Color3.fromRGB(255, 255, 255),
+            FillTransparency = 0.5,
+            OutlineTransparency = 0,
+            ToggleKey = nil
+        },
+        Aimbot = {
+            Enabled = false,
+            TeamCheck = false,
+            VisibilityCheck = true,
+            FOV = 100,
+            FOVRainbow = false,
+            FOVColor = Color3.fromRGB(255, 255, 255),
+            ToggleKey = nil
+        }
+    }
+end
+
+if not FlyConfig then
+    FlyConfig = {
+        Enabled = false,
+        Speed = 1,
+        ToggleKey = nil
+    }
+end
+
+if not NoClipConfig then
+    NoClipConfig = {
+        Enabled = false,
+        ToggleKey = nil
+    }
+end
+
+if not SpeedHackConfig then
+    SpeedHackConfig = {
+        Enabled = false,
+        Speed = 1,
+        UseJumpPower = false,
+        ToggleKey = nil
+    }
+end
+
+if not LongJumpConfig then
+    LongJumpConfig = {
+        Enabled = false,
+        JumpPower = 100
+    }
+end
+
+if not InfiniteJumpConfig then
+    InfiniteJumpConfig = {
+        Enabled = false,
+        JumpPower = 50
+    }
+end
+
+if not YBAConfig then
+    YBAConfig = {
+        Enabled = false,
+        ToggleKey = nil,
+        ItemESP = {
+            Enabled = false,
+            Items = {}
+        },
+        UndergroundControl = {
+            FlightSpeed = 100
+        }
+    }
+end
+
+if not TeleportConfig then
+    TeleportConfig = {
+        Enabled = false,
+        TargetPlayer = nil,
+        SelectedPlayerName = nil,
+        OriginalPosition = nil,
+        ToggleKey = nil
+    }
+end
+
+-- Direct function connection to sosiski script
+local function callFunction(name, ...)
+    local success, result = pcall(function()
+        if _G[name] and type(_G[name]) == "function" then
+            return _G[name](...)
+        elseif getfenv(1)[name] and type(getfenv(1)[name]) == "function" then
+            return getfenv(1)[name](...)
+        else
+            print("Function " .. name .. " not found in global environment")
+            return false
+        end
+    end)
+    
+    if not success then
+        print("Error calling function " .. name .. ": " .. tostring(result))
+        return false
+    end
+    
+    return result
+end
+
+-- Function wrappers that connect to your sosiski script
+local function startFly()
+    return callFunction("startFly")
+end
+
+local function stopFly()
+    return callFunction("stopFly")
+end
+
+local function startNoClip()
+    return callFunction("startNoClip")
+end
+
+local function stopNoClip()
+    return callFunction("stopNoClip")
+end
+local function startSpeedHack()
+    return callFunction("startSpeedHack")
+end
+
+local function stopSpeedHack()
+    return callFunction("stopSpeedHack")
+end
+
+local function startLongJump()
+    return callFunction("startLongJump")
+end
+
+local function stopLongJump()
+    return callFunction("stopLongJump")
+end
+
+local function startInfiniteJump()
+    return callFunction("startInfiniteJump")
+end
+
+local function stopInfiniteJump()
+    return callFunction("stopInfiniteJump")
+end
+
+local function startYBA()
+    return callFunction("startYBA")
+end
+
+local function stopYBA()
+    return callFunction("stopYBA")
+end
+
+local function startUndergroundControl()
+    return callFunction("startUndergroundControl")
+end
+
+local function stopUndergroundControl()
+    return callFunction("stopUndergroundControl")
+end
+
+local function startItemESP()
+    return callFunction("startItemESP")
+end
+
+local function stopItemESP()
+    return callFunction("stopItemESP")
+end
+
+local function startTeleport()
+    return callFunction("startTeleport")
+end
+
+local function stopTeleport()
+    return callFunction("stopTeleport")
+end
+
+-- Try to get global variables and configurations from main script
+local function getGlobal(name, default)
+    local success, value = pcall(function()
+        return _G[name]
+    end)
+    if success and value then
+        print("Found " .. name .. " in _G, using it")
+        return value
+    else
+        print(name .. " not found in _G, using default")
+        return default
+    end
+end
+
+local isNoClipping = getGlobal("isNoClipping", false)
+
+-- Try to get configuration tables from main script
+Config = getGlobal("Config", Config)
+FlyConfig = getGlobal("FlyConfig", FlyConfig)
+NoClipConfig = getGlobal("NoClipConfig", NoClipConfig)
+SpeedHackConfig = getGlobal("SpeedHackConfig", SpeedHackConfig)
+LongJumpConfig = getGlobal("LongJumpConfig", LongJumpConfig)
+InfiniteJumpConfig = getGlobal("InfiniteJumpConfig", InfiniteJumpConfig)
+YBAConfig = getGlobal("YBAConfig", YBAConfig)
+TeleportConfig = getGlobal("TeleportConfig", TeleportConfig)
+AntiTimeStopConfig = getGlobal("AntiTimeStopConfig", AntiTimeStopConfig)
+
+-- Debug: Test function connections
+print("=== MENU FUNCTION CONNECTION TEST ===")
+local testFunctions = {"startFly", "stopFly", "startNoClip", "stopNoClip", "startSpeedHack", "stopSpeedHack", "startLongJump", "stopLongJump", "startInfiniteJump", "stopInfiniteJump", "startYBA", "stopYBA", "startTeleport", "stopTeleport"}
+for _, funcName in ipairs(testFunctions) do
+    local success, func = pcall(function()
+        return _G[funcName] or getfenv(1)[funcName] or getfenv(2)[funcName] or getfenv(3)[funcName]
+    end)
+    if success and func and type(func) == "function" then
+        print("✓ " .. funcName .. " - CONNECTED")
+    else
+        print("✗ " .. funcName .. " - NOT FOUND")
+    end
+end
+print("=== END TEST ===")
 
 -- Main frame
 local mainFrame = Instance.new("Frame", FrostwareGui)
@@ -3357,7 +274,7 @@ setMenuVisible(true)
 -- Кнопка скрытия (крестик)
 local closeBtn = Instance.new("TextButton", mainFrame)
 closeBtn.Size = UDim2.new(0, 32, 0, 32)
-closeBtn.Position = UDim2.new(1, -40, 0, 8)
+closeBtn.Position = UDim2.new(1, -40, 0, -15)
 closeBtn.Text = "×"
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 22
@@ -3418,6 +335,7 @@ local tabs = {
 
 local tabButtons = {}
 local tabFrames = {}
+local tabContainers = {}
 
 -- Helper: Toggle switch
 local function createToggle(parent, label, state, callback)
@@ -3455,13 +373,8 @@ local function createToggle(parent, label, state, callback)
         callback(on)
     end
 
-    toggle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            setState(not state)
-        end
-    end)
-    
-    knob.InputBegan:Connect(function(input)
+    -- Make the entire row clickable
+    row.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             setState(not state)
         end
@@ -3615,7 +528,6 @@ for i, tab in ipairs(tabs) do
     -- Tab button
     local btn = Instance.new("TextButton", tabList)
     btn.Size = UDim2.new(1, -16, 0, 38)
-    btn.Position = UDim2.new(0, 8, 0, 0)
     btn.Text = tab.icon .. "  " .. tab.name
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 15
@@ -3643,15 +555,15 @@ for i, tab in ipairs(tabs) do
     scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
     scrollFrame.ClipsDescendants = true
 
-    -- Container
-    local container = Instance.new("Frame", scrollFrame)
-    container.Size = UDim2.new(1, -20, 0, 0)
-    container.Position = UDim2.new(0, 10, 0, 0)
-    container.BackgroundTransparency = 1
-    container.AutomaticSize = Enum.AutomaticSize.Y
+            -- Container
+        local container = Instance.new("Frame", scrollFrame)
+        container.Size = UDim2.new(1, -20, 0, 0)
+        container.Position = UDim2.new(0, 10, 0, 50)
+        container.BackgroundTransparency = 1
+        container.AutomaticSize = Enum.AutomaticSize.Y
 
     local layout = Instance.new("UIListLayout", container)
-    layout.Padding = UDim2.new(0, 8)
+    layout.Padding = UDim.new(0, 8)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
 
     -- Tab switching
@@ -3663,11 +575,11 @@ for i, tab in ipairs(tabs) do
     end)
 
     -- Store container
-    tabFrame.Container = container
+    tabContainers[tab.name] = container
 end
 
 -- === ESP TAB ===
-local espContainer = tabFrames["ESP"].Container
+local espContainer = tabContainers["ESP"]
 
 createToggle(espContainer, "ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
 createToggle(espContainer, "Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
@@ -3681,7 +593,7 @@ createSlider(espContainer, "Fill Transparency", 0, 1, Config.ESP.FillTransparenc
 createSlider(espContainer, "Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
 
 -- === AIMBOT TAB ===
-local aimbotContainer = tabFrames["Aimbot"].Container
+local aimbotContainer = tabContainers["Aimbot"]
 
 createToggle(aimbotContainer, "Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
 createToggle(aimbotContainer, "Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
@@ -3691,15 +603,29 @@ createToggle(aimbotContainer, "FOV Rainbow", Config.Aimbot.FOVRainbow, function(
 createColorPicker(aimbotContainer, "Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
 
 -- === FLY TAB ===
-local flyContainer = tabFrames["Fly"].Container
+local flyContainer = tabContainers["Fly"]
 
-createToggle(flyContainer, "Fly", FlyConfig.Enabled, function(v) FlyConfig.Enabled = v if v then startFly() else stopFly() end end)
+createToggle(flyContainer, "Fly", FlyConfig.Enabled, function(v) 
+    FlyConfig.Enabled = v 
+    if v then 
+        startFly()
+    else 
+        stopFly()
+    end 
+end)
 createSlider(flyContainer, "Fly Speed", 0.1, 10, FlyConfig.Speed, function(v) FlyConfig.Speed = v end)
 
 -- === NOCLIP TAB ===
-local noClipContainer = tabFrames["NoClip"].Container
+local noClipContainer = tabContainers["NoClip"]
 
-createToggle(noClipContainer, "NoClip", NoClipConfig.Enabled, function(v) NoClipConfig.Enabled = v if v then startNoClip() else stopNoClip() end end)
+createToggle(noClipContainer, "NoClip", NoClipConfig.Enabled, function(v) 
+    NoClipConfig.Enabled = v 
+    if v then 
+        startNoClip()
+    else 
+        stopNoClip()
+    end 
+end)
 createButton(noClipContainer, "Force NoClip Toggle", function()
     if isNoClipping then
         stopNoClip()
@@ -3709,26 +635,67 @@ createButton(noClipContainer, "Force NoClip Toggle", function()
 end)
 
 -- === SPEED TAB ===
-local speedContainer = tabFrames["Speed"].Container
+local speedContainer = tabContainers["Speed"]
 
-createToggle(speedContainer, "SpeedHack", SpeedHackConfig.Enabled, function(v) SpeedHackConfig.Enabled = v if v then startSpeedHack() else stopSpeedHack() end end)
+createToggle(speedContainer, "SpeedHack", SpeedHackConfig.Enabled, function(v) 
+    SpeedHackConfig.Enabled = v 
+    if v then 
+        startSpeedHack()
+    else 
+        stopSpeedHack()
+    end 
+end)
 createToggle(speedContainer, "Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v) SpeedHackConfig.UseJumpPower = v end)
 createSlider(speedContainer, "SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v) SpeedHackConfig.Speed = v end)
 
 -- === JUMP TAB ===
-local jumpContainer = tabFrames["Jump"].Container
+local jumpContainer = tabContainers["Jump"]
 
-createToggle(jumpContainer, "Long Jump", LongJumpConfig.Enabled, function(v) LongJumpConfig.Enabled = v if v then startLongJump() else stopLongJump() end end)
+createToggle(jumpContainer, "Long Jump", LongJumpConfig.Enabled, function(v) 
+    LongJumpConfig.Enabled = v 
+    if v then 
+        startLongJump()
+    else 
+        stopLongJump()
+    end 
+end)
 createSlider(jumpContainer, "Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v) LongJumpConfig.JumpPower = v end)
-createToggle(jumpContainer, "Infinite Jump", InfiniteJumpConfig.Enabled, function(v) InfiniteJumpConfig.Enabled = v if v then startInfiniteJump() else stopInfiniteJump() end end)
+createToggle(jumpContainer, "Infinite Jump", InfiniteJumpConfig.Enabled, function(v) 
+    InfiniteJumpConfig.Enabled = v 
+    if v then 
+        startInfiniteJump()
+    else 
+        stopInfiniteJump()
+    end 
+end)
 createSlider(jumpContainer, "Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v) InfiniteJumpConfig.JumpPower = v end)
 
 -- === YBA TAB ===
-local ybaContainer = tabFrames["YBA"].Container
+local ybaContainer = tabContainers["YBA"]
 
-createToggle(ybaContainer, "Stand Range Hack", YBAConfig.Enabled, function(v) YBAConfig.Enabled = v if v then startYBA() else stopYBA() end end)
-createToggle(ybaContainer, "Underground Flight", false, function(v) if v then startUndergroundControl() else stopUndergroundControl() end end)
-createToggle(ybaContainer, "Item ESP", YBAConfig.ItemESP.Enabled, function(v) YBAConfig.ItemESP.Enabled = v if v then startItemESP() else stopItemESP() end end)
+createToggle(ybaContainer, "Stand Range Hack", YBAConfig.Enabled, function(v) 
+    YBAConfig.Enabled = v 
+    if v then 
+        startYBA()
+    else 
+        stopYBA()
+    end 
+end)
+createToggle(ybaContainer, "Underground Flight", false, function(v) 
+    if v then 
+        startUndergroundControl()
+    else 
+        stopUndergroundControl()
+    end 
+end)
+createToggle(ybaContainer, "Item ESP", YBAConfig.ItemESP.Enabled, function(v) 
+    YBAConfig.ItemESP.Enabled = v 
+    if v then 
+        startItemESP()
+    else 
+        stopItemESP()
+    end 
+end)
 createSlider(ybaContainer, "Flight & Stand Speed", 25, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v) YBAConfig.UndergroundControl.FlightSpeed = math.floor(v) end)
 
 -- Item selection for YBA
@@ -3747,9 +714,16 @@ for _, itemName in ipairs(itemNames) do
 end
 
 -- === TELEPORT TAB ===
-local teleportContainer = tabFrames["Teleport"].Container
+local teleportContainer = tabContainers["Teleport"]
 
-createToggle(teleportContainer, "Teleport", TeleportConfig.Enabled, function(v) TeleportConfig.Enabled = v if v then startTeleport() else stopTeleport() end end)
+createToggle(teleportContainer, "Teleport", TeleportConfig.Enabled, function(v) 
+    TeleportConfig.Enabled = v 
+    if v then 
+        startTeleport()
+    else 
+        stopTeleport()
+    end 
+end)
 createButton(teleportContainer, "Start Teleport", function()
     if not TeleportConfig.TargetPlayer then
         print("Select player first!")
@@ -3821,7 +795,7 @@ end
 createPlayerList(teleportContainer)
 
 -- === SETTINGS TAB ===
-local settingsContainer = tabFrames["Settings"].Container
+local settingsContainer = tabContainers["Settings"]
 
 createButton(settingsContainer, "Update Player List", function()
     print("Player list updated")
