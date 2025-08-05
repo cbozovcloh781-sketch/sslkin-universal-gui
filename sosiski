@@ -4445,3 +4445,6 @@ stopReturnBtn.MouseButton1Click:Connect(function()
     end
     TeleportConfig.OriginalPosition = nil
 end)
+
+print("=== Sosiski Script Loaded Successfully ===")
+print("All functions are local and ready for menu integration")
