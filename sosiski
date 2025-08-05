@@ -3537,30 +3537,35 @@ functionsContainer.Position = UDim2.new(0, 0, 0, 0)
 functionsContainer.BackgroundTransparency = 1
 functionsContainer.AutomaticSize = Enum.AutomaticSize.Y
 
--- Используем UIListLayout для правильного расположения элементов
-local functionsLayout = Instance.new("UIListLayout", functionsContainer)
-functionsLayout.Padding = UDim.new(0, 8)
-functionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+-- Убираем UIListLayout и используем ручное позиционирование
+local currentY = 0
+local padding = 8
 
 -- Функции для создания элементов интерфейса
 local function createSectionHeader(text)
+    currentY = currentY + padding
     local spacer = Instance.new("Frame", functionsContainer)
     spacer.Size = UDim2.new(1, 0, 0, 10)
+    spacer.Position = UDim2.new(0, 0, 0, currentY)
     spacer.BackgroundTransparency = 1
+    currentY = currentY + 10
     
     local lbl = Instance.new("TextLabel", functionsContainer)
     lbl.Text = text
     lbl.Size = UDim2.new(1, -10, 0, 30)
+    lbl.Position = UDim2.new(0, 5, 0, currentY)
     lbl.Font = Enum.Font.GothamBold
     lbl.TextSize = 16
     lbl.TextColor3 = Color3.fromRGB(255,255,255)
     lbl.BackgroundTransparency = 1
+    currentY = currentY + 30 + padding
     return lbl
 end
 
 local function createToggle(label, default, callback)
     local btn = Instance.new("TextButton", functionsContainer)
     btn.Size = UDim2.new(1, -10, 0, 28)
+    btn.Position = UDim2.new(0, 5, 0, currentY)
     btn.Text = label .. ": " .. (default and "ON" or "OFF")
     btn.Font = Enum.Font.Gotham
     btn.TextSize = 14
@@ -3575,12 +3580,14 @@ local function createToggle(label, default, callback)
         callback(default)
     end)
     
+    currentY = currentY + 28 + padding
     return btn
 end
 
 local function createSlider(label, min, max, value, callback)
     local container = Instance.new("Frame", functionsContainer)
     container.Size = UDim2.new(1, -10, 0, 36)
+    container.Position = UDim2.new(0, 5, 0, currentY)
     container.BackgroundTransparency = 1
 
     local lbl = Instance.new("TextLabel", container)
@@ -3625,6 +3632,8 @@ local function createSlider(label, min, max, value, callback)
             callback(newVal)
         end
     end)
+    
+    currentY = currentY + 36 + padding
 end
 
 local function createColorPicker(labelText, currentColor, callback)
@@ -3633,8 +3642,10 @@ local function createColorPicker(labelText, currentColor, callback)
     lbl.TextColor3 = Color3.new(1,1,1)
     lbl.BackgroundTransparency = 1
     lbl.Size = UDim2.new(1, -10, 0, 20)
+    lbl.Position = UDim2.new(0, 5, 0, currentY)
     lbl.Font = Enum.Font.SourceSans
     lbl.TextSize = 14
+    currentY = currentY + 20 + padding
 
     local colors = {
         Color3.fromRGB(255, 255, 255),
@@ -3650,6 +3661,7 @@ local function createColorPicker(labelText, currentColor, callback)
 
     local row = Instance.new("Frame", functionsContainer)
     row.Size = UDim2.new(1, -10, 0, 28)
+    row.Position = UDim2.new(0, 5, 0, currentY)
     row.BackgroundTransparency = 1
 
     local layout = Instance.new("UIListLayout", row)
@@ -3667,11 +3679,14 @@ local function createColorPicker(labelText, currentColor, callback)
             callback(clr)
         end)
     end
+    
+    currentY = currentY + 28 + padding
 end
 
 local function createSpeedInput(label, currentSpeed, callback)
     local container = Instance.new("Frame", functionsContainer)
     container.Size = UDim2.new(1, -10, 0, 36)
+    container.Position = UDim2.new(0, 5, 0, currentY)
     container.BackgroundTransparency = 1
 
     local lbl = Instance.new("TextLabel", container)
@@ -3703,12 +3718,14 @@ local function createSpeedInput(label, currentSpeed, callback)
         end
     end)
 
+    currentY = currentY + 36 + padding
     return lbl, inputBox
 end
 
 local function createKeyBindButton(name, currentKey, callback)
     local btn = Instance.new("TextButton", functionsContainer)
     btn.Size = UDim2.new(1, -10, 0, 24)
+    btn.Position = UDim2.new(0, 5, 0, currentY)
     btn.Text = name .. " Hotkey: [" .. (currentKey and tostring(currentKey.Name) or "None") .. "]"
     btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
     btn.TextColor3 = Color3.new(1,1,1)
@@ -3728,21 +3745,26 @@ local function createKeyBindButton(name, currentKey, callback)
             end
         end)
     end)
+    
+    currentY = currentY + 24 + padding
 end
 
 local function createDivider()
     local divider = Instance.new("Frame", functionsContainer)
     divider.Size = UDim2.new(1, -10, 0, 2)
+    divider.Position = UDim2.new(0, 5, 0, currentY)
     divider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     divider.BorderSizePixel = 0
+    currentY = currentY + 2 + padding
 end
 
 -- Функция для показа контента
 function showContent(tabName)
-    -- Очищаем контейнер
+    -- Очищаем контейнер и сбрасываем позицию
     for _, child in pairs(functionsContainer:GetChildren()) do
         child:Destroy()
     end
+    currentY = 0
     
     if tabName == "Main" then
         contentTitle.Text = "MAIN FUNCTIONS"
@@ -3822,15 +3844,18 @@ function showContent(tabName)
         createSectionHeader("🟪 NoClip Settings")
         local noClipStatusLabel = Instance.new("TextLabel", functionsContainer)
         noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
+        noClipStatusLabel.Position = UDim2.new(0, 5, 0, currentY)
         noClipStatusLabel.Text = "NoClip Status: OFF"
         noClipStatusLabel.Font = Enum.Font.GothamBold
         noClipStatusLabel.TextSize = 12
         noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
         noClipStatusLabel.BackgroundTransparency = 1
         noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
         
         local forceNoClipBtn = Instance.new("TextButton", functionsContainer)
         forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
+        forceNoClipBtn.Position = UDim2.new(0, 5, 0, currentY)
         forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
         forceNoClipBtn.Font = Enum.Font.GothamBold
         forceNoClipBtn.TextSize = 14
@@ -3838,6 +3863,7 @@ function showContent(tabName)
         forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
         forceNoClipBtn.AutoButtonColor = false
         Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
         
         forceNoClipBtn.MouseButton1Click:Connect(function()
             if isNoClipping then
@@ -3937,15 +3963,18 @@ function showContent(tabName)
         createSectionHeader("🟩 Teleport Settings")
         local selectedPlayerLabel = Instance.new("TextLabel", functionsContainer)
         selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
+        selectedPlayerLabel.Position = UDim2.new(0, 5, 0, currentY)
         selectedPlayerLabel.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
         selectedPlayerLabel.Font = Enum.Font.GothamBold
         selectedPlayerLabel.TextSize = 14
         selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
         selectedPlayerLabel.BackgroundTransparency = 1
         selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 24 + padding
         
         local startTeleportBtn = Instance.new("TextButton", functionsContainer)
         startTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
+        startTeleportBtn.Position = UDim2.new(0, 5, 0, currentY)
         startTeleportBtn.Text = "START TELEPORT"
         startTeleportBtn.Font = Enum.Font.GothamBold
         startTeleportBtn.TextSize = 14
@@ -3953,6 +3982,7 @@ function showContent(tabName)
         startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
         startTeleportBtn.AutoButtonColor = false
         Instance.new("UICorner", startTeleportBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
         
         startTeleportBtn.MouseButton1Click:Connect(function()
             if not TeleportConfig.TargetPlayer then
@@ -3977,6 +4007,7 @@ function showContent(tabName)
         
         local stopTeleportBtn = Instance.new("TextButton", functionsContainer)
         stopTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
+        stopTeleportBtn.Position = UDim2.new(0, 5, 0, currentY)
         stopTeleportBtn.Text = "STOP TELEPORT"
         stopTeleportBtn.Font = Enum.Font.GothamBold
         stopTeleportBtn.TextSize = 14
@@ -3984,6 +4015,7 @@ function showContent(tabName)
         stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
         stopTeleportBtn.AutoButtonColor = false
         Instance.new("UICorner", stopTeleportBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
         
         stopTeleportBtn.MouseButton1Click:Connect(function()
             if TeleportConfig.Enabled then
@@ -4007,12 +4039,14 @@ function showContent(tabName)
         -- YBA Stand Range
         local standRangeLabel = Instance.new("TextLabel", functionsContainer)
         standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
+        standRangeLabel.Position = UDim2.new(0, 5, 0, currentY)
         standRangeLabel.Text = "stand range hack"
         standRangeLabel.Font = Enum.Font.Gotham
         standRangeLabel.TextSize = 12
         standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         standRangeLabel.BackgroundTransparency = 1
         standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
         
         local ybaToggleBtn = createToggle("YBA Stand Range", YBAConfig.Enabled, function(v)
             YBAConfig.Enabled = v
@@ -4026,12 +4060,14 @@ function showContent(tabName)
         -- Item ESP
         local itemESPLabel = Instance.new("TextLabel", functionsContainer)
         itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
+        itemESPLabel.Position = UDim2.new(0, 5, 0, currentY)
         itemESPLabel.Text = "item esp"
         itemESPLabel.Font = Enum.Font.Gotham
         itemESPLabel.TextSize = 12
         itemESPLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         itemESPLabel.BackgroundTransparency = 1
         itemESPLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
         
         local itemESPToggleBtn = createToggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
             YBAConfig.ItemESP.Enabled = v
@@ -4045,6 +4081,7 @@ function showContent(tabName)
         -- Item Selection
         local itemSelectionHeader = Instance.new("TextLabel", functionsContainer)
         itemSelectionHeader.Size = UDim2.new(1, -10, 0, 25)
+        itemSelectionHeader.Position = UDim2.new(0, 5, 0, currentY)
         itemSelectionHeader.Text = "📦 ITEM SELECTION"
         itemSelectionHeader.Font = Enum.Font.GothamBold
         itemSelectionHeader.TextSize = 14
@@ -4054,6 +4091,7 @@ function showContent(tabName)
         itemSelectionHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
         itemSelectionHeader.TextXAlignment = Enum.TextXAlignment.Left
         Instance.new("UICorner", itemSelectionHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
         
         local function createItemToggle(itemName, defaultState)
             local btn = createToggle(itemName, defaultState, function(v)
@@ -4098,12 +4136,14 @@ function showContent(tabName)
         -- Anti Time Stop
         local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
         antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
+        antiTimeStopLabel.Position = UDim2.new(0, 5, 0, currentY)
         antiTimeStopLabel.Text = "anti time stop"
         antiTimeStopLabel.Font = Enum.Font.Gotham
         antiTimeStopLabel.TextSize = 12
         antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         antiTimeStopLabel.BackgroundTransparency = 1
         antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
         
         local antiTimeStopToggleBtn = createToggle("Anti Time Stop (0.5s)", false, function(v)
             if not isAntiTimeStopEnabled then
@@ -4119,6 +4159,9 @@ function showContent(tabName)
             end
         end)
     end
+    
+    -- Обновляем размер контейнера
+    functionsContainer.Size = UDim2.new(1, 0, 0, currentY)
 end
 
 -- Показываем контент по умолчанию
