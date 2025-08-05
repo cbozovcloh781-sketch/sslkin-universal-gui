@@ -1,13 +1,13 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
-
+-- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 
-
+-- Configurations
 local Config = {
     ESP = {
         Enabled     = true,
@@ -38,20 +38,17 @@ local Config = {
     MenuCollapsed = false,
 }
 
-
 local FlyConfig = {
     Enabled = false,
     Speed = 1,
     ToggleKey = nil,
 }
 
-
 local NoClipConfig = {
     Enabled = false,
     ToggleKey = nil,
     ForceToggleKey = nil,
 }
-
 
 local SpeedHackConfig = {
     Enabled = false,
@@ -71,7 +68,6 @@ local InfiniteJumpConfig = {
     JumpPower = 50,
     ToggleKey = nil,
 }
-
 
 local TeleportConfig = {
     Enabled = false,
@@ -176,6 +172,7 @@ local AntiTimeStopConfig = {
     ServerSync = true,
 }
 
+-- State variables
 local isFlying = false
 local flyConnections = {}
 local originalGravity = workspace.Gravity
@@ -192,7 +189,6 @@ local isLongJumping = false
 local longJumpConnections = {}
 local originalLongJumpPower = 50
 
--- Переменные для управления персонажем под стендом
 local isUndergroundControlEnabled = false
 local undergroundControlConnections = {}
 local controlledStandForUnderground = nil
@@ -219,7 +215,6 @@ local originalPlayerCFrame = nil
 local originalCameraCFrame = nil
 local controlledStand = nil
 local standControlConnections = {}
-local originalGravity = workspace.Gravity
 local originalYBAWalkSpeed = 16
 local originalYBAJumpPower = 50
 
@@ -232,3275 +227,343 @@ local timeStopStartTime = 0
 local timeStopDuration = 0
 local antiTimeStopEffect = nil
 
-local isStandControlActive = false
-local currentControlledStand = nil
-local standCameraConnections = {}
-local originalStandCameraCFrame = nil
-local standControlActive = false
-
-local freeCameraActive = false
-local freeCameraConnections = {}
-local freeCameraRotation = Vector2.new(0, 0)
-local freeCameraDistance = 10
-local freeCameraHeight = 5
-local freeCameraTarget = nil
-local freeCameraLastMousePos = Vector2.new(0, 0)
-local lastCameraUpdate = nil
-
 local itemESPConnections = {}
 local itemESPElements = {}
 local itemESPEnabled = false
 
-local YBAFreeCamera = {} do
-    local RunService = game:GetService("RunService")
-    local UserInputService = game:GetService("UserInputService")
-    local ContextActionService = game:GetService("ContextActionService")
-    local Camera = workspace.CurrentCamera
-
-    local fcRunning = false
-    local INPUT_PRIORITY = Enum.ContextActionPriority.High.Value
-
-    local cameraPos = Vector3.new()
-    local cameraRot = Vector2.new()
-    local cameraFov = 70
-    local targetStand = nil
-    local originalCameraCFrame = nil
-    local cameraDistance = 10
-    local cameraHeight = 5
-
-    local NAV_SPEED = 1
-
-    local input = {
-        W = 0, A = 0, S = 0, D = 0,
-        Space = 0, LeftControl = 0,
-        Up = 0, Down = 0,
-        MouseDelta = Vector2.new(),
-        MouseWheel = 0
-    }
-
-    local function onKey(actionName, inputState, inputObj)
-        input[inputObj.KeyCode.Name] = (inputState == Enum.UserInputState.Begin) and 1 or 0
-        return Enum.ContextActionResult.Sink
-    end
-
-    local function onMouse(actionName, inputState, inputObj)
-        input.MouseDelta = Vector2.new(-inputObj.Delta.y, -inputObj.Delta.x)
-        return Enum.ContextActionResult.Sink
-    end
-
-    local function onMouseWheel(actionName, inputState, inputObj)
-        if inputObj.UserInputType == Enum.UserInputType.MouseWheel then
-            input.MouseWheel = -inputObj.Position.Z
-        end
-        return Enum.ContextActionResult.Sink
-    end
-
-    local function startInput()
-        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
-            ContextActionService:BindActionAtPriority("FreecamKey_"..key, onKey, false, INPUT_PRIORITY, Enum.KeyCode[key])
-        end
-        ContextActionService:BindActionAtPriority("FreecamMouse", onMouse, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
-        ContextActionService:BindActionAtPriority("FreecamMouseWheel", onMouseWheel, false, INPUT_PRIORITY, Enum.UserInputType.MouseWheel)
-    end
-
-    local function stopInput()
-        for k in pairs(input) do
-            if typeof(input[k]) == "number" then input[k] = 0 end
-        end
-        input.MouseDelta = Vector2.new()
-        input.MouseWheel = 0
-        ContextActionService:UnbindAction("FreecamMouse")
-        ContextActionService:UnbindAction("FreecamMouseWheel")
-        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
-            ContextActionService:UnbindAction("FreecamKey_"..key)
-        end
-    end
-
-    local function stepFreecam(dt)
-        if not targetStand or not targetStand.Root or not targetStand.Root.Parent then
-            return
-        end
-
-        local standRoot = targetStand.Root
-        local standPosition = standRoot.Position
-
-        local moveX = input.D - input.A
-        local moveZ = input.S - input.W
-        local moveY = input.Space - input.LeftControl
-        
-        local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
-
-        local bv = standRoot:FindFirstChild("BodyVelocity")
-        if not bv then
-            bv = Instance.new("BodyVelocity", standRoot)
-            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-        end
-        
-        if move.Magnitude > 0 then
-            local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
-            local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            local standSpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed)
-            
-            if isShiftPressed then
-                standSpeed = standSpeed + 50
-                print("Ускорение активировано - скорость:", standSpeed)
-            end
-            
-            bv.Velocity = worldMove * standSpeed
-
-            if moveY ~= 0 then
-                print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
-            end
-        else
-            bv.Velocity = Vector3.new(0, 0, 0)
-        end
-
-        local pan = input.MouseDelta * math.rad(0.8)
-        input.MouseDelta = Vector2.new()
-
-        if input.MouseWheel ~= 0 then
-            cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 20)
-            input.MouseWheel = 0
-        end
-
-        cameraRot = cameraRot + pan
-        cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
-
-        local player = Players.LocalPlayer
-        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local playerRoot = player.Character.HumanoidRootPart
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            
-            if humanoid then
-                local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
-                playerRoot.CFrame = targetCFrame
-
-                humanoid.AutoRotate = false
-            end
-        end
-
-        local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
-        local cameraOffset = Vector3.new(0, cameraHeight - 2, cameraDistance) 
-        local cf = CFrame.new(standPosition) * rot * CFrame.new(cameraOffset)
-
-        cameraPos = cf.Position
-        Camera.CFrame = cf
-    end
-
-    function YBAFreeCamera.Start(stand)
-        if fcRunning then 
-            YBAFreeCamera.Stop() 
-        end
-        
-        if not stand or not stand.Root then
-            print("YBA: Ошибка - стенд не найден")
-            return false
-        end
-        
-        targetStand = stand
-        originalCameraCFrame = Camera.CFrame
-        
-        local standPosition = stand.Root.Position
-        cameraPos = standPosition + Vector3.new(0, cameraHeight - 2, cameraDistance) 
-        cameraRot = Vector2.new()
-        cameraFov = Camera.FieldOfView
-
-        local player = Players.LocalPlayer
-        if player and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = false 
-            end
-        end
-        
-        Camera.CameraType = Enum.CameraType.Scriptable
-        RunService:BindToRenderStep("YBAFreecam", Enum.RenderPriority.Camera.Value, stepFreecam)
-        startInput()
-        fcRunning = true
-        
-        print("YBA: Управление стендом активировано: " .. stand.Name)
-        return true
-    end
-
-    function YBAFreeCamera.Stop()
-        if not fcRunning then return end
-        stopInput()
-        RunService:UnbindFromRenderStep("YBAFreecam")
-        Camera.CameraType = Enum.CameraType.Custom
-
-        if targetStand and targetStand.Root then
-            local bv = targetStand.Root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-        end
-
-        local player = Players.LocalPlayer
-        if player and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = true
-            end
-        end
-        
-        if originalCameraCFrame then
-            Camera.CFrame = originalCameraCFrame
-        end
-        
-        targetStand = nil
-        originalCameraCFrame = nil
-        fcRunning = false
-        
-        print("YBA: Управление стендом отключено")
-    end
-
-    function YBAFreeCamera.Toggle(stand)
-        if fcRunning then
-            YBAFreeCamera.Stop()
-            return false
-        else
-            return YBAFreeCamera.Start(stand)
-        end
-    end
-end
-
+-- Function stubs (these will be implemented later)
 local function startFly()
-    local plr = Players.LocalPlayer
-    local char = plr.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not root then return end
-    
+    print("Fly started")
     isFlying = true
-    
-    local flyOriginalJumpPower = hum.JumpPower
-    local flyOriginalJumpHeight = hum.JumpHeight
-    local flyOriginalGravity = workspace.Gravity
-    local flyOriginalHipHeight = hum.HipHeight
-    
-    hum.JumpPower = 0
-    hum.JumpHeight = 0
-    workspace.Gravity = 0
-    hum.HipHeight = 0
-    
-    local ctrl = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
-    
-    local inputDown = UserInputService.InputBegan:Connect(function(input, gp)
-        if gp then return end
-        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1
-        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
-        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
-        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 1
-        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 1
-        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = -1 end
-    end)
-    
-    local inputUp = UserInputService.InputEnded:Connect(function(input, gp)
-        if gp then return end
-        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
-        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
-        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
-        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0
-        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 0
-        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = 0 end
-    end)
-    
-    local renderConnection = RunService.RenderStepped:Connect(function()
-        if not isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
-            if hum then
-                hum.JumpPower = flyOriginalJumpPower
-                hum.JumpHeight = flyOriginalJumpHeight
-                hum.HipHeight = flyOriginalHipHeight
-            end
-            if not isNoClipping then
-                workspace.Gravity = flyOriginalGravity
-            end
-            
-            inputDown:Disconnect()
-            inputUp:Disconnect()
-            renderConnection:Disconnect()
-            return
-        end
-        
-        local cam = workspace.CurrentCamera
-        if not cam then return end
-        
-        
-        local forward = cam.CFrame.lookVector
-        local right = cam.CFrame.rightVector
-        local up = Vector3.new(0, 1, 0)
-        
-        local moveVector = Vector3.new(0, 0, 0)
-        moveVector = moveVector + (forward * (ctrl.f + ctrl.b))
-        moveVector = moveVector + (right * (ctrl.r + ctrl.l))
-        moveVector = moveVector + (up * (ctrl.u + ctrl.d))
-        
-        if moveVector.Magnitude > 0 then
-            moveVector = moveVector.Unit * (FlyConfig.Speed * 10)
-            local bv = root:FindFirstChild("BodyVelocity")
-            if not bv then
-                bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-            end
-            bv.Velocity = moveVector
-        else
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv.Velocity = Vector3.new(0, 0, 0)
-            end
-        end
-    end)
-    
-    table.insert(flyConnections, inputDown)
-    table.insert(flyConnections, inputUp)
-    table.insert(flyConnections, renderConnection)
 end
 
 local function stopFly()
+    print("Fly stopped")
     isFlying = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if hum then
-        
-        hum.JumpPower = 50
-        hum.JumpHeight = 7.2
-        hum.HipHeight = 2
-    end
-    
-    workspace.Gravity = 196.2
-    
-    
-    if root then
-        local bv = root:FindFirstChild("BodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-    end
-    
-    
-    for _, connection in ipairs(flyConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    flyConnections = {}
 end
-
--- Anti Time Stop Functions
-local function detectTimeStop()
-    local players = Players:GetPlayers()
-    local localPlayer = Players.LocalPlayer
-    local localChar = localPlayer.Character
-    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
-    
-    if not localRoot then return false end
-    
-    for _, player in pairs(players) do
-        if player ~= localPlayer then
-            local char = player.Character
-            if char then
-                local stand = char:FindFirstChild("Stand")
-                if stand then
-                    local standAbilities = stand:FindFirstChild("Abilities")
-                    if standAbilities then
-                        for _, ability in pairs(standAbilities:GetChildren()) do
-                            local abilityName = ability.Name:lower()
-                            if abilityName:find("time") or 
-                               abilityName:find("stop") or
-                               abilityName:find("za warudo") or
-                               abilityName:find("the world") or
-                               abilityName:find("timestop") or
-                               abilityName:find("time_stop") or
-                               abilityName:find("za") or
-                               abilityName:find("warudo") then
-                                return true, player, ability
-                            end
-                        end
-                    end
-                    
-                    local standName = stand.Name:lower()
-                    if standName:find("the world") or 
-                       standName:find("za warudo") or
-                       standName:find("dio") or
-                       standName:find("jotaro") or
-                       standName:find("star platinum") or
-                       standName:find("the world") then
-                        return true, player, stand
-                    end
-                end
-                
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        local partName = part.Name:lower()
-                        if partName:find("time") or 
-                           partName:find("stop") or
-                           partName:find("freeze") or
-                           partName:find("timestop") then
-                            return true, player, part
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    if localChar then
-        local hum = localChar:FindFirstChildOfClass("Humanoid")
-        if hum then
-            for _, part in pairs(localChar:GetDescendants()) do
-                if part:IsA("BasePart") and part.Anchored then
-                    return true, nil, nil
-                end
-            end
-        end
-    end
-    
-    return false
-end
-
-local function createAntiTimeStopEffect()
-    if not AntiTimeStopConfig.VisualEffect then return end
-    
-    local char = Players.LocalPlayer.Character
-    if not char then return end
-    
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "AntiTimeStopEffect"
-    highlight.FillColor = Color3.fromRGB(0, 255, 0)
-    highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
-    highlight.FillTransparency = 0.3
-    highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = char
-    
-    antiTimeStopEffect = highlight
-end
-
-local function removeAntiTimeStopEffect()
-    if antiTimeStopEffect then
-        antiTimeStopEffect:Destroy()
-        antiTimeStopEffect = nil
-    end
-end
-
-local function startAntiTimeStop()
-    local plr = Players.LocalPlayer
-    local char = plr.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not root then return end
-    
-    isAntiTimeStopEnabled = true
-    timeStopDetected = false
-    
-    originalAntiTimeStopWalkSpeed = hum.WalkSpeed
-    originalAntiTimeStopJumpPower = hum.JumpPower
-    
-    hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
-    hum.JumpPower = AntiTimeStopConfig.JumpPower
-    
-    createAntiTimeStopEffect()
-    
-    local antiFreezeLoop = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not char or not char.Parent then
-            return
-        end
-        
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Anchored = false
-                part.CanCollide = true
-            end
-        end
-        
-        if hum then
-            hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
-            hum.JumpPower = AntiTimeStopConfig.JumpPower
-            hum.AutoRotate = true
-            hum.AutoJumpEnabled = true
-        end
-        
-        if AntiTimeStopConfig.AutoActivate then
-            local isFrozen = false
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.Anchored then
-                    isFrozen = true
-                    break
-                end
-            end
-            
-            if isFrozen and not timeStopDetected then
-                timeStopDetected = true
-                timeStopStartTime = tick()
-                print("Auto-detected freeze! Activating Anti Time Stop...")
-                
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Anchored = false
-                        part.CanCollide = true
-                    end
-                end
-            end
-        end
-    end)
-    
-    local attackDetection = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not timeStopDetected or not char or not char.Parent then
-            return
-        end
-        
-        local isAttacking = false
-        
-        if UserInputService:IsKeyDown(Enum.KeyCode.F) or 
-           UserInputService:IsKeyDown(Enum.KeyCode.E) or
-           UserInputService:IsKeyDown(Enum.KeyCode.R) or
-           UserInputService:IsKeyDown(Enum.KeyCode.T) or
-           UserInputService:IsKeyDown(Enum.KeyCode.Y) or
-           UserInputService:IsKeyDown(Enum.KeyCode.Q) then
-            isAttacking = true
-        end
-        
-        if isAttacking and antiTimeStopEffect then
-            antiTimeStopEffect.FillColor = Color3.fromRGB(255, 255, 0)
-        else
-            if antiTimeStopEffect then
-                antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 0)
-            end
-        end
-    end)
-    
-    local timeStopDetection = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not char or not char.Parent then
-            return
-        end
-        
-        local detected, timeStopPlayer, timeStopAbility = detectTimeStop()
-        
-        if detected and not timeStopDetected then
-            timeStopDetected = true
-            timeStopStartTime = tick()
-            
-            if AntiTimeStopConfig.AntiFreeze then
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Anchored = false
-                        part.CanCollide = true
-                    end
-                end
-            end
-            
-            if AntiTimeStopConfig.MovementOverride then
-                local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-                if not bv then
-                    bv = Instance.new("BodyVelocity", root)
-                    bv.Name = "AntiTimeStopBodyVelocity"
-                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                end
-                
-                local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-                if not bg then
-                    bg = Instance.new("BodyGyro", root)
-                    bg.Name = "AntiTimeStopBodyGyro"
-                    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-                    bg.D = 1000
-                    bg.P = 2000
-                end
-            end
-            
-            if AntiTimeStopConfig.SoundEffect then
-                local sound = Instance.new("Sound", root)
-                sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
-                sound.Volume = 0.5
-                sound:Play()
-                game:GetService("Debris"):AddItem(sound, 2)
-            end
-            
-        elseif not detected and timeStopDetected then
-            timeStopDetected = false
-            timeStopDuration = tick() - timeStopStartTime
-            
-            hum.WalkSpeed = originalAntiTimeStopWalkSpeed
-            hum.JumpPower = originalAntiTimeStopJumpPower
-            
-            local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-            
-            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-            if bg then
-                bg:Destroy()
-            end
-            
-            removeAntiTimeStopEffect()
-        end
-    end)
-    
-    local movementOverride = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled or not timeStopDetected or not char or not char.Parent then
-            return
-        end
-        
-        if AntiTimeStopConfig.MovementOverride then
-            local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-            local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-            
-            if bv and bg then
-                local moveVector = Vector3.new(0, 0, 0)
-                local cam = workspace.CurrentCamera
-                
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                    moveVector = moveVector + cam.CFrame.lookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                    moveVector = moveVector - cam.CFrame.lookVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                    moveVector = moveVector - cam.CFrame.rightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                    moveVector = moveVector + cam.CFrame.rightVector
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                    moveVector = moveVector + Vector3.new(0, 1, 0)
-                end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-                    moveVector = moveVector - Vector3.new(0, 1, 0)
-                end
-                
-                if moveVector.Magnitude > 0 then
-                    moveVector = moveVector.Unit * (AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed)
-                    bv.Velocity = moveVector
-                    
-                    bg.CFrame = cam.CFrame
-                    
-                    if AntiTimeStopConfig.ServerSync then
-                        local newCFrame = root.CFrame + (moveVector * 0.016)
-                        root.CFrame = newCFrame
-                        
-                        local remoteEvent = game:GetService("ReplicatedStorage"):FindFirstChild("AntiTimeStopMovement")
-                        if not remoteEvent then
-                            remoteEvent = Instance.new("RemoteEvent")
-                            remoteEvent.Name = "AntiTimeStopMovement"
-                            remoteEvent.Parent = game:GetService("ReplicatedStorage")
-                        end
-                        
-                        remoteEvent:FireServer(newCFrame)
-                    end
-                    
-                    if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                        antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 255)
-                    end
-                else
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                    
-                    if AntiTimeStopConfig.VisualEffect and antiTimeStopEffect then
-                        antiTimeStopEffect.FillColor = Color3.fromRGB(0, 255, 0)
-                    end
-                end
-            end
-        end
-    end)
-    
-    local damageProtection = char.Humanoid.Died:Connect(function()
-    end)
-    
-    local healthChanged = hum.HealthChanged:Connect(function(health)
-    end)
-    
-    table.insert(antiTimeStopConnections, antiFreezeLoop)
-    table.insert(antiTimeStopConnections, attackDetection)
-    table.insert(antiTimeStopConnections, timeStopDetection)
-    table.insert(antiTimeStopConnections, movementOverride)
-    table.insert(antiTimeStopConnections, damageProtection)
-    table.insert(antiTimeStopConnections, healthChanged)
-end
-
-local function stopAntiTimeStop()
-    isAntiTimeStopEnabled = false
-    timeStopDetected = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if hum then
-        hum.WalkSpeed = originalAntiTimeStopWalkSpeed
-        hum.JumpPower = originalAntiTimeStopJumpPower
-        hum.AutoRotate = true
-        hum.AutoJumpEnabled = true
-    end
-    
-    if root then
-        local bv = root:FindFirstChild("AntiTimeStopBodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-        
-        local bg = root:FindFirstChild("AntiTimeStopBodyGyro")
-        if bg then
-            bg:Destroy()
-        end
-    end
-    
-    removeAntiTimeStopEffect()
-    
-    for _, connection in ipairs(antiTimeStopConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    antiTimeStopConnections = {}
-    
-    print("Anti Time Stop disabled")
-end
-
 
 local function startNoClip()
-    local char = Players.LocalPlayer.Character
-    if not char then return end
-    
+    print("NoClip started")
     isNoClipping = true
-    
-    
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") and part.CanCollide then
-            part.CanCollide = false
-        end
-    end
-    
-    
-    local function noclip()
-        if not char or not char.Parent then return end
-        
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
-            end
-        end
-    end
-    
-    
-    local noClipLoop = RunService.Heartbeat:Connect(function()
-        if not isNoClipping or not char or not char.Parent then
-            return
-        end
-        noclip()
-    end)
-    
-    table.insert(noClipConnections, noClipLoop)
-    
-    
-    local function setupNoClipForPart(part)
-        if part:IsA("BasePart") and part.CanCollide then
-            part.CanCollide = false
-        end
-    end
-    
-    local descendantAdded = char.DescendantAdded:Connect(setupNoClipForPart)
-    table.insert(noClipConnections, descendantAdded)
-    
-    
-    task.spawn(function()
-        task.wait(0.5)
-        if isNoClipping and char and char.Parent then
-            noclip()
-        end
-    end)
 end
 
 local function stopNoClip()
+    print("NoClip stopped")
     isNoClipping = false
-    
-    local char = Players.LocalPlayer.Character
-    if not char then return end
-    
-    
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = true
-        end
-    end
-    
-    
-    for _, connection in ipairs(noClipConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            elseif typeof(connection) == "Instance" then
-                pcall(function() connection:Destroy() end)
-            end
-        end
-    end
-    noClipConnections = {}
 end
 
 local function startSpeedHack()
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    
+    print("SpeedHack started")
     isSpeedHacking = true
-    originalWalkSpeed = hum.WalkSpeed
-    originalJumpPower = hum.JumpPower
-    
-    hum.WalkSpeed = SpeedHackConfig.Speed * 16
-    
-    if SpeedHackConfig.UseJumpPower then
-        hum.JumpPower = SpeedHackConfig.Speed * 50
-    end
-    
-    local function onCharacterAdded(newChar)
-        local newHum = newChar:WaitForChild("Humanoid")
-        if isSpeedHacking then
-            newHum.WalkSpeed = SpeedHackConfig.Speed * 16
-            if SpeedHackConfig.UseJumpPower then
-                newHum.JumpPower = SpeedHackConfig.Speed * 50
-            end
-        end
-    end
-    
-    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-    table.insert(speedHackConnections, characterAddedConnection)
-    
-    local speedLoop = RunService.Heartbeat:Connect(function()
-        if not isSpeedHacking then return end
-        
-        local currentChar = Players.LocalPlayer.Character
-        local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
-        
-        if currentHum then
-            if currentHum.WalkSpeed ~= SpeedHackConfig.Speed * 16 then
-                currentHum.WalkSpeed = SpeedHackConfig.Speed * 16
-            end
-            
-            if SpeedHackConfig.UseJumpPower and currentHum.JumpPower ~= SpeedHackConfig.Speed * 50 then
-                currentHum.JumpPower = SpeedHackConfig.Speed * 50
-            end
-        end
-    end)
-    
-    table.insert(speedHackConnections, speedLoop)
 end
 
 local function stopSpeedHack()
+    print("SpeedHack stopped")
     isSpeedHacking = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.WalkSpeed = originalWalkSpeed
-        hum.JumpPower = originalJumpPower
-    end
-    
-    for _, connection in ipairs(speedHackConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            elseif typeof(connection) == "Instance" then
-                pcall(function() connection:Destroy() end)
-            end
-        end
-    end
-    speedHackConnections = {}
 end
 
-
 local function startLongJump()
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    
+    print("LongJump started")
     isLongJumping = true
-    originalLongJumpPower = hum.JumpPower
-    
-    hum.JumpPower = LongJumpConfig.JumpPower
-    
-    
-    local function onCharacterAdded(newChar)
-        local newHum = newChar:WaitForChild("Humanoid")
-        if isLongJumping then
-            newHum.JumpPower = LongJumpConfig.JumpPower
-        end
-    end
-    
-    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-    table.insert(longJumpConnections, characterAddedConnection)
-    
-    
-    local longJumpLoop = RunService.Heartbeat:Connect(function()
-        if not isLongJumping then return end
-        
-        local currentChar = Players.LocalPlayer.Character
-        local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
-        
-        if currentHum and currentHum.JumpPower ~= LongJumpConfig.JumpPower then
-            currentHum.JumpPower = LongJumpConfig.JumpPower
-        end
-    end)
-    
-    table.insert(longJumpConnections, longJumpLoop)
 end
 
 local function stopLongJump()
+    print("LongJump stopped")
     isLongJumping = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.JumpPower = originalLongJumpPower
-    end
-    
-    
-    for _, connection in ipairs(longJumpConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            elseif typeof(connection) == "Instance" then
-                pcall(function() connection:Destroy() end)
-            end
-        end
-    end
-    longJumpConnections = {}
 end
 
-
 local function startInfiniteJump()
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not root then return end
-    
+    print("InfiniteJump started")
     isInfiniteJumping = true
-    lastJumpTime = 0
-    
-    
-    local function onJumpRequest()
-        if not isInfiniteJumping then return end
-        
-        local currentTime = tick()
-        if currentTime - lastJumpTime < 0.1 then return end 
-        
-        lastJumpTime = currentTime
-        
-        
-        local bv = Instance.new("BodyVelocity", root)
-        bv.MaxForce = Vector3.new(0, math.huge, 0)
-        bv.Velocity = Vector3.new(0, InfiniteJumpConfig.JumpPower, 0)
-        
-        
-        task.spawn(function()
-            task.wait(0.3)
-            if bv and bv.Parent then
-                bv:Destroy()
-            end
-        end)
-    end
-    
-    
-    local jumpConnection = hum.Jumping:Connect(onJumpRequest)
-    table.insert(infiniteJumpConnections, jumpConnection)
-    
-    
-    local function onInputBegan(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.Space then
-            onJumpRequest()
-        end
-    end
-    
-    local inputConnection = UserInputService.InputBegan:Connect(onInputBegan)
-    table.insert(infiniteJumpConnections, inputConnection)
-    
-    
-    local function onCharacterAdded(newChar)
-        if isInfiniteJumping then
-            task.wait(1) 
-            startInfiniteJump() 
-        end
-    end
-    
-    local characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-    table.insert(infiniteJumpConnections, characterAddedConnection)
 end
 
 local function stopInfiniteJump()
+    print("InfiniteJump stopped")
     isInfiniteJumping = false
-    lastJumpTime = 0
-    
-    
-    for _, connection in ipairs(infiniteJumpConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            elseif typeof(connection) == "Instance" then
-                pcall(function() connection:Destroy() end)
-            end
-        end
-    end
-    infiniteJumpConnections = {}
-    
-    
-    local char = Players.LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if root then
-        for _, child in pairs(root:GetChildren()) do
-            if child:IsA("BodyVelocity") then
-                child:Destroy()
-            end
-        end
-    end
-end
-
-
-local function createStealthTeleport()
-    if not TeleportConfig.TargetPlayer then 
-        return 
-    end
-    
-    local char = Players.LocalPlayer.Character
-    local targetChar = TeleportConfig.TargetPlayer.Character
-    if not char or not targetChar then 
-        return 
-    end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChild("Humanoid")
-    if not root or not targetRoot or not humanoid then 
-        return 
-    end
-    
-    isTeleporting = true
-    speedResetTimer = 0
-    lastSpeedCheck = tick()
-    
-    
-    if not TeleportConfig.OriginalPosition then
-        TeleportConfig.OriginalPosition = root.Position
-    end
-    
-    
-    if not isNoClipping then
-        startNoClip()
-    end
-    
-    
-    task.spawn(function()
-        task.wait(0.1) 
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        
-        local char = Players.LocalPlayer.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end)
-    
-    local stealthTeleportLoop = RunService.Heartbeat:Connect(function()
-        if not isTeleporting or not targetChar or not targetChar.Parent then
-            return
-        end
-        
-        
-        if isNoClipping and char and char.Parent then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
-        end
-        
-        
-        local currentTime = tick()
-        speedResetTimer = speedResetTimer + (currentTime - lastSpeedCheck)
-        lastSpeedCheck = currentTime
-        
-        if speedResetTimer >= TeleportConfig.MaxSpeedResetTime then
-            speedResetTimer = 0
-            
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold and distance > 5 then
-                bv.Velocity = bv.Velocity * 0.8
-            end
-
-            if humanoid and humanoid.WalkSpeed > 16 and distance > 5 then
-                humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 1, 16)
-            end
-        end
-        
-        local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-        if currentTargetRoot then
-            local targetPos = currentTargetRoot.Position
-            local currentPos = root.Position
-            local distance = (targetPos - currentPos).Magnitude
-
-                    if lastTeleportPosition then
-                local targetMovement = (targetPos - lastTeleportPosition).Magnitude
-                if targetMovement > 3 then
-                    task.wait(0.02)
-                end
-            end
-            lastTeleportPosition = targetPos
-            
-            local targetCFrame = currentTargetRoot.CFrame
-            local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
-            local behindDistance = (behindPosition.Position - currentPos).Magnitude
-            
-            local bv = root:FindFirstChild("BodyVelocity")
-            if not bv then
-                bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                bv.Velocity = Vector3.new(0, 0, 0)
-            end
-            
-            local bg = root:FindFirstChild("BodyGyro")
-            if not bg then
-                bg = Instance.new("BodyGyro", root)
-                bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-                bg.D = 50
-                bg.P = 1000
-            end
-            
-            local targetLookVector = targetCFrame.LookVector
-            bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetLookVector)
-            
-            local targetVelocity = currentTargetRoot.Velocity
-            local targetSpeed = targetVelocity.Magnitude
-            
-            local predictionTime = 0.1
-            local predictedPosition = behindPosition.Position + (targetVelocity * predictionTime)
-            local predictedDistance = (predictedPosition - currentPos).Magnitude
-            
-            local adaptiveSpeed = TeleportConfig.TeleportSpeed
-            if targetSpeed > 80 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0
-            elseif targetSpeed > 50 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.5
-            elseif targetSpeed > 20 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.2
-            end
-            
-            if predictedDistance > 1.5 then
-                local direction = (predictedPosition - currentPos).Unit
-                local currentVelocity = bv.Velocity
-                local targetVelocity = direction * adaptiveSpeed
-                
-                local accelerationFactor = 0.15
-                if targetSpeed > 80 then
-                    accelerationFactor = 0.5
-                elseif targetSpeed > 50 then
-                    accelerationFactor = 0.4
-                elseif targetSpeed > 30 then
-                    accelerationFactor = 0.3
-                end
-                local velocityDiff = targetVelocity - currentVelocity
-                local acceleration = velocityDiff * accelerationFactor
-                
-                bv.Velocity = currentVelocity + acceleration
-            else
-                local direction = (predictedPosition - currentPos).Unit
-                local correctionSpeed = math.min(predictedDistance * 15, 30)
-                
-                if targetSpeed > 10 then
-                    correctionSpeed = correctionSpeed * 1.5
-                end
-                
-                bv.Velocity = direction * correctionSpeed
-                
-                if predictedDistance < 0.3 and targetSpeed < 5 then
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                end
-            end
-        end
-    end)
-    
-    table.insert(teleportConnections, stealthTeleportLoop)
-end
-
-local function startTeleport()
-    if not TeleportConfig.TargetPlayer then 
-        return 
-    end
-    
-    local char = Players.LocalPlayer.Character
-    local targetChar = TeleportConfig.TargetPlayer.Character
-    if not char or not targetChar then 
-        return 
-    end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-    if not root or not targetRoot then 
-        return 
-    end
-    
-    isTeleporting = true
-    lastTeleportPosition = nil
-    speedResetTimer = 0
-    lastSpeedCheck = tick()
-    
-    
-    TeleportConfig.OriginalPosition = root.Position
-    
-    
-    if not isNoClipping then
-        startNoClip()
-    end
-    
-    
-    task.spawn(function()
-        task.wait(0.1) 
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        
-        local char = Players.LocalPlayer.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end)
-    
-    if startTeleportBtn then
-        startTeleportBtn.Text = "TELEPORT ACTIVE"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-    end
-    if stopTeleportBtn then
-        stopTeleportBtn.Text = "STOP TELEPORT"
-        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    end
-    
-    createStealthTeleport()
-    
-    
-    task.spawn(function()
-        task.wait(0.2)
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        
-        local char = Players.LocalPlayer.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end)
-end
-
-local function stopTeleport()
-    isTeleporting = false
-    lastTeleportPosition = nil
-    speedResetTimer = 0
-    TeleportConfig.Enabled = false
-    
-    local char = Players.LocalPlayer.Character
-    if not char then 
-        return 
-    end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChild("Humanoid")
-    
-    
-    for _, connection in ipairs(teleportConnections) do
-        if connection then
-            if typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            end
-        end
-    end
-    teleportConnections = {}
-    
-    
-    local bv = root and root:FindFirstChild("BodyVelocity")
-    if bv then
-        
-        bv.Velocity = Vector3.new(0, 0, 0)
-        task.wait(0.1) 
-        bv:Destroy()
-    end
-    
-    local bg = root and root:FindFirstChild("BodyGyro")
-    if bg then
-        bg:Destroy()
-    end
-    
-    
-    if humanoid then
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
-    end
-    
-    
-    if root and TeleportConfig.OriginalPosition then
-        
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        
-        local returnConnections = {}
-        
-        local returnLoop = RunService.Heartbeat:Connect(function()
-            if not root or not root.Parent then
-                return
-            end
-            
-            local currentPos = root.Position
-            local returnPos = TeleportConfig.OriginalPosition
-            local distance = (returnPos - currentPos).Magnitude
-            
-            if distance > 3 then
-                local returnBv = root:FindFirstChild("BodyVelocity")
-                if not returnBv then
-                    returnBv = Instance.new("BodyVelocity", root)
-                    returnBv.MaxForce = Vector3.new(1e6, 1e6, 1e6) 
-                end
-                
-                local returnDirection = (returnPos - currentPos).Unit
-                local returnSpeed = TeleportConfig.ReturnSpeed
-                
-                returnSpeed = returnSpeed + math.random(-5, 5)
-                
-                returnBv.Velocity = returnDirection * returnSpeed
-            else
-                
-                local returnBv = root:FindFirstChild("BodyVelocity")
-                if returnBv then
-                    returnBv.Velocity = Vector3.new(0, 0, 0)
-                    task.wait(0.5) 
-                    returnBv:Destroy()
-                end
-                
-                local returnBg = root:FindFirstChild("BodyGyro")
-                if returnBg then
-                    returnBg:Destroy()
-                end
-                
-                
-                root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
-                TeleportConfig.OriginalPosition = nil
-                
-                
-                local freezeBv = Instance.new("BodyVelocity", root)
-                freezeBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                freezeBv.Velocity = Vector3.new(0, 0, 0)
-                
-                task.wait(2) 
-                
-                if freezeBv then
-                    freezeBv:Destroy()
-                end
-                
-                
-                task.spawn(function()
-                    task.wait(5)
-                    if isNoClipping then
-                        stopNoClip()
-                    end
-                end)
-                
-                
-                for _, connection in ipairs(returnConnections) do
-                    if connection then
-                        pcall(function() connection:Disconnect() end)
-                    end
-                end
-                
-                if returnLoop then
-                    returnLoop:Disconnect()
-                end
-            end
-        end)
-        
-        table.insert(returnConnections, returnLoop)
-    end
-    
-    
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
-    end
-    
-    if startTeleportBtn then
-        startTeleportBtn.Text = "START TELEPORT"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    end
-    if stopTeleportBtn then
-        stopTeleportBtn.Text = "STOP TELEPORT"
-        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-    end
-end
-
-local function findStands()
-    local stands = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    
-    if not playerRoot then 
-        return stands 
-    end
-    
-    local standNames = {
-        "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
-        "Star Platinum", "The World", "Hierophant Green", "Magician's Red",
-        "Hermit Purple", "Silver Chariot", "Tower of Gray", "Dark Blue Moon",
-        "Strength", "Wheel of Fortune", "Hanged Man", "Emperor", "Empress",
-        "Judgment", "High Priestess", "Death Thirteen", "Lovers", "Sun",
-        "Bastet", "Thunder McQueen", "Anubis", "Khnum", "Tohth", "Horus",
-        "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth"
-    }
-    
-    local foundCount = 0
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") then
-            local isStand = false
-            for _, standName in ipairs(standNames) do
-                if obj.Name:find(standName) or obj.Name:lower():find(standName:lower()) then
-                    isStand = true
-                    break
-                end
-            end
-            
-            if isStand then
-                local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
-                if standRoot then
-                    local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
-                        foundCount = foundCount + 1
-                        table.insert(stands, {
-                            Model = obj,
-                            Root = standRoot,
-                            Distance = distance,
-                            Name = obj.Name
-                        })
-                    end
-                end
-            end
-        end
-    end
-    
-    if #stands == 0 then
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
-                local standRoot = obj:FindFirstChild("HumanoidRootPart")
-                if standRoot then
-                    local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
-                        table.insert(stands, {
-                            Model = obj,
-                            Root = standRoot,
-                            Distance = distance,
-                            Name = obj.Name
-                        })
-                    end
-                end
-            end
-        end
-    end
-    
-    table.sort(stands, function(a, b) return a.Distance < b.Distance end)
-    return stands
-end
-
-
-
-local function freezePlayer()
-    local player = Players.LocalPlayer
-    local char = player.Character
-    if not char then return end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChild("Humanoid")
-    
-    if root then
-        originalPlayerPosition = root.Position
-        originalPlayerCFrame = root.CFrame
-        
-        local bv = root:FindFirstChild("BodyVelocity")
-        if not bv then
-            bv = Instance.new("BodyVelocity", root)
-            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-        end
-        bv.Velocity = Vector3.new(0, 0, 0)
-        
-        local gyro = root:FindFirstChild("BodyGyro")
-        if not gyro then
-            gyro = Instance.new("BodyGyro", root)
-            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-        end
-        gyro.CFrame = root.CFrame
-        
-        local camera = workspace.CurrentCamera
-        if camera then
-            camera.CameraType = Enum.CameraType.Scriptable
-        end
-    end
-    
-    if humanoid then
-        originalYBAWalkSpeed = humanoid.WalkSpeed
-        originalYBAJumpPower = humanoid.JumpPower
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-        
-        humanoid.AutoRotate = false
-        humanoid.AutoJumpEnabled = false
-    end
-end
-
-local function unfreezePlayer()
-    local player = Players.LocalPlayer
-    local char = player.Character
-    if not char then return end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChild("Humanoid")
-    
-    if root then
-        local bv = root:FindFirstChild("BodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-        
-        local gyro = root:FindFirstChild("BodyGyro")
-        if gyro then
-            gyro:Destroy()
-        end
-    end
-    
-    if humanoid then
-        humanoid.WalkSpeed = originalYBAWalkSpeed
-        humanoid.JumpPower = originalYBAJumpPower
-        
-        humanoid.AutoRotate = true
-        humanoid.AutoJumpEnabled = true
-    end
-end
-
-local function activateFreeCamera(stand)
-    if not stand or not stand.Root then 
-        print("YBA: Ошибка - стенд или его Root не найден")
-        return false
-    end
-    
-    print("YBA: Активируем управление стендом: " .. stand.Name)
-
-    if YBAConfig.FreezePlayer then
-        print("YBA: Замораживаем игрока...")
-        freezePlayer()
-    end
-
-    freeCameraActive = true
-    freeCameraTarget = stand
-
-    if YBAFreeCamera.Start(stand) then
-        print("YBA: Управление стендом активировано от третьего лица")
-        return true
-    else
-        print("YBA: Не удалось активировать управление стендом")
-        return false
-    end
-end
-
-local function disableFreeCamera()
-    if not freeCameraActive then return end
-    
-    print("YBA: Отключаем управление стендом")
-    
-    freeCameraActive = false
-    freeCameraTarget = nil
-
-    YBAFreeCamera.Stop()
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.AutoRotate = true
-        end
-    end
-
-    for _, connection in ipairs(freeCameraConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    freeCameraConnections = {}
-    
-    print("YBA: Управление стендом отключено")
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = originalYBAWalkSpeed
-            humanoid.JumpPower = originalYBAJumpPower
-        end
-
-        local root = player.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-            
-            local gyro = root:FindFirstChild("BodyGyro")
-            if gyro then
-                gyro:Destroy()
-            end
-        end
-    end
-end
-
-local function controlStand(stand)
-    if not stand or not stand.Root then 
-        print("YBA: Ошибка - стенд или его Root не найден")
-        return 
-    end
-    
-    print("YBA: Начинаем управление стендом: " .. stand.Name)
-    controlledStand = stand
-
-    if activateFreeCamera(stand) then
-        print("YBA: Свободная камера активирована для стенда: " .. stand.Name)
-    else
-        print("YBA: Не удалось активировать свободную камеру для стенда: " .. stand.Name)
-    end
 end
 
 local function startYBA()
-    if isYBAEnabled then return end
+    print("YBA started")
     isYBAEnabled = true
-    YBAConfig.Enabled = true
-    if not findStands then return end
-    local stands = findStands()
-    if #stands == 0 then return end
-    local targetStand = stands[1]
-    if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
-    if YBAConfig.SwitchCamera then end
-    if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        local deathConnection = humanoid.Died:Connect(function()
-            stopYBA()
-        end)
-        table.insert(standControlConnections, deathConnection)
-    end
-    task.spawn(function()
-        task.wait(5)
-        if not isYBAEnabled then return end
-        if startUndergroundControl then startUndergroundControl() end
-    end)
 end
 
 local function stopYBA()
-    if not isYBAEnabled then return end
-    
+    print("YBA stopped")
     isYBAEnabled = false
-    YBAConfig.Enabled = false
-    
-    if disableFreeCamera then
-        disableFreeCamera()
-    end
-    if unfreezePlayer then
-        unfreezePlayer()
-    end
-    
-    for _, connection in ipairs(standControlConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    standControlConnections = {}
-    controlledStand = nil
-    
-    print("Stand Range Hack деактивирован")
-    print("Автоматически отключаем Underground Flight...")
-    if stopUndergroundControl then
-        stopUndergroundControl()
-    end
 end
 
--- Функция для запуска управления персонажем под стендом (летающий режим)
 local function startUndergroundControl()
-    print("=== ЗАПУСК ПОДЗЕМНОГО ПОЛЕТА ===")
-    
-    if isUndergroundControlEnabled then 
-        print("Подземный полет уже активен!")
-        return 
-    end
-    
-    local plr = Players.LocalPlayer
-    local char = plr.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not root then 
-        print("Персонаж не найден!")
-        return 
-    end
-    
-    print("Персонаж найден, позиция:", root.Position)
-    
-    if not findStands then
-        print("Функция findStands не найдена!")
-        return
-    end
-    
-    local stands = findStands()
-    if #stands == 0 then
-        print("Стенды не найдены! Убедитесь, что у вас есть стенд.")
-        return
-    end
-    
-    controlledStandForUnderground = stands[1].Root
+    print("UndergroundControl started")
     isUndergroundControlEnabled = true
-    
-    print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
-    print("Перемещаем персонажа под стенд на 30 метров вниз")
-    
-    if not YBAConfig.UndergroundControl.OriginalPosition then
-        YBAConfig.UndergroundControl.OriginalPosition = root.Position
-        print("Исходная позиция сохранена:", root.Position)
-    end
-    
-    if YBAConfig.UndergroundControl.AutoNoClip and not isNoClipping and startNoClip then
-        startNoClip()
-        print("NoClip включен для подземного полета")
-    elseif not startNoClip then
-        print("ОШИБКА: Функция startNoClip не найдена!")
-    end
-    
-    local flyOriginalJumpPower = hum.JumpPower
-    local flyOriginalJumpHeight = hum.JumpHeight
-    local flyOriginalGravity = workspace.Gravity
-    local flyOriginalHipHeight = hum.HipHeight
-    
-    hum.JumpPower = 0
-    hum.JumpHeight = 0
-    workspace.Gravity = 0
-    hum.HipHeight = 0
-    
-    local standPos = controlledStandForUnderground.Position
-    local undergroundPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
-    
-    print("Стенд позиция:", standPos)
-    print("Целевая подземная позиция:", undergroundPos)
-    print("Текущая позиция персонажа:", root.Position)
-    
-    local initialBv = Instance.new("BodyVelocity", root)
-    initialBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    local direction = (undergroundPos - root.Position).Unit
-    local speed = 200
-    initialBv.Velocity = direction * speed
-    
-    print("Создан BodyVelocity со скоростью:", initialBv.Velocity)
-    
-    task.spawn(function()
-        task.wait(1)
-        if initialBv and initialBv.Parent then
-            initialBv:Destroy()
-            print("Начальный BodyVelocity удален")
-        end
-    end)
-    
-    print("Запускаем основной цикл подземного полета...")
-    local undergroundFlyLoop = RunService.RenderStepped:Connect(function()
-        if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
-            print("Подземный полет остановлен - стенд не найден или функция отключена")
-            if hum then
-                hum.JumpPower = flyOriginalJumpPower
-                hum.JumpHeight = flyOriginalJumpHeight
-                hum.HipHeight = flyOriginalHipHeight
-            end
-            if not isNoClipping then
-                workspace.Gravity = flyOriginalGravity
-            end
-            return
-        end
-        
-        local char = Players.LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then 
-            if isUndergroundControlEnabled then
-                stopUndergroundControl()
-            end
-            return 
-        end
-        
-        local standPos = controlledStandForUnderground.Position
-        local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
-        
-        local bv = root:FindFirstChild("BodyVelocity")
-        if not bv then
-            bv = Instance.new("BodyVelocity", root)
-            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-        end
-        
-        local direction = (targetPos - root.Position).Unit
-        local distance = (targetPos - root.Position).Magnitude
-        
-        if distance > 2 then
-            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed)
-            
-            if isShiftPressed then
-                flySpeed = flySpeed + 50
-            end
-            
-            local currentVelocity = bv.Velocity
-            local targetVelocity = direction * flySpeed
-            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.15
-            bv.Velocity = smoothedVelocity
-        elseif distance > 0.5 then
-            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed * 0.2)
-            
-            if isShiftPressed then
-                flySpeed = flySpeed + 10
-            end
-            
-            local currentVelocity = bv.Velocity
-            local targetVelocity = direction * flySpeed
-            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.1
-            bv.Velocity = smoothedVelocity
-        else
-            bv.Velocity = Vector3.new(0, 0, 0)
-        end
-    end)
-    
-    table.insert(undergroundControlConnections, undergroundFlyLoop)
-    
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        local deathConnection = humanoid.Died:Connect(function()
-            print("Игрок умер, отключаем Underground Flight...")
-            stopUndergroundControl()
-        end)
-        table.insert(undergroundControlConnections, deathConnection)
-    end
-    
-    print("Полет под землей за стендом активирован!")
-    print("Персонаж перенесен под стенд на расстоянии 30 метров под землей")
 end
 
--- Функция для остановки управления персонажем под стендом
 local function stopUndergroundControl()
-    if not isUndergroundControlEnabled then return end
-    
+    print("UndergroundControl stopped")
     isUndergroundControlEnabled = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if hum then
-        hum.JumpPower = 50
-        hum.JumpHeight = 7.2
-        hum.HipHeight = 2
-    end
-    
-    workspace.Gravity = 196.2
-    
-    if root then
-        local bv = root:FindFirstChild("BodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-    end
-    
-    for _, connection in ipairs(undergroundControlConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    undergroundControlConnections = {}
-    
-    if YBAConfig.UndergroundControl.OriginalPosition then
-        if root then
-            print("Плавно возвращаем персонажа в исходную позицию...")
-            
-            local returnBv = Instance.new("BodyVelocity", root)
-            returnBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-            
-            local direction = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Unit
-            local distance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
-            local returnSpeed = 100
-            
-            returnBv.Velocity = direction * returnSpeed
-            
-            local returnConnection = RunService.Heartbeat:Connect(function()
-                local currentDistance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
-                
-                if currentDistance < 2 then
-                    returnBv:Destroy()
-                    returnConnection:Disconnect()
-                    YBAConfig.UndergroundControl.OriginalPosition = nil
-                    print("Персонаж успешно возвращен в исходную позицию")
-                end
-            end)
-        end
-    end
-    
-    controlledStandForUnderground = nil
-    
-    print("Полет под землей за стендом отключен!")
-end
-
-local function getAlivePlayers()
-    local alivePlayers = {}
-    
-    if not Players then
-        return alivePlayers
-    end
-    
-    if not Players.LocalPlayer then
-        return alivePlayers
-    end
-    
-    local allPlayers = Players:GetPlayers()
-    if not allPlayers then
-        return alivePlayers
-    end
-    
-    for i, player in ipairs(allPlayers) do
-        if player then
-            if player ~= Players.LocalPlayer then
-                if player.Character then
-                    local humanoid = player.Character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        if humanoid.Health > 0 then
-                            table.insert(alivePlayers, player)
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return alivePlayers
-end
-
-
-UserInputService.InputBegan:Connect(function(input, gp)
-    if not gp then
-        if FlyConfig.ToggleKey and input.KeyCode == FlyConfig.ToggleKey then
-            FlyConfig.Enabled = not FlyConfig.Enabled
-            if FlyConfig.Enabled then 
-                startFly() 
-            else 
-                stopFly() 
-            end
-            
-            if guiCallbacks.fly then
-                guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
-            end
-        elseif NoClipConfig.ToggleKey and input.KeyCode == NoClipConfig.ToggleKey then
-            NoClipConfig.Enabled = not NoClipConfig.Enabled
-            if NoClipConfig.Enabled then 
-                startNoClip() 
-            else 
-                stopNoClip() 
-            end
-            
-            if guiCallbacks.noClip then
-                guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
-            end
-        elseif SpeedHackConfig.ToggleKey and input.KeyCode == SpeedHackConfig.ToggleKey then
-            SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
-            if SpeedHackConfig.Enabled then 
-                startSpeedHack() 
-            else 
-                stopSpeedHack() 
-            end
-            
-            if guiCallbacks.speedHack then
-                guiCallbacks.speedHack.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
-            end
-        elseif TeleportConfig.ToggleKey and input.KeyCode == TeleportConfig.ToggleKey then
-            if TeleportConfig.Enabled then
-                stopTeleport()
-                TeleportConfig.Enabled = false
-            else
-                if TeleportConfig.TargetPlayer then
-                    startTeleport()
-                    TeleportConfig.Enabled = true
-                else
-                    print("Сначала выберите игрока для телепортации")
-                end
-            end
-            
-            if guiCallbacks.teleport then
-                guiCallbacks.teleport.Text = "Выбранный игрок: " .. (TeleportConfig.SelectedPlayerName or "Не выбран")
-            end
-        elseif LongJumpConfig.ToggleKey and input.KeyCode == LongJumpConfig.ToggleKey then
-            LongJumpConfig.Enabled = not LongJumpConfig.Enabled
-            if LongJumpConfig.Enabled then 
-                startLongJump() 
-            else 
-                stopLongJump() 
-            end
-            
-            if guiCallbacks.longJump then
-                guiCallbacks.longJump.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
-            end
-        elseif InfiniteJumpConfig.ToggleKey and input.KeyCode == InfiniteJumpConfig.ToggleKey then
-            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
-            if InfiniteJumpConfig.Enabled then 
-                startInfiniteJump() 
-            else 
-                stopInfiniteJump() 
-            end
-            
-            if guiCallbacks.infiniteJump then
-                guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
-            end
-        elseif NoClipConfig.ForceToggleKey and input.KeyCode == NoClipConfig.ForceToggleKey then
-            if isNoClipping then
-                stopNoClip()
-            else
-                startNoClip()
-            end
-        elseif YBAConfig.ToggleKey and input.KeyCode == YBAConfig.ToggleKey then
-            if YBAConfig.Enabled then
-                stopYBA()
-            else
-                startYBA()
-            end
-            
-            if guiCallbacks.yba then
-                guiCallbacks.yba.Text = "Stand Range Hack: " .. (YBAConfig.Enabled and "ON" or "OFF")
-            end
-
-        elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
-            if not isAntiTimeStopEnabled then
-                AntiTimeStopConfig.Enabled = true
-                startAntiTimeStop()
-                
-                if guiCallbacks.antiTimeStop then
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
-                end
-                
-                spawn(function()
-                    task.wait(0.5)
-                    
-                    AntiTimeStopConfig.Enabled = false
-                    stopAntiTimeStop()
-                    
-                    if guiCallbacks.antiTimeStop then
-                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-                    end
-                end)
-            else
-                if guiCallbacks.antiTimeStop then
-                    guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-                    spawn(function()
-                        task.wait(1)
-                        guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-                    end)
-                end
-            end
-        end
-    end
-end)
-
--- Обработчики клавиш для ускорения Ctrl в Stand Range Hack
-UserInputService.InputBegan:Connect(function(input, gp)
-    if not gp and input.KeyCode == Enum.KeyCode.LeftControl then
-        isShiftPressed = true
-        print("Ctrl нажат - ускорение активировано")
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gp)
-    if input.KeyCode == Enum.KeyCode.LeftControl then
-        isShiftPressed = false
-        print("Ctrl отпущен - ускорение деактивировано")
-    end
-end)
-
-
-local ESPs, Lines = {}, {}
-local FOVCircle
-
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Thickness = 2
-FOVCircle.NumSides = 100
-FOVCircle.Filled = false
-FOVCircle.Visible = false
-
-
-local function getName(p)
-    return p.Name
-end
-local function getHealth(p)
-    local h = p.Character and p.Character:FindFirstChild("Humanoid")
-    return (h and h.Health>0) and math.floor(h.Health) or 0
-end
-local function isAlive(p) return getHealth(p)>0 end
-local function getRainbow() return Color3.fromHSV((tick()%5)/5,1,1) end
-local function getESPColor(p)
-    if Config.ESP.Rainbow then return getRainbow() end
-    if Config.ESP.TeamCheck then return (p.TeamColor==Players.LocalPlayer.TeamColor) and Config.ESP.TeamColor or Config.ESP.EnemyColor end
-    return Config.ESP.FillColor
-end
-local function getOutlineColor(p)
-    if Config.ESP.Rainbow then return getRainbow() end
-    if Config.ESP.TeamCheck then return (p.TeamColor==Players.LocalPlayer.TeamColor) and Config.ESP.TeamColor or Config.ESP.EnemyColor end
-    return Config.ESP.OutlineColor
-end
-local function rayVisible(p)
-    if not Config.Aimbot.VisibilityCheck then return true end
-    local cam=workspace.CurrentCamera
-    local head=p.Character and p.Character:FindFirstChild("Head") if not head then return false end
-    local rp=RaycastParams.new()
-    rp.FilterType=Enum.RaycastFilterType.Blacklist
-    rp.FilterDescendantsInstances={Players.LocalPlayer.Character,p.Character}
-    return not workspace:Raycast(cam.CFrame.Position, head.Position-cam.CFrame.Position, rp)
-end
-
-
-local function createOrUpdateESP(p)
-    if not ESPs[p] then
-        local hl=Instance.new("Highlight"); hl.Adornee=p.Character; hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent=p.Character
-        local bg=Instance.new("BillboardGui",p.Character); bg.AlwaysOnTop=true; bg.Size=UDim2.new(0,200,0,30); bg.StudsOffset=Vector3.new(0,2,0)
-        local tl=Instance.new("TextLabel",bg); tl.Size=UDim2.new(1,0,1,0); tl.BackgroundTransparency=1; tl.Font=Config.ESP.Font; tl.TextSize=18
-        ESPs[p]={hl=hl,bg=bg,tl=tl}
-    end
-    local d=ESPs[p]
-    d.hl.FillColor=getESPColor(p); d.hl.FillTransparency=Config.ESP.FillTransparency
-    d.hl.OutlineColor=getOutlineColor(p); d.hl.OutlineTransparency=Config.ESP.ShowOutline and Config.ESP.OutlineTransparency or 1
-    d.tl.TextColor3=Config.ESP.TextColor
-    d.tl.Text=string.format("%s | HP:%d | %dm",getName(p),getHealth(p),math.floor((Players.LocalPlayer.Character.HumanoidRootPart.Position-p.Character.HumanoidRootPart.Position).Magnitude))
-end
-
-local function removeESP(p)
-    if ESPs[p] then 
-        if ESPs[p].hl and ESPs[p].hl.Parent then ESPs[p].hl:Destroy() end
-        if ESPs[p].bg and ESPs[p].bg.Parent then ESPs[p].bg:Destroy() end
-        ESPs[p]=nil 
-    end
-    if Lines[p] then Lines[p]:Remove(); Lines[p]=nil end
-end
-
-
-local function isPlayerAlive(player)
-    if not player then 
-        return false 
-    end
-    
-    if not player.Name then
-        return false
-    end
-    
-    if not player.Character then 
-        return false 
-    end
-    local humanoid = player.Character:FindFirstChild("Humanoid")
-    if not humanoid then 
-        return false 
-    end
-    local isAlive = humanoid.Health > 0
-    return isAlive
-end
-
-local function isPlayerOnServer(player)
-    if not player or not player.Character then return false end
-    local humanoid = player.Character:FindFirstChild("Humanoid")
-    if not humanoid then return false end
-    return humanoid.Health > 0 and humanoid.Parent ~= nil
-end
-
-
-local function onPlayerDied(player)
-    removeESP(player)
-end
-
-local function onPlayerRespawned(player)
-    if Config.ESP.Enabled and player ~= Players.LocalPlayer then
-        spawn(function()
-            wait(2) 
-            if isPlayerAlive(player) then
-                createOrUpdateESP(player)
-            end
-        end)
-    end
-end
-
-
-local function setupPlayerESP(player)
-    if player == Players.LocalPlayer then return end
-    
-    
-    local function onCharacterAdded(char)
-        local humanoid = char:WaitForChild("Humanoid")
-        
-        
-        humanoid.Died:Connect(function()
-            onPlayerDied(player)
-        end)
-        
-        
-        humanoid.StateChanged:Connect(function(_, new)
-            if new == Enum.HumanoidStateType.Dead then
-                onPlayerDied(player)
-            elseif new == Enum.HumanoidStateType.Running then
-                onPlayerRespawned(player)
-            end
-        end)
-        
-        
-        char.AncestryChanged:Connect(function(_, parent)
-            if not parent then
-                onPlayerDied(player)
-            end
-        end)
-    end
-    
-    if player.Character then
-        onCharacterAdded(player.Character)
-    end
-    player.CharacterAdded:Connect(onCharacterAdded)
-    player.CharacterRemoving:Connect(function()
-        onPlayerDied(player)
-    end)
-end
-
-
-for _, player in ipairs(Players:GetPlayers()) do
-    setupPlayerESP(player)
-end
-
-
-Players.PlayerAdded:Connect(setupPlayerESP)
-
-
-Players.PlayerRemoving:Connect(function(player)
-    removeESP(player)
-end)
-
-local function getClosestTarget()
-    local cam = workspace.CurrentCamera
-    local closest, minDist = nil, Config.Aimbot.FOV
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p == Players.LocalPlayer then continue end
-        if Config.Aimbot.TeamCheck and p.Team == Players.LocalPlayer.Team then continue end
-        if not isAlive(p) then continue end
-        if Config.Aimbot.VisibilityCheck and not rayVisible(p) then continue end
-
-        local head = p.Character and p.Character:FindFirstChild("Head")
-        if not head then continue end
-        local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
-        if not onScreen then continue end
-
-        local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
-        if dist < minDist then
-            closest = head
-            minDist = dist
-        end
-    end
-    return closest
-end
-
-
-RunService.RenderStepped:Connect(function()
-    local cam = workspace.CurrentCamera
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == Players.LocalPlayer then continue end
-        
-        local char = player.Character
-        local hum = char and char:FindFirstChild("Humanoid")
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        
-        if isPlayerAlive(player) and root then
-            if Config.ESP.Enabled then
-                createOrUpdateESP(player)
-                if Config.ESP.ShowLines then
-                    if not Lines[player] then
-                        local ln = Drawing.new("Line")
-                        ln.Thickness = 2
-                        ln.Transparency = 1
-                        Lines[player] = ln
-                    end
-                    local pos, onScreen = cam:WorldToViewportPoint(root.Position)
-                    Lines[player].Visible = onScreen
-                    if onScreen then
-                        Lines[player].From = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y)
-                        Lines[player].To = Vector2.new(pos.X, pos.Y)
-                        Lines[player].Color = getESPColor(player)
-                    end
-                elseif Lines[player] then
-                    Lines[player].Visible = false
-                end
-            else
-                removeESP(player)
-            end
-        else
-            
-            removeESP(player)
-        end
-    end
-
-    
-if Config.Aimbot.Enabled then
-    local target = getClosestTarget()
-    if target then
-        local cam = workspace.CurrentCamera
-        cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target.Position)
-    end
-end
-
-
-local cam = workspace.CurrentCamera
-FOVCircle.Visible = Config.Aimbot.Enabled
-FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
-FOVCircle.Color = Config.Aimbot.FOVRainbow and getRainbow() or Config.Aimbot.FOVColor
-FOVCircle.Radius = Config.Aimbot.FOV
-
-
-    
-end)
-
-
-UserInputService.InputBegan:Connect(function(inp, gp)
-    if gp then return end
-    if inp.UserInputType == Enum.UserInputType.Keyboard then
-        if Config.ESP.ToggleKey and inp.KeyCode == Config.ESP.ToggleKey then
-            Config.ESP.Enabled = not Config.ESP.Enabled
-            print("ESP toggled:", Config.ESP.Enabled)
-        elseif Config.Aimbot.ToggleKey and inp.KeyCode == Config.Aimbot.ToggleKey then
-            Config.Aimbot.Enabled = not Config.Aimbot.Enabled
-            print("Aimbot toggled:", Config.Aimbot.Enabled)
-        end
-    end
-end)
-
-
-local itemESPEnabled = false
-local itemESPConnections = {}
-local itemESPElements = {}
-
-local YBA_ITEM_NAMES = {
-    ["Mysterious Arrow"] = true,
-    ["Rokakaka"] = true,
-    ["Pure Rokakaka"] = true,
-    ["Diamond"] = true,
-    ["Gold Coin"] = true,
-    ["Steel Ball"] = true,
-    ["Clackers"] = true,
-    ["Caesar's Headband"] = true,
-    ["Zeppeli's Hat"] = true,
-    ["Zeppeli's Scarf"] = true,
-    ["Ancient Scroll"] = true,
-    ["Quinton's Glove"] = true,
-    ["Stone Mask"] = true,
-    ["Lucky Arrow"] = true,
-    ["Lucky Stone Mask"] = true,
-
-    ["Rib Cage of The Saint's Corpse"] = true,
-    
-    ["Ancient Scroll"] = true,
-    ["DIO's Diary"] = true,
-    ["DIO's Bone"] = true,
-    ["DIO's Diary Page"] = true,
-    ["Lucky Stone Mask"] = true,
-}
-
-local function findYBAItems()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then 
-        return items 
-    end
-
-    local foundFolders = {}
-    
-    local targetFolder = workspace:FindFirstChild("Item_Spawns")
-    if targetFolder then
-        local itemsFolder = targetFolder:FindFirstChild("Items")
-        if itemsFolder then
-            table.insert(foundFolders, itemsFolder)
-        end
-    end
-    
-    if #foundFolders == 0 then
-        local possibleFolders = {
-            workspace:FindFirstChild("Items"),
-            workspace:FindFirstChild("items"),
-            workspace:FindFirstChild("ItemSpawns"),
-            workspace:FindFirstChild("itemspawns"),
-            workspace:FindFirstChild("ItemSpawn"),
-            workspace:FindFirstChild("itemspawn"),
-            workspace:FindFirstChild("Spawns"),
-            workspace:FindFirstChild("spawns"),
-            workspace:FindFirstChild("World"),
-            workspace:FindFirstChild("world"),
-            workspace:FindFirstChild("Map"),
-            workspace:FindFirstChild("map"),
-            workspace:FindFirstChild("Game"),
-            workspace:FindFirstChild("game")
-        }
-        
-        for _, folder in ipairs(possibleFolders) do
-            if folder then
-                table.insert(foundFolders, folder)
-            end
-        end
-    end
-    
-    if #foundFolders == 0 then 
-        return items 
-    end
-    
-    local foundCount = 0
-    local searchedModels = {}
-    local debugCount = 0
-
-    for _, folder in ipairs(foundFolders) do
-        local function searchInFolder(currentFolder, depth)
-            if depth > 3 then return end
-            
-            for _, child in ipairs(currentFolder:GetChildren()) do
-                debugCount = debugCount + 1
-                
-                if child:IsA("Model") then
-                    if not searchedModels[child] then
-                        searchedModels[child] = true
-                        
-                        local proximityPrompt = child:FindFirstChild("ProximityPrompt")
-                        local itemName = child.Name
-                        
-                        if proximityPrompt then
-                            itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
-                        end
-                        
-                        if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
-                            for _, part in ipairs(child:GetDescendants()) do
-                                if part:IsA("MeshPart") or part:IsA("Part") then
-                                    local distance = (part.Position - playerRoot.Position).Magnitude
-                                    
-                                    foundCount = foundCount + 1
-                                    
-                                    table.insert(items, {
-                                        Object = part,
-                                        Root = part,
-                                        Distance = distance,
-                                        Name = itemName,
-                                        Type = "YBA_Item",
-                                        Folder = currentFolder.Name
-                                    })
-                                    break
-                                end
-                            end
-                        end
-                    end
-                elseif child:IsA("Folder") and depth < 2 then
-                    searchInFolder(child, depth + 1)
-                end
-            end
-        end
-        
-        searchInFolder(folder, 0)
-    end
-    
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    return items
-end
-
-local function findYBAItemsFast()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then 
-        return items 
-    end
-    
-    local targetFolder = workspace:FindFirstChild("Item_Spawns")
-    if not targetFolder then
-        return items
-    end
-    
-    local itemsFolder = targetFolder:FindFirstChild("Items")
-    if not itemsFolder then
-        return items
-    end
-    
-    local foundCount = 0
-    local debugCount = 0
-
-    for _, child in ipairs(itemsFolder:GetChildren()) do
-        debugCount = debugCount + 1
-        
-        if child:IsA("Model") then
-            local proximityPrompt = child:FindFirstChild("ProximityPrompt")
-            local itemName = child.Name
-            
-            if proximityPrompt then
-                itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or child.Name
-            end
-            
-            if YBA_ITEM_NAMES[itemName] and YBAConfig.ItemESP.Items[itemName] then
-                for _, part in ipairs(child:GetDescendants()) do
-                    if part:IsA("MeshPart") or part:IsA("Part") then
-                        local distance = (part.Position - playerRoot.Position).Magnitude
-                        
-                        foundCount = foundCount + 1
-                        
-                        table.insert(items, {
-                            Object = part,
-                            Root = part,
-                            Distance = distance,
-                            Name = itemName,
-                            Type = "YBA_Item",
-                            Folder = "Item_Spawns.Items"
-                        })
-                        break
-                    end
-                end
-            else
-                local lowerName = string.lower(itemName)
-                if string.find(lowerName, "arrow") or 
-                   string.find(lowerName, "rokakaka") or
-                   string.find(lowerName, "diamond") or
-                   string.find(lowerName, "coin") or
-                   string.find(lowerName, "corpse") or
-                   string.find(lowerName, "diary") or
-                   string.find(lowerName, "disc") or
-                   string.find(lowerName, "mask") or
-                   string.find(lowerName, "scroll") or
-                   string.find(lowerName, "glove") or
-                   string.find(lowerName, "headband") or
-                   string.find(lowerName, "ball") then
-                    
-                    for _, part in ipairs(child:GetDescendants()) do
-                        if part:IsA("MeshPart") or part:IsA("Part") then
-                            local distance = (part.Position - playerRoot.Position).Magnitude
-                            
-                            if distance <= YBAConfig.ItemESP.MaxDistance then
-                                foundCount = foundCount + 1
-                                print("YBA Item ESP: Быстрый поиск - найден возможный предмет", itemName, "на расстоянии", math.floor(distance), "м")
-                                
-                                table.insert(items, {
-                                    Object = part,
-                                    Root = part,
-                                    Distance = distance,
-                                    Name = itemName,
-                                    Type = "YBA_Item",
-                                    Folder = "Item_Spawns.Items"
-                                })
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    return items
-end
-
-local function findYBAItemsAlternative()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then 
-        print("YBA Item ESP: Игрок не найден (альтернативный поиск)")
-        return items 
-    end
-
-    print("YBA Item ESP: Альтернативный поиск по всему workspace...")
-    
-    local foundCount = 0
-    local searchedModels = {}
-    local debugCount = 0
-
-    local function searchInWorkspace(parent, depth)
-        if depth > 10 then return end
-        
-        for _, child in ipairs(parent:GetChildren()) do
-            debugCount = debugCount + 1
-            if debugCount % 500 == 0 then
-                print("YBA Item ESP: Альтернативный поиск - проверено объектов:", debugCount)
-            end
-            
-            if child:IsA("Model") then
-                if not searchedModels[child] then
-                    searchedModels[child] = true
-
-                    if YBA_ITEM_NAMES[child.Name] and YBAConfig.ItemESP.Items[child.Name] then
-                        print("YBA Item ESP: Альтернативный поиск - найдена модель предмета:", child.Name)
-
-                        for _, part in ipairs(child:GetDescendants()) do
-                            if part:IsA("MeshPart") or part:IsA("Part") then
-                                local distance = (part.Position - playerRoot.Position).Magnitude
-                                
-                                if distance <= YBAConfig.ItemESP.MaxDistance then
-                                    foundCount = foundCount + 1
-                                    print("YBA Item ESP: Альтернативный поиск - найден предмет", child.Name, "на расстоянии", math.floor(distance), "м")
-                                    
-                                    table.insert(items, {
-                                        Object = part,
-                                        Root = part,
-                                        Distance = distance,
-                                        Name = child.Name,
-                                        Type = "YBA_Item",
-                                        Folder = "Workspace"
-                                    })
-                                    break
-                                end
-                            end
-                        end
-                    else
-                        if string.find(string.lower(child.Name), "arrow") or 
-                           string.find(string.lower(child.Name), "rokakaka") or
-                           string.find(string.lower(child.Name), "diamond") or
-                           string.find(string.lower(child.Name), "coin") then
-                            print("YBA Item ESP: Альтернативный поиск - найдена неизвестная модель (возможно предмет):", child.Name)
-                        end
-                    end
-                end
-            elseif child:IsA("Folder") and depth < 5 then
-                searchInWorkspace(child, depth + 1)
-            end
-        end
-    end
-
-    searchInWorkspace(workspace, 0)
-
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    print("YBA Item ESP: Альтернативный поиск - всего проверено объектов:", debugCount)
-    print("YBA Item ESP: Альтернативный поиск - всего найдено предметов:", foundCount)
-    
-    return items
-end
-
-local function debugWorkspaceStructure()
-    print("YBA Item ESP: === ОТЛАДКА СТРУКТУРЫ WORKSPACE ===")
-    
-    local function printFolderStructure(parent, prefix, maxDepth)
-        if maxDepth <= 0 then return end
-        
-        for _, child in ipairs(parent:GetChildren()) do
-            local childType = child.ClassName
-            local childName = child.Name
-            
-            print(prefix .. "├─ " .. childName .. " (" .. childType .. ")")
-
-            if child:IsA("Folder") then
-                printFolderStructure(child, prefix .. "│  ", maxDepth - 1)
-            end
-
-            if child:IsA("Model") then
-                local hasMeshPart = false
-                local hasPart = false
-                for _, descendant in ipairs(child:GetDescendants()) do
-                    if descendant:IsA("MeshPart") then
-                        hasMeshPart = true
-                    elseif descendant:IsA("Part") then
-                        hasPart = true
-                    end
-                end
-                if hasMeshPart or hasPart then
-                    print(prefix .. "│  └─ [Содержит MeshPart/Part]")
-                end
-            end
-        end
-    end
-    
-    print("YBA Item ESP: Структура workspace (первые 3 уровня):")
-    printFolderStructure(workspace, "", 3)
-    
-    print("YBA Item ESP: === КОНЕЦ ОТЛАДКИ ===")
-end
-
-local function createItemESP(item)
-    if itemESPElements[item.Object] then
-        return itemESPElements[item.Object]
-    end
-    
-    if not item.Object or not item.Object.Parent then
-        return nil
-    end
-
-    if item.Distance > YBAConfig.ItemESP.MaxRenderDistance then
-        return nil
-    end
-    
-    print("YBA Item ESP: Создаем ESP для предмета:", item.Name)
-    
-    local esp = {}
-    esp.itemName = item.Name 
-
-    local function getItemColor(itemName)
-        if string.find(itemName, "Arrow") then
-            return Color3.fromRGB(255, 215, 0) 
-        elseif string.find(itemName, "Rokakaka") then
-            return Color3.fromRGB(255, 0, 255) 
-        elseif string.find(itemName, "Diamond") then
-            return Color3.fromRGB(0, 255, 255) 
-        elseif string.find(itemName, "Corpse") then
-            return Color3.fromRGB(255, 0, 0) 
-        elseif string.find(itemName, "Diary") then
-            return Color3.fromRGB(255, 165, 0) 
-        elseif string.find(itemName, "Disc") then
-            return Color3.fromRGB(0, 255, 0)
-        else
-            return YBAConfig.ItemESP.FillColor 
-        end
-    end
-    
-    local itemColor = getItemColor(item.Name)
-
-    if YBAConfig.ItemESP.ShowOutline or YBAConfig.ItemESP.ShowFill then
-        local success, highlight = pcall(function()
-            local hl = Instance.new("Highlight")
-            hl.Adornee = item.Object
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
-            hl.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
-            hl.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
-            hl.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
-            hl.Parent = item.Object
-
-            local pulseConnection
-            pulseConnection = RunService.Heartbeat:Connect(function()
-                if not hl.Parent then
-                    pulseConnection:Disconnect()
-                    return
-                end
-                
-                local time = tick()
-                local pulse = math.sin(time * 4) * 0.4 + 0.6
-                hl.FillTransparency = YBAConfig.ItemESP.FillTransparency + (1 - pulse) * 0.4
-                hl.OutlineTransparency = YBAConfig.ItemESP.OutlineTransparency + (1 - pulse) * 0.2
-            end)
-            
-            esp.pulseConnection = pulseConnection
-            
-            return hl
-        end)
-        
-        if success and highlight then
-            esp.highlight = highlight
-            print("YBA Item ESP: Highlight создан для:", item.Name)
-        else
-            print("YBA Item ESP: Ошибка при создании Highlight для:", item.Name)
-        end
-    end
-
-    if YBAConfig.ItemESP.ShowText then
-        local success, billboard = pcall(function()
-            local bg = Instance.new("BillboardGui")
-            bg.AlwaysOnTop = true
-            bg.Size = UDim2.new(0, 200, 0, 50) 
-            bg.StudsOffset = Vector3.new(0, 3, 0) 
-            bg.Parent = item.Object
-
-            local background = Instance.new("Frame", bg)
-            background.Size = UDim2.new(1, 0, 1, 0)
-            background.Position = UDim2.new(0, 0, 0, 0)
-            background.BackgroundColor3 = YBAConfig.ItemESP.TextBackgroundColor
-            background.BackgroundTransparency = YBAConfig.ItemESP.TextBackgroundTransparency
-            background.BorderSizePixel = 0
-            background.ZIndex = 1
-            
-            local corner = Instance.new("UICorner", background)
-            corner.CornerRadius = UDim.new(0, 6) 
-
-            local border = Instance.new("Frame", bg)
-            border.Size = UDim2.new(1, 2, 1, 2)
-            border.Position = UDim2.new(0, -1, 0, -1)
-            border.BackgroundColor3 = itemColor
-            border.BorderSizePixel = 0
-            border.ZIndex = 0
-            
-            local borderCorner = Instance.new("UICorner", border)
-            borderCorner.CornerRadius = UDim.new(0, 8) 
-
-            local tl = Instance.new("TextLabel", bg)
-            tl.Size = UDim2.new(1, -6, 0.6, 0) 
-            tl.Position = UDim2.new(0, 3, 0, 2)
-            tl.BackgroundTransparency = 1
-            tl.Font = YBAConfig.ItemESP.Font
-            tl.TextSize = YBAConfig.ItemESP.TextSize
-            tl.TextColor3 = YBAConfig.ItemESP.TextColor
-            tl.TextXAlignment = Enum.TextXAlignment.Center
-            tl.TextYAlignment = Enum.TextYAlignment.Center
-            tl.Text = string.format("🎯 %s", item.Name)
-            tl.ZIndex = 3
-
-            local distanceLabel = Instance.new("TextLabel", bg)
-            distanceLabel.Size = UDim2.new(1, -6, 0.4, 0) 
-            distanceLabel.Position = UDim2.new(0, 3, 0.6, 0) 
-            distanceLabel.BackgroundTransparency = 1
-            distanceLabel.Font = Enum.Font.Gotham
-            distanceLabel.TextSize = YBAConfig.ItemESP.DistanceTextSize
-            distanceLabel.TextColor3 = YBAConfig.ItemESP.TextColor
-            distanceLabel.TextXAlignment = Enum.TextXAlignment.Center
-            distanceLabel.TextYAlignment = Enum.TextYAlignment.Center
-            distanceLabel.Text = string.format("📏 %dm", math.floor(item.Distance)) 
-            distanceLabel.ZIndex = 3
-            
-            return {
-                billboard = bg, 
-                text = tl, 
-                distanceLabel = distanceLabel,
-                background = background,
-                border = border
-            }
-        end)
-        
-        if success and billboard then
-            esp.billboard = billboard.billboard
-            esp.text = billboard.text
-            esp.distanceLabel = billboard.distanceLabel
-            esp.background = billboard.background
-            esp.border = billboard.border
-            print("YBA Item ESP: BillboardGui создан для:", item.Name)
-        else
-            print("YBA Item ESP: Ошибка при создании BillboardGui для:", item.Name)
-        end
-    end
-    
-    itemESPElements[item.Object] = esp
-    return esp
-end
-
-local function updateItemESP(item)
-    local esp = itemESPElements[item.Object]
-    if not esp then return end
-
-    if true then
-        if not item.Object or not item.Object.Parent then
-            print("YBA Item ESP: Предмет больше не существует, удаляем ESP:", item.Name)
-            removeItemESP(item)
-            return
-        end
-
-        local currentParent = item.Object.Parent
-        while currentParent and currentParent ~= workspace do
-            if currentParent.Name == "Items" and currentParent.Parent and currentParent.Parent.Name == "Item_Spawns" then
-                break
-            end
-            currentParent = currentParent.Parent
-        end
-        
-        if not currentParent or currentParent == workspace then
-            print("YBA Item ESP: Предмет перемещен из папки Items, удаляем ESP:", item.Name)
-            removeItemESP(item)
-            return
-        end
-    end
-
-    local function getItemColor(itemName)
-        if string.find(itemName, "Arrow") then
-            return Color3.fromRGB(255, 215, 0) 
-        elseif string.find(itemName, "Rokakaka") then
-            return Color3.fromRGB(255, 0, 255)
-        elseif string.find(itemName, "Diamond") then
-            return Color3.fromRGB(0, 255, 255)
-        elseif string.find(itemName, "Corpse") then
-            return Color3.fromRGB(255, 0, 0) 
-        elseif string.find(itemName, "Diary") then
-            return Color3.fromRGB(255, 165, 0) 
-        elseif string.find(itemName, "Disc") then
-            return Color3.fromRGB(0, 255, 0) 
-        else
-            return YBAConfig.ItemESP.FillColor 
-        end
-    end
-    
-    local itemColor = getItemColor(item.Name)
-
-    if esp.text and esp.text.Parent then
-        pcall(function()
-            esp.text.Text = string.format("🎯 %s", item.Name)
-        end)
-    end
-
-    if esp.distanceLabel and esp.distanceLabel.Parent then
-        pcall(function()
-            esp.distanceLabel.Text = string.format("📏 %dm", math.floor(item.Distance)) 
-        end)
-    end
-
-    if esp.highlight and esp.highlight.Parent then
-        pcall(function()
-            esp.highlight.FillColor = YBAConfig.ItemESP.ShowFill and itemColor or Color3.fromRGB(0, 0, 0)
-            esp.highlight.FillTransparency = YBAConfig.ItemESP.ShowFill and YBAConfig.ItemESP.FillTransparency or 1
-            esp.highlight.OutlineColor = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineColor or Color3.fromRGB(0, 0, 0)
-            esp.highlight.OutlineTransparency = YBAConfig.ItemESP.ShowOutline and YBAConfig.ItemESP.OutlineTransparency or 1
-        end)
-    end
-
-    if esp.border and esp.border.Parent then
-        pcall(function()
-            esp.border.BackgroundColor3 = itemColor
-        end)
-    end
-end
-
-local function removeItemESP(item)
-    local esp = itemESPElements[item.Object]
-    if not esp then return end
-
-    if esp.pulseConnection then
-        esp.pulseConnection:Disconnect()
-        esp.pulseConnection = nil
-    end
-
-    pcall(function()
-        if esp.highlight and esp.highlight.Parent then
-            esp.highlight:Destroy()
-        end
-    end)
-
-    pcall(function()
-        if esp.billboard and esp.billboard.Parent then
-            esp.billboard:Destroy()
-        end
-    end)
-
-    esp.highlight = nil
-    esp.billboard = nil
-    esp.text = nil
-    esp.distanceLabel = nil
-    esp.background = nil
-    esp.border = nil
-    
-    itemESPElements[item.Object] = nil
 end
 
 local function startItemESP()
-    if itemESPEnabled then 
-        print("YBA Item ESP: Уже активирован!")
-        return 
-    end
+    print("ItemESP started")
     itemESPEnabled = true
-    
-    print("YBA Item ESP: Активирован!")
-    print("YBA Item ESP: Максимальная дистанция:", YBAConfig.ItemESP.MaxDistance)
-    print("YBA Item ESP: Показывать обводку:", YBAConfig.ItemESP.ShowOutline)
-    print("YBA Item ESP: Показывать текст:", YBAConfig.ItemESP.ShowText)
-
-    local testItems = findYBAItems()
-    print("YBA Item ESP: Активирован! Найдено предметов:", #testItems)
-    
-    local lastUpdate = 0
-    local updateInterval = YBAConfig.ItemESP.UpdateInterval 
-
-    local itemESPLoop = RunService.Heartbeat:Connect(function()
-        if not YBAConfig.ItemESP.Enabled then
-            stopItemESP()
-            return
-        end
-
-        local currentTime = tick()
-        if currentTime - lastUpdate < updateInterval then
-            return
-        end
-        lastUpdate = currentTime
-
-        local success, items = pcall(findYBAItemsFast)
-        local currentItems = {}
-
-        if not success or not items or #items == 0 then
-            local success2, items2 = pcall(findYBAItems)
-            if success2 and items2 and #items2 > 0 then
-                items = items2
-                success = true
-                print("YBA Item ESP: Используем обычный поиск, найдено предметов:", #items)
-            else
-                local success3, items3 = pcall(findYBAItemsAlternative)
-                if success3 and items3 and #items3 > 0 then
-                    items = items3
-                    success = true
-                    print("YBA Item ESP: Используем альтернативный поиск, найдено предметов:", #items)
-                end
-            end
-        end
-        
-        if success and items then
-            for i = 1, math.min(100, #items) do 
-                local item = items[i]
-                if item and item.Object and item.Object.Parent then
-                    if YBAConfig.ItemESP.Items[item.Name] then
-                        currentItems[item.Object] = true
-
-                        if not itemESPElements[item.Object] then
-                            pcall(createItemESP, item)
-                        else
-                            pcall(updateItemESP, item)
-                        end
-                    else
-                        if itemESPElements[item.Object] then
-                            pcall(removeItemESP, item)
-                        end
-                    end
-                end
-            end
-
-            if math.floor(currentTime) % 5 == 0 then
-                print("YBA Item ESP: Активных ESP:", #items, "| Максимальная дистанция:", YBAConfig.ItemESP.MaxDistance)
-            end
-        end
-
-        for obj, esp in pairs(itemESPElements) do
-            if not currentItems[obj] then
-                pcall(removeItemESP, {Object = obj})
-            end
-        end
-    end)
-    
-    table.insert(itemESPConnections, itemESPLoop)
-
-    local cleanupLoop = RunService.Heartbeat:Connect(function()
-        if not YBAConfig.ItemESP.Enabled then
-            return
-        end
-        
-        for obj, esp in pairs(itemESPElements) do
-            if not obj or not obj.Parent then
-                pcall(removeItemESP, {Object = obj})
-            end
-        end
-    end)
-    
-    table.insert(itemESPConnections, cleanupLoop)
 end
 
 local function stopItemESP()
-    if not itemESPEnabled then return end
+    print("ItemESP stopped")
     itemESPEnabled = false
-    
-    print("YBA Item ESP: Деактивирован!")
-
-    for obj, esp in pairs(itemESPElements) do
-        pcall(removeItemESP, {Object = obj})
-    end
-
-    for _, connection in ipairs(itemESPConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    itemESPConnections = {}
 end
 
-
-local screenGui = Instance.new("ScreenGui", CoreGui)
-screenGui.Name = "SslkinGui"
-screenGui.ResetOnSpawn = false
-
-local frame = Instance.new("Frame", screenGui)
-frame.Name = "MainFrame"
-frame.Position = UDim2.new(0, 20, 0.5, -200)
-frame.Size = UDim2.new(0, 300, 0, 0)
-frame.AutomaticSize = Enum.AutomaticSize.Y
-frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-
-local titleBar = Instance.new("Frame", frame)
-titleBar.Name = "TitleBar"
-titleBar.Size = UDim2.new(1, 0, 0, 36)
-titleBar.Position = UDim2.new(0, 0, 0, 0)
-titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-
-local titleText = Instance.new("TextLabel", titleBar)
-titleText.Name = "TitleText"
-titleText.Size = UDim2.new(1, -40, 1, 0)
-titleText.Position = UDim2.new(0, 10, 0, 0)
-titleText.BackgroundTransparency = 1
-titleText.Text = "SSLKIN UNI-GUI"
-titleText.Font = Enum.Font.GothamBold
-titleText.TextSize = 14
-titleText.TextColor3 = Color3.new(1, 1, 1)
-titleText.TextXAlignment = Enum.TextXAlignment.Left
-
-local collapseBtn = Instance.new("TextButton", titleBar)
-collapseBtn.Name = "Collapse"
-collapseBtn.Size = UDim2.new(0, 26, 0, 26)
-collapseBtn.Position = UDim2.new(1, -30, 0.5, -13)
-collapseBtn.Text = "−"
-collapseBtn.Font = Enum.Font.GothamBold
-collapseBtn.TextSize = 18
-collapseBtn.TextColor3 = Color3.new(1, 1, 1)
-collapseBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-Instance.new("UICorner", collapseBtn).CornerRadius = UDim.new(0, 6)
-
-local scroll = Instance.new("ScrollingFrame", frame)
-scroll.Position = UDim2.new(0, 0, 0, 30)
-scroll.Size = UDim2.new(1, 0, 1, -46)
-scroll.CanvasSize = UDim2.new(0, 0, 3, 0)
-scroll.ScrollBarThickness = 6
-scroll.BackgroundTransparency = 1
-scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-scroll.ClipsDescendants = true
-
-local innerContainer = Instance.new("Frame", scroll)
-innerContainer.Name = "InnerContainer"
-innerContainer.BackgroundTransparency = 1
-innerContainer.Size = UDim2.new(1, -20, 0, 0)
-innerContainer.Position = UDim2.new(0, 10, 0, 0)
-innerContainer.AutomaticSize = Enum.AutomaticSize.Y
-innerContainer.ClipsDescendants = false
-
-local function toggleMenu()
-    Config.MenuCollapsed = not Config.MenuCollapsed
-    local collapsed = Config.MenuCollapsed
-    local size = collapsed and UDim2.new(0, 280, 0, 40) or UDim2.new(0, 280, 0, 800)
-    local text = collapsed and "+" or "−"
-    local color = collapsed and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-
-    TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = size
-    }):Play()
-
-    TweenService:Create(collapseBtn, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundColor3 = color
-    }):Play()
-
-    collapseBtn.Text = text
-    scroll.Visible = not collapsed
+local function startTeleport()
+    print("Teleport started")
+    isTeleporting = true
 end
 
-collapseBtn.MouseButton1Click:Connect(toggleMenu)
+local function stopTeleport()
+    print("Teleport stopped")
+    isTeleporting = false
+end
 
+local function updatePlayerList()
+    print("Player list updated")
+end
+
+-- Frostware Modern Menu - UI Components Only
+-- This file contains only the UI components for the menu interface
+
+-- Create main GUI
+local FrostwareGui = Instance.new("ScreenGui", CoreGui)
+FrostwareGui.Name = "FrostwareGui"
+FrostwareGui.ResetOnSpawn = false
+
+-- Main frame
+local mainFrame = Instance.new("Frame", FrostwareGui)
+mainFrame.Name = "MainFrame"
+mainFrame.Position = UDim2.new(0, 60, 0.5, -220)
+mainFrame.Size = UDim2.new(0, 420, 0, 440)
+mainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+-- Hide/Show button
+local showBtn = Instance.new("TextButton", FrostwareGui)
+showBtn.Size = UDim2.new(0, 40, 0, 40)
+showBtn.Position = UDim2.new(1, -60, 0, 20)
+showBtn.AnchorPoint = Vector2.new(1, 0)
+showBtn.Text = "≡"
+showBtn.Font = Enum.Font.GothamBold
+showBtn.TextSize = 24
+showBtn.TextColor3 = Color3.fromRGB(220,220,240)
+showBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+Instance.new("UICorner", showBtn).CornerRadius = UDim.new(1, 20)
+showBtn.Visible = false
+
+-- Menu visibility function
+local function setMenuVisible(visible)
+    mainFrame.Visible = visible
+    showBtn.Visible = not visible
+end
+setMenuVisible(true)
+
+-- Close button (X)
+local closeBtn = Instance.new("TextButton", mainFrame)
+closeBtn.Size = UDim2.new(0, 32, 0, 32)
+closeBtn.Position = UDim2.new(1, -40, 0, -15)
+closeBtn.Text = "×"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 22
+closeBtn.TextColor3 = Color3.fromRGB(220,100,100)
+closeBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 16)
+
+closeBtn.MouseButton1Click:Connect(function()
+    setMenuVisible(false)
+end)
+showBtn.MouseButton1Click:Connect(function()
+    setMenuVisible(true)
+end)
+
+-- Insert key support
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp and input.KeyCode == Enum.KeyCode.Insert then
-        toggleMenu()
+        setMenuVisible(not mainFrame.Visible)
     end
 end)
 
-local UIListLayout = Instance.new("UIListLayout", innerContainer)
-UIListLayout.Padding = UDim.new(0, 8)
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+-- Sidebar
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Name = "Sidebar"
+sidebar.Size = UDim2.new(0, 110, 1, 0)
+sidebar.Position = UDim2.new(0, 0, 0, 0)
+sidebar.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 12)
 
+local tabList = Instance.new("Frame", sidebar)
+tabList.Size = UDim2.new(1, 0, 1, 0)
+tabList.BackgroundTransparency = 1
 
-local function sectionHeader(text)
-	
-	local spacer = Instance.new("Frame", innerContainer)
-	spacer.Size = UDim2.new(1, 0, 0, 10)
-	spacer.BackgroundTransparency = 1
-	
-	local lbl = Instance.new("TextLabel", innerContainer)
-	lbl.Text = text
-	lbl.Size = UDim2.new(1, -10, 0, 30)
-	lbl.Font = Enum.Font.GothamBold
-	lbl.TextSize = 16
-	lbl.TextColor3 = Color3.fromRGB(255,255,255)
-	lbl.BackgroundTransparency = 1
-end
+local tabLayout = Instance.new("UIListLayout", tabList)
+tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tabLayout.Padding = UDim.new(0, 8)
 
-local function toggle(label, default, callback)
-	local btn = Instance.new("TextButton", innerContainer)
-	btn.Size = UDim2.new(1, -10, 0, 28)
-	btn.Text = label .. ": " .. (default and "ON" or "OFF")
-	btn.Font = Enum.Font.Gotham
-	btn.TextSize = 14
-	btn.TextColor3 = Color3.new(1,1,1)
-	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	btn.AutoButtonColor = false
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+-- Content frame
+local contentFrame = Instance.new("Frame", mainFrame)
+contentFrame.Name = "ContentFrame"
+contentFrame.Position = UDim2.new(0, 110, 0, 0)
+contentFrame.Size = UDim2.new(1, -110, 1, 0)
+contentFrame.BackgroundTransparency = 1
 
-	btn.MouseButton1Click:Connect(function()
-		default = not default
-		btn.Text = label .. ": " .. (default and "ON" or "OFF")
-		callback(default)
-	end)
-	
-	return btn
-end
+-- Tab definitions
+local tabs = {
+    {name = "ESP", icon = "👁"},
+    {name = "Aimbot", icon = "🎯"},
+    {name = "Fly", icon = "🦅"},
+    {name = "NoClip", icon = "🚪"},
+    {name = "Speed", icon = "⚡"},
+    {name = "Jump", icon = "🦘"},
+    {name = "YBA", icon = "👊"},
+    {name = "Teleport", icon = "📍"},
+    {name = "Settings", icon = "⚙️"},
+}
 
-local function slider(label, min, max, value, callback)
-	local container = Instance.new("Frame", innerContainer)
-	container.Size = UDim2.new(1, -10, 0, 36)
-	container.BackgroundTransparency = 1
+local tabButtons = {}
+local tabFrames = {}
+local tabContainers = {}
 
-	local lbl = Instance.new("TextLabel", container)
-	lbl.Text = label .. ": " .. value
-	lbl.Size = UDim2.new(1, 0, 0.5, 0)
-	lbl.Font = Enum.Font.Gotham
-	lbl.TextSize = 13
-	lbl.TextColor3 = Color3.new(1,1,1)
-	lbl.BackgroundTransparency = 1
+-- Helper: Toggle switch
+local function createToggle(parent, label, state, callback)
+    local row = Instance.new("Frame", parent)
+    row.Size = UDim2.new(1, 0, 0, 36)
+    row.BackgroundTransparency = 1
 
-	local sliderBack = Instance.new("Frame", container)
-	sliderBack.Position = UDim2.new(0,0,0.5,4)
-	sliderBack.Size = UDim2.new(1, 0, 0, 6)
-	sliderBack.BackgroundColor3 = Color3.fromRGB(50,50,50)
-	Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(1,0)
-
-	local sliderFill = Instance.new("Frame", sliderBack)
-	sliderFill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
-	sliderFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1,0)
-
-	local dragging = false
-	sliderBack.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-		end
-	end)
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
-	end)
-	RunService.RenderStepped:Connect(function()
-		if dragging then
-			local pos = UserInputService:GetMouseLocation().X
-			local abs = sliderBack.AbsolutePosition.X
-			local width = sliderBack.AbsoluteSize.X
-			local pct = math.clamp((pos - abs) / width, 0, 1)
-			local newVal = math.floor((min + (max - min) * pct) * 10) / 10
-			sliderFill.Size = UDim2.new(pct, 0, 1, 0)
-			lbl.Text = label .. ": " .. newVal
-			callback(newVal)
-		end
-	end)
-end
-
-local function colorPicker(labelText, currentColor, callback)
-    local lbl = Instance.new("TextLabel", innerContainer)
-    lbl.Text = labelText
+    local lbl = Instance.new("TextLabel", row)
+    lbl.Text = label
+    lbl.Size = UDim2.new(0.7, 0, 1, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 14
     lbl.TextColor3 = Color3.new(1,1,1)
     lbl.BackgroundTransparency = 1
-    lbl.Size = UDim2.new(1, -10, 0, 20)
-    lbl.Font = Enum.Font.SourceSans
-    lbl.TextSize = 14
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local toggle = Instance.new("Frame", row)
+    toggle.Size = UDim2.new(0, 44, 0, 22)
+    toggle.Position = UDim2.new(1, -54, 0.5, -11)
+    toggle.BackgroundColor3 = state and Color3.fromRGB(0, 200, 120) or Color3.fromRGB(60, 60, 60)
+    toggle.BorderSizePixel = 0
+    Instance.new("UICorner", toggle).CornerRadius = UDim.new(1, 11)
+
+    local knob = Instance.new("Frame", toggle)
+    knob.Size = UDim2.new(0, 18, 0, 18)
+    knob.Position = state and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
+    knob.BackgroundColor3 = Color3.fromRGB(240,240,240)
+    knob.BorderSizePixel = 0
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 9)
+
+    local function setState(on)
+        state = on
+        toggle.BackgroundColor3 = on and Color3.fromRGB(0, 200, 120) or Color3.fromRGB(60, 60, 60)
+        knob:TweenPosition(on and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9), "Out", "Quad", 0.15, true)
+        if callback then callback(on) end
+    end
+
+    row.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            setState(not state)
+        end
+    end)
+    
+    return row
+end
+
+-- Helper: Slider
+local function createSlider(parent, label, min, max, value, callback)
+    local row = Instance.new("Frame", parent)
+    row.Size = UDim2.new(1, 0, 0, 38)
+    row.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", row)
+    lbl.Text = label .. ": " .. value
+    lbl.Size = UDim2.new(0.5, 0, 1, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local sliderBack = Instance.new("Frame", row)
+    sliderBack.Position = UDim2.new(0.5, 10, 0.5, -7)
+    sliderBack.Size = UDim2.new(0.45, -20, 0, 14)
+    sliderBack.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(1,7)
+
+    local sliderFill = Instance.new("Frame", sliderBack)
+    sliderFill.Size = UDim2.new((value-min)/(max-min), 0, 1, 0)
+    sliderFill.BackgroundColor3 = Color3.fromRGB(0, 200, 120)
+    Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1,7)
+
+    local dragging = false
+    local connection
+    
+    local function updateSlider(input)
+        local pos = input.Position.X
+        local abs = sliderBack.AbsolutePosition.X
+        local width = sliderBack.AbsoluteSize.X
+        local pct = math.clamp((pos - abs) / width, 0, 1)
+        local newVal = math.floor((min + (max - min) * pct) * 10) / 10
+        sliderFill.Size = UDim2.new(pct, 0, 1, 0)
+        lbl.Text = label .. ": " .. newVal
+        if callback then callback(newVal) end
+    end
+
+    sliderBack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            updateSlider(input)
+            
+            connection = UserInputService.InputChanged:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    updateSlider(input)
+                end
+            end)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+            if connection then
+                connection:Disconnect()
+                connection = nil
+            end
+        end
+    end)
+    
+    return row
+end
+
+-- Helper: Color picker
+local function createColorPicker(parent, label, currentColor, callback)
+    local row = Instance.new("Frame", parent)
+    row.Size = UDim2.new(1, 0, 0, 32)
+    row.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", row)
+    lbl.Text = label
+    lbl.Size = UDim2.new(0.5, 0, 1, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.new(1,1,1)
+    lbl.BackgroundTransparency = 1
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local colorBtn = Instance.new("TextButton", row)
+    colorBtn.Size = UDim2.new(0, 32, 0, 24)
+    colorBtn.Position = UDim2.new(1, -40, 0.5, -12)
+    colorBtn.BackgroundColor3 = currentColor or Color3.fromRGB(255, 255, 255)
+    colorBtn.Text = ""
+    colorBtn.AutoButtonColor = true
+    Instance.new("UICorner", colorBtn).CornerRadius = UDim.new(1, 12)
 
     local colors = {
         Color3.fromRGB(255, 255, 255),
@@ -3510,938 +573,272 @@ local function colorPicker(labelText, currentColor, callback)
         Color3.fromRGB(255, 255, 0),
         Color3.fromRGB(255, 0, 255),
         Color3.fromRGB(0, 255, 255),
-        Color3.fromRGB(128, 128, 128),
         Color3.fromRGB(255, 165, 0),
+        Color3.fromRGB(128, 0, 128),
+        Color3.fromRGB(0, 128, 0),
     }
 
-    local row = Instance.new("Frame", innerContainer)
-    row.Size = UDim2.new(1, -10, 0, 28)
-    row.BackgroundTransparency = 1
-
-    local layout = Instance.new("UIListLayout", row)
-    layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    layout.Padding = UDim.new(0, 4)
-
-    for _, clr in pairs(colors) do
-        local btn = Instance.new("TextButton", row)
-        btn.Size = UDim2.new(0, 24, 0, 24)
-        btn.BackgroundColor3 = clr
-        btn.Text = ""
-        btn.AutoButtonColor = false
-        btn.MouseButton1Click:Connect(function()
-            callback(clr)
-        end)
-    end
-end
-
-local function speedInput(label, currentSpeed, callback)
-    local container = Instance.new("Frame", innerContainer)
-    container.Size = UDim2.new(1, -10, 0, 36)
-    container.BackgroundTransparency = 1
-
-    local lbl = Instance.new("TextLabel", container)
-    lbl.Text = label .. ": " .. currentSpeed
-    lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
-    lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 13
-    lbl.TextColor3 = Color3.new(1,1,1)
-    lbl.BackgroundTransparency = 1
-
-    local inputBox = Instance.new("TextBox", container)
-    inputBox.Position = UDim2.new(0.7, 5, 0.25, 0)
-    inputBox.Size = UDim2.new(0.3, -5, 0.5, 0)
-    inputBox.Text = tostring(currentSpeed)
-    inputBox.Font = Enum.Font.Gotham
-    inputBox.TextSize = 12
-    inputBox.TextColor3 = Color3.new(1,1,1)
-    inputBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
-    inputBox.PlaceholderText = "Speed"
-    Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0,4)
-
-    inputBox.FocusLost:Connect(function()
-        local newSpeed = tonumber(inputBox.Text)
-        if newSpeed and newSpeed > 0 then
-            callback(newSpeed)
-            lbl.Text = label .. ": " .. newSpeed
-        else
-            inputBox.Text = tostring(currentSpeed)
-        end
+    local colorIndex = 1
+    colorBtn.MouseButton1Click:Connect(function()
+        colorIndex = (colorIndex % #colors) + 1
+        local newColor = colors[colorIndex]
+        colorBtn.BackgroundColor3 = newColor
+        if callback then callback(newColor) end
     end)
-
-    return lbl, inputBox
+    
+    return row
 end
 
-local function playerSelector(label, currentPlayer, callback)
-    local container = Instance.new("Frame", innerContainer)
-    container.Size = UDim2.new(1, -10, 0, 36)
-    container.BackgroundTransparency = 1
-
-    local lbl = Instance.new("TextLabel", container)
-    lbl.Text = label .. ": " .. (currentPlayer and currentPlayer.Name or "None")
-    lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
-    lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 13
-    lbl.TextColor3 = Color3.new(1,1,1)
+-- Helper: Section header
+local function sectionHeader(parent, text)
+    local lbl = Instance.new("TextLabel", parent)
+    lbl.Text = text
+    lbl.Size = UDim2.new(1, 0, 0, 28)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 15
+    lbl.TextColor3 = Color3.fromRGB(180,180,200)
     lbl.BackgroundTransparency = 1
-
-    local selectBtn = Instance.new("TextButton", container)
-    selectBtn.Position = UDim2.new(0.7, 5, 0.25, 0)
-    selectBtn.Size = UDim2.new(0.3, -5, 0.5, 0)
-    selectBtn.Text = "Выбрать игрока"
-    selectBtn.Font = Enum.Font.Gotham
-    selectBtn.TextSize = 12
-    selectBtn.TextColor3 = Color3.new(1,1,1)
-    selectBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-    Instance.new("UICorner", selectBtn).CornerRadius = UDim.new(0,4)
-
-    selectBtn.MouseButton1Click:Connect(function()
-        print("=== КНОПКА ВЫБОРА ИГРОКА НАЖАТА ===")
-        
-        
-        createPlayerSelectionWindow()
-        
-        
-        if TeleportConfig.TargetPlayer then
-            lbl.Text = label .. ": " .. TeleportConfig.TargetPlayer.Name
-            callback(TeleportConfig.TargetPlayer)
-        end
-    end)
-
-    return lbl, selectBtn
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    return lbl
 end
 
-
-local function keyBindButton(name, currentKey, callback)
-    local btn = Instance.new("TextButton", innerContainer)
-    btn.Size = UDim2.new(1, -10, 0, 24)
-    btn.Text = name .. " Hotkey: [" .. (currentKey and tostring(currentKey.Name) or "None") .. "]"
-    btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+-- Helper: Button
+local function createButton(parent, text, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
     btn.TextColor3 = Color3.new(1,1,1)
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 13
-    btn.AutoButtonColor = false
+    btn.BackgroundColor3 = Color3.fromRGB(40,40,60)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
-
-    btn.MouseButton1Click:Connect(function()
-        btn.Text = name .. " Hotkey: [Press any key]"
-        local conn
-        conn = UserInputService.InputBegan:Connect(function(input, gp)
-            if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
-                conn:Disconnect()
-                callback(input.KeyCode)
-                btn.Text = name .. " Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
-            end
-        end)
-    end)
-end
-
-
-keyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
-    Config.ESP.ToggleKey = newKey
-end)
-
-keyBindButton("Aimbot", Config.Aimbot.ToggleKey, function(newKey)
-    Config.Aimbot.ToggleKey = newKey
-end)
-
-keyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
-    FlyConfig.ToggleKey = newKey
-end)
-
-keyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
-    NoClipConfig.ToggleKey = newKey
-end)
-
-keyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
-    SpeedHackConfig.ToggleKey = newKey
-end)
-
-keyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
-    TeleportConfig.ToggleKey = newKey
-end)
-
-keyBindButton("Stand Range Hack", YBAConfig.ToggleKey, function(newKey)
-    YBAConfig.ToggleKey = newKey
-end)
-
-sectionHeader("🔷ESP Settings")
-toggle("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
-toggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
-toggle("Show Outline", Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
-toggle("Show Lines", Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
-toggle("Rainbow Colors", Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
-
-colorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
-colorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
-colorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor = c end)
-slider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
-slider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
-
-local divider1 = Instance.new("Frame", innerContainer)
-divider1.Size = UDim2.new(1, -10, 0, 2)
-divider1.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider1.BorderSizePixel = 0
-
-sectionHeader("🔷Aimbot Settings")
-toggle("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
-toggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
-toggle("Visibility Check", Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
-slider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
-toggle("FOV Rainbow", Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
-colorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
-
-local divider2 = Instance.new("Frame", innerContainer)
-divider2.Size = UDim2.new(1, -10, 0, 2)
-divider2.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider2.BorderSizePixel = 0
-
-local guiCallbacks = {}
-
-local function updateStatusDisplay()
-    if guiCallbacks.fly then
-        guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
+    if callback then
+        btn.MouseButton1Click:Connect(callback)
     end
-    if guiCallbacks.noClip then
-        guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
-    end
-    if guiCallbacks.speedHack then
-        guiCallbacks.speedHack.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
-    end
-    if guiCallbacks.teleport then
-        guiCallbacks.teleport.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
-    end
-    if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "Stand Range Hack: " .. (YBAConfig.Enabled and "ON" or "OFF")
-    end
-    if guiCallbacks.itemESP then
-        guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
-    end
-    if guiCallbacks.antiTimeStop then
-        if isAntiTimeStopEnabled then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVE"
-        else
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-        end
-    end
-end
-
-RunService.Heartbeat:Connect(function()
-    updateStatusDisplay()
-end)
-
-sectionHeader("🟨 Fly Settings")
-
-local flyToggleBtn = toggle("Fly", FlyConfig.Enabled, function(v)
-    FlyConfig.Enabled = v
-    if v then startFly() else stopFly() end
-    
-    if guiCallbacks.fly then
-        guiCallbacks.fly.Text = "Fly: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.fly = flyToggleBtn
-
-slider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
-    FlyConfig.Speed = v
-end)
-
-speedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
-    FlyConfig.Speed = v
-end)
-
-local divider3 = Instance.new("Frame", innerContainer)
-divider3.Size = UDim2.new(1, -10, 0, 2)
-divider3.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider3.BorderSizePixel = 0
-
-sectionHeader("🟪 NoClip Settings")
-
-local noClipStatusLabel = Instance.new("TextLabel", innerContainer)
-noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
-noClipStatusLabel.Text = "NoClip Status: OFF"
-noClipStatusLabel.Font = Enum.Font.GothamBold
-noClipStatusLabel.TextSize = 12
-noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-noClipStatusLabel.BackgroundTransparency = 1
-noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local forceNoClipBtn = Instance.new("TextButton", innerContainer)
-forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
-forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-forceNoClipBtn.Font = Enum.Font.GothamBold
-forceNoClipBtn.TextSize = 14
-forceNoClipBtn.TextColor3 = Color3.new(1,1,1)
-forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-forceNoClipBtn.AutoButtonColor = false
-Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
-
-local function updateNoClipStatus()
-    if isNoClipping then
-        noClipStatusLabel.Text = "NoClip Status: ON"
-        noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
-        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-    else
-        noClipStatusLabel.Text = "NoClip Status: OFF"
-        noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-    end
-end
-
-forceNoClipBtn.MouseButton1Click:Connect(function()
-    if isNoClipping then
-        stopNoClip()
-        forceNoClipBtn.Text = "NOCLIP DISABLED"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-        task.wait(1)
-        updateNoClipStatus()
-    else
-        startNoClip()
-        forceNoClipBtn.Text = "NOCLIP ENABLED"
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
-        task.wait(1)
-        updateNoClipStatus()
-    end
-end)
-
-RunService.Heartbeat:Connect(function()
-    updateNoClipStatus()
-end)
-
-local forceNoClipKeyBtn = Instance.new("TextButton", innerContainer)
-forceNoClipKeyBtn.Size = UDim2.new(1, -10, 0, 24)
-forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. (NoClipConfig.ForceToggleKey and tostring(NoClipConfig.ForceToggleKey.Name) or "None") .. "]"
-forceNoClipKeyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-forceNoClipKeyBtn.TextColor3 = Color3.new(1,1,1)
-forceNoClipKeyBtn.Font = Enum.Font.Gotham
-forceNoClipKeyBtn.TextSize = 13
-forceNoClipKeyBtn.AutoButtonColor = false
-Instance.new("UICorner", forceNoClipKeyBtn).CornerRadius = UDim.new(0,6)
-
-forceNoClipKeyBtn.MouseButton1Click:Connect(function()
-    forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [Press any key]"
-    local conn
-    conn = UserInputService.InputBegan:Connect(function(input, gp)
-        if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
-            conn:Disconnect()
-            NoClipConfig.ForceToggleKey = input.KeyCode
-            forceNoClipKeyBtn.Text = "Force NoClip Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
-        end
-    end)
-end)
-
-
-
-local divider4 = Instance.new("Frame", innerContainer)
-divider4.Size = UDim2.new(1, -10, 0, 2)
-divider4.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider4.BorderSizePixel = 0
-
-sectionHeader("🟦 SpeedHack Settings")
-
-local speedHackToggleBtn = toggle("SpeedHack", SpeedHackConfig.Enabled, function(v)
-    SpeedHackConfig.Enabled = v
-    if v then startSpeedHack() else stopSpeedHack() end
-    
-    if guiCallbacks.speedHack then
-        guiCallbacks.speedHack.Text = "SpeedHack: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.speedHack = speedHackToggleBtn
-
-toggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
-    SpeedHackConfig.UseJumpPower = v
-    
-    if SpeedHackConfig.Enabled then
-        stopSpeedHack()
-        startSpeedHack()
-    end
-end)
-
-slider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
-    SpeedHackConfig.Speed = v
-    
-    if SpeedHackConfig.Enabled then
-        local char = Players.LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = v * 16
-            if SpeedHackConfig.UseJumpPower then
-                hum.JumpPower = v * 50
-            end
-        end
-    end
-end)
-
-speedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
-    SpeedHackConfig.Speed = v
-    if SpeedHackConfig.Enabled then
-        local char = Players.LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = v * 16
-            if SpeedHackConfig.UseJumpPower then
-                hum.JumpPower = v * 50
-            end
-        end
-    end
-end)
-
-local divider5 = Instance.new("Frame", innerContainer)
-divider5.Position = UDim2.new(0, 5, 0, yOffset)
-divider5.Size = UDim2.new(1, -10, 0, 2)
-divider5.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider5.BorderSizePixel = 0
-
-sectionHeader("🦘 Jump Settings")
-
-local longJumpToggleBtn = toggle("Long Jump", LongJumpConfig.Enabled, function(v)
-    LongJumpConfig.Enabled = v
-    if v then startLongJump() else stopLongJump() end
-    if guiCallbacks.longJump then
-        guiCallbacks.longJump.Text = "Long Jump: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.longJump = longJumpToggleBtn
-
-slider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
-    LongJumpConfig.JumpPower = v
-    if LongJumpConfig.Enabled then
-        local char = Players.LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.JumpPower = v
-        end
-    end
-end)
-
-local infiniteJumpToggleBtn = toggle("Infinite Jump", InfiniteJumpConfig.Enabled, function(v)
-    InfiniteJumpConfig.Enabled = v
-    if v then startInfiniteJump() else stopInfiniteJump() end
-    if guiCallbacks.infiniteJump then
-        guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.infiniteJump = infiniteJumpToggleBtn
-
-slider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
-    InfiniteJumpConfig.JumpPower = v
-end)
-
-local divider6 = Instance.new("Frame", innerContainer)
-divider6.Size = UDim2.new(1, -10, 0, 2)
-divider6.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider6.BorderSizePixel = 0
-
-sectionHeader("🟪 YBA Hacks")
-
-local standRangeLabel = Instance.new("TextLabel", innerContainer)
-standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
-standRangeLabel.Text = "stand range hack"
-standRangeLabel.Font = Enum.Font.Gotham
-standRangeLabel.TextSize = 12
-standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-standRangeLabel.BackgroundTransparency = 1
-standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local ybaToggleBtn = toggle("Stand Range Hack", YBAConfig.Enabled, function(v)
-    YBAConfig.Enabled = v
-    if v then 
-        startYBA() 
-    else 
-        stopYBA() 
-    end
-    if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "Stand Range Hack: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.yba = ybaToggleBtn
-
-ybaToggleBtn.AutoButtonColor = false
-
-local undergroundControlToggleBtn = toggle("Underground Flight", false, function(v)
-    if v then 
-        startUndergroundControl() 
-    else 
-        stopUndergroundControl() 
-    end
-end)
-
-undergroundControlToggleBtn.AutoButtonColor = false
-
-slider("Flight & Stand Speed (25-300)", 25, 300, YBAConfig.UndergroundControl.FlightSpeed, function(v)
-    local wholeNumber = math.floor(v)
-    YBAConfig.UndergroundControl.FlightSpeed = wholeNumber
-    print("Скорость полета и стенда установлена:", wholeNumber)
-    print("Нажмите Ctrl для ускорения на +50 единиц")
-end)
-
-local dividerAntiTimeStop = Instance.new("Frame", innerContainer)
-dividerAntiTimeStop.Size = UDim2.new(1, -10, 0, 2)
-dividerAntiTimeStop.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-dividerAntiTimeStop.BorderSizePixel = 0
-
-local antiTimeStopLabel = Instance.new("TextLabel", innerContainer)
-antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
-antiTimeStopLabel.Text = "anti time stop"
-antiTimeStopLabel.Font = Enum.Font.Gotham
-antiTimeStopLabel.TextSize = 12
-antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-antiTimeStopLabel.BackgroundTransparency = 1
-antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local antiTimeStopToggleBtn = toggle("Anti Time Stop (0.5s)", false, function(v)
-    if not isAntiTimeStopEnabled then
-        AntiTimeStopConfig.Enabled = true
-        startAntiTimeStop()
-        
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ACTIVATING..."
-        end
-        
-        spawn(function()
-            task.wait(0.5)
-            
-            AntiTimeStopConfig.Enabled = false
-            stopAntiTimeStop()
-            
-            if guiCallbacks.antiTimeStop then
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end
-        end)
-    else
-        if guiCallbacks.antiTimeStop then
-            guiCallbacks.antiTimeStop.Text = "Anti Time Stop: ALREADY ACTIVE"
-            spawn(function()
-                task.wait(1)
-                guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
-            end)
-        end
-    end
-end)
-guiCallbacks.antiTimeStop = antiTimeStopToggleBtn
-
-local itemESPLabel = Instance.new("TextLabel", innerContainer)
-itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
-itemESPLabel.Text = "item esp"
-itemESPLabel.Font = Enum.Font.Gotham
-itemESPLabel.TextSize = 12
-itemESPLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-itemESPLabel.BackgroundTransparency = 1
-itemESPLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local itemESPToggleBtn = toggle("Item ESP", YBAConfig.ItemESP.Enabled, function(v)
-    YBAConfig.ItemESP.Enabled = v
-    if v then 
-        startItemESP() 
-    else 
-        stopItemESP() 
-    end
-    if guiCallbacks.itemESP then
-        guiCallbacks.itemESP.Text = "Item ESP: " .. (v and "ON" or "OFF")
-    end
-end)
-guiCallbacks.itemESP = itemESPToggleBtn
-
-itemESPToggleBtn.AutoButtonColor = false
-
-local itemSelectionHeader = Instance.new("TextLabel", innerContainer)
-itemSelectionHeader.Size = UDim2.new(1, -10, 0, 25)
-itemSelectionHeader.Text = "📦 ITEM SELECTION"
-itemSelectionHeader.Font = Enum.Font.GothamBold
-itemSelectionHeader.TextSize = 14
-itemSelectionHeader.TextColor3 = Color3.fromRGB(255, 255, 0)
-itemSelectionHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-itemSelectionHeader.BorderSizePixel = 1
-itemSelectionHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
-itemSelectionHeader.TextXAlignment = Enum.TextXAlignment.Left
-Instance.new("UICorner", itemSelectionHeader).CornerRadius = UDim.new(0,4)
-
-local function createItemToggle(itemName, defaultState)
-    local btn = toggle(itemName, defaultState, function(v)
-        YBAConfig.ItemESP.Items[itemName] = v
-        print("YBA Item ESP: Предмет", itemName, "установлен в", v and "ON" or "OFF")
-
-        if YBAConfig.ItemESP.Enabled then
-            if not v then
-                for obj, esp in pairs(itemESPElements) do
-                    if esp.itemName == itemName then
-                        pcall(removeItemESP, {Object = obj})
-                    end
-                end
-            end
-        end
-    end)
     return btn
 end
 
-createItemToggle("Mysterious Arrow", YBAConfig.ItemESP.Items["Mysterious Arrow"])
-createItemToggle("Rokakaka", YBAConfig.ItemESP.Items["Rokakaka"])
-createItemToggle("Pure Rokakaka", YBAConfig.ItemESP.Items["Pure Rokakaka"])
-createItemToggle("Diamond", YBAConfig.ItemESP.Items["Diamond"])
-createItemToggle("Gold Coin", YBAConfig.ItemESP.Items["Gold Coin"])
-createItemToggle("Steel Ball", YBAConfig.ItemESP.Items["Steel Ball"])
-createItemToggle("Clackers", YBAConfig.ItemESP.Items["Clackers"])
-createItemToggle("Caesar's Headband", YBAConfig.ItemESP.Items["Caesar's Headband"])
-createItemToggle("Zeppeli's Hat", YBAConfig.ItemESP.Items["Zeppeli's Hat"])
-createItemToggle("Zeppeli's Scarf", YBAConfig.ItemESP.Items["Zeppeli's Scarf"])
-createItemToggle("Quinton's Glove", YBAConfig.ItemESP.Items["Quinton's Glove"])
-createItemToggle("Stone Mask", YBAConfig.ItemESP.Items["Stone Mask"])
-createItemToggle("Rib Cage of The Saint's Corpse", YBAConfig.ItemESP.Items["Rib Cage of The Saint's Corpse"])
-createItemToggle("Ancient Scroll", YBAConfig.ItemESP.Items["Ancient Scroll"])
-createItemToggle("DIO's Diary", YBAConfig.ItemESP.Items["DIO's Diary"])
-createItemToggle("DIO's Bone", YBAConfig.ItemESP.Items["DIO's Bone"])
-createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"])
-createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
-createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
+-- Create tabs
+for i, tab in ipairs(tabs) do
+    -- Tab button
+    local btn = Instance.new("TextButton", tabList)
+    btn.Size = UDim2.new(1, -16, 0, 38)
+    btn.Text = tab.icon .. "  " .. tab.name
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 15
+    btn.TextColor3 = Color3.fromRGB(220,220,240)
+    btn.BackgroundColor3 = i == 1 and Color3.fromRGB(40, 40, 60) or Color3.fromRGB(30, 30, 40)
+    btn.AutoButtonColor = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    tabButtons[tab.name] = btn
 
+    -- Tab content frame
+    local tabFrame = Instance.new("Frame", contentFrame)
+    tabFrame.Name = tab.name .. "Tab"
+    tabFrame.Size = UDim2.new(1, 0, 1, 0)
+    tabFrame.BackgroundTransparency = 1
+    tabFrame.Visible = (i == 1)
+    tabFrames[tab.name] = tabFrame
 
+    -- Scrolling frame
+    local scrollFrame = Instance.new("ScrollingFrame", tabFrame)
+    scrollFrame.Size = UDim2.new(1, 0, 1, 0)
+    scrollFrame.Position = UDim2.new(0, 0, 0, 0)
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.ScrollBarThickness = 6
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scrollFrame.ClipsDescendants = true
 
+    -- Container
+    local container = Instance.new("Frame", scrollFrame)
+    container.Size = UDim2.new(1, -20, 0, 0)
+    container.Position = UDim2.new(0, 10, 0, 50)
+    container.BackgroundTransparency = 1
+    container.AutomaticSize = Enum.AutomaticSize.Y
 
+    local layout = Instance.new("UIListLayout", container)
+    layout.Padding = UDim.new(0, 8)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
 
-local divider8 = Instance.new("Frame", innerContainer)
-divider8.Size = UDim2.new(1, -10, 0, 2)
-divider8.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-divider8.BorderSizePixel = 0
-
-sectionHeader("🟩 Teleport Settings")
-
-local teleportSpacer = Instance.new("Frame", innerContainer)
-teleportSpacer.Size = UDim2.new(1, -10, 0, 10)
-teleportSpacer.BackgroundTransparency = 1
-
-local selectedPlayerLabel = Instance.new("TextLabel", innerContainer)
-selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
-selectedPlayerLabel.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
-selectedPlayerLabel.Font = Enum.Font.GothamBold
-selectedPlayerLabel.TextSize = 14
-selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
-selectedPlayerLabel.BackgroundTransparency = 1
-selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local startTeleportBtn = Instance.new("TextButton", innerContainer)
-startTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
-startTeleportBtn.Text = "START TELEPORT"
-startTeleportBtn.Font = Enum.Font.GothamBold
-startTeleportBtn.TextSize = 14
-startTeleportBtn.TextColor3 = Color3.new(1,1,1)
-startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-startTeleportBtn.AutoButtonColor = false
-Instance.new("UICorner", startTeleportBtn).CornerRadius = UDim.new(0,6)
-
-startTeleportBtn.MouseButton1Click:Connect(function()
-    if not TeleportConfig.TargetPlayer then
-        startTeleportBtn.Text = "Select player first!"
-        task.wait(2)
-        startTeleportBtn.Text = "START TELEPORT"
-        return
-    end
-    
-    if TeleportConfig.Enabled then
-        stopTeleport()
-        TeleportConfig.Enabled = false
-        startTeleportBtn.Text = "START TELEPORT"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    else
-        startTeleport()
-        TeleportConfig.Enabled = true
-        startTeleportBtn.Text = "STOP TELEPORT"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-    end
-end)
-
-local stopTeleportBtn = Instance.new("TextButton", innerContainer)
-stopTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
-stopTeleportBtn.Text = "STOP TELEPORT"
-stopTeleportBtn.Font = Enum.Font.GothamBold
-stopTeleportBtn.TextSize = 14
-stopTeleportBtn.TextColor3 = Color3.new(1,1,1)
-stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-stopTeleportBtn.AutoButtonColor = false
-Instance.new("UICorner", stopTeleportBtn).CornerRadius = UDim.new(0,6)
-
-stopTeleportBtn.MouseButton1Click:Connect(function()
-    if TeleportConfig.Enabled then
-        stopTeleport()
-        TeleportConfig.Enabled = false
-        startTeleportBtn.Text = "START TELEPORT"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-        stopTeleportBtn.Text = "Teleport stopped"
-        task.wait(2)
-        stopTeleportBtn.Text = "STOP TELEPORT"
-    else
-        stopTeleportBtn.Text = "Teleport not active"
-        task.wait(2)
-        stopTeleportBtn.Text = "STOP TELEPORT"
-    end
-end)
-
-local function createPlayerListInMenu()
-    local allPlayers = Players:GetPlayers()
-    local alivePlayers = {}
-    
-    for _, player in ipairs(allPlayers) do
-        if player and player ~= Players.LocalPlayer then
-            table.insert(alivePlayers, player)
-        end
-    end
-    
-    table.sort(alivePlayers, function(a, b)
-        return a.Name:lower() < b.Name:lower()
+    -- Tab switching
+    btn.MouseButton1Click:Connect(function()
+        for _, f in pairs(tabFrames) do f.Visible = false end
+        for _, b in pairs(tabButtons) do b.BackgroundColor3 = Color3.fromRGB(30, 30, 40) end
+        tabFrame.Visible = true
+        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
     end)
-    
-    print("Создаем отсортированный список игроков в меню: " .. #alivePlayers .. " игроков")
-    
-    local currentLetter = ""
-    for i, player in ipairs(alivePlayers) do
-        local firstLetter = player.Name:sub(1,1):upper()
-        
-        if firstLetter ~= currentLetter then
-            currentLetter = firstLetter
-            
-            local letterHeader = Instance.new("TextLabel", innerContainer)
-            letterHeader.Size = UDim2.new(1, -10, 0, 20)
-            letterHeader.Text = "--- " .. currentLetter .. " ---"
-            letterHeader.Font = Enum.Font.GothamBold
-            letterHeader.TextSize = 12
-            letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
-            letterHeader.BackgroundColor3 = Color3.fromRGB(30,30,40)
-            letterHeader.BorderSizePixel = 0
-            letterHeader.TextXAlignment = Enum.TextXAlignment.Center
-            Instance.new("UICorner", letterHeader).CornerRadius = UDim.new(0,4)
-        end
-        
-        local playerBtn = Instance.new("TextButton", innerContainer)
-        playerBtn.Size = UDim2.new(1, -10, 0, 30)
-        playerBtn.Text = player.Name
-        playerBtn.Font = Enum.Font.Gotham
-        playerBtn.TextSize = 12
-        playerBtn.TextColor3 = Color3.new(1,1,1)
-        playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-        playerBtn.AutoButtonColor = false
-        playerBtn.BorderSizePixel = 1
-        playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
-        Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
-        
-        playerBtn.MouseEnter:Connect(function()
-            playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
-            playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
-        end)
-        
-        playerBtn.MouseLeave:Connect(function()
-            playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-            playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
-        end)
-        
-        playerBtn.MouseButton1Click:Connect(function()
-            for _, btn in ipairs(innerContainer:GetChildren()) do
-                if btn:IsA("TextButton") and 
-                   btn ~= startTeleportBtn and 
-                   btn ~= stopTeleportBtn and 
-                   btn ~= updatePlayersBtn and
-                   btn.Size.Y.Offset == 30 then
-                    btn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-                    btn.BorderColor3 = Color3.fromRGB(100,100,120)
-                end
-            end
-            
-            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
-            
-            TeleportConfig.TargetPlayer = player
-            TeleportConfig.SelectedPlayerName = player.Name
-            TeleportConfig.OriginalPosition = nil 
-            selectedPlayerLabel.Text = "Selected Player: " .. player.Name
-        end)
-    end
-end
-createPlayerListInMenu()
 
-guiCallbacks.teleport = selectedPlayerLabel
-
-local function updatePlayerList()
-    local tempContainer = Instance.new("Frame")
-    tempContainer.Name = "TempPlayerList"
-    tempContainer.Parent = nil
-    
-    local allPlayers = Players:GetPlayers()
-    local alivePlayers = {}
-    for _, player in ipairs(allPlayers) do
-        if player and player ~= Players.LocalPlayer then
-            table.insert(alivePlayers, player)
-        end
-    end
-    
-    table.sort(alivePlayers, function(a, b)
-        return a.Name:lower() < b.Name:lower()
-    end)
-    
-    local currentLetter = ""
-    for i, player in ipairs(alivePlayers) do
-        local firstLetter = player.Name:sub(1,1):upper()
-        
-        if firstLetter ~= currentLetter then
-            currentLetter = firstLetter
-            
-            local letterHeader = Instance.new("TextLabel", tempContainer)
-            letterHeader.Size = UDim2.new(1, -10, 0, 20)
-            letterHeader.Text = "--- " .. currentLetter .. " ---"
-            letterHeader.Font = Enum.Font.GothamBold
-            letterHeader.TextSize = 12
-            letterHeader.TextColor3 = Color3.fromRGB(255,255,0)
-            letterHeader.BackgroundColor3 = Color3.fromRGB(30,30,40)
-            letterHeader.BorderSizePixel = 0
-            letterHeader.TextXAlignment = Enum.TextXAlignment.Center
-            Instance.new("UICorner", letterHeader).CornerRadius = UDim.new(0,4)
-        end
-        
-        local playerBtn = Instance.new("TextButton", tempContainer)
-        playerBtn.Size = UDim2.new(1, -10, 0, 30)
-        playerBtn.Text = player.Name
-        playerBtn.Font = Enum.Font.Gotham
-        playerBtn.TextSize = 12
-        playerBtn.TextColor3 = Color3.new(1,1,1)
-        playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-        playerBtn.AutoButtonColor = false
-        playerBtn.BorderSizePixel = 1
-        playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
-        Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
-        
-        playerBtn.MouseEnter:Connect(function()
-            playerBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
-            playerBtn.BorderColor3 = Color3.fromRGB(150,150,170)
-        end)
-        
-        playerBtn.MouseLeave:Connect(function()
-            playerBtn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-            playerBtn.BorderColor3 = Color3.fromRGB(100,100,120)
-        end)
-        
-        playerBtn.MouseButton1Click:Connect(function()
-            for _, btn in ipairs(innerContainer:GetChildren()) do
-                if btn:IsA("TextButton") and 
-                   btn ~= startTeleportBtn and 
-                   btn ~= stopTeleportBtn and 
-                   btn ~= updatePlayersBtn and
-                   btn.Size.Y.Offset == 30 then
-                    btn.BackgroundColor3 = Color3.fromRGB(50,50,60)
-                    btn.BorderColor3 = Color3.fromRGB(100,100,120)
-                end
-            end
-            
-            playerBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-            playerBtn.BorderColor3 = Color3.fromRGB(0,200,0)
-            
-            TeleportConfig.TargetPlayer = player
-            TeleportConfig.SelectedPlayerName = player.Name
-            TeleportConfig.OriginalPosition = nil 
-            selectedPlayerLabel.Text = "Selected Player: " .. player.Name
-        end)
-    end
-    
-    for _, child in ipairs(innerContainer:GetChildren()) do
-        if child:IsA("TextButton") then
-            if child.Text and child.Text:len() > 0 and 
-               not child.Text:find("UPDATE") and 
-               not child.Text:find("ESP") and 
-               not child.Text:find("Aimbot") and 
-               not child.Text:find("Fly") and 
-               not child.Text:find("NoClip") and 
-               not child.Text:find("SpeedHack") and 
-               not child.Text:find("Team Check") and 
-               not child.Text:find("Show Outline") and 
-               not child.Text:find("Show Lines") and 
-               not child.Text:find("Rainbow Colors") and 
-               not child.Text:find("Fill Color") and 
-               not child.Text:find("Outline Color") and 
-               not child.Text:find("Text Color") and 
-               not child.Text:find("Fill Transparency") and 
-               not child.Text:find("Outline Transparency") and 
-               not child.Text:find("Visibility Check") and 
-               not child.Text:find("FOV Radius") and 
-               not child.Text:find("FOV Rainbow") and 
-               not child.Text:find("Aimbot FOV Color") and 
-               not child.Text:find("Fly Speed") and 
-               not child.Text:find("Custom Fly Speed") and 
-               not child.Text:find("Use JumpPower Method") and 
-               not child.Text:find("SpeedHack Speed") and 
-               not child.Text:find("Custom SpeedHack Speed") and 
-               not child.Text:find("START TELEPORT") and 
-               not child.Text:find("STOP TELEPORT") and 
-               not child.Text:find("Hotkey:") and 
-               not child.Text:find("Stand Range Hack") and 
-               not child.Text:find("Item ESP") and 
-               child.Size.Y.Offset == 30 then
-                child:Destroy()
-            end
-        end
-    end
-    
-    for _, child in ipairs(innerContainer:GetChildren()) do
-        if child:IsA("TextLabel") and child.Text and child.Text:find("---") then
-            child:Destroy()
-        end
-    end
-    
-    for _, child in ipairs(tempContainer:GetChildren()) do
-        child.Parent = innerContainer
-    end
-    
-    tempContainer:Destroy()
+    -- Store container
+    tabContainers[tab.name] = container
 end
 
-local updatePlayersBtn = Instance.new("TextButton", innerContainer)
-updatePlayersBtn.Size = UDim2.new(1, -10, 0, 28)
-updatePlayersBtn.Text = "UPDATE PLAYER LIST"
-updatePlayersBtn.Font = Enum.Font.GothamBold
-updatePlayersBtn.TextSize = 14
-updatePlayersBtn.TextColor3 = Color3.new(1,1,1)
-updatePlayersBtn.BackgroundColor3 = Color3.fromRGB(100,150,255)
-updatePlayersBtn.AutoButtonColor = false
-Instance.new("UICorner", updatePlayersBtn).CornerRadius = UDim.new(0,6)
-
-updatePlayersBtn.MouseButton1Click:Connect(function()
-    updatePlayersBtn.Text = "UPDATING..."
-    updatePlayerList()
-    task.wait(1)
-    updatePlayersBtn.Text = "LIST UPDATED!"
-    task.wait(2)
-    updatePlayersBtn.Text = "UPDATE PLAYER LIST"
-    
-    task.spawn(function()
-        task.wait(5)
+-- Example content for each tab (you can customize these)
+local function createExampleContent()
+    -- ESP Tab
+    local espContainer = tabContainers["ESP"]
+    createToggle(espContainer, "ESP", Config.ESP.Enabled, function(v) 
+        Config.ESP.Enabled = v 
+        print("ESP:", v) 
     end)
-end)
+    createToggle(espContainer, "Team Check", Config.ESP.TeamCheck, function(v) 
+        Config.ESP.TeamCheck = v 
+        print("Team Check:", v) 
+    end)
+    createToggle(espContainer, "Show Outline", Config.ESP.ShowOutline, function(v) 
+        Config.ESP.ShowOutline = v 
+        print("Show Outline:", v) 
+    end)
+    createColorPicker(espContainer, "Fill Color", Config.ESP.FillColor, function(c) 
+        Config.ESP.FillColor = c 
+        print("Fill Color:", c) 
+    end)
+    createSlider(espContainer, "Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) 
+        Config.ESP.FillTransparency = v 
+        print("Fill Transparency:", v) 
+    end)
 
-task.spawn(function()
-    while true do
-        task.wait(30)
+    -- Aimbot Tab
+    local aimbotContainer = tabContainers["Aimbot"]
+    createToggle(aimbotContainer, "Aimbot", Config.Aimbot.Enabled, function(v) 
+        Config.Aimbot.Enabled = v 
+        print("Aimbot:", v) 
+    end)
+    createToggle(aimbotContainer, "Team Check", Config.Aimbot.TeamCheck, function(v) 
+        Config.Aimbot.TeamCheck = v 
+        print("Team Check:", v) 
+    end)
+    createSlider(aimbotContainer, "FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) 
+        Config.Aimbot.FOV = v 
+        print("FOV Radius:", v) 
+    end)
+
+    -- Fly Tab
+    local flyContainer = tabContainers["Fly"]
+    createToggle(flyContainer, "Fly", FlyConfig.Enabled, function(v) 
+        FlyConfig.Enabled = v 
+        if v then startFly() else stopFly() end
+        print("Fly:", v) 
+    end)
+    createSlider(flyContainer, "Fly Speed", 0.1, 10, FlyConfig.Speed, function(v) 
+        FlyConfig.Speed = v 
+        print("Fly Speed:", v) 
+    end)
+
+    -- NoClip Tab
+    local noClipContainer = tabContainers["NoClip"]
+    createToggle(noClipContainer, "NoClip", NoClipConfig.Enabled, function(v) 
+        NoClipConfig.Enabled = v 
+        if v then startNoClip() else stopNoClip() end
+        print("NoClip:", v) 
+    end)
+    createButton(noClipContainer, "Force NoClip Toggle", function() 
+        if isNoClipping then
+            stopNoClip()
+        else
+            startNoClip()
+        end
+        print("Force NoClip Toggle clicked") 
+    end)
+
+    -- Speed Tab
+    local speedContainer = tabContainers["Speed"]
+    createToggle(speedContainer, "SpeedHack", SpeedHackConfig.Enabled, function(v) 
+        SpeedHackConfig.Enabled = v 
+        if v then startSpeedHack() else stopSpeedHack() end
+        print("SpeedHack:", v) 
+    end)
+    createSlider(speedContainer, "SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v) 
+        SpeedHackConfig.Speed = v 
+        print("SpeedHack Speed:", v) 
+    end)
+
+    -- Jump Tab
+    local jumpContainer = tabContainers["Jump"]
+    createToggle(jumpContainer, "Long Jump", LongJumpConfig.Enabled, function(v) 
+        LongJumpConfig.Enabled = v 
+        if v then startLongJump() else stopLongJump() end
+        print("Long Jump:", v) 
+    end)
+    createToggle(jumpContainer, "Infinite Jump", InfiniteJumpConfig.Enabled, function(v) 
+        InfiniteJumpConfig.Enabled = v 
+        if v then startInfiniteJump() else stopInfiniteJump() end
+        print("Infinite Jump:", v) 
+    end)
+    createSlider(jumpContainer, "Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v) 
+        LongJumpConfig.JumpPower = v 
+        print("Jump Power:", v) 
+    end)
+
+    -- YBA Tab
+    local ybaContainer = tabContainers["YBA"]
+    createToggle(ybaContainer, "Stand Range Hack", YBAConfig.Enabled, function(v) 
+        YBAConfig.Enabled = v 
+        if v then startYBA() else stopYBA() end
+        print("Stand Range Hack:", v) 
+    end)
+    createToggle(ybaContainer, "Underground Flight", false, function(v) 
+        if v then startUndergroundControl() else stopUndergroundControl() end
+        print("Underground Flight:", v) 
+    end)
+    createToggle(ybaContainer, "Item ESP", YBAConfig.ItemESP.Enabled, function(v) 
+        YBAConfig.ItemESP.Enabled = v 
+        if v then startItemESP() else stopItemESP() end
+        print("Item ESP:", v) 
+    end)
+
+    -- Teleport Tab
+    local teleportContainer = tabContainers["Teleport"]
+    createToggle(teleportContainer, "Teleport", TeleportConfig.Enabled, function(v) 
+        TeleportConfig.Enabled = v 
+        if v and TeleportConfig.TargetPlayer then
+            startTeleport()
+        else
+            stopTeleport()
+        end
+        print("Teleport:", v) 
+    end)
+    createButton(teleportContainer, "Start Teleport", function() 
+        if TeleportConfig.TargetPlayer then
+            startTeleport()
+            TeleportConfig.Enabled = true
+        else
+            print("Select player first!")
+        end
+        print("Start Teleport clicked") 
+    end)
+    createButton(teleportContainer, "Stop Teleport", function() 
+        stopTeleport()
+        TeleportConfig.Enabled = false
+        print("Stop Teleport clicked") 
+    end)
+
+    -- Settings Tab
+    local settingsContainer = tabContainers["Settings"]
+    createButton(settingsContainer, "Update Player List", function() 
         updatePlayerList()
-    end
-end)
+        print("Update Player List clicked") 
+    end)
+    sectionHeader(settingsContainer, "Hotkeys")
+    createButton(settingsContainer, "ESP Hotkey: [" .. (Config.ESP.ToggleKey and tostring(Config.ESP.ToggleKey.Name) or "None") .. "]", function() 
+        print("ESP Hotkey clicked") 
+    end)
+    createButton(settingsContainer, "Aimbot Hotkey: [" .. (Config.Aimbot.ToggleKey and tostring(Config.Aimbot.ToggleKey.Name) or "None") .. "]", function() 
+        print("Aimbot Hotkey clicked") 
+    end)
+end
 
-local stopReturnBtn = Instance.new("TextButton", innerContainer)
-stopReturnBtn.Size = UDim2.new(1, -10, 0, 28)
-stopReturnBtn.Text = "STOP RETURN"
-stopReturnBtn.Font = Enum.Font.GothamBold
-stopReturnBtn.TextSize = 14
-stopReturnBtn.TextColor3 = Color3.new(1,1,1)
-stopReturnBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-stopReturnBtn.AutoButtonColor = false
-Instance.new("UICorner", stopReturnBtn).CornerRadius = UDim.new(0,6)
+-- Create example content
+createExampleContent()
 
-stopReturnBtn.MouseButton1Click:Connect(function()
-    if _G.returnConnections then
-        for _, connection in ipairs(_G.returnConnections) do
-            if connection then pcall(function() connection:Disconnect() end) end
-        end
-        _G.returnConnections = nil
-    end
-    if _G.returnLoop then
-        pcall(function() _G.returnLoop:Disconnect() end)
-        _G.returnLoop = nil
-    end
-    TeleportConfig.OriginalPosition = nil
-end)
+-- Return the main GUI and containers for external use
+local guiCallbacks = {}
+return {
+    Gui = FrostwareGui,
+    MainFrame = mainFrame,
+    TabContainers = tabContainers,
+    TabFrames = tabFrames,
+    TabButtons = tabButtons,
+    setMenuVisible = setMenuVisible,
+    guiCallbacks = guiCallbacks
+}
