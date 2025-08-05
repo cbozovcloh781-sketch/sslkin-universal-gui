@@ -251,6 +251,9 @@ local itemESPConnections = {}
 local itemESPElements = {}
 local itemESPEnabled = false
 
+-- GUI элементы
+local teleportBtn = nil
+
 local YBAFreeCamera = {} do
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
@@ -1477,7 +1480,10 @@ local function startTeleport()
         end
     end)
     
-    -- UI updates are now handled by the toggle system
+    if teleportBtn then
+        teleportBtn.Text = "STOP TELEPORT"
+        teleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+    end
     
     createStealthTeleport()
     
@@ -1636,7 +1642,10 @@ local function stopTeleport()
         humanoid.JumpPower = 50
     end
     
-    -- UI updates are now handled by the toggle system
+    if teleportBtn then
+        teleportBtn.Text = "START TELEPORT"
+        teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+    end
 end
 
 local function findStands()
@@ -3784,7 +3793,22 @@ function showContent(tabName)
         
         -- ESP Settings
         createSectionHeader("🔷ESP Settings")
-        createToggle("ESP", Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
+        local espBtn = Instance.new("TextButton", functionsContainer)
+        espBtn.Size = UDim2.new(1, -10, 0, 28)
+        espBtn.Position = UDim2.new(0, 5, 0, currentY)
+        espBtn.Text = "ESP: " .. (Config.ESP.Enabled and "ON" or "OFF")
+        espBtn.Font = Enum.Font.Gotham
+        espBtn.TextSize = 14
+        espBtn.TextColor3 = Color3.new(1,1,1)
+        espBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        espBtn.AutoButtonColor = false
+        Instance.new("UICorner", espBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        espBtn.MouseButton1Click:Connect(function()
+            Config.ESP.Enabled = not Config.ESP.Enabled
+            espBtn.Text = "ESP: " .. (Config.ESP.Enabled and "ON" or "OFF")
+        end)
         createToggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
         createToggle("Show Outline", Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
         createToggle("Show Lines", Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
@@ -3800,7 +3824,22 @@ function showContent(tabName)
         
         -- Aimbot Settings
         createSectionHeader("🔷Aimbot Settings")
-        createToggle("Aimbot", Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
+        local aimbotBtn = Instance.new("TextButton", functionsContainer)
+        aimbotBtn.Size = UDim2.new(1, -10, 0, 28)
+        aimbotBtn.Position = UDim2.new(0, 5, 0, currentY)
+        aimbotBtn.Text = "Aimbot: " .. (Config.Aimbot.Enabled and "ON" or "OFF")
+        aimbotBtn.Font = Enum.Font.Gotham
+        aimbotBtn.TextSize = 14
+        aimbotBtn.TextColor3 = Color3.new(1,1,1)
+        aimbotBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        aimbotBtn.AutoButtonColor = false
+        Instance.new("UICorner", aimbotBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        aimbotBtn.MouseButton1Click:Connect(function()
+            Config.Aimbot.Enabled = not Config.Aimbot.Enabled
+            aimbotBtn.Text = "Aimbot: " .. (Config.Aimbot.Enabled and "ON" or "OFF")
+        end)
         createToggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
         createToggle("Visibility Check", Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
         createSlider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
@@ -3811,9 +3850,22 @@ function showContent(tabName)
         
         -- Fly Settings
         createSectionHeader("🟨 Fly Settings")
-        local flyToggleBtn = createToggle("Fly", FlyConfig.Enabled, function(v)
-            FlyConfig.Enabled = v
-            if v then startFly() else stopFly() end
+        local flyBtn = Instance.new("TextButton", functionsContainer)
+        flyBtn.Size = UDim2.new(1, -10, 0, 28)
+        flyBtn.Position = UDim2.new(0, 5, 0, currentY)
+        flyBtn.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
+        flyBtn.Font = Enum.Font.Gotham
+        flyBtn.TextSize = 14
+        flyBtn.TextColor3 = Color3.new(1,1,1)
+        flyBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        flyBtn.AutoButtonColor = false
+        Instance.new("UICorner", flyBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        flyBtn.MouseButton1Click:Connect(function()
+            FlyConfig.Enabled = not FlyConfig.Enabled
+            flyBtn.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
+            if FlyConfig.Enabled then startFly() else stopFly() end
         end)
         
         createSlider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
@@ -3855,9 +3907,22 @@ function showContent(tabName)
         
         -- SpeedHack Settings
         createSectionHeader("🟦 SpeedHack Settings")
-        local speedHackToggleBtn = createToggle("SpeedHack", SpeedHackConfig.Enabled, function(v)
-            SpeedHackConfig.Enabled = v
-            if v then startSpeedHack() else stopSpeedHack() end
+        local speedHackBtn = Instance.new("TextButton", functionsContainer)
+        speedHackBtn.Size = UDim2.new(1, -10, 0, 28)
+        speedHackBtn.Position = UDim2.new(0, 5, 0, currentY)
+        speedHackBtn.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
+        speedHackBtn.Font = Enum.Font.Gotham
+        speedHackBtn.TextSize = 14
+        speedHackBtn.TextColor3 = Color3.new(1,1,1)
+        speedHackBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        speedHackBtn.AutoButtonColor = false
+        Instance.new("UICorner", speedHackBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        speedHackBtn.MouseButton1Click:Connect(function()
+            SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
+            speedHackBtn.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
+            if SpeedHackConfig.Enabled then startSpeedHack() else stopSpeedHack() end
         end)
         
         createToggle("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
@@ -3900,9 +3965,22 @@ function showContent(tabName)
         
         -- Jump Settings
         createSectionHeader("🦘 Jump Settings")
-        local longJumpToggleBtn = createToggle("Long Jump", LongJumpConfig.Enabled, function(v)
-            LongJumpConfig.Enabled = v
-            if v then startLongJump() else stopLongJump() end
+        local longJumpBtn = Instance.new("TextButton", functionsContainer)
+        longJumpBtn.Size = UDim2.new(1, -10, 0, 28)
+        longJumpBtn.Position = UDim2.new(0, 5, 0, currentY)
+        longJumpBtn.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
+        longJumpBtn.Font = Enum.Font.Gotham
+        longJumpBtn.TextSize = 14
+        longJumpBtn.TextColor3 = Color3.new(1,1,1)
+        longJumpBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        longJumpBtn.AutoButtonColor = false
+        Instance.new("UICorner", longJumpBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        longJumpBtn.MouseButton1Click:Connect(function()
+            LongJumpConfig.Enabled = not LongJumpConfig.Enabled
+            longJumpBtn.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
+            if LongJumpConfig.Enabled then startLongJump() else stopLongJump() end
         end)
         
         createSlider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
@@ -3916,9 +3994,22 @@ function showContent(tabName)
             end
         end)
         
-        local infiniteJumpToggleBtn = createToggle("Infinite Jump", InfiniteJumpConfig.Enabled, function(v)
-            InfiniteJumpConfig.Enabled = v
-            if v then startInfiniteJump() else stopInfiniteJump() end
+        local infiniteJumpBtn = Instance.new("TextButton", functionsContainer)
+        infiniteJumpBtn.Size = UDim2.new(1, -10, 0, 28)
+        infiniteJumpBtn.Position = UDim2.new(0, 5, 0, currentY)
+        infiniteJumpBtn.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
+        infiniteJumpBtn.Font = Enum.Font.Gotham
+        infiniteJumpBtn.TextSize = 14
+        infiniteJumpBtn.TextColor3 = Color3.new(1,1,1)
+        infiniteJumpBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        infiniteJumpBtn.AutoButtonColor = false
+        Instance.new("UICorner", infiniteJumpBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        infiniteJumpBtn.MouseButton1Click:Connect(function()
+            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
+            infiniteJumpBtn.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
+            if InfiniteJumpConfig.Enabled then startInfiniteJump() else stopInfiniteJump() end
         end)
         
         createSlider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
@@ -3941,17 +4032,36 @@ function showContent(tabName)
         selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 24 + padding
         
-        local teleportToggle = createToggle("Teleport to Player", TeleportConfig.Enabled, function(v)
+        teleportBtn = Instance.new("TextButton", functionsContainer)
+        teleportBtn.Size = UDim2.new(1, -10, 0, 28)
+        teleportBtn.Position = UDim2.new(0, 5, 0, currentY)
+        teleportBtn.Text = "START TELEPORT"
+        teleportBtn.Font = Enum.Font.GothamBold
+        teleportBtn.TextSize = 14
+        teleportBtn.TextColor3 = Color3.new(1,1,1)
+        teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+        teleportBtn.AutoButtonColor = false
+        Instance.new("UICorner", teleportBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        teleportBtn.MouseButton1Click:Connect(function()
             if not TeleportConfig.TargetPlayer then
-                print("Select player first!")
+                teleportBtn.Text = "Select player first!"
+                task.wait(2)
+                teleportBtn.Text = "START TELEPORT"
                 return
             end
             
-            TeleportConfig.Enabled = v
-            if v then
-                startTeleport()
-            else
+            if TeleportConfig.Enabled then
                 stopTeleport()
+                TeleportConfig.Enabled = false
+                teleportBtn.Text = "START TELEPORT"
+                teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+            else
+                startTeleport()
+                TeleportConfig.Enabled = true
+                teleportBtn.Text = "STOP TELEPORT"
+                teleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
             end
         end)
         
@@ -4058,12 +4168,33 @@ function showContent(tabName)
         antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
-        local antiTimeStopToggle = createToggle("Anti Time Stop", AntiTimeStopConfig.Enabled, function(v)
-            AntiTimeStopConfig.Enabled = v
-            if v then
+        local antiTimeStopBtn = Instance.new("TextButton", functionsContainer)
+        antiTimeStopBtn.Size = UDim2.new(1, -10, 0, 28)
+        antiTimeStopBtn.Position = UDim2.new(0, 5, 0, currentY)
+        antiTimeStopBtn.Text = "ANTI TIME STOP"
+        antiTimeStopBtn.Font = Enum.Font.GothamBold
+        antiTimeStopBtn.TextSize = 14
+        antiTimeStopBtn.TextColor3 = Color3.new(1,1,1)
+        antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+        antiTimeStopBtn.AutoButtonColor = false
+        Instance.new("UICorner", antiTimeStopBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        antiTimeStopBtn.MouseButton1Click:Connect(function()
+            if not isAntiTimeStopEnabled then
+                AntiTimeStopConfig.Enabled = true
                 startAntiTimeStop()
-            else
-                stopAntiTimeStop()
+                antiTimeStopBtn.Text = "ANTI TIME STOP ACTIVE"
+                antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(0,255,0)
+                
+                spawn(function()
+                    task.wait(0.3)
+                    
+                    AntiTimeStopConfig.Enabled = false
+                    stopAntiTimeStop()
+                    antiTimeStopBtn.Text = "ANTI TIME STOP"
+                    antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+                end)
             end
         end)
         
