@@ -1892,64 +1892,26 @@ end
 
 local function startYBA()
     if isYBAEnabled then return end
-    
-               print("Запуск Stand Range Hack...")
-    
     isYBAEnabled = true
     YBAConfig.Enabled = true
-    
-    if not findStands then
-        print("ОШИБКА: Функция findStands не найдена!")
-        return
-    end
-    
+    if not findStands then return end
     local stands = findStands()
-    
-    if #stands == 0 then
-        print("Стенды не найдены!")
-        return
-    end
-    
+    if #stands == 0 then return end
     local targetStand = stands[1]
-    print("Найден стенд:", targetStand.Name)
-    
-    if YBAConfig.FreezePlayer and freezePlayer then
-        freezePlayer()
-    end
-    
-    if YBAConfig.SwitchCamera then
-    end
-    
-    if YBAConfig.TransferControl and activateFreeCamera then
-        activateFreeCamera(targetStand)
-    end
-    
-    print("Stand Range Hack активирован")
-    print("Underground Flight будет активирован через 5 секунд...")
-    
+    if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
+    if YBAConfig.SwitchCamera then end
+    if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
     local humanoid = char and char:FindFirstChild("Humanoid")
     if humanoid then
         local deathConnection = humanoid.Died:Connect(function()
-                           print("Игрок умер, отключаем Stand Range Hack...")
             stopYBA()
         end)
         table.insert(standControlConnections, deathConnection)
     end
-    
     task.spawn(function()
         task.wait(5)
-        
-        if not isYBAEnabled then
-                           print("Stand Range Hack был отключен, Underground Flight не активируется")
-            return
-        end
-        
-        if startUndergroundControl then
-            print("Автоматически включаем Underground Flight...")
-            startUndergroundControl()
-        else
-            print("ОШИБКА: Функция startUndergroundControl не найдена!")
-        end
+        if not isYBAEnabled then return end
+        if startUndergroundControl then startUndergroundControl() end
     end)
 end
 
@@ -4458,4 +4420,28 @@ task.spawn(function()
         task.wait(30)
         updatePlayerList()
     end
+end)
+
+local stopReturnBtn = Instance.new("TextButton", innerContainer)
+stopReturnBtn.Size = UDim2.new(1, -10, 0, 28)
+stopReturnBtn.Text = "STOP RETURN"
+stopReturnBtn.Font = Enum.Font.GothamBold
+stopReturnBtn.TextSize = 14
+stopReturnBtn.TextColor3 = Color3.new(1,1,1)
+stopReturnBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+stopReturnBtn.AutoButtonColor = false
+Instance.new("UICorner", stopReturnBtn).CornerRadius = UDim.new(0,6)
+
+stopReturnBtn.MouseButton1Click:Connect(function()
+    if _G.returnConnections then
+        for _, connection in ipairs(_G.returnConnections) do
+            if connection then pcall(function() connection:Disconnect() end) end
+        end
+        _G.returnConnections = nil
+    end
+    if _G.returnLoop then
+        pcall(function() _G.returnLoop:Disconnect() end)
+        _G.returnLoop = nil
+    end
+    TeleportConfig.OriginalPosition = nil
 end)
