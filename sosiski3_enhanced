@@ -11,23 +11,72 @@ local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 
--- Wait for main script to load
+-- Function to find local functions in the main script environment
+local function findLocalFunctions()
+    local functions = {}
+    local env = getfenv(1)
+    
+    -- Try to find the main script's environment
+    for i = 1, 10 do
+        local success, result = pcall(function()
+            return getfenv(i)
+        end)
+        
+        if success then
+            -- Check if this environment has our target functions
+            if result.startFly and type(result.startFly) == "function" then
+                print("✓ Found main script environment at level " .. i)
+                env = result
+                break
+            end
+        end
+    end
+    
+    -- Look for all our target functions
+    local targetFunctions = {
+        "startFly", "stopFly", "startNoClip", "stopNoClip", 
+        "startSpeedHack", "stopSpeedHack", "startLongJump", "stopLongJump", 
+        "startInfiniteJump", "stopInfiniteJump", "startYBA", "stopYBA", 
+        "startTeleport", "stopTeleport", "startAntiTimeStop", "stopAntiTimeStop",
+        "startUndergroundControl", "stopUndergroundControl", "startItemESP", "stopItemESP"
+    }
+    
+    for _, funcName in ipairs(targetFunctions) do
+        if env[funcName] and type(env[funcName]) == "function" then
+            functions[funcName] = env[funcName]
+            print("✓ Found function: " .. funcName)
+        else
+            print("✗ Function not found: " .. funcName)
+        end
+    end
+    
+    return functions, env
+end
+
+-- Wait for main script to load and find functions
 local function waitForMainScript()
     local attempts = 0
+    local functions = {}
+    local env = nil
+    
     while attempts < 50 do
-        if _G.startFly and _G.stopFly then
+        functions, env = findLocalFunctions()
+        if functions.startFly and functions.stopFly then
             print("✓ Main script functions found!")
-            return true
+            return functions, env
         end
         task.wait(0.1)
         attempts = attempts + 1
     end
+    
     print("⚠ Warning: Main script functions not found after 5 seconds")
-    return false
+    return {}, nil
 end
 
--- Wait for main script
-if not waitForMainScript() then
+-- Get functions and environment
+local mainFunctions, mainEnv = waitForMainScript()
+
+if not mainFunctions.startFly then
     warn("Main script (sosiski) not loaded properly. Menu may not work correctly.")
 end
 
@@ -35,8 +84,8 @@ local FrostwareGui = Instance.new("ScreenGui", CoreGui)
 FrostwareGui.Name = "FrostwareGui"
 FrostwareGui.ResetOnSpawn = false
 
--- Get configurations from main script or use defaults
-local Config = _G.Config or {
+-- Get configurations from main script environment or use defaults
+local Config = (mainEnv and mainEnv.Config) or {
     ESP = {
         Enabled = false,
         TeamCheck = false,
@@ -61,35 +110,35 @@ local Config = _G.Config or {
     }
 }
 
-local FlyConfig = _G.FlyConfig or {
+local FlyConfig = (mainEnv and mainEnv.FlyConfig) or {
     Enabled = false,
     Speed = 1,
     ToggleKey = nil
 }
 
-local NoClipConfig = _G.NoClipConfig or {
+local NoClipConfig = (mainEnv and mainEnv.NoClipConfig) or {
     Enabled = false,
     ToggleKey = nil
 }
 
-local SpeedHackConfig = _G.SpeedHackConfig or {
+local SpeedHackConfig = (mainEnv and mainEnv.SpeedHackConfig) or {
     Enabled = false,
     Speed = 1,
     UseJumpPower = false,
     ToggleKey = nil
 }
 
-local LongJumpConfig = _G.LongJumpConfig or {
+local LongJumpConfig = (mainEnv and mainEnv.LongJumpConfig) or {
     Enabled = false,
     JumpPower = 100
 }
 
-local InfiniteJumpConfig = _G.InfiniteJumpConfig or {
+local InfiniteJumpConfig = (mainEnv and mainEnv.InfiniteJumpConfig) or {
     Enabled = false,
     JumpPower = 50
 }
 
-local YBAConfig = _G.YBAConfig or {
+local YBAConfig = (mainEnv and mainEnv.YBAConfig) or {
     Enabled = false,
     ToggleKey = nil,
     ItemESP = {
@@ -101,7 +150,7 @@ local YBAConfig = _G.YBAConfig or {
     }
 }
 
-local TeleportConfig = _G.TeleportConfig or {
+local TeleportConfig = (mainEnv and mainEnv.TeleportConfig) or {
     Enabled = false,
     TargetPlayer = nil,
     SelectedPlayerName = nil,
@@ -109,7 +158,7 @@ local TeleportConfig = _G.TeleportConfig or {
     ToggleKey = nil
 }
 
-local AntiTimeStopConfig = _G.AntiTimeStopConfig or {
+local AntiTimeStopConfig = (mainEnv and mainEnv.AntiTimeStopConfig) or {
     Enabled = false,
     ToggleKey = nil
 }
@@ -118,10 +167,10 @@ local AntiTimeStopConfig = _G.AntiTimeStopConfig or {
 local function callFunction(name, ...)
     local args = {...}
     local success, result = pcall(function()
-        if _G[name] and type(_G[name]) == "function" then
-            return _G[name](table.unpack(args))
+        if mainFunctions[name] and type(mainFunctions[name]) == "function" then
+            return mainFunctions[name](table.unpack(args))
         else
-            print("Function " .. name .. " not found in global environment")
+            print("Function " .. name .. " not found in main script environment")
             return false
         end
     end)
@@ -363,7 +412,7 @@ local testFunctions = {
 }
 
 for _, funcName in ipairs(testFunctions) do
-    if _G[funcName] and type(_G[funcName]) == "function" then
+    if mainFunctions[funcName] and type(mainFunctions[funcName]) == "function" then
         print("✓ " .. funcName .. " - CONNECTED")
     else
         print("✗ " .. funcName .. " - NOT FOUND")
@@ -758,7 +807,7 @@ createToggle(noClipContainer, "NoClip", NoClipConfig.Enabled, function(v)
     end 
 end)
 createButton(noClipContainer, "Force NoClip Toggle", function()
-    if _G.isNoClipping then
+    if mainEnv and mainEnv.isNoClipping then
         stopNoClip()
     else
         startNoClip()
@@ -875,15 +924,15 @@ createButton(teleportContainer, "Stop Teleport", function()
     end
 end)
 createButton(teleportContainer, "Stop Return", function()
-    if _G.returnConnections then
-        for _, connection in ipairs(_G.returnConnections) do
+    if mainEnv and mainEnv.returnConnections then
+        for _, connection in ipairs(mainEnv.returnConnections) do
             if connection then pcall(function() connection:Disconnect() end) end
         end
-        _G.returnConnections = nil
+        mainEnv.returnConnections = nil
     end
-    if _G.returnLoop then
-        pcall(function() _G.returnLoop:Disconnect() end)
-        _G.returnLoop = nil
+    if mainEnv and mainEnv.returnLoop then
+        pcall(function() mainEnv.returnLoop:Disconnect() end)
+        mainEnv.returnLoop = nil
     end
     TeleportConfig.OriginalPosition = nil
 end)
@@ -959,3 +1008,4 @@ end)
 print("=== Frostware Modern Menu Loaded Successfully ===")
 print("Press Insert to toggle menu visibility")
 print("All functions should now work with your main script!")
+print("Using local function access - no global modifications needed!")
