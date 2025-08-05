@@ -3962,55 +3962,6 @@ function showContent(tabName)
         -- Teleport Settings
         createSectionHeader("🟩 Teleport Settings")
         
-        -- Список игроков для телепорта
-        local playerListLabel = Instance.new("TextLabel", functionsContainer)
-        playerListLabel.Size = UDim2.new(1, -10, 0, 20)
-        playerListLabel.Position = UDim2.new(0, 5, 0, currentY)
-        playerListLabel.Text = "Select Player for Teleport:"
-        playerListLabel.Font = Enum.Font.GothamBold
-        playerListLabel.TextSize = 12
-        playerListLabel.TextColor3 = Color3.new(1,1,1)
-        playerListLabel.BackgroundTransparency = 1
-        playerListLabel.TextXAlignment = Enum.TextXAlignment.Left
-        currentY = currentY + 20 + padding
-        
-        -- Создаем список игроков
-        local function createPlayerList()
-            local allPlayers = Players:GetPlayers()
-            for _, player in ipairs(allPlayers) do
-                if player ~= Players.LocalPlayer then
-                    local playerBtn = Instance.new("TextButton", functionsContainer)
-                    playerBtn.Size = UDim2.new(1, -10, 0, 24)
-                    playerBtn.Position = UDim2.new(0, 5, 0, currentY)
-                    playerBtn.Text = player.Name
-                    playerBtn.Font = Enum.Font.Gotham
-                    playerBtn.TextSize = 12
-                    playerBtn.TextColor3 = Color3.new(1,1,1)
-                    playerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-                    playerBtn.AutoButtonColor = false
-                    Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
-                    currentY = currentY + 24 + padding
-                    
-                    playerBtn.MouseButton1Click:Connect(function()
-                        TeleportConfig.TargetPlayer = player
-                        TeleportConfig.SelectedPlayerName = player.Name
-                        selectedPlayerLabel.Text = "Selected Player: " .. player.Name
-                        
-                        -- Обновляем цвет выбранного игрока
-                        for _, child in pairs(functionsContainer:GetChildren()) do
-                            if child:IsA("TextButton") and child.Text == player.Name then
-                                child.BackgroundColor3 = Color3.fromRGB(0,255,0)
-                            elseif child:IsA("TextButton") and child.Text ~= "START TELEPORT" and child.Text ~= "STOP TELEPORT" then
-                                child.BackgroundColor3 = Color3.fromRGB(40,40,40)
-                            end
-                        end
-                    end)
-                end
-            end
-        end
-        
-        createPlayerList()
-        
         local selectedPlayerLabel = Instance.new("TextLabel", functionsContainer)
         selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
         selectedPlayerLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -4083,6 +4034,55 @@ function showContent(tabName)
             end
         end)
         
+        -- Список игроков для телепорта (перемещаем ниже кнопок)
+        local playerListLabel = Instance.new("TextLabel", functionsContainer)
+        playerListLabel.Size = UDim2.new(1, -10, 0, 20)
+        playerListLabel.Position = UDim2.new(0, 5, 0, currentY)
+        playerListLabel.Text = "Select Player for Teleport:"
+        playerListLabel.Font = Enum.Font.GothamBold
+        playerListLabel.TextSize = 12
+        playerListLabel.TextColor3 = Color3.new(1,1,1)
+        playerListLabel.BackgroundTransparency = 1
+        playerListLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
+        
+        -- Создаем список игроков
+        local function createPlayerList()
+            local allPlayers = Players:GetPlayers()
+            for _, player in ipairs(allPlayers) do
+                if player ~= Players.LocalPlayer then
+                    local playerBtn = Instance.new("TextButton", functionsContainer)
+                    playerBtn.Size = UDim2.new(1, -10, 0, 24)
+                    playerBtn.Position = UDim2.new(0, 5, 0, currentY)
+                    playerBtn.Text = player.Name
+                    playerBtn.Font = Enum.Font.Gotham
+                    playerBtn.TextSize = 12
+                    playerBtn.TextColor3 = Color3.new(1,1,1)
+                    playerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+                    playerBtn.AutoButtonColor = false
+                    Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
+                    currentY = currentY + 24 + padding
+                    
+                    playerBtn.MouseButton1Click:Connect(function()
+                        TeleportConfig.TargetPlayer = player
+                        TeleportConfig.SelectedPlayerName = player.Name
+                        selectedPlayerLabel.Text = "Selected Player: " .. player.Name
+                        
+                        -- Обновляем цвет выбранного игрока
+                        for _, child in pairs(functionsContainer:GetChildren()) do
+                            if child:IsA("TextButton") and child.Text == player.Name then
+                                child.BackgroundColor3 = Color3.fromRGB(0,255,0)
+                            elseif child:IsA("TextButton") and child.Text ~= "START TELEPORT" and child.Text ~= "STOP TELEPORT" and child.Text ~= player.Name then
+                                child.BackgroundColor3 = Color3.fromRGB(40,40,40)
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+        
+        createPlayerList()
+        
     elseif tabName == "YBA Hacks" then
         contentTitle.Text = "YBA HACKS"
         
@@ -4107,7 +4107,25 @@ function showContent(tabName)
             end
         end)
         
-        -- Anti Time Stop (перемещаем сюда)
+        -- Underground Flight
+        local undergroundFlightToggleBtn = createToggle("Underground Flight", isUndergroundControlEnabled, function(v)
+            if v then
+                if startUndergroundControl then
+                    startUndergroundControl()
+                end
+            else
+                if stopUndergroundControl then
+                    stopUndergroundControl()
+                end
+            end
+        end)
+        
+        -- Ползунок скорости для YBA
+        createSlider("YBA Speed", 0.1, 10, YBAConfig.StandControlSpeed or 1.0, function(v)
+            YBAConfig.StandControlSpeed = v
+        end)
+        
+        -- Anti Time Stop (кнопка с таймером)
         local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
         antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
         antiTimeStopLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -4119,13 +4137,33 @@ function showContent(tabName)
         antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
-        local antiTimeStopToggleBtn = createToggle("Anti Time Stop", false, function(v)
+        local antiTimeStopBtn = Instance.new("TextButton", functionsContainer)
+        antiTimeStopBtn.Size = UDim2.new(1, -10, 0, 28)
+        antiTimeStopBtn.Position = UDim2.new(0, 5, 0, currentY)
+        antiTimeStopBtn.Text = "ANTI TIME STOP"
+        antiTimeStopBtn.Font = Enum.Font.GothamBold
+        antiTimeStopBtn.TextSize = 14
+        antiTimeStopBtn.TextColor3 = Color3.new(1,1,1)
+        antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+        antiTimeStopBtn.AutoButtonColor = false
+        Instance.new("UICorner", antiTimeStopBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        antiTimeStopBtn.MouseButton1Click:Connect(function()
             if not isAntiTimeStopEnabled then
                 AntiTimeStopConfig.Enabled = true
                 startAntiTimeStop()
-            else
-                AntiTimeStopConfig.Enabled = false
-                stopAntiTimeStop()
+                antiTimeStopBtn.Text = "ANTI TIME STOP ACTIVE"
+                antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(0,255,0)
+                
+                spawn(function()
+                    task.wait(0.3)
+                    
+                    AntiTimeStopConfig.Enabled = false
+                    stopAntiTimeStop()
+                    antiTimeStopBtn.Text = "ANTI TIME STOP"
+                    antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+                end)
             end
         end)
         
