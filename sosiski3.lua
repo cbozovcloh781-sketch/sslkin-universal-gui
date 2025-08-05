@@ -331,7 +331,7 @@ for i, tab in ipairs(tabs) do
     container.AutomaticSize = Enum.AutomaticSize.Y
 
     local layout = Instance.new("UIListLayout", container)
-    layout.Padding = UDim2.new(0, 8)
+    layout.Padding = UDim.new(0, 8)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
 
     -- Tab switching
