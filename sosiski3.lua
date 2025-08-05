@@ -105,39 +105,154 @@ if not TeleportConfig then
     }
 end
 
--- Try to get functions from main script, fallback to placeholders if not available
+-- Enhanced function connection system
 local function getFunction(name, fallback)
-    if _G[name] then
+    -- Try multiple ways to find the function
+    if _G[name] and type(_G[name]) == "function" then
+        print("Found function " .. name .. " in _G")
         return _G[name]
-    elseif getfenv(1)[name] then
+    elseif getfenv(1)[name] and type(getfenv(1)[name]) == "function" then
+        print("Found function " .. name .. " in getfenv(1)")
         return getfenv(1)[name]
+    elseif getfenv(2)[name] and type(getfenv(2)[name]) == "function" then
+        print("Found function " .. name .. " in getfenv(2)")
+        return getfenv(2)[name]
     else
+        print("Function " .. name .. " not found, using fallback")
         return fallback
     end
 end
 
--- Get real functions or use placeholders
-local startFly = getFunction("startFly", function() print("Fly started - function not found") end)
-local stopFly = getFunction("stopFly", function() print("Fly stopped - function not found") end)
-local startNoClip = getFunction("startNoClip", function() print("NoClip started - function not found") end)
-local stopNoClip = getFunction("stopNoClip", function() print("NoClip stopped - function not found") end)
-local startSpeedHack = getFunction("startSpeedHack", function() print("SpeedHack started - function not found") end)
-local stopSpeedHack = getFunction("stopSpeedHack", function() print("SpeedHack stopped - function not found") end)
-local startLongJump = getFunction("startLongJump", function() print("LongJump started - function not found") end)
-local stopLongJump = getFunction("stopLongJump", function() print("LongJump stopped - function not found") end)
-local startInfiniteJump = getFunction("startInfiniteJump", function() print("InfiniteJump started - function not found") end)
-local stopInfiniteJump = getFunction("stopInfiniteJump", function() print("InfiniteJump stopped - function not found") end)
-local startYBA = getFunction("startYBA", function() print("YBA started - function not found") end)
-local stopYBA = getFunction("stopYBA", function() print("YBA stopped - function not found") end)
-local startUndergroundControl = getFunction("startUndergroundControl", function() print("UndergroundControl started - function not found") end)
-local stopUndergroundControl = getFunction("stopUndergroundControl", function() print("UndergroundControl stopped - function not found") end)
-local startItemESP = getFunction("startItemESP", function() print("ItemESP started - function not found") end)
-local stopItemESP = getFunction("stopItemESP", function() print("ItemESP stopped - function not found") end)
-local startTeleport = getFunction("startTeleport", function() print("Teleport started - function not found") end)
-local stopTeleport = getFunction("stopTeleport", function() print("Teleport stopped - function not found") end)
+-- Get real functions or use placeholders with better error handling
+local startFly = getFunction("startFly", function() 
+    print("Fly started - function not found") 
+    if FlyConfig then FlyConfig.Enabled = true end
+end)
+local stopFly = getFunction("stopFly", function() 
+    print("Fly stopped - function not found") 
+    if FlyConfig then FlyConfig.Enabled = false end
+end)
+local startNoClip = getFunction("startNoClip", function() 
+    print("NoClip started - function not found") 
+    if NoClipConfig then NoClipConfig.Enabled = true end
+end)
+local stopNoClip = getFunction("stopNoClip", function() 
+    print("NoClip stopped - function not found") 
+    if NoClipConfig then NoClipConfig.Enabled = false end
+end)
+local startSpeedHack = getFunction("startSpeedHack", function() 
+    print("SpeedHack started - function not found") 
+    if SpeedHackConfig then SpeedHackConfig.Enabled = true end
+end)
+local stopSpeedHack = getFunction("stopSpeedHack", function() 
+    print("SpeedHack stopped - function not found") 
+    if SpeedHackConfig then SpeedHackConfig.Enabled = false end
+end)
+local startLongJump = getFunction("startLongJump", function() 
+    print("LongJump started - function not found") 
+    if LongJumpConfig then LongJumpConfig.Enabled = true end
+end)
+local stopLongJump = getFunction("stopLongJump", function() 
+    print("LongJump stopped - function not found") 
+    if LongJumpConfig then LongJumpConfig.Enabled = false end
+end)
+local startInfiniteJump = getFunction("startInfiniteJump", function() 
+    print("InfiniteJump started - function not found") 
+    if InfiniteJumpConfig then InfiniteJumpConfig.Enabled = true end
+end)
+local stopInfiniteJump = getFunction("stopInfiniteJump", function() 
+    print("InfiniteJump stopped - function not found") 
+    if InfiniteJumpConfig then InfiniteJumpConfig.Enabled = false end
+end)
+local startYBA = getFunction("startYBA", function() 
+    print("YBA started - function not found") 
+    if YBAConfig then YBAConfig.Enabled = true end
+end)
+local stopYBA = getFunction("stopYBA", function() 
+    print("YBA stopped - function not found") 
+    if YBAConfig then YBAConfig.Enabled = false end
+end)
+local startUndergroundControl = getFunction("startUndergroundControl", function() 
+    print("UndergroundControl started - function not found") 
+    if YBAConfig and YBAConfig.UndergroundControl then 
+        YBAConfig.UndergroundControl.Enabled = true 
+    end
+end)
+local stopUndergroundControl = getFunction("stopUndergroundControl", function() 
+    print("UndergroundControl stopped - function not found") 
+    if YBAConfig and YBAConfig.UndergroundControl then 
+        YBAConfig.UndergroundControl.Enabled = false 
+    end
+end)
+local startItemESP = getFunction("startItemESP", function() 
+    print("ItemESP started - function not found") 
+    if YBAConfig and YBAConfig.ItemESP then 
+        YBAConfig.ItemESP.Enabled = true 
+    end
+end)
+local stopItemESP = getFunction("stopItemESP", function() 
+    print("ItemESP stopped - function not found") 
+    if YBAConfig and YBAConfig.ItemESP then 
+        YBAConfig.ItemESP.Enabled = false 
+    end
+end)
+local startTeleport = getFunction("startTeleport", function() 
+    print("Teleport started - function not found") 
+    if TeleportConfig then TeleportConfig.Enabled = true end
+end)
+local stopTeleport = getFunction("stopTeleport", function() 
+    print("Teleport stopped - function not found") 
+    if TeleportConfig then TeleportConfig.Enabled = false end
+end)
 
--- Try to get global variables
+-- Try to get global variables and configurations from main script
 local isNoClipping = _G.isNoClipping or false
+
+-- Try to get configuration tables from main script
+if _G.Config then
+    print("Found Config in _G, using it")
+    Config = _G.Config
+end
+
+if _G.FlyConfig then
+    print("Found FlyConfig in _G, using it")
+    FlyConfig = _G.FlyConfig
+end
+
+if _G.NoClipConfig then
+    print("Found NoClipConfig in _G, using it")
+    NoClipConfig = _G.NoClipConfig
+end
+
+if _G.SpeedHackConfig then
+    print("Found SpeedHackConfig in _G, using it")
+    SpeedHackConfig = _G.SpeedHackConfig
+end
+
+if _G.LongJumpConfig then
+    print("Found LongJumpConfig in _G, using it")
+    LongJumpConfig = _G.LongJumpConfig
+end
+
+if _G.InfiniteJumpConfig then
+    print("Found InfiniteJumpConfig in _G, using it")
+    InfiniteJumpConfig = _G.InfiniteJumpConfig
+end
+
+if _G.YBAConfig then
+    print("Found YBAConfig in _G, using it")
+    YBAConfig = _G.YBAConfig
+end
+
+if _G.TeleportConfig then
+    print("Found TeleportConfig in _G, using it")
+    TeleportConfig = _G.TeleportConfig
+end
+
+if _G.AntiTimeStopConfig then
+    print("Found AntiTimeStopConfig in _G, using it")
+    AntiTimeStopConfig = _G.AntiTimeStopConfig
+end
 
 -- Main frame
 local mainFrame = Instance.new("Frame", FrostwareGui)
@@ -173,7 +288,7 @@ setMenuVisible(true)
 -- Кнопка скрытия (крестик)
 local closeBtn = Instance.new("TextButton", mainFrame)
 closeBtn.Size = UDim2.new(0, 32, 0, 32)
-closeBtn.Position = UDim2.new(1, -40, 0, 4)
+closeBtn.Position = UDim2.new(1, -40, 0, 2)
 closeBtn.Text = "×"
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 22
@@ -454,12 +569,12 @@ for i, tab in ipairs(tabs) do
     scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
     scrollFrame.ClipsDescendants = true
 
-    -- Container
-    local container = Instance.new("Frame", scrollFrame)
-    container.Size = UDim2.new(1, -20, 0, 0)
-    container.Position = UDim2.new(0, 10, 0, 20)
-    container.BackgroundTransparency = 1
-    container.AutomaticSize = Enum.AutomaticSize.Y
+            -- Container
+        local container = Instance.new("Frame", scrollFrame)
+        container.Size = UDim2.new(1, -20, 0, 0)
+        container.Position = UDim2.new(0, 10, 0, 30)
+        container.BackgroundTransparency = 1
+        container.AutomaticSize = Enum.AutomaticSize.Y
 
     local layout = Instance.new("UIListLayout", container)
     layout.Padding = UDim.new(0, 8)
