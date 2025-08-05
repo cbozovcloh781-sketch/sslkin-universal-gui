@@ -155,7 +155,7 @@ setMenuVisible(true)
 -- Кнопка скрытия (крестик)
 local closeBtn = Instance.new("TextButton", mainFrame)
 closeBtn.Size = UDim2.new(0, 32, 0, 32)
-closeBtn.Position = UDim2.new(1, -40, 0, 8)
+closeBtn.Position = UDim2.new(1, -40, 0, 4)
 closeBtn.Text = "×"
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 22
@@ -254,13 +254,8 @@ local function createToggle(parent, label, state, callback)
         callback(on)
     end
 
-    toggle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            setState(not state)
-        end
-    end)
-    
-    knob.InputBegan:Connect(function(input)
+    -- Make the entire row clickable
+    row.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             setState(not state)
         end
@@ -444,7 +439,7 @@ for i, tab in ipairs(tabs) do
     -- Container
     local container = Instance.new("Frame", scrollFrame)
     container.Size = UDim2.new(1, -20, 0, 0)
-    container.Position = UDim2.new(0, 10, 0, 0)
+    container.Position = UDim2.new(0, 10, 0, 10)
     container.BackgroundTransparency = 1
     container.AutomaticSize = Enum.AutomaticSize.Y
 
