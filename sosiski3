@@ -1477,14 +1477,7 @@ local function startTeleport()
         end
     end)
     
-    if startTeleportBtn then
-        startTeleportBtn.Text = "TELEPORT ACTIVE"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-    end
-    if stopTeleportBtn then
-        stopTeleportBtn.Text = "STOP TELEPORT"
-        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    end
+    -- UI updates are now handled by the toggle system
     
     createStealthTeleport()
     
@@ -1643,14 +1636,7 @@ local function stopTeleport()
         humanoid.JumpPower = 50
     end
     
-    if startTeleportBtn then
-        startTeleportBtn.Text = "START TELEPORT"
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    end
-    if stopTeleportBtn then
-        stopTeleportBtn.Text = "STOP TELEPORT"
-        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-    end
+    -- UI updates are now handled by the toggle system
 end
 
 local function findStands()
@@ -3853,33 +3839,15 @@ function showContent(tabName)
         noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
-        local forceNoClipBtn = Instance.new("TextButton", functionsContainer)
-        forceNoClipBtn.Size = UDim2.new(1, -10, 0, 28)
-        forceNoClipBtn.Position = UDim2.new(0, 5, 0, currentY)
-        forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-        forceNoClipBtn.Font = Enum.Font.GothamBold
-        forceNoClipBtn.TextSize = 14
-        forceNoClipBtn.TextColor3 = Color3.new(1,1,1)
-        forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-        forceNoClipBtn.AutoButtonColor = false
-        Instance.new("UICorner", forceNoClipBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        forceNoClipBtn.MouseButton1Click:Connect(function()
-            if isNoClipping then
-                stopNoClip()
-                forceNoClipBtn.Text = "NOCLIP DISABLED"
-                forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-                task.wait(1)
-                forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-                forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
-            else
+        local forceNoClipToggle = createToggle("Force NoClip", isNoClipping, function(v)
+            if v then
                 startNoClip()
-                forceNoClipBtn.Text = "NOCLIP ENABLED"
-                forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,255,100)
-                task.wait(1)
-                forceNoClipBtn.Text = "FORCE NOCLIP TOGGLE"
-                forceNoClipBtn.BackgroundColor3 = Color3.fromRGB(100,100,255)
+                noClipStatusLabel.Text = "NoClip Status: ON"
+                noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
+            else
+                stopNoClip()
+                noClipStatusLabel.Text = "NoClip Status: OFF"
+                noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
             end
         end)
         
@@ -3973,64 +3941,17 @@ function showContent(tabName)
         selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 24 + padding
         
-        local startTeleportBtn = Instance.new("TextButton", functionsContainer)
-        startTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
-        startTeleportBtn.Position = UDim2.new(0, 5, 0, currentY)
-        startTeleportBtn.Text = "START TELEPORT"
-        startTeleportBtn.Font = Enum.Font.GothamBold
-        startTeleportBtn.TextSize = 14
-        startTeleportBtn.TextColor3 = Color3.new(1,1,1)
-        startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-        startTeleportBtn.AutoButtonColor = false
-        Instance.new("UICorner", startTeleportBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        startTeleportBtn.MouseButton1Click:Connect(function()
+        local teleportToggle = createToggle("Teleport to Player", TeleportConfig.Enabled, function(v)
             if not TeleportConfig.TargetPlayer then
-                startTeleportBtn.Text = "Select player first!"
-                task.wait(2)
-                startTeleportBtn.Text = "START TELEPORT"
+                print("Select player first!")
                 return
             end
             
-            if TeleportConfig.Enabled then
-                stopTeleport()
-                TeleportConfig.Enabled = false
-                startTeleportBtn.Text = "START TELEPORT"
-                startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-            else
+            TeleportConfig.Enabled = v
+            if v then
                 startTeleport()
-                TeleportConfig.Enabled = true
-                startTeleportBtn.Text = "STOP TELEPORT"
-                startTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-            end
-        end)
-        
-        local stopTeleportBtn = Instance.new("TextButton", functionsContainer)
-        stopTeleportBtn.Size = UDim2.new(1, -10, 0, 28)
-        stopTeleportBtn.Position = UDim2.new(0, 5, 0, currentY)
-        stopTeleportBtn.Text = "STOP TELEPORT"
-        stopTeleportBtn.Font = Enum.Font.GothamBold
-        stopTeleportBtn.TextSize = 14
-        stopTeleportBtn.TextColor3 = Color3.new(1,1,1)
-        stopTeleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-        stopTeleportBtn.AutoButtonColor = false
-        Instance.new("UICorner", stopTeleportBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        stopTeleportBtn.MouseButton1Click:Connect(function()
-            if TeleportConfig.Enabled then
-                stopTeleport()
-                TeleportConfig.Enabled = false
-                startTeleportBtn.Text = "START TELEPORT"
-                startTeleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-                stopTeleportBtn.Text = "Teleport stopped"
-                task.wait(2)
-                stopTeleportBtn.Text = "STOP TELEPORT"
             else
-                stopTeleportBtn.Text = "Teleport not active"
-                task.wait(2)
-                stopTeleportBtn.Text = "STOP TELEPORT"
+                stopTeleport()
             end
         end)
         
@@ -4137,33 +4058,12 @@ function showContent(tabName)
         antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
-        local antiTimeStopBtn = Instance.new("TextButton", functionsContainer)
-        antiTimeStopBtn.Size = UDim2.new(1, -10, 0, 28)
-        antiTimeStopBtn.Position = UDim2.new(0, 5, 0, currentY)
-        antiTimeStopBtn.Text = "ANTI TIME STOP"
-        antiTimeStopBtn.Font = Enum.Font.GothamBold
-        antiTimeStopBtn.TextSize = 14
-        antiTimeStopBtn.TextColor3 = Color3.new(1,1,1)
-        antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-        antiTimeStopBtn.AutoButtonColor = false
-        Instance.new("UICorner", antiTimeStopBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        antiTimeStopBtn.MouseButton1Click:Connect(function()
-            if not isAntiTimeStopEnabled then
-                AntiTimeStopConfig.Enabled = true
+        local antiTimeStopToggle = createToggle("Anti Time Stop", AntiTimeStopConfig.Enabled, function(v)
+            AntiTimeStopConfig.Enabled = v
+            if v then
                 startAntiTimeStop()
-                antiTimeStopBtn.Text = "ANTI TIME STOP ACTIVE"
-                antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(0,255,0)
-                
-                spawn(function()
-                    task.wait(0.3)
-                    
-                    AntiTimeStopConfig.Enabled = false
-                    stopAntiTimeStop()
-                    antiTimeStopBtn.Text = "ANTI TIME STOP"
-                    antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-                end)
+            else
+                stopAntiTimeStop()
             end
         end)
         
