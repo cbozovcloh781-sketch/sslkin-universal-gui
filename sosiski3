@@ -107,11 +107,12 @@ end
 
 -- Direct function connection to sosiski script
 local function callFunction(name, ...)
+    local args = {...}
     local success, result = pcall(function()
         if _G[name] and type(_G[name]) == "function" then
-            return _G[name](...)
+            return _G[name](table.unpack(args))
         elseif getfenv(1)[name] and type(getfenv(1)[name]) == "function" then
-            return getfenv(1)[name](...)
+            return getfenv(1)[name](table.unpack(args))
         else
             print("Function " .. name .. " not found in global environment")
             return false
