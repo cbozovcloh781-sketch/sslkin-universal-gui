@@ -3699,7 +3699,7 @@ keyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
     TeleportConfig.ToggleKey = newKey
 end)
 
-keyBindButton("YBA Stand Range", YBAConfig.ToggleKey, function(newKey)
+keyBindButton("Stand Range Hack", YBAConfig.ToggleKey, function(newKey)
     YBAConfig.ToggleKey = newKey
 end)
 
@@ -3750,7 +3750,7 @@ local function updateStatusDisplay()
         guiCallbacks.teleport.Text = "Selected Player: " .. (TeleportConfig.SelectedPlayerName or "None")
     end
     if guiCallbacks.yba then
-        guiCallbacks.yba.Text = "YBA Stand Range: " .. (YBAConfig.Enabled and "ON" or "OFF")
+        guiCallbacks.yba.Text = "Stand Range Hack: " .. (YBAConfig.Enabled and "ON" or "OFF")
     end
     if guiCallbacks.itemESP then
         guiCallbacks.itemESP.Text = "Item ESP: " .. (YBAConfig.ItemESP.Enabled and "ON" or "OFF")
@@ -4409,7 +4409,7 @@ local function updatePlayerList()
                not child.Text:find("START TELEPORT") and 
                not child.Text:find("STOP TELEPORT") and 
                not child.Text:find("Hotkey:") and 
-               not child.Text:find("YBA Stand Range") and 
+               not child.Text:find("Stand Range Hack") and 
                not child.Text:find("Item ESP") and 
                child.Size.Y.Offset == 30 then
                 child:Destroy()
