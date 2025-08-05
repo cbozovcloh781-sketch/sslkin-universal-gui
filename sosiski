@@ -3473,8 +3473,39 @@ local closeCorner = Instance.new("UICorner", closeButton)
 closeCorner.CornerRadius = UDim.new(0, 6)
 
 closeButton.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
+    mainFrame.Visible = false
+    -- Создаем кнопку для повторного открытия
+    createReopenButton()
 end)
+
+-- Функция для создания кнопки повторного открытия
+function createReopenButton()
+    -- Удаляем старую кнопку если она существует
+    local existingButton = screenGui:FindFirstChild("ReopenButton")
+    if existingButton then
+        existingButton:Destroy()
+    end
+    
+    local reopenButton = Instance.new("TextButton", screenGui)
+    reopenButton.Name = "ReopenButton"
+    reopenButton.Size = UDim2.new(0, 50, 0, 50)
+    reopenButton.Position = UDim2.new(1, -70, 0, 20)
+    reopenButton.Text = "🔧"
+    reopenButton.Font = Enum.Font.GothamBold
+    reopenButton.TextSize = 20
+    reopenButton.TextColor3 = Color3.new(1, 1, 1)
+    reopenButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    reopenButton.BorderSizePixel = 0
+    reopenButton.AutoButtonColor = false
+    
+    local reopenCorner = Instance.new("UICorner", reopenButton)
+    reopenCorner.CornerRadius = UDim.new(0.5, 0)
+    
+    reopenButton.MouseButton1Click:Connect(function()
+        mainFrame.Visible = true
+        reopenButton:Destroy()
+    end)
+end
 
 -- Заголовок контента
 local contentTitle = Instance.new("TextLabel", rightPanel)
@@ -3488,15 +3519,26 @@ contentTitle.TextColor3 = Color3.new(1, 1, 1)
 contentTitle.BackgroundTransparency = 1
 contentTitle.TextXAlignment = Enum.TextXAlignment.Center
 
+-- Контейнер для кнопок функций с прокруткой
+local scrollFrame = Instance.new("ScrollingFrame", rightPanel)
+scrollFrame.Name = "ScrollFrame"
+scrollFrame.Size = UDim2.new(1, -20, 1, -100)
+scrollFrame.Position = UDim2.new(0, 10, 0, 60)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 6
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
 -- Контейнер для кнопок функций
-local functionsContainer = Instance.new("Frame", rightPanel)
+local functionsContainer = Instance.new("Frame", scrollFrame)
 functionsContainer.Name = "FunctionsContainer"
-functionsContainer.Size = UDim2.new(1, -20, 1, -80)
-functionsContainer.Position = UDim2.new(0, 10, 0, 60)
+functionsContainer.Size = UDim2.new(1, 0, 0, 0)
+functionsContainer.Position = UDim2.new(0, 0, 0, 0)
 functionsContainer.BackgroundTransparency = 1
+functionsContainer.AutomaticSize = Enum.AutomaticSize.Y
 
 local functionsLayout = Instance.new("UIListLayout", functionsContainer)
-functionsLayout.Padding = UDim.new(0, 10)
+functionsLayout.Padding = UDim.new(0, 8)
 functionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 -- Функции для создания элементов интерфейса
@@ -4125,5 +4167,15 @@ end)
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp and input.KeyCode == Enum.KeyCode.Insert then
         mainFrame.Visible = not mainFrame.Visible
+        if mainFrame.Visible then
+            -- Удаляем кнопку повторного открытия если меню открыто
+            local existingButton = screenGui:FindFirstChild("ReopenButton")
+            if existingButton then
+                existingButton:Destroy()
+            end
+        else
+            -- Создаем кнопку повторного открытия если меню закрыто
+            createReopenButton()
+        end
     end
 end)
