@@ -4445,3 +4445,51 @@ stopReturnBtn.MouseButton1Click:Connect(function()
     end
     TeleportConfig.OriginalPosition = nil
 end)
+
+-- Export functions to global scope for menu compatibility
+_G.startFly = startFly
+_G.stopFly = stopFly
+_G.startNoClip = startNoClip
+_G.stopNoClip = stopNoClip
+_G.startSpeedHack = startSpeedHack
+_G.stopSpeedHack = stopSpeedHack
+_G.startLongJump = startLongJump
+_G.stopLongJump = stopLongJump
+_G.startInfiniteJump = startInfiniteJump
+_G.stopInfiniteJump = stopInfiniteJump
+_G.startYBA = startYBA
+_G.stopYBA = stopYBA
+_G.startUndergroundControl = startUndergroundControl
+_G.stopUndergroundControl = stopUndergroundControl
+_G.startItemESP = startItemESP
+_G.stopItemESP = stopItemESP
+_G.startTeleport = startTeleport
+_G.stopTeleport = stopTeleport
+_G.startAntiTimeStop = startAntiTimeStop
+_G.stopAntiTimeStop = stopAntiTimeStop
+
+-- Export configurations to global scope
+_G.Config = Config
+_G.FlyConfig = FlyConfig
+_G.NoClipConfig = NoClipConfig
+_G.SpeedHackConfig = SpeedHackConfig
+_G.LongJumpConfig = LongJumpConfig
+_G.InfiniteJumpConfig = InfiniteJumpConfig
+_G.YBAConfig = YBAConfig
+_G.TeleportConfig = TeleportConfig
+_G.AntiTimeStopConfig = AntiTimeStopConfig
+
+-- Export state variables
+_G.isNoClipping = isNoClipping
+_G.isFlying = isFlying
+_G.isSpeedHacking = isSpeedHacking
+_G.isLongJumping = isLongJumping
+_G.isInfiniteJumping = isInfiniteJumping
+_G.isYBAEnabled = isYBAEnabled
+_G.isUndergroundControlEnabled = isUndergroundControlEnabled
+_G.isItemESPEnabled = isItemESPEnabled
+_G.isTeleporting = isTeleporting
+_G.isAntiTimeStopEnabled = isAntiTimeStopEnabled
+
+print("=== Sosiski Script Loaded Successfully ===")
+print("All functions exported to global scope for menu compatibility")
