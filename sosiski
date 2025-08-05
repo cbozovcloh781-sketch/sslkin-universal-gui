@@ -3537,6 +3537,7 @@ functionsContainer.Position = UDim2.new(0, 0, 0, 0)
 functionsContainer.BackgroundTransparency = 1
 functionsContainer.AutomaticSize = Enum.AutomaticSize.Y
 
+-- Используем UIListLayout для правильного расположения элементов
 local functionsLayout = Instance.new("UIListLayout", functionsContainer)
 functionsLayout.Padding = UDim.new(0, 8)
 functionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
