@@ -3961,6 +3961,56 @@ function showContent(tabName)
         
         -- Teleport Settings
         createSectionHeader("🟩 Teleport Settings")
+        
+        -- Список игроков для телепорта
+        local playerListLabel = Instance.new("TextLabel", functionsContainer)
+        playerListLabel.Size = UDim2.new(1, -10, 0, 20)
+        playerListLabel.Position = UDim2.new(0, 5, 0, currentY)
+        playerListLabel.Text = "Select Player for Teleport:"
+        playerListLabel.Font = Enum.Font.GothamBold
+        playerListLabel.TextSize = 12
+        playerListLabel.TextColor3 = Color3.new(1,1,1)
+        playerListLabel.BackgroundTransparency = 1
+        playerListLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
+        
+        -- Создаем список игроков
+        local function createPlayerList()
+            local allPlayers = Players:GetPlayers()
+            for _, player in ipairs(allPlayers) do
+                if player ~= Players.LocalPlayer then
+                    local playerBtn = Instance.new("TextButton", functionsContainer)
+                    playerBtn.Size = UDim2.new(1, -10, 0, 24)
+                    playerBtn.Position = UDim2.new(0, 5, 0, currentY)
+                    playerBtn.Text = player.Name
+                    playerBtn.Font = Enum.Font.Gotham
+                    playerBtn.TextSize = 12
+                    playerBtn.TextColor3 = Color3.new(1,1,1)
+                    playerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+                    playerBtn.AutoButtonColor = false
+                    Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
+                    currentY = currentY + 24 + padding
+                    
+                    playerBtn.MouseButton1Click:Connect(function()
+                        TeleportConfig.TargetPlayer = player
+                        TeleportConfig.SelectedPlayerName = player.Name
+                        selectedPlayerLabel.Text = "Selected Player: " .. player.Name
+                        
+                        -- Обновляем цвет выбранного игрока
+                        for _, child in pairs(functionsContainer:GetChildren()) do
+                            if child:IsA("TextButton") and child.Text == player.Name then
+                                child.BackgroundColor3 = Color3.fromRGB(0,255,0)
+                            elseif child:IsA("TextButton") and child.Text ~= "START TELEPORT" and child.Text ~= "STOP TELEPORT" then
+                                child.BackgroundColor3 = Color3.fromRGB(40,40,40)
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+        
+        createPlayerList()
+        
         local selectedPlayerLabel = Instance.new("TextLabel", functionsContainer)
         selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
         selectedPlayerLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -4036,7 +4086,7 @@ function showContent(tabName)
     elseif tabName == "YBA Hacks" then
         contentTitle.Text = "YBA HACKS"
         
-        -- YBA Stand Range
+        -- YBA Stand Range (используем правильную функцию)
         local standRangeLabel = Instance.new("TextLabel", functionsContainer)
         standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
         standRangeLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -4054,6 +4104,28 @@ function showContent(tabName)
                 startYBA() 
             else 
                 stopYBA() 
+            end
+        end)
+        
+        -- Anti Time Stop (перемещаем сюда)
+        local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
+        antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
+        antiTimeStopLabel.Position = UDim2.new(0, 5, 0, currentY)
+        antiTimeStopLabel.Text = "anti time stop"
+        antiTimeStopLabel.Font = Enum.Font.Gotham
+        antiTimeStopLabel.TextSize = 12
+        antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        antiTimeStopLabel.BackgroundTransparency = 1
+        antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
+        
+        local antiTimeStopToggleBtn = createToggle("Anti Time Stop", false, function(v)
+            if not isAntiTimeStopEnabled then
+                AntiTimeStopConfig.Enabled = true
+                startAntiTimeStop()
+            else
+                AntiTimeStopConfig.Enabled = false
+                stopAntiTimeStop()
             end
         end)
         
@@ -4130,34 +4202,6 @@ function showContent(tabName)
         createItemToggle("DIO's Diary Page", YBAConfig.ItemESP.Items["DIO's Diary Page"])
         createItemToggle("Lucky Stone Mask", YBAConfig.ItemESP.Items["Lucky Stone Mask"])
         createItemToggle("Lucky Arrow", YBAConfig.ItemESP.Items["Lucky Arrow"])
-        
-        createDivider()
-        
-        -- Anti Time Stop
-        local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
-        antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
-        antiTimeStopLabel.Position = UDim2.new(0, 5, 0, currentY)
-        antiTimeStopLabel.Text = "anti time stop"
-        antiTimeStopLabel.Font = Enum.Font.Gotham
-        antiTimeStopLabel.TextSize = 12
-        antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        antiTimeStopLabel.BackgroundTransparency = 1
-        antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
-        currentY = currentY + 20 + padding
-        
-        local antiTimeStopToggleBtn = createToggle("Anti Time Stop (0.5s)", false, function(v)
-            if not isAntiTimeStopEnabled then
-                AntiTimeStopConfig.Enabled = true
-                startAntiTimeStop()
-                
-                spawn(function()
-                    task.wait(0.5)
-                    
-                    AntiTimeStopConfig.Enabled = false
-                    stopAntiTimeStop()
-                end)
-            end
-        end)
     end
     
     -- Обновляем размер контейнера
@@ -4166,46 +4210,6 @@ end
 
 -- Показываем контент по умолчанию
 showContent("Main")
-
--- Статус Speed Hack внизу
-local statusFrame = Instance.new("Frame", rightPanel)
-statusFrame.Name = "StatusFrame"
-statusFrame.Size = UDim2.new(1, -20, 0, 30)
-statusFrame.Position = UDim2.new(0, 10, 1, -35)
-statusFrame.BackgroundTransparency = 1
-
-local speedHackStatus = Instance.new("TextLabel", statusFrame)
-speedHackStatus.Name = "SpeedHackStatus"
-speedHackStatus.Size = UDim2.new(0, 200, 1, 0)
-speedHackStatus.Position = UDim2.new(0, 0, 0, 0)
-speedHackStatus.Text = "Speed Hack: 0"
-speedHackStatus.Font = Enum.Font.Gotham
-speedHackStatus.TextSize = 14
-speedHackStatus.TextColor3 = Color3.new(1, 1, 1)
-speedHackStatus.BackgroundTransparency = 1
-speedHackStatus.TextXAlignment = Enum.TextXAlignment.Left
-
--- Слайдер для Speed Hack
-local speedSlider = Instance.new("Frame", statusFrame)
-speedSlider.Name = "SpeedSlider"
-speedSlider.Size = UDim2.new(0, 20, 0, 20)
-speedSlider.Position = UDim2.new(0, 210, 0, 5)
-speedSlider.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-speedSlider.BorderSizePixel = 0
-
-local sliderCorner = Instance.new("UICorner", speedSlider)
-sliderCorner.CornerRadius = UDim.new(0.5, 0)
-
--- Обновление статуса Speed Hack
-RunService.Heartbeat:Connect(function()
-    if SpeedHackConfig.Enabled then
-        speedHackStatus.Text = "Speed Hack: " .. SpeedHackConfig.Speed
-        speedHackStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        speedHackStatus.Text = "Speed Hack: 0"
-        speedHackStatus.TextColor3 = Color3.new(1, 1, 1)
-    end
-end)
 
 -- Переключение меню по Insert
 UserInputService.InputBegan:Connect(function(input, gp)
