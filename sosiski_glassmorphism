@@ -1,0 +1,506 @@
+-- Glassmorphism GUI Design for Sosiski
+-- Modern semi-transparent glass effect with blur and elegant design
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+
+-- Glassmorphism GUI Design
+local screenGui = Instance.new("ScreenGui", CoreGui)
+screenGui.Name = "GlassmorphismGui"
+screenGui.ResetOnSpawn = false
+
+-- Main container with glassmorphism effect
+local mainContainer = Instance.new("Frame", screenGui)
+mainContainer.Name = "MainContainer"
+mainContainer.Position = UDim2.new(0, 20, 0.5, -250)
+mainContainer.Size = UDim2.new(0, 320, 0, 0)
+mainContainer.AutomaticSize = Enum.AutomaticSize.Y
+mainContainer.BackgroundTransparency = 0.3
+mainContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+mainContainer.BorderSizePixel = 0
+mainContainer.Active = true
+mainContainer.Draggable = true
+
+-- Glassmorphism effect with blur
+local glassEffect = Instance.new("Frame", mainContainer)
+glassEffect.Name = "GlassEffect"
+glassEffect.Size = UDim2.new(1, 0, 1, 0)
+glassEffect.Position = UDim2.new(0, 0, 0, 0)
+glassEffect.BackgroundTransparency = 0.1
+glassEffect.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+glassEffect.BorderSizePixel = 0
+
+-- Add corner radius for glassmorphism
+local glassCorner = Instance.new("UICorner", glassEffect)
+glassCorner.CornerRadius = UDim.new(0, 16)
+
+-- Add stroke for glassmorphism effect
+local glassStroke = Instance.new("UIStroke", glassEffect)
+glassStroke.Color = Color3.fromRGB(255, 255, 255)
+glassStroke.Transparency = 0.7
+glassStroke.Thickness = 1
+
+-- Title bar with glassmorphism
+local titleBar = Instance.new("Frame", mainContainer)
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 50)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundTransparency = 0.2
+titleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.BorderSizePixel = 0
+
+local titleCorner = Instance.new("UICorner", titleBar)
+titleCorner.CornerRadius = UDim.new(0, 16)
+
+-- Title text with modern font
+local titleText = Instance.new("TextLabel", titleBar)
+titleText.Name = "TitleText"
+titleText.Size = UDim2.new(1, -60, 1, 0)
+titleText.Position = UDim2.new(0, 20, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "GLASSMORPHISM GUI"
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 18
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Modern collapse button with glassmorphism
+local collapseBtn = Instance.new("TextButton", titleBar)
+collapseBtn.Name = "Collapse"
+collapseBtn.Size = UDim2.new(0, 40, 0, 40)
+collapseBtn.Position = UDim2.new(1, -50, 0.5, -20)
+collapseBtn.Text = "−"
+collapseBtn.Font = Enum.Font.GothamBold
+collapseBtn.TextSize = 24
+collapseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+collapseBtn.BackgroundTransparency = 0.3
+collapseBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+collapseBtn.BorderSizePixel = 0
+collapseBtn.AutoButtonColor = false
+
+local collapseCorner = Instance.new("UICorner", collapseBtn)
+collapseCorner.CornerRadius = UDim.new(0, 12)
+
+local collapseStroke = Instance.new("UIStroke", collapseBtn)
+collapseStroke.Color = Color3.fromRGB(255, 255, 255)
+collapseStroke.Transparency = 0.5
+collapseStroke.Thickness = 1
+
+-- Scrollable content area
+local scroll = Instance.new("ScrollingFrame", mainContainer)
+scroll.Position = UDim2.new(0, 0, 0, 50)
+scroll.Size = UDim2.new(1, 0, 1, -50)
+scroll.CanvasSize = UDim2.new(0, 0, 3, 0)
+scroll.ScrollBarThickness = 6
+scroll.BackgroundTransparency = 1
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scroll.ClipsDescendants = true
+
+-- Modern scrollbar styling
+local scrollBar = scroll:FindFirstChild("ScrollBar")
+if scrollBar then
+    scrollBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    scrollBar.BackgroundTransparency = 0.7
+end
+
+local innerContainer = Instance.new("Frame", scroll)
+innerContainer.Name = "InnerContainer"
+innerContainer.BackgroundTransparency = 1
+innerContainer.Size = UDim2.new(1, -20, 0, 0)
+innerContainer.Position = UDim2.new(0, 10, 0, 0)
+innerContainer.AutomaticSize = Enum.AutomaticSize.Y
+innerContainer.ClipsDescendants = false
+
+-- Function to toggle menu with smooth animations
+local function toggleMenu()
+    local collapsed = mainContainer.Size.Y.Offset < 100
+    local size = collapsed and UDim2.new(0, 320, 0, 50) or UDim2.new(0, 320, 0, 600)
+    local text = collapsed and "+" or "−"
+    local color = collapsed and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 255, 255)
+
+    -- Smooth size animation
+    TweenService:Create(mainContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Size = size
+    }):Play()
+
+    -- Smooth color animation for collapse button
+    TweenService:Create(collapseBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        BackgroundColor3 = color
+    }):Play()
+
+    collapseBtn.Text = text
+    scroll.Visible = not collapsed
+end
+
+collapseBtn.MouseButton1Click:Connect(toggleMenu)
+
+-- Toggle menu with Insert key
+UserInputService.InputBegan:Connect(function(input, gp)
+    if not gp and input.KeyCode == Enum.KeyCode.Insert then
+        toggleMenu()
+    end
+end)
+
+local UIListLayout = Instance.new("UIListLayout", innerContainer)
+UIListLayout.Padding = UDim.new(0, 12)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Modern section header with glassmorphism
+local function sectionHeader(text)
+    local spacer = Instance.new("Frame", innerContainer)
+    spacer.Size = UDim2.new(1, 0, 0, 15)
+    spacer.BackgroundTransparency = 1
+    
+    local headerContainer = Instance.new("Frame", innerContainer)
+    headerContainer.Size = UDim2.new(1, 0, 0, 40)
+    headerContainer.BackgroundTransparency = 0.2
+    headerContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    headerContainer.BorderSizePixel = 0
+    
+    local headerCorner = Instance.new("UICorner", headerContainer)
+    headerCorner.CornerRadius = UDim.new(0, 12)
+    
+    local headerStroke = Instance.new("UIStroke", headerContainer)
+    headerStroke.Color = Color3.fromRGB(255, 255, 255)
+    headerStroke.Transparency = 0.6
+    headerStroke.Thickness = 1
+    
+    local lbl = Instance.new("TextLabel", headerContainer)
+    lbl.Text = text
+    lbl.Size = UDim2.new(1, -20, 1, 0)
+    lbl.Position = UDim2.new(0, 15, 0, 0)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 16
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.BackgroundTransparency = 1
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+-- Modern toggle button with glassmorphism
+local function toggle(label, default, callback)
+    local btn = Instance.new("TextButton", innerContainer)
+    btn.Size = UDim2.new(1, 0, 0, 45)
+    btn.Text = label .. ": " .. (default and "ON" or "OFF")
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundTransparency = 0.2
+    btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    btn.AutoButtonColor = false
+    btn.BorderSizePixel = 0
+    
+    local btnCorner = Instance.new("UICorner", btn)
+    btnCorner.CornerRadius = UDim.new(0, 12)
+    
+    local btnStroke = Instance.new("UIStroke", btn)
+    btnStroke.Color = Color3.fromRGB(255, 255, 255)
+    btnStroke.Transparency = 0.6
+    btnStroke.Thickness = 1
+
+    -- Hover effect
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {
+            BackgroundTransparency = 0.1
+        }):Play()
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {
+            BackgroundTransparency = 0.2
+        }):Play()
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        default = not default
+        btn.Text = label .. ": " .. (default and "ON" or "OFF")
+        callback(default)
+    end)
+    
+    return btn
+end
+
+-- Modern slider with glassmorphism
+local function slider(label, min, max, value, callback)
+    local container = Instance.new("Frame", innerContainer)
+    container.Size = UDim2.new(1, 0, 0, 60)
+    container.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", container)
+    lbl.Text = label .. ": " .. value
+    lbl.Size = UDim2.new(1, 0, 0.4, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.BackgroundTransparency = 1
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local sliderBack = Instance.new("Frame", container)
+    sliderBack.Position = UDim2.new(0, 0, 0.4, 8)
+    sliderBack.Size = UDim2.new(1, 0, 0, 8)
+    sliderBack.BackgroundTransparency = 0.3
+    sliderBack.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    sliderBack.BorderSizePixel = 0
+    
+    local sliderBackCorner = Instance.new("UICorner", sliderBack)
+    sliderBackCorner.CornerRadius = UDim.new(1, 0)
+    
+    local sliderBackStroke = Instance.new("UIStroke", sliderBack)
+    sliderBackStroke.Color = Color3.fromRGB(255, 255, 255)
+    sliderBackStroke.Transparency = 0.5
+    sliderBackStroke.Thickness = 1
+
+    local sliderFill = Instance.new("Frame", sliderBack)
+    sliderFill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
+    sliderFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    sliderFill.BorderSizePixel = 0
+    
+    local sliderFillCorner = Instance.new("UICorner", sliderFill)
+    sliderFillCorner.CornerRadius = UDim.new(1, 0)
+
+    local dragging = false
+    sliderBack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    RunService.RenderStepped:Connect(function()
+        if dragging then
+            local pos = UserInputService:GetMouseLocation().X
+            local abs = sliderBack.AbsolutePosition.X
+            local width = sliderBack.AbsoluteSize.X
+            local pct = math.clamp((pos - abs) / width, 0, 1)
+            local newVal = math.floor((min + (max - min) * pct) * 10) / 10
+            sliderFill.Size = UDim2.new(pct, 0, 1, 0)
+            lbl.Text = label .. ": " .. newVal
+            callback(newVal)
+        end
+    end)
+end
+
+-- Modern color picker with glassmorphism
+local function colorPicker(labelText, currentColor, callback)
+    local lbl = Instance.new("TextLabel", innerContainer)
+    lbl.Text = labelText
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.BackgroundTransparency = 1
+    lbl.Size = UDim2.new(1, 0, 0, 25)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 14
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local colors = {
+        Color3.fromRGB(255, 255, 255),
+        Color3.fromRGB(255, 0, 0),
+        Color3.fromRGB(0, 255, 0),
+        Color3.fromRGB(0, 0, 255),
+        Color3.fromRGB(255, 255, 0),
+        Color3.fromRGB(255, 0, 255),
+        Color3.fromRGB(0, 255, 255),
+        Color3.fromRGB(128, 128, 128),
+        Color3.fromRGB(255, 165, 0),
+    }
+
+    local row = Instance.new("Frame", innerContainer)
+    row.Size = UDim2.new(1, 0, 0, 35)
+    row.BackgroundTransparency = 1
+
+    local layout = Instance.new("UIListLayout", row)
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    layout.Padding = UDim.new(0, 8)
+
+    for _, clr in pairs(colors) do
+        local btn = Instance.new("TextButton", row)
+        btn.Size = UDim2.new(0, 30, 0, 30)
+        btn.BackgroundColor3 = clr
+        btn.Text = ""
+        btn.AutoButtonColor = false
+        btn.BorderSizePixel = 0
+        
+        local btnCorner = Instance.new("UICorner", btn)
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        
+        local btnStroke = Instance.new("UIStroke", btn)
+        btnStroke.Color = Color3.fromRGB(255, 255, 255)
+        btnStroke.Transparency = 0.7
+        btnStroke.Thickness = 1
+        
+        btn.MouseButton1Click:Connect(function()
+            callback(clr)
+        end)
+    end
+end
+
+-- Modern speed input with glassmorphism
+local function speedInput(label, currentSpeed, callback)
+    local container = Instance.new("Frame", innerContainer)
+    container.Size = UDim2.new(1, 0, 0, 50)
+    container.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", container)
+    lbl.Text = label .. ": " .. currentSpeed
+    lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.BackgroundTransparency = 1
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local inputBox = Instance.new("TextBox", container)
+    inputBox.Position = UDim2.new(0.7, 5, 0.25, 0)
+    inputBox.Size = UDim2.new(0.3, -5, 0.5, 0)
+    inputBox.Text = tostring(currentSpeed)
+    inputBox.Font = Enum.Font.Gotham
+    inputBox.TextSize = 12
+    inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    inputBox.BackgroundTransparency = 0.2
+    inputBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    inputBox.PlaceholderText = "Speed"
+    inputBox.BorderSizePixel = 0
+    
+    local inputCorner = Instance.new("UICorner", inputBox)
+    inputCorner.CornerRadius = UDim.new(0, 8)
+    
+    local inputStroke = Instance.new("UIStroke", inputBox)
+    inputStroke.Color = Color3.fromRGB(255, 255, 255)
+    inputStroke.Transparency = 0.6
+    inputStroke.Thickness = 1
+
+    inputBox.FocusLost:Connect(function()
+        local newSpeed = tonumber(inputBox.Text)
+        if newSpeed and newSpeed > 0 then
+            callback(newSpeed)
+            lbl.Text = label .. ": " .. newSpeed
+        else
+            inputBox.Text = tostring(currentSpeed)
+        end
+    end)
+
+    return lbl, inputBox
+end
+
+-- Modern player selector with glassmorphism
+local function playerSelector(label, currentPlayer, callback)
+    local container = Instance.new("Frame", innerContainer)
+    container.Size = UDim2.new(1, 0, 0, 50)
+    container.BackgroundTransparency = 1
+
+    local lbl = Instance.new("TextLabel", container)
+    lbl.Text = label .. ": " .. (currentPlayer and currentPlayer.Name or "None")
+    lbl.Size = UDim2.new(0.7, 0, 0.5, 0)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.BackgroundTransparency = 1
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local selectBtn = Instance.new("TextButton", container)
+    selectBtn.Position = UDim2.new(0.7, 5, 0.25, 0)
+    selectBtn.Size = UDim2.new(0.3, -5, 0.5, 0)
+    selectBtn.Text = "Выбрать игрока"
+    selectBtn.Font = Enum.Font.Gotham
+    selectBtn.TextSize = 12
+    selectBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    selectBtn.BackgroundTransparency = 0.2
+    selectBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    selectBtn.BorderSizePixel = 0
+    
+    local selectCorner = Instance.new("UICorner", selectBtn)
+    selectCorner.CornerRadius = UDim.new(0, 8)
+    
+    local selectStroke = Instance.new("UIStroke", selectBtn)
+    selectStroke.Color = Color3.fromRGB(255, 255, 255)
+    selectStroke.Transparency = 0.6
+    selectStroke.Thickness = 1
+
+    selectBtn.MouseButton1Click:Connect(function()
+        print("=== КНОПКА ВЫБОРА ИГРОКА НАЖАТА ===")
+        if callback then
+            callback()
+        end
+    end)
+
+    return lbl, selectBtn
+end
+
+-- Modern key bind button with glassmorphism
+local function keyBindButton(name, currentKey, callback)
+    local btn = Instance.new("TextButton", innerContainer)
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.Text = name .. " Hotkey: [" .. (currentKey and tostring(currentKey.Name) or "None") .. "]"
+    btn.BackgroundTransparency = 0.2
+    btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 13
+    btn.AutoButtonColor = false
+    btn.BorderSizePixel = 0
+    
+    local btnCorner = Instance.new("UICorner", btn)
+    btnCorner.CornerRadius = UDim.new(0, 12)
+    
+    local btnStroke = Instance.new("UIStroke", btn)
+    btnStroke.Color = Color3.fromRGB(255, 255, 255)
+    btnStroke.Transparency = 0.6
+    btnStroke.Thickness = 1
+
+    btn.MouseButton1Click:Connect(function()
+        btn.Text = name .. " Hotkey: [Press any key]"
+        local conn
+        conn = UserInputService.InputBegan:Connect(function(input, gp)
+            if not gp and input.UserInputType == Enum.UserInputType.Keyboard then
+                conn:Disconnect()
+                if callback then
+                    callback(input.KeyCode)
+                end
+                btn.Text = name .. " Hotkey: [" .. tostring(input.KeyCode.Name) .. "]"
+            end
+        end)
+    end)
+end
+
+-- Example usage of the new Glassmorphism GUI
+sectionHeader("🔷 ESP Settings")
+toggle("ESP", false, function(v) print("ESP:", v) end)
+toggle("Team Check", false, function(v) print("Team Check:", v) end)
+toggle("Show Outline", true, function(v) print("Show Outline:", v) end)
+
+sectionHeader("🟨 Fly Settings")
+toggle("Fly", false, function(v) print("Fly:", v) end)
+slider("Fly Speed", 0.1, 10, 1, function(v) print("Fly Speed:", v) end)
+
+sectionHeader("🟪 NoClip Settings")
+toggle("NoClip", false, function(v) print("NoClip:", v) end)
+
+sectionHeader("🟦 SpeedHack Settings")
+toggle("SpeedHack", false, function(v) print("SpeedHack:", v) end)
+slider("SpeedHack Speed", 0.1, 10, 1, function(v) print("SpeedHack Speed:", v) end)
+
+sectionHeader("🟩 Teleport Settings")
+playerSelector("Target Player", nil, function() print("Player selector clicked") end)
+
+sectionHeader("🎨 Color Settings")
+colorPicker("Fill Color", Color3.fromRGB(255, 255, 255), function(c) print("Fill Color:", c) end)
+
+sectionHeader("⌨️ Hotkeys")
+keyBindButton("ESP", nil, function(key) print("ESP Key:", key) end)
+keyBindButton("Fly", nil, function(key) print("Fly Key:", key) end)
+
+print("Glassmorphism GUI loaded successfully!")
+print("Press Insert to toggle the menu")
+print("Features:")
+print("- Semi-transparent glass effect")
+print("- Smooth animations")
+print("- Modern rounded corners")
+print("- Elegant hover effects")
+print("- Clean typography")
