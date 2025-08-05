@@ -464,7 +464,7 @@ local YBAFreeCamera = {} do
     end
 end
 
-local function startFly()
+function startFly()
     local plr = Players.LocalPlayer
     local char = plr.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -557,7 +557,7 @@ local function startFly()
     table.insert(flyConnections, renderConnection)
 end
 
-local function stopFly()
+function stopFly()
     isFlying = false
     
     local char = Players.LocalPlayer.Character
@@ -961,7 +961,7 @@ local function stopAntiTimeStop()
 end
 
 
-local function startNoClip()
+function startNoClip()
     local char = Players.LocalPlayer.Character
     if not char then return end
     
@@ -1014,7 +1014,7 @@ local function startNoClip()
     end)
 end
 
-local function stopNoClip()
+function stopNoClip()
     isNoClipping = false
     
     local char = Players.LocalPlayer.Character
@@ -1040,7 +1040,7 @@ local function stopNoClip()
     noClipConnections = {}
 end
 
-local function startSpeedHack()
+function startSpeedHack()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
@@ -1088,7 +1088,7 @@ local function startSpeedHack()
     table.insert(speedHackConnections, speedLoop)
 end
 
-local function stopSpeedHack()
+function stopSpeedHack()
     isSpeedHacking = false
     
     local char = Players.LocalPlayer.Character
@@ -1111,7 +1111,7 @@ local function stopSpeedHack()
 end
 
 
-local function startLongJump()
+function startLongJump()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
@@ -1147,7 +1147,7 @@ local function startLongJump()
     table.insert(longJumpConnections, longJumpLoop)
 end
 
-local function stopLongJump()
+function stopLongJump()
     isLongJumping = false
     
     local char = Players.LocalPlayer.Character
@@ -1170,7 +1170,7 @@ local function stopLongJump()
 end
 
 
-local function startInfiniteJump()
+function startInfiniteJump()
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -1229,7 +1229,7 @@ local function startInfiniteJump()
     table.insert(infiniteJumpConnections, characterAddedConnection)
 end
 
-local function stopInfiniteJump()
+function stopInfiniteJump()
     isInfiniteJumping = false
     lastJumpTime = 0
     
@@ -1429,7 +1429,7 @@ local function createStealthTeleport()
     table.insert(teleportConnections, stealthTeleportLoop)
 end
 
-local function startTeleport()
+function startTeleport()
     if not TeleportConfig.TargetPlayer then 
         return 
     end
@@ -1507,7 +1507,7 @@ local function startTeleport()
     end)
 end
 
-local function stopTeleport()
+function stopTeleport()
     isTeleporting = false
     lastTeleportPosition = nil
     speedResetTimer = 0
@@ -1890,7 +1890,7 @@ local function controlStand(stand)
     end
 end
 
-local function startYBA()
+function startYBA()
     if isYBAEnabled then return end
     isYBAEnabled = true
     YBAConfig.Enabled = true
@@ -1915,7 +1915,7 @@ local function startYBA()
     end)
 end
 
-local function stopYBA()
+function stopYBA()
     if not isYBAEnabled then return end
     
     isYBAEnabled = false
@@ -1944,7 +1944,7 @@ local function stopYBA()
 end
 
 -- Функция для запуска управления персонажем под стендом (летающий режим)
-local function startUndergroundControl()
+function startUndergroundControl()
     print("=== ЗАПУСК ПОДЗЕМНОГО ПОЛЕТА ===")
     
     if isUndergroundControlEnabled then 
@@ -2105,7 +2105,7 @@ local function startUndergroundControl()
 end
 
 -- Функция для остановки управления персонажем под стендом
-local function stopUndergroundControl()
+function stopUndergroundControl()
     if not isUndergroundControlEnabled then return end
     
     isUndergroundControlEnabled = false
@@ -3201,7 +3201,7 @@ local function removeItemESP(item)
     itemESPElements[item.Object] = nil
 end
 
-local function startItemESP()
+function startItemESP()
     if itemESPEnabled then 
         print("YBA Item ESP: Уже активирован!")
         return 
@@ -3299,7 +3299,7 @@ local function startItemESP()
     table.insert(itemESPConnections, cleanupLoop)
 end
 
-local function stopItemESP()
+function stopItemESP()
     if not itemESPEnabled then return end
     itemESPEnabled = false
     
