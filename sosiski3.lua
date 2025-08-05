@@ -1,8 +1,125 @@
 -- Frostware Modern Menu - Fixed Version
 
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+
 local FrostwareGui = Instance.new("ScreenGui", CoreGui)
 FrostwareGui.Name = "FrostwareGui"
 FrostwareGui.ResetOnSpawn = false
+
+-- Default configurations (if not defined elsewhere)
+if not Config then
+    Config = {
+        ESP = {
+            Enabled = false,
+            TeamCheck = false,
+            ShowOutline = true,
+            ShowLines = false,
+            Rainbow = false,
+            FillColor = Color3.fromRGB(255, 255, 255),
+            OutlineColor = Color3.fromRGB(255, 0, 0),
+            TextColor = Color3.fromRGB(255, 255, 255),
+            FillTransparency = 0.5,
+            OutlineTransparency = 0,
+            ToggleKey = nil
+        },
+        Aimbot = {
+            Enabled = false,
+            TeamCheck = false,
+            VisibilityCheck = true,
+            FOV = 100,
+            FOVRainbow = false,
+            FOVColor = Color3.fromRGB(255, 255, 255),
+            ToggleKey = nil
+        }
+    }
+end
+
+if not FlyConfig then
+    FlyConfig = {
+        Enabled = false,
+        Speed = 1,
+        ToggleKey = nil
+    }
+end
+
+if not NoClipConfig then
+    NoClipConfig = {
+        Enabled = false,
+        ToggleKey = nil
+    }
+end
+
+if not SpeedHackConfig then
+    SpeedHackConfig = {
+        Enabled = false,
+        Speed = 1,
+        UseJumpPower = false,
+        ToggleKey = nil
+    }
+end
+
+if not LongJumpConfig then
+    LongJumpConfig = {
+        Enabled = false,
+        JumpPower = 100
+    }
+end
+
+if not InfiniteJumpConfig then
+    InfiniteJumpConfig = {
+        Enabled = false,
+        JumpPower = 50
+    }
+end
+
+if not YBAConfig then
+    YBAConfig = {
+        Enabled = false,
+        ToggleKey = nil,
+        ItemESP = {
+            Enabled = false,
+            Items = {}
+        },
+        UndergroundControl = {
+            FlightSpeed = 100
+        }
+    }
+end
+
+if not TeleportConfig then
+    TeleportConfig = {
+        Enabled = false,
+        TargetPlayer = nil,
+        SelectedPlayerName = nil,
+        OriginalPosition = nil,
+        ToggleKey = nil
+    }
+end
+
+-- Placeholder functions (if not defined elsewhere)
+local function startFly() print("Fly started") end
+local function stopFly() print("Fly stopped") end
+local function startNoClip() print("NoClip started") end
+local function stopNoClip() print("NoClip stopped") end
+local function startSpeedHack() print("SpeedHack started") end
+local function stopSpeedHack() print("SpeedHack stopped") end
+local function startLongJump() print("LongJump started") end
+local function stopLongJump() print("LongJump stopped") end
+local function startInfiniteJump() print("InfiniteJump started") end
+local function stopInfiniteJump() print("InfiniteJump stopped") end
+local function startYBA() print("YBA started") end
+local function stopYBA() print("YBA stopped") end
+local function startUndergroundControl() print("UndergroundControl started") end
+local function stopUndergroundControl() print("UndergroundControl stopped") end
+local function startItemESP() print("ItemESP started") end
+local function stopItemESP() print("ItemESP stopped") end
+local function startTeleport() print("Teleport started") end
+local function stopTeleport() print("Teleport stopped") end
+
+local isNoClipping = false
 
 -- Main frame
 local mainFrame = Instance.new("Frame", FrostwareGui)
