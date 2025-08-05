@@ -1,5 +1,11 @@
 -- Frostware Modern Menu - Fixed Version
-
+-- 
+-- INSTRUCTIONS:
+-- 1. Load your main script (sosiski) FIRST
+-- 2. Then load this menu script (sosiski3.lua)
+-- 3. The menu will automatically connect to your main script functions
+-- 4. If functions are not found, you'll see "function not found" messages in console
+--
 -- Services
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -99,27 +105,39 @@ if not TeleportConfig then
     }
 end
 
--- Placeholder functions (if not defined elsewhere)
-local function startFly() print("Fly started") end
-local function stopFly() print("Fly stopped") end
-local function startNoClip() print("NoClip started") end
-local function stopNoClip() print("NoClip stopped") end
-local function startSpeedHack() print("SpeedHack started") end
-local function stopSpeedHack() print("SpeedHack stopped") end
-local function startLongJump() print("LongJump started") end
-local function stopLongJump() print("LongJump stopped") end
-local function startInfiniteJump() print("InfiniteJump started") end
-local function stopInfiniteJump() print("InfiniteJump stopped") end
-local function startYBA() print("YBA started") end
-local function stopYBA() print("YBA stopped") end
-local function startUndergroundControl() print("UndergroundControl started") end
-local function stopUndergroundControl() print("UndergroundControl stopped") end
-local function startItemESP() print("ItemESP started") end
-local function stopItemESP() print("ItemESP stopped") end
-local function startTeleport() print("Teleport started") end
-local function stopTeleport() print("Teleport stopped") end
+-- Try to get functions from main script, fallback to placeholders if not available
+local function getFunction(name, fallback)
+    if _G[name] then
+        return _G[name]
+    elseif getfenv(1)[name] then
+        return getfenv(1)[name]
+    else
+        return fallback
+    end
+end
 
-local isNoClipping = false
+-- Get real functions or use placeholders
+local startFly = getFunction("startFly", function() print("Fly started - function not found") end)
+local stopFly = getFunction("stopFly", function() print("Fly stopped - function not found") end)
+local startNoClip = getFunction("startNoClip", function() print("NoClip started - function not found") end)
+local stopNoClip = getFunction("stopNoClip", function() print("NoClip stopped - function not found") end)
+local startSpeedHack = getFunction("startSpeedHack", function() print("SpeedHack started - function not found") end)
+local stopSpeedHack = getFunction("stopSpeedHack", function() print("SpeedHack stopped - function not found") end)
+local startLongJump = getFunction("startLongJump", function() print("LongJump started - function not found") end)
+local stopLongJump = getFunction("stopLongJump", function() print("LongJump stopped - function not found") end)
+local startInfiniteJump = getFunction("startInfiniteJump", function() print("InfiniteJump started - function not found") end)
+local stopInfiniteJump = getFunction("stopInfiniteJump", function() print("InfiniteJump stopped - function not found") end)
+local startYBA = getFunction("startYBA", function() print("YBA started - function not found") end)
+local stopYBA = getFunction("stopYBA", function() print("YBA stopped - function not found") end)
+local startUndergroundControl = getFunction("startUndergroundControl", function() print("UndergroundControl started - function not found") end)
+local stopUndergroundControl = getFunction("stopUndergroundControl", function() print("UndergroundControl stopped - function not found") end)
+local startItemESP = getFunction("startItemESP", function() print("ItemESP started - function not found") end)
+local stopItemESP = getFunction("stopItemESP", function() print("ItemESP stopped - function not found") end)
+local startTeleport = getFunction("startTeleport", function() print("Teleport started - function not found") end)
+local stopTeleport = getFunction("stopTeleport", function() print("Teleport stopped - function not found") end)
+
+-- Try to get global variables
+local isNoClipping = _G.isNoClipping or false
 
 -- Main frame
 local mainFrame = Instance.new("Frame", FrostwareGui)
@@ -439,7 +457,7 @@ for i, tab in ipairs(tabs) do
     -- Container
     local container = Instance.new("Frame", scrollFrame)
     container.Size = UDim2.new(1, -20, 0, 0)
-    container.Position = UDim2.new(0, 10, 0, 10)
+    container.Position = UDim2.new(0, 10, 0, 20)
     container.BackgroundTransparency = 1
     container.AutomaticSize = Enum.AutomaticSize.Y
 
