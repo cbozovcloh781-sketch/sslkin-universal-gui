@@ -3318,29 +3318,15 @@ local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
 screenGui.ResetOnSpawn = false
 
--- Основной контейнер с размытием
+-- Основной контейнер
 local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Name = "MainFrame"
 mainFrame.Position = UDim2.new(0, 20, 0.5, -250)
 mainFrame.Size = UDim2.new(0, 400, 0, 500)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-mainFrame.BackgroundTransparency = 0.2
+mainFrame.BackgroundTransparency = 1
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Draggable = true
-
--- Добавляем размытый фон к меню
-local menuBlur = Instance.new("Frame", mainFrame)
-menuBlur.Name = "MenuBlur"
-menuBlur.Size = UDim2.new(1, 0, 1, 0)
-menuBlur.Position = UDim2.new(0, 0, 0, 0)
-menuBlur.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-menuBlur.BackgroundTransparency = 0.3
-menuBlur.BorderSizePixel = 0
-menuBlur.ZIndex = -1
-
-local menuBlurCorner = Instance.new("UICorner", menuBlur)
-menuBlurCorner.CornerRadius = UDim.new(0, 8)
 
 -- Минимальный размер (убираем ограничения для свободного изменения)
 local minWidth = 200
@@ -3350,13 +3336,13 @@ local minHeight = 150
 local mainCorner = Instance.new("UICorner", mainFrame)
 mainCorner.CornerRadius = UDim.new(0, 8)
 
--- Левая панель навигации
+-- Левая панель навигации (обычная, не прозрачная)
 local leftPanel = Instance.new("Frame", mainFrame)
 leftPanel.Name = "LeftPanel"
 leftPanel.Size = UDim2.new(0, 120, 1, 0)
 leftPanel.Position = UDim2.new(0, 0, 0, 0)
 leftPanel.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-leftPanel.BackgroundTransparency = 0.1
+leftPanel.BackgroundTransparency = 0
 leftPanel.BorderSizePixel = 0
 
 local leftCorner = Instance.new("UICorner", leftPanel)
@@ -3459,17 +3445,46 @@ for i, buttonData in ipairs(navButtons) do
     end)
 end
 
--- Правая панель контента
+-- Правая панель контента с эффектом жидкого стекла
 local rightPanel = Instance.new("Frame", mainFrame)
 rightPanel.Name = "RightPanel"
 rightPanel.Size = UDim2.new(1, -120, 1, 0)
 rightPanel.Position = UDim2.new(0, 120, 0, 0)
-rightPanel.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-rightPanel.BackgroundTransparency = 0.1
+rightPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+rightPanel.BackgroundTransparency = 0.15
 rightPanel.BorderSizePixel = 0
+
+-- Создаем эффект жидкого стекла для правой панели
+local glassEffect = Instance.new("Frame", rightPanel)
+glassEffect.Name = "GlassEffect"
+glassEffect.Size = UDim2.new(1, 0, 1, 0)
+glassEffect.Position = UDim2.new(0, 0, 0, 0)
+glassEffect.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+glassEffect.BackgroundTransparency = 0.92
+glassEffect.BorderSizePixel = 0
+glassEffect.ZIndex = -1
+
+-- Добавляем градиент для эффекта стекла
+local glassGradient = Instance.new("UIGradient", glassEffect)
+glassGradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(200, 200, 220)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 150, 170)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 100, 120))
+}
+glassGradient.Rotation = 45
+
+-- Добавляем тонкую границу для эффекта стекла
+local glassBorder = Instance.new("UIStroke", rightPanel)
+glassBorder.Color = Color3.fromRGB(200, 200, 220)
+glassBorder.Transparency = 0.7
+glassBorder.Thickness = 1
 
 local rightCorner = Instance.new("UICorner", rightPanel)
 rightCorner.CornerRadius = UDim.new(0, 8)
+
+-- Скругленные углы для эффекта стекла
+local glassCorner = Instance.new("UICorner", glassEffect)
+glassCorner.CornerRadius = UDim.new(0, 8)
 
 -- Кнопка закрытия
 local closeButton = Instance.new("TextButton", rightPanel)
