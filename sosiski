@@ -95,12 +95,12 @@ local TeleportConfig = {
 local YBAConfig = {
     Enabled = false,
     ToggleKey = nil,
-    StandRange = 100000, -- Увеличена дистанция ударов стенда
+    StandRange = 100000,
     FreezePlayer = true,
     SwitchCamera = true,
     TransferControl = true,
     AutoFindStands = true,
-    MaxStandDistance = 10000, -- Увеличена дистанция захвата стенда
+    MaxStandDistance = 10000,
     CameraDistance = 15,
     CameraHeight = 5,
     StandControlSpeed = 1.0,
@@ -111,40 +111,31 @@ local YBAConfig = {
     CameraFollowHeight = 6.1,
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
-    -- Интегрированная функция подземного полета
     UndergroundControl = {
-        FlightSpeed = 50, -- Скорость полета за стендом (25-300)
-        AutoNoClip = true, -- Автоматически включать NoClip
-        OriginalPosition = nil, -- Исходная позиция персонажа
+        FlightSpeed = 50,
+        AutoNoClip = true,
+        OriginalPosition = nil,
     },
-    -- Item ESP Configuration
     ItemESP = {
         Enabled = false,
         ToggleKey = nil,
-        MaxDistance = 1000, 
+        MaxDistance = 1000,
         MaxRenderDistance = 5000,
         UpdateInterval = 0.3,
-        
         ShowOutline = true,
         ShowText = true,
         ShowFill = true,
-        
-        FillColor = Color3.fromRGB(255, 215, 0), -- Цвет заполнения предмета
-        OutlineColor = Color3.fromRGB(255, 255, 0), -- Цвет обводки предмета
-        TextColor = Color3.fromRGB(255, 255, 255), -- Цвет текста
-        TextBackgroundColor = Color3.fromRGB(0, 0, 0), -- Цвет фона текста
-        
-        FillTransparency = 0.3, -- Прозрачность заполнения
-        OutlineTransparency = 0.1, -- Прозрачность обводки
-        TextBackgroundTransparency = 0.3, -- Прозрачность фона текста
-        
-        TextSize = 10, -- Размер основного текста
-        DistanceTextSize = 9, -- Размер текста расстояния
-        
+        FillColor = Color3.fromRGB(255, 215, 0),
+        OutlineColor = Color3.fromRGB(255, 255, 0),
+        TextColor = Color3.fromRGB(255, 255, 255),
+        TextBackgroundColor = Color3.fromRGB(0, 0, 0),
+        FillTransparency = 0.3,
+        OutlineTransparency = 0.1,
+        TextBackgroundTransparency = 0.3,
+        TextSize = 10,
+        DistanceTextSize = 9,
         Font = Enum.Font.GothamBold,
-        
         Items = {
-            -- Основные предметы
             ["Mysterious Arrow"] = true,
             ["Rokakaka"] = true,
             ["Pure Rokakaka"] = true,
@@ -160,14 +151,10 @@ local YBAConfig = {
             ["Stone Mask"] = true,
             ["Lucky Arrow"] = true,
             ["Lucky Stone Mask"] = true,
-            
             ["Rib Cage of The Saint's Corpse"] = true,
-            
             ["DIO's Diary"] = true,
             ["DIO's Bone"] = true,
             ["DIO's Diary Page"] = true,
-            
-
         }
     }
 }
