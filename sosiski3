@@ -2374,13 +2374,24 @@ local function startStandFly()
     print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
     print("Stand Fly активирован - стенд больше не летает")
     
-    -- Stand Fly - простое отключение полета стенда
+    -- Stand Fly - отключение полета стенда и принуждение к физике
+    local lastDebugTime = 0
     local standFlyLoop = RunService.Heartbeat:Connect(function()
         if not isStandFlyEnabled or not controlledStandForFly or not controlledStandForFly.Parent then
             return
         end
         
         local standRoot = controlledStandForFly
+        local standModel = standRoot.Parent
+        
+        -- Отладочная информация каждые 3 секунды
+        local currentTime = tick()
+        if currentTime - lastDebugTime > 3 then
+            lastDebugTime = currentTime
+            print("Stand Fly: Позиция стенда Y =", math.floor(standRoot.Position.Y), 
+                  "CanCollide =", standRoot.CanCollide, 
+                  "Скорость Y =", math.floor(standRoot.AssemblyLinearVelocity.Y))
+        end
         
         -- Убираем все объекты, которые заставляют стенд летать
         for _, child in pairs(standRoot:GetChildren()) do
@@ -2389,14 +2400,15 @@ local function startStandFly()
                child:IsA("BodyAngularVelocity") or
                child:IsA("BodyThrust") or
                child:IsA("BodyForce") or
-               child:IsA("VectorForce") then
+               child:IsA("VectorForce") or
+               child:IsA("RocketPropulsion") or
+               child:IsA("BodyGyro") then
                 child:Destroy()
-                print("Stand Fly: Удален", child.ClassName, "у стенда")
             end
         end
         
         -- Также убираем у всех частей стенда
-        for _, part in pairs(standRoot.Parent:GetDescendants()) do
+        for _, part in pairs(standModel:GetDescendants()) do
             if part:IsA("BasePart") and part ~= standRoot then
                 for _, child in pairs(part:GetChildren()) do
                     if child:IsA("BodyVelocity") or 
@@ -2404,28 +2416,71 @@ local function startStandFly()
                        child:IsA("BodyAngularVelocity") or
                        child:IsA("BodyThrust") or
                        child:IsA("BodyForce") or
-                       child:IsA("VectorForce") then
+                       child:IsA("VectorForce") or
+                       child:IsA("RocketPropulsion") or
+                       child:IsA("BodyGyro") then
                         child:Destroy()
                     end
                 end
             end
         end
         
-        -- Убираем AssemblyLinearVelocity и AssemblyAngularVelocity
+        -- Убираем скорости и включаем физику
         standRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         standRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        standRoot.Anchored = false
         
-        -- Включаем CanCollide для всех частей стенда
-        for _, part in pairs(standRoot.Parent:GetDescendants()) do
+        -- АГРЕССИВНО включаем коллизии для всех частей стенда
+        for _, part in pairs(standModel:GetDescendants()) do
             if part:IsA("BasePart") then
+                -- Основные свойства коллизии
                 part.CanCollide = true
+                part.CanTouch = true
+                part.CanQuery = true
+                part.Anchored = false
+                
+                -- Убираем все что может мешать коллизии
+                for _, constraint in pairs(part:GetChildren()) do
+                    if constraint:IsA("NoCollisionConstraint") or 
+                       constraint:IsA("RigidConstraint") or
+                       (constraint:IsA("Attachment") and constraint.Name:find("NoCollision")) then
+                        constraint:Destroy()
+                    end
+                end
+                
+                -- Устанавливаем материал который точно коллидирует
+                if part.Material == Enum.Material.ForceField or 
+                   part.Material == Enum.Material.Neon then
+                    part.Material = Enum.Material.Plastic
+                end
+                
+                -- Убираждаемся что нет прозрачности которая может мешать
+                if part.Transparency >= 1 then
+                    part.Transparency = 0.9
+                end
             end
+        end
+        
+        -- Специальная обработка для основной части
+        standRoot.CanCollide = true
+        standRoot.CanTouch = true
+        standRoot.CanQuery = true
+        standRoot.Anchored = false
+        
+        -- Если стенд слишком быстро движется вниз, ограничиваем скорость
+        if standRoot.AssemblyLinearVelocity.Y < -50 then
+            standRoot.AssemblyLinearVelocity = Vector3.new(
+                standRoot.AssemblyLinearVelocity.X,
+                -50,
+                standRoot.AssemblyLinearVelocity.Z
+            )
         end
     end)
     
     table.insert(standFlyConnections, standFlyLoop)
     
     print("Stand Fly активирован! Стенд больше не может летать.")
+    print("Stand Fly: Включены коллизии для стенда. Стенд должен падать на землю.")
 end
 
 -- Функция для остановки Stand Fly
