@@ -2372,71 +2372,60 @@ local function startStandFly()
     isStandFlyEnabled = true
     
     print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
-    print("Stand Fly активирован - стенд будет ходить по поверхности")
+    print("Stand Fly активирован - стенд больше не летает")
     
-    -- Stand Fly - стенд ходит по поверхности
-    local standFlyLoop = RunService.RenderStepped:Connect(function()
+    -- Stand Fly - простое отключение полета стенда
+    local standFlyLoop = RunService.Heartbeat:Connect(function()
         if not isStandFlyEnabled or not controlledStandForFly or not controlledStandForFly.Parent then
-            print("Stand Fly остановлен - стенд не найден или функция отключена")
             return
         end
         
         local standRoot = controlledStandForFly
-        local standPosition = standRoot.Position
         
-        -- Отслеживаем поверхность под стендом
-        local raycast = workspace:Raycast(standPosition, Vector3.new(0, -1000, 0))
-        
-        if raycast then
-            local surfaceHeight = raycast.Position.Y + 3 -- 3 стада над поверхностью
-            
-            -- Если стенд слишком высоко или слишком низко - корректируем
-            if math.abs(standPosition.Y - surfaceHeight) > 2 then
-                local targetY = surfaceHeight
-                local direction = targetY > standPosition.Y and 1 or -1
-                local speed = YBAConfig.UndergroundControl.FlightSpeed or 50
-                
-                -- Создаем временный BodyVelocity для вертикального движения
-                local bv = standRoot:FindFirstChild("StandFlyBodyVelocity")
-                if not bv then
-                    bv = Instance.new("BodyVelocity", standRoot)
-                    bv.Name = "StandFlyBodyVelocity"
-                    bv.MaxForce = Vector3.new(0, 9e9, 0)
-                end
-                bv.Velocity = Vector3.new(0, direction * speed, 0)
-                
-                -- Удаляем когда достигнем нужной высоты
-                if math.abs(standPosition.Y - surfaceHeight) < 1 then
-                    bv:Destroy()
-                end
-            else
-                -- Убираем BodyVelocity когда стенд на правильной высоте
-                local bv = standRoot:FindFirstChild("StandFlyBodyVelocity")
-                if bv then
-                    bv:Destroy()
-                end
-            end
-        else
-            -- Если поверхность не найдена, оставляем стенд на текущей высоте
-            local bv = standRoot:FindFirstChild("StandFlyBodyVelocity")
-            if bv then
-                bv:Destroy()
+        -- Убираем все объекты, которые заставляют стенд летать
+        for _, child in pairs(standRoot:GetChildren()) do
+            if child:IsA("BodyVelocity") or 
+               child:IsA("BodyPosition") or 
+               child:IsA("BodyAngularVelocity") or
+               child:IsA("BodyThrust") or
+               child:IsA("BodyForce") or
+               child:IsA("VectorForce") then
+                child:Destroy()
+                print("Stand Fly: Удален", child.ClassName, "у стенда")
             end
         end
         
-        -- Стабилизируем вертикальную скорость
-        if standRoot.AssemblyLinearVelocity.Y > 50 or standRoot.AssemblyLinearVelocity.Y < -50 then
-            standRoot.AssemblyLinearVelocity = Vector3.new(
-                standRoot.AssemblyLinearVelocity.X, 
-                math.clamp(standRoot.AssemblyLinearVelocity.Y, -50, 50), 
-                standRoot.AssemblyLinearVelocity.Z
-            )
+        -- Также убираем у всех частей стенда
+        for _, part in pairs(standRoot.Parent:GetDescendants()) do
+            if part:IsA("BasePart") and part ~= standRoot then
+                for _, child in pairs(part:GetChildren()) do
+                    if child:IsA("BodyVelocity") or 
+                       child:IsA("BodyPosition") or 
+                       child:IsA("BodyAngularVelocity") or
+                       child:IsA("BodyThrust") or
+                       child:IsA("BodyForce") or
+                       child:IsA("VectorForce") then
+                        child:Destroy()
+                    end
+                end
+            end
+        end
+        
+        -- Убираем AssemblyLinearVelocity и AssemblyAngularVelocity
+        standRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        standRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        
+        -- Включаем CanCollide для всех частей стенда
+        for _, part in pairs(standRoot.Parent:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
         end
     end)
     
     table.insert(standFlyConnections, standFlyLoop)
     
-    print("Stand Fly активирован!")
+    print("Stand Fly активирован! Стенд больше не может летать.")
 end
 
 -- Функция для остановки Stand Fly
@@ -2452,17 +2441,9 @@ local function stopStandFly()
     end
     standFlyConnections = {}
     
-    -- Очищаем BodyVelocity у стенда
-    if controlledStandForFly then
-        local bv = controlledStandForFly:FindFirstChild("StandFlyBodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-    end
-    
     controlledStandForFly = nil
     
-    print("Stand Fly отключен!")
+    print("Stand Fly отключен! Стенд снова может летать.")
 end
 
 local function getAlivePlayers()
