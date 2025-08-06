@@ -3990,7 +3990,7 @@ local function createSlider(label, min, max, value, callback)
     container.BackgroundTransparency = 1
 
     local lbl = Instance.new("TextLabel", container)
-    lbl.Text = label .. ": " .. value
+    lbl.Text = label .. ": " .. math.floor(value)
     lbl.Size = UDim2.new(1, 0, 0.5, 0)
     lbl.Font = Enum.Font.Gotham
     lbl.TextSize = 13
@@ -4004,7 +4004,7 @@ local function createSlider(label, min, max, value, callback)
     Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(1,0)
 
     local sliderFill = Instance.new("Frame", sliderBack)
-    sliderFill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
+    sliderFill.Size = UDim2.new((math.floor(value) - min) / (max - min), 0, 1, 0)
     sliderFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1,0)
 
@@ -4025,7 +4025,7 @@ local function createSlider(label, min, max, value, callback)
             local abs = sliderBack.AbsolutePosition.X
             local width = sliderBack.AbsoluteSize.X
             local pct = math.clamp((pos - abs) / width, 0, 1)
-            local newVal = math.floor((min + (max - min) * pct) * 10) / 10
+            local newVal = math.floor(min + (max - min) * pct)
             sliderFill.Size = UDim2.new(pct, 0, 1, 0)
             lbl.Text = label .. ": " .. newVal
             callback(newVal)
@@ -4582,14 +4582,7 @@ function showContent(tabName)
             end
         end)
         
-        -- Ползунок скорости стенда
-        createSlider("Stand Control Speed", 0.1, 10, YBAConfig.StandControlSpeed or 1.0, function(v)
-            YBAConfig.StandControlSpeed = v
-            -- Обновляем скорость управления стендом в реальном времени
-            if isYBAEnabled and controlledStand then
-                print("YBA: Скорость управления стендом изменена на:", v)
-            end
-        end)
+        -- Ползунок скорости стенда (удален по запросу)
         
         -- Anti Time Stop (кнопка с таймером)
         local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
@@ -4708,11 +4701,7 @@ function showContent(tabName)
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
         
-        -- Настройка размытия
-        createToggleSlider(getText("BlurEffect"), MenuSettings.BlurEnabled, function(v)
-            MenuSettings.BlurEnabled = v
-            updateBlurEffect()
-        end)
+        -- Настройка размытия (удалена по запросу)
         
         createDivider()
         
