@@ -3041,7 +3041,7 @@ local FOVCircle
 
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 2
-FOVCircle.NumSides = 24
+FOVCircle.NumSides = 100
 FOVCircle.Filled = false
 FOVCircle.Visible = false
 
