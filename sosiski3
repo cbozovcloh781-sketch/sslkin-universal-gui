@@ -249,6 +249,12 @@ local itemESPConnections = {}
 local itemESPElements = {}
 local itemESPEnabled = false
 
+-- Player ESP variables
+local playerESPConnections = {}
+local playerESPElements = {}
+local userStandESPEnabled = false
+local userStyleESPEnabled = false
+
 -- GUI элементы
 local teleportBtn = nil
 
@@ -2670,9 +2676,17 @@ end
 
 Players.PlayerAdded:Connect(setupPlayerESP)
 
+-- Player ESP обработчики
+Players.PlayerAdded:Connect(function(player)
+    if userStandESPEnabled or userStyleESPEnabled then
+        task.wait(2) -- Ждем загрузки персонажа
+        createPlayerESP(player)
+    end
+end)
 
 Players.PlayerRemoving:Connect(function(player)
     removeESP(player)
+    removePlayerESP(player)
 end)
 
 local function getClosestTarget()
@@ -3548,6 +3562,272 @@ local function stopItemESP()
         end
     end
     itemESPConnections = {}
+end
+
+-- Player ESP Functions
+local function getPlayerStand(player)
+    if not player or not player.Character then return nil end
+    
+    -- Ищем папку Players в workspace
+    local playersFolder = workspace:FindFirstChild("Players")
+    if not playersFolder then return nil end
+    
+    -- Ищем папку с именем игрока
+    local playerFolder = playersFolder:FindFirstChild(player.Name)
+    if not playerFolder then return nil end
+    
+    -- Ищем папку playerstats
+    local playerStatsFolder = playerFolder:FindFirstChild("playerstats")
+    if not playerStatsFolder then return nil end
+    
+    -- Ищем файл Stand
+    local standFile = playerStatsFolder:FindFirstChild("Stand")
+    if not standFile then return nil end
+    
+    -- Получаем значение стенда
+    local standValue = standFile.Value
+    return standValue
+end
+
+local function getPlayerStyle(player)
+    if not player or not player.Character then return nil end
+    
+    -- Ищем папку Players в workspace
+    local playersFolder = workspace:FindFirstChild("Players")
+    if not playersFolder then return nil end
+    
+    -- Ищем папку с именем игрока
+    local playerFolder = playersFolder:FindFirstChild(player.Name)
+    if not playerFolder then return nil end
+    
+    -- Ищем папку playerstats
+    local playerStatsFolder = playerFolder:FindFirstChild("playerstats")
+    if not playerStatsFolder then return nil end
+    
+    -- Ищем файл Spec
+    local specFile = playerStatsFolder:FindFirstChild("Spec")
+    if not specFile then return nil end
+    
+    -- Получаем значение стиля
+    local specValue = specFile.Value
+    return specValue
+end
+
+local function createPlayerESP(player)
+    if playerESPElements[player] then
+        return playerESPElements[player]
+    end
+    
+    if not player or not player.Character then
+        return nil
+    end
+    
+    local esp = {}
+    esp.player = player
+    
+    -- Создаем BillboardGui для отображения информации
+    local billboard = Instance.new("BillboardGui")
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(0, 200, 0, 80)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Parent = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
+    
+    local background = Instance.new("Frame", billboard)
+    background.Size = UDim2.new(1, 0, 1, 0)
+    background.Position = UDim2.new(0, 0, 0, 0)
+    background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    background.BackgroundTransparency = 0.3
+    background.BorderSizePixel = 0
+    background.ZIndex = 1
+    
+    local corner = Instance.new("UICorner", background)
+    corner.CornerRadius = UDim.new(0, 6)
+    
+    local border = Instance.new("Frame", billboard)
+    border.Size = UDim2.new(1, 2, 1, 2)
+    border.Position = UDim2.new(0, -1, 0, -1)
+    border.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+    border.BorderSizePixel = 0
+    border.ZIndex = 0
+    
+    local borderCorner = Instance.new("UICorner", border)
+    borderCorner.CornerRadius = UDim.new(0, 8)
+    
+    -- Текст для стенда
+    local standLabel = Instance.new("TextLabel", billboard)
+    standLabel.Size = UDim2.new(1, -6, 0.5, 0)
+    standLabel.Position = UDim2.new(0, 3, 0, 2)
+    standLabel.BackgroundTransparency = 1
+    standLabel.Font = Enum.Font.GothamBold
+    standLabel.TextSize = 12
+    standLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    standLabel.TextXAlignment = Enum.TextXAlignment.Center
+    standLabel.TextYAlignment = Enum.TextYAlignment.Center
+    standLabel.Text = "Stand: Loading..."
+    standLabel.ZIndex = 3
+    
+    -- Текст для стиля
+    local styleLabel = Instance.new("TextLabel", billboard)
+    styleLabel.Size = UDim2.new(1, -6, 0.5, 0)
+    styleLabel.Position = UDim2.new(0, 3, 0.5, 0)
+    styleLabel.BackgroundTransparency = 1
+    styleLabel.Font = Enum.Font.GothamBold
+    styleLabel.TextSize = 12
+    styleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    styleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    styleLabel.TextYAlignment = Enum.TextYAlignment.Center
+    styleLabel.Text = "Style: Loading..."
+    styleLabel.ZIndex = 3
+    
+    esp.billboard = billboard
+    esp.standLabel = standLabel
+    esp.styleLabel = styleLabel
+    esp.background = background
+    esp.border = border
+    
+    playerESPElements[player] = esp
+    return esp
+end
+
+local function updatePlayerESP(player)
+    local esp = playerESPElements[player]
+    if not esp then return end
+    
+    if not player or not player.Character then
+        removePlayerESP(player)
+        return
+    end
+    
+    -- Обновляем информацию о стенде
+    if userStandESPEnabled then
+        local stand = getPlayerStand(player)
+        if stand then
+            esp.standLabel.Text = "Stand: " .. stand
+        else
+            esp.standLabel.Text = "Stand: None"
+        end
+    else
+        esp.standLabel.Text = "Stand: Disabled"
+    end
+    
+    -- Обновляем информацию о стиле
+    if userStyleESPEnabled then
+        local style = getPlayerStyle(player)
+        if style then
+            esp.styleLabel.Text = "Style: " .. style
+        else
+            esp.styleLabel.Text = "Style: None"
+        end
+    else
+        esp.styleLabel.Text = "Style: Disabled"
+    end
+end
+
+local function removePlayerESP(player)
+    local esp = playerESPElements[player]
+    if not esp then return end
+    
+    pcall(function()
+        if esp.billboard and esp.billboard.Parent then
+            esp.billboard:Destroy()
+        end
+    end)
+    
+    playerESPElements[player] = nil
+end
+
+local function startUserStandESP()
+    if userStandESPEnabled then return end
+    userStandESPEnabled = true
+    
+    print("Player ESP: User Stand ESP activated")
+    
+    local playerESPLoop = RunService.Heartbeat:Connect(function()
+        if not userStandESPEnabled and not userStyleESPEnabled then
+            return
+        end
+        
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= Players.LocalPlayer then
+                if not playerESPElements[player] then
+                    createPlayerESP(player)
+                end
+                updatePlayerESP(player)
+            end
+        end
+    end)
+    
+    table.insert(playerESPConnections, playerESPLoop)
+end
+
+local function stopUserStandESP()
+    if not userStandESPEnabled then return end
+    userStandESPEnabled = false
+    
+    print("Player ESP: User Stand ESP deactivated")
+    
+    -- Если оба ESP отключены, удаляем все элементы
+    if not userStyleESPEnabled then
+        for player, esp in pairs(playerESPElements) do
+            removePlayerESP(player)
+        end
+    end
+end
+
+local function startUserStyleESP()
+    if userStyleESPEnabled then return end
+    userStyleESPEnabled = true
+    
+    print("Player ESP: User Style ESP activated")
+    
+    local playerESPLoop = RunService.Heartbeat:Connect(function()
+        if not userStandESPEnabled and not userStyleESPEnabled then
+            return
+        end
+        
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= Players.LocalPlayer then
+                if not playerESPElements[player] then
+                    createPlayerESP(player)
+                end
+                updatePlayerESP(player)
+            end
+        end
+    end)
+    
+    table.insert(playerESPConnections, playerESPLoop)
+end
+
+local function stopUserStyleESP()
+    if not userStyleESPEnabled then return end
+    userStyleESPEnabled = false
+    
+    print("Player ESP: User Style ESP deactivated")
+    
+    -- Если оба ESP отключены, удаляем все элементы
+    if not userStandESPEnabled then
+        for player, esp in pairs(playerESPElements) do
+            removePlayerESP(player)
+        end
+    end
+end
+
+local function stopAllPlayerESP()
+    userStandESPEnabled = false
+    userStyleESPEnabled = false
+    
+    for player, esp in pairs(playerESPElements) do
+        removePlayerESP(player)
+    end
+    
+    for _, connection in ipairs(playerESPConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    playerESPConnections = {}
+    
+    print("Player ESP: All Player ESP deactivated")
 end
 
 
@@ -4697,6 +4977,41 @@ function showContent(tabName)
         createItemToggle(getText("DiosDiary"), YBAConfig.ItemESP.Items["DIO's Diary"])
         createItemToggle(getText("LuckyStoneMask"), YBAConfig.ItemESP.Items["Lucky Stone Mask"])
         createItemToggle(getText("LuckyArrow"), YBAConfig.ItemESP.Items["Lucky Arrow"])
+        
+        -- Player ESP Section
+        createDivider()
+        
+        local playerESPLabel = Instance.new("TextLabel", functionsContainer)
+        playerESPLabel.Size = UDim2.new(1, -10, 0, 25)
+        playerESPLabel.Position = UDim2.new(0, 5, 0, currentY)
+        playerESPLabel.Text = "👥 PLAYER ESP"
+        playerESPLabel.Font = Enum.Font.GothamBold
+        playerESPLabel.TextSize = 14
+        playerESPLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+        playerESPLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        playerESPLabel.BorderSizePixel = 1
+        playerESPLabel.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        playerESPLabel.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", playerESPLabel).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
+        -- User Stand ESP
+        local userStandToggleBtn = createToggleSlider("User Stand", false, function(v)
+            if v then
+                startUserStandESP()
+            else
+                stopUserStandESP()
+            end
+        end)
+        
+        -- User Style ESP
+        local userStyleToggleBtn = createToggleSlider("User Style", false, function(v)
+            if v then
+                startUserStyleESP()
+            else
+                stopUserStyleESP()
+            end
+        end)
         
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
