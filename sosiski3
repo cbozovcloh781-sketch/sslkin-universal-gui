@@ -1211,97 +1211,40 @@ local function detectNearbyAttackers()
                     local distance = (root.Position - localRoot.Position).Magnitude
                     
                     if distance <= AutoPerfectBlockConfig.DetectionRange then
-                        -- Проверяем анимации атаки
+                        -- Упрощенная логика обнаружения атак
                         local isAttacking = false
+                        local velocity = root.Velocity
                         
-                        -- Проверяем стенд игрока
+                        -- Проверяем скорость движения (быстрое движение = атака)
+                        if velocity.Magnitude > 30 then
+                            isAttacking = true
+                        end
+                        
+                        -- Проверяем направление движения (движение к нам = атака)
+                        local directionToLocal = (localRoot.Position - root.Position).Unit
+                        local playerDirection = velocity.Unit
+                        local dotProduct = directionToLocal:Dot(playerDirection)
+                        
+                        if dotProduct > 0.5 and velocity.Magnitude > 15 then
+                            isAttacking = true
+                        end
+                        
+                        -- Проверяем близость (очень близко = атака)
+                        if distance < 2.5 and velocity.Magnitude > 5 then
+                            isAttacking = true
+                        end
+                        
+                        -- Проверяем стенд игрока (если есть активные анимации)
                         local stand = char:FindFirstChild("Stand")
                         if stand then
                             local standAbilities = stand:FindFirstChild("Abilities")
                             if standAbilities then
                                 for _, ability in pairs(standAbilities:GetChildren()) do
                                     if ability:IsA("AnimationTrack") and ability.IsPlaying then
-                                        local animName = ability.Animation.AnimationId:lower()
-                                        if animName:find("attack") or 
-                                           animName:find("punch") or 
-                                           animName:find("kick") or
-                                           animName:find("hit") or
-                                           animName:find("combo") or
-                                           animName:find("barrage") or
-                                           animName:find("ora") or
-                                           animName:find("muda") or
-                                           animName:find("star") or
-                                           animName:find("platinum") or
-                                           animName:find("world") or
-                                           animName:find("hierophant") or
-                                           animName:find("green") or
-                                           animName:find("magician") or
-                                           animName:find("red") then
-                                            isAttacking = true
-                                            break
-                                        end
+                                        isAttacking = true
+                                        break
                                     end
                                 end
-                            end
-                        end
-                        
-                        -- Проверяем анимации персонажа
-                        local animator = char:FindFirstChild("Humanoid"):FindFirstChild("Animator")
-                        if animator then
-                            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                                local animName = track.Animation.AnimationId:lower()
-                                if animName:find("attack") or 
-                                   animName:find("punch") or 
-                                   animName:find("kick") or
-                                   animName:find("hit") or
-                                   animName:find("combo") or
-                                   animName:find("swing") or
-                                   animName:find("barrage") or
-                                   animName:find("ora") or
-                                   animName:find("muda") or
-                                   animName:find("star") or
-                                   animName:find("platinum") or
-                                   animName:find("world") or
-                                   animName:find("hierophant") or
-                                   animName:find("green") or
-                                   animName:find("magician") or
-                                   animName:find("red") then
-                                    isAttacking = true
-                                    break
-                                end
-                            end
-                        end
-                        
-                        -- Проверяем скорость движения (быстрое движение может указывать на атаку)
-                        local velocity = root.Velocity
-                        if velocity.Magnitude > 50 then
-                            isAttacking = true
-                        end
-                        
-                        -- Проверяем направление движения (если игрок движется к нам)
-                        local directionToLocal = (localRoot.Position - root.Position).Unit
-                        local playerDirection = velocity.Unit
-                        local dotProduct = directionToLocal:Dot(playerDirection)
-                        
-                        if dotProduct > 0.7 and velocity.Magnitude > 20 then
-                            isAttacking = true
-                        end
-                        
-                        -- Проверяем расстояние до игрока (если очень близко, вероятно атакует)
-                        if distance < 2 and velocity.Magnitude > 10 then
-                            isAttacking = true
-                        end
-                        
-                        -- Проверяем нажатые клавиши у других игроков (если доступно)
-                        if UserInputService:IsKeyDown(Enum.KeyCode.F) or 
-                           UserInputService:IsKeyDown(Enum.KeyCode.E) or
-                           UserInputService:IsKeyDown(Enum.KeyCode.R) or
-                           UserInputService:IsKeyDown(Enum.KeyCode.T) or
-                           UserInputService:IsKeyDown(Enum.KeyCode.Y) or
-                           UserInputService:IsKeyDown(Enum.KeyCode.Q) then
-                            -- Это может быть нажатие нашего игрока, но если есть другие игроки рядом
-                            if distance < 3 then
-                                isAttacking = true
                             end
                         end
                         
@@ -1356,25 +1299,33 @@ local function performBlock()
     
     lastBlockTime = currentTime
     
-    -- Симулируем нажатие клавиши F более точно
-    local inputBegin = {
-        KeyCode = AutoPerfectBlockConfig.BlockKey,
+    -- Альтернативный метод симуляции нажатия клавиши F
+    local VirtualInputManager = game:GetService("VirtualInputManager")
+    
+    -- Используем VirtualInputManager для более надежной симуляции
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+    
+    -- Отправляем событие отпускания через небольшую задержку
+    task.spawn(function()
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+    end)
+    
+    -- Дублируем через UserInputService для совместимости
+    local input = {
+        KeyCode = Enum.KeyCode.F,
         UserInputType = Enum.UserInputType.Keyboard,
         UserInputState = Enum.UserInputState.Begin
     }
+    UserInputService:FireInputEvent(input)
     
-    local inputEnd = {
-        KeyCode = AutoPerfectBlockConfig.BlockKey,
-        UserInputType = Enum.UserInputType.Keyboard,
-        UserInputState = Enum.UserInputState.End
-    }
-    
-    -- Отправляем событие нажатия
-    UserInputService:FireInputEvent(inputBegin)
-    
-    -- Небольшая задержка перед отпусканием клавиши
     task.spawn(function()
-        task.wait(0.05)
+        task.wait(0.1)
+        local inputEnd = {
+            KeyCode = Enum.KeyCode.F,
+            UserInputType = Enum.UserInputType.Keyboard,
+            UserInputState = Enum.UserInputState.End
+        }
         UserInputService:FireInputEvent(inputEnd)
     end)
     
@@ -1447,15 +1398,53 @@ local function startAutoPerfectBlock()
             end
         end
         
+        -- Упрощенная проверка - если есть игроки рядом, блокируем
+        local nearbyPlayers = 0
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= localPlayer then
+                local char = player.Character
+                if char then
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    local humanoid = char:FindFirstChild("Humanoid")
+                    
+                    if root and humanoid and humanoid.Health > 0 then
+                        local distance = (root.Position - localRoot.Position).Magnitude
+                        if distance <= AutoPerfectBlockConfig.DetectionRange then
+                            nearbyPlayers = nearbyPlayers + 1
+                        end
+                    end
+                end
+            end
+        end
+        
+        if nearbyPlayers > 0 then
+            if AutoPerfectBlockConfig.ShowDebugInfo then
+                print("Auto Perfect Block: Игроки рядом:", nearbyPlayers)
+            end
+            performBlock()
+        else
+            if autoBlockEffect then
+                autoBlockEffect.FillColor = Color3.fromRGB(255, 255, 0) -- Желтый в режиме ожидания
+            end
+        end
+        
+        -- Оригинальная логика как резерв
         local attackers = detectNearbyAttackers()
         
         if #attackers > 0 then
             if AutoPerfectBlockConfig.ShowDebugInfo then
                 print("Auto Perfect Block: Обнаружены атакующие игроки:", #attackers)
+                for i, attacker in ipairs(attackers) do
+                    print("  -", attacker.Player.Name, "на расстоянии", math.floor(attacker.Distance), "м, скорость:", math.floor(attacker.Velocity.Magnitude))
+                end
             end
             
             -- Выполняем блок
-            performBlock()
+            if performBlock() then
+                if AutoPerfectBlockConfig.ShowDebugInfo then
+                    print("Auto Perfect Block: Блок выполнен успешно!")
+                end
+            end
         else
             if autoBlockEffect then
                 autoBlockEffect.FillColor = Color3.fromRGB(255, 255, 0) -- Желтый в режиме ожидания
@@ -1471,6 +1460,8 @@ local function startAutoPerfectBlock()
     table.insert(autoPerfectBlockConnections, deathConnection)
     
     print("Auto Perfect Block активирован!")
+    print("Радиус обнаружения:", AutoPerfectBlockConfig.DetectionRange, "метров")
+    print("Отладочная информация:", AutoPerfectBlockConfig.ShowDebugInfo and "включена" or "выключена")
 end
 
 local function stopAutoPerfectBlock()
@@ -5034,6 +5025,27 @@ function showContent(tabName)
             AutoPerfectBlockConfig.ShowDebugInfo = v
             print("Auto Perfect Block: Отладочная информация", v and "включена" or "выключена")
         end)
+        
+        -- Тестовая кнопка для проверки блока
+        local testBlockBtn = Instance.new("TextButton", functionsContainer)
+        testBlockBtn.Size = UDim2.new(1, -10, 0, 30)
+        testBlockBtn.Position = UDim2.new(0, 5, 0, currentY)
+        testBlockBtn.Text = "Test Block (F)"
+        testBlockBtn.Font = Enum.Font.GothamBold
+        testBlockBtn.TextSize = 12
+        testBlockBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
+        testBlockBtn.TextColor3 = Color3.new(1, 1, 1)
+        testBlockBtn.BorderSizePixel = 0
+        
+        local testBlockCorner = Instance.new("UICorner", testBlockBtn)
+        testBlockCorner.CornerRadius = UDim.new(0, 6)
+        
+        testBlockBtn.MouseButton1Click:Connect(function()
+            print("Auto Perfect Block: Тестируем блок...")
+            performBlock()
+        end)
+        
+        currentY = currentY + 30 + padding
         
         createDivider()
         
