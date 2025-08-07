@@ -255,6 +255,17 @@ local playerESPElements = {}
 local userStandESPEnabled = false
 local userStyleESPEnabled = false
 
+-- Style filter settings
+local styleFilters = {
+    ["Hamon"] = true,
+    ["Boxing"] = true,
+    ["Vampire"] = true,
+    ["Spin"] = true,
+    ["Pluck"] = true,
+    ["Zoom Punch"] = true,
+    ["None"] = true
+}
+
 -- Player ESP Functions
 local function getPlayerStand(player)
     if not player or not player.Character then 
@@ -2770,11 +2781,22 @@ local function createOrUpdateESP(p)
     if userStyleESPEnabled then
         local style = getPlayerStyle(p)
         if style then
-            styleInfo = " | Style: " .. style
-            print("Player ESP: Found style for", p.Name, "=", style)
+            -- Проверяем, включен ли этот стиль в фильтрах
+            if styleFilters[style] then
+                styleInfo = " | Style: " .. style
+                print("Player ESP: Found style for", p.Name, "=", style, "(filtered: enabled)")
+            else
+                styleInfo = " | Style: " .. style .. " (hidden)"
+                print("Player ESP: Found style for", p.Name, "=", style, "(filtered: disabled)")
+            end
         else
-            styleInfo = " | Style: None"
-            print("Player ESP: No style found for", p.Name)
+            if styleFilters["None"] then
+                styleInfo = " | Style: None"
+                print("Player ESP: No style found for", p.Name, "(filtered: enabled)")
+            else
+                styleInfo = " | Style: None (hidden)"
+                print("Player ESP: No style found for", p.Name, "(filtered: disabled)")
+            end
         end
     end
     
@@ -3868,6 +3890,13 @@ local navButtons = {
 
 local selectedTab = "Main"
 
+-- Scroll position for each tab
+local tabScrollPositions = {
+    ["Main"] = 0,
+    ["YBA Hacks"] = 0,
+    ["Settings"] = 0
+}
+
 for i, buttonData in ipairs(navButtons) do
     local navButton = Instance.new("TextButton", leftPanel)
     navButton.Name = buttonData.name .. "Button"
@@ -4479,6 +4508,11 @@ end
 
 -- Функция для показа контента
 function showContent(tabName)
+    -- Сохраняем текущую позицию прокрутки
+    if selectedTab and scrollFrame then
+        tabScrollPositions[selectedTab] = scrollFrame.CanvasPosition.Y
+    end
+    
     -- Очищаем контейнер и сбрасываем позицию
     for _, child in pairs(functionsContainer:GetChildren()) do
         child:Destroy()
@@ -4977,6 +5011,37 @@ function showContent(tabName)
             end
         end)
         
+        -- Style Filters Section
+        createDivider()
+        
+        local styleFiltersLabel = Instance.new("TextLabel", functionsContainer)
+        styleFiltersLabel.Size = UDim2.new(1, -10, 0, 20)
+        styleFiltersLabel.Position = UDim2.new(0, 5, 0, currentY)
+        styleFiltersLabel.Text = "🎯 STYLE FILTERS"
+        styleFiltersLabel.Font = Enum.Font.GothamBold
+        styleFiltersLabel.TextSize = 12
+        styleFiltersLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+        styleFiltersLabel.BackgroundTransparency = 1
+        styleFiltersLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
+        
+        -- Style filter toggles
+        local function createStyleFilterToggle(styleName, defaultState)
+            local btn = createToggleSlider(styleName, defaultState, function(v)
+                styleFilters[styleName] = v
+                print("Player ESP: Style filter", styleName, "set to", v)
+            end)
+            return btn
+        end
+        
+        createStyleFilterToggle("Hamon", styleFilters["Hamon"])
+        createStyleFilterToggle("Boxing", styleFilters["Boxing"])
+        createStyleFilterToggle("Vampire", styleFilters["Vampire"])
+        createStyleFilterToggle("Spin", styleFilters["Spin"])
+        createStyleFilterToggle("Pluck", styleFilters["Pluck"])
+        createStyleFilterToggle("Zoom Punch", styleFilters["Zoom Punch"])
+        createStyleFilterToggle("None", styleFilters["None"])
+        
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
         
@@ -5071,6 +5136,14 @@ function showContent(tabName)
     
     -- Обновляем размер контейнера
     functionsContainer.Size = UDim2.new(1, 0, 0, currentY)
+    
+    -- Обновляем выбранную вкладку
+    selectedTab = tabName
+    
+    -- Восстанавливаем позицию прокрутки для новой вкладки
+    if scrollFrame and tabScrollPositions[tabName] then
+        scrollFrame.CanvasPosition = Vector2.new(0, tabScrollPositions[tabName])
+    end
 end
 
 -- Показываем контент по умолчанию
