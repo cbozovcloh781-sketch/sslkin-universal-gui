@@ -190,7 +190,6 @@ local isLongJumping = false
 local longJumpConnections = {}
 local originalLongJumpPower = 50
 
--- Переменные для управления персонажем под стендом
 local isUndergroundControlEnabled = false
 local undergroundControlConnections = {}
 local controlledStandForUnderground = nil
@@ -296,27 +295,22 @@ end
 -- GUI элементы
 local teleportBtn = nil
 
--- Настройки меню
 local MenuSettings = {
     BlurEnabled = true,
     AccentColor = Color3.fromRGB(0, 150, 0),
     Language = "English", -- "English" или "Russian"
 }
 
--- Языковые строки
 local Languages = {
     English = {
-        -- Заголовки
         MainFunctions = "MAIN FUNCTIONS",
         YBAHacks = "YBA HACKS",
         MenuSettings = "MENU SETTINGS",
         
-        -- Настройки меню
         BlurEffect = "Blur Effect",
         AccentColor = "Accent Color", 
         Language = "Language",
         
-        -- Основные функции
         ESP = "ESP",
         TeamCheck = "Team Check",
         ShowOutline = "Show Outline",
@@ -360,17 +354,14 @@ local Languages = {
         LuckyArrow = "Lucky Arrow",
     },
     Russian = {
-        -- Заголовки
         MainFunctions = "ОСНОВНЫЕ ФУНКЦИИ",
         YBAHacks = "YBA ХАКИ",
         MenuSettings = "НАСТРОЙКИ МЕНЮ",
         
-        -- Настройки меню
         BlurEffect = "Эффект размытия",
         AccentColor = "Цвет акцента",
         Language = "Язык",
         
-        -- Основные функции
         ESP = "ESP",
         TeamCheck = "Проверка команды",
         ShowOutline = "Показать обводку",
@@ -420,7 +411,6 @@ local function getText(key)
     return Languages[MenuSettings.Language][key] or Languages.English[key] or key
 end
 
--- Функция обновления размытия
 local function updateBlurEffect()
     if glassEffect then
         glassEffect.Visible = MenuSettings.BlurEnabled
@@ -433,25 +423,21 @@ local function updateBlurEffect()
     end
 end
 
--- Функция обновления цвета акцента
 local function updateAccentColor()
-    -- Обновляем цвет кнопки переоткрытия
     local reopenButton = screenGui:FindFirstChild("ReopenButton")
     if reopenButton then
         reopenButton.BackgroundColor3 = MenuSettings.AccentColor
     end
     
-    -- Обновляем цвет всех активных ползунков в интерфейсе
     for _, child in pairs(functionsContainer:GetChildren()) do
         if child:IsA("Frame") then
-            local sliderBack = child:FindFirstChild("SliderBack") -- Ищем слайдер по имени
+            local sliderBack = child:FindFirstChild("SliderBack")
             if sliderBack and sliderBack.BackgroundColor3 ~= Color3.fromRGB(100, 100, 100) then
                 sliderBack.BackgroundColor3 = MenuSettings.AccentColor
             end
         end
     end
     
-    -- Обновляем подсветку активной вкладки
     for _, btn in pairs(leftPanel:GetChildren()) do
         if btn:IsA("TextButton") and btn.BackgroundColor3 == Color3.fromRGB(40, 40, 45) then
             local highlight = btn:FindFirstChild("Highlight")
@@ -462,9 +448,7 @@ local function updateAccentColor()
     end
 end
 
--- Функция обновления всех текстов
 local function updateAllTexts()
-    -- Обновляем заголовок контента
     if contentTitle then
         if selectedTab == "Main" then
             contentTitle.Text = getText("MainFunctions")
@@ -475,7 +459,6 @@ local function updateAllTexts()
         end
     end
     
-    -- Перезагружаем контент для обновления всех текстов
     showContent(selectedTab)
 end
 
@@ -2163,7 +2146,6 @@ local function stopYBA()
     end
 end
 
--- Функция для запуска управления персонажем под стендом (летающий режим)
 local function startUndergroundControl()
     print("=== ЗАПУСК ПОДЗЕМНОГО ПОЛЕТА ===")
     
@@ -2324,7 +2306,6 @@ local function startUndergroundControl()
     print("Персонаж перенесен под стенд на расстоянии 30 метров под землей")
 end
 
--- Функция для остановки управления персонажем под стендом
 local function stopUndergroundControl()
     if not isUndergroundControlEnabled then return end
     
@@ -2612,10 +2593,8 @@ local function createOrUpdateESP(p)
     d.hl.OutlineColor=getOutlineColor(p); d.hl.OutlineTransparency=Config.ESP.ShowOutline and Config.ESP.OutlineTransparency or 1
     d.tl.TextColor3=Config.ESP.TextColor
     
-    -- Базовая информация
     local baseText = string.format("%s | HP:%d | %dm",getName(p),getHealth(p),math.floor((Players.LocalPlayer.Character.HumanoidRootPart.Position-p.Character.HumanoidRootPart.Position).Magnitude))
     
-    -- Добавляем информацию о стенде и стиле
     local standInfo = ""
     local styleInfo = ""
     
@@ -3051,7 +3030,6 @@ local function findYBAItemsFast()
                         break
                     end
                 end
-            -- Дополнительная проверка для дневника ДИО (может называться по-разному)
             elseif string.find(string.lower(itemName), "diary") and YBAConfig.ItemESP.Items["DIO's Diary"] then
                 for _, part in ipairs(child:GetDescendants()) do
                     if part:IsA("MeshPart") or part:IsA("Part") then
@@ -3064,7 +3042,7 @@ local function findYBAItemsFast()
                             Object = part,
                             Root = part,
                             Distance = distance,
-                            Name = "DIO's Diary", -- Стандартизируем название
+                            Name = "DIO's Diary",
                             Type = "YBA_Item",
                             Folder = "Item_Spawns.Items"
                         })
@@ -3167,7 +3145,6 @@ local function findYBAItemsAlternative()
                                 end
                             end
                         end
-                    -- Дополнительная проверка для дневника ДИО (альтернативный поиск)
                     elseif string.find(string.lower(child.Name), "diary") and YBAConfig.ItemESP.Items["DIO's Diary"] then
                         print("YBA Item ESP: Альтернативный поиск - найден дневник:", child.Name)
 
@@ -3183,7 +3160,7 @@ local function findYBAItemsAlternative()
                                         Object = part,
                                         Root = part,
                                         Distance = distance,
-                                        Name = "DIO's Diary", -- Стандартизируем название
+                                        Name = "DIO's Diary",
                                         Type = "YBA_Item",
                                         Folder = "Workspace"
                                     })
@@ -3657,12 +3634,10 @@ local function stopUserStyleESP()
 end
 
 
--- Создание нового интерфейса в стиле Arceus X V55
 local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
 screenGui.ResetOnSpawn = false
 
--- Основной контейнер
 local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Name = "MainFrame"
 mainFrame.Position = UDim2.new(0, 20, 0.5, -250)
@@ -3672,15 +3647,12 @@ mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Draggable = true
 
--- Минимальный размер (убираем ограничения для свободного изменения)
 local minWidth = 200
 local minHeight = 150
 
--- Скругление углов для основного фрейма
 local mainCorner = Instance.new("UICorner", mainFrame)
 mainCorner.CornerRadius = UDim.new(0, 8)
 
--- Левая панель навигации (обычная, не прозрачная)
 local leftPanel = Instance.new("Frame", mainFrame)
 leftPanel.Name = "LeftPanel"
 leftPanel.Size = UDim2.new(0, 120, 1, 0)
@@ -3692,7 +3664,6 @@ leftPanel.BorderSizePixel = 0
 local leftCorner = Instance.new("UICorner", leftPanel)
 leftCorner.CornerRadius = UDim.new(0, 8)
 
--- Логотип и заголовок
 local logoFrame = Instance.new("Frame", leftPanel)
 logoFrame.Name = "LogoFrame"
 logoFrame.Size = UDim2.new(1, 0, 0, 80)
@@ -3721,7 +3692,6 @@ versionText.TextColor3 = Color3.new(1, 1, 1)
 versionText.BackgroundTransparency = 1
 versionText.TextXAlignment = Enum.TextXAlignment.Center
 
--- Навигационные кнопки
 local navButtons = {
     {name = "Main", icon = "🏠"},
     {name = "YBA Hacks", icon = "⚔️"},
@@ -3781,7 +3751,6 @@ for i, buttonData in ipairs(navButtons) do
         navButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
         selectedTab = buttonData.name
         
-        -- Добавляем подсветку
         local highlight = Instance.new("Frame", navButton)
         highlight.Name = "Highlight"
         highlight.Size = UDim2.new(0, 3, 1, 0)
@@ -3792,12 +3761,10 @@ for i, buttonData in ipairs(navButtons) do
         local highlightCorner = Instance.new("UICorner", highlight)
         highlightCorner.CornerRadius = UDim.new(0, 2)
         
-        -- Показываем соответствующий контент
         showContent(buttonData.name)
     end)
 end
 
--- Правая панель контента с эффектом жидкого стекла
 local rightPanel = Instance.new("Frame", mainFrame)
 rightPanel.Name = "RightPanel"
 rightPanel.Size = UDim2.new(1, -120, 1, 0)
@@ -3806,7 +3773,6 @@ rightPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
 rightPanel.BackgroundTransparency = 0.15
 rightPanel.BorderSizePixel = 0
 
--- Создаем эффект жидкого стекла для правой панели
 local glassEffect = Instance.new("Frame", rightPanel)
 glassEffect.Name = "GlassEffect"
 glassEffect.Size = UDim2.new(1, 0, 1, 0)
@@ -3816,7 +3782,6 @@ glassEffect.BackgroundTransparency = 0.92
 glassEffect.BorderSizePixel = 0
 glassEffect.ZIndex = -1
 
--- Добавляем градиент для эффекта стекла
 local glassGradient = Instance.new("UIGradient", glassEffect)
 glassGradient.Color = ColorSequence.new{
     ColorSequenceKeypoint.new(0, Color3.fromRGB(200, 200, 220)),
@@ -3825,7 +3790,6 @@ glassGradient.Color = ColorSequence.new{
 }
 glassGradient.Rotation = 45
 
--- Добавляем тонкую границу для эффекта стекла
 local glassBorder = Instance.new("UIStroke", rightPanel)
 glassBorder.Color = Color3.fromRGB(200, 200, 220)
 glassBorder.Transparency = 0.7
@@ -3834,11 +3798,9 @@ glassBorder.Thickness = 1
 local rightCorner = Instance.new("UICorner", rightPanel)
 rightCorner.CornerRadius = UDim.new(0, 8)
 
--- Скругленные углы для эффекта стекла
 local glassCorner = Instance.new("UICorner", glassEffect)
 glassCorner.CornerRadius = UDim.new(0, 8)
 
--- Кнопка закрытия
 local closeButton = Instance.new("TextButton", rightPanel)
 closeButton.Name = "CloseButton"
 closeButton.Size = UDim2.new(0, 30, 0, 30)
@@ -3856,11 +3818,9 @@ closeCorner.CornerRadius = UDim.new(0, 6)
 
 closeButton.MouseButton1Click:Connect(function()
     mainFrame.Visible = false
-    -- Создаем кнопку для повторного открытия
     createReopenButton()
 end)
 
--- Опознавательный знак для изменения размера в правом нижнем углу (как в Windows)
 local resizeHandle = Instance.new("Frame", mainFrame)
 resizeHandle.Name = "ResizeHandle"
 resizeHandle.Size = UDim2.new(0, 15, 0, 15)
@@ -3870,7 +3830,6 @@ resizeHandle.BackgroundTransparency = 0.2
 resizeHandle.BorderSizePixel = 0
 resizeHandle.ZIndex = 15
 
--- Добавляем линии как в Windows
 local line1 = Instance.new("Frame", resizeHandle)
 line1.Size = UDim2.new(0, 2, 0, 10)
 line1.Position = UDim2.new(0, 8, 0, 2)
@@ -3933,9 +3892,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Функция для создания кнопки повторного открытия
 function createReopenButton()
-    -- Удаляем старую кнопку если она существует
     local existingButton = screenGui:FindFirstChild("ReopenButton")
     if existingButton then
         existingButton:Destroy()
@@ -3962,7 +3919,6 @@ function createReopenButton()
     end)
 end
 
--- Заголовок контента
 local contentTitle = Instance.new("TextLabel", rightPanel)
 contentTitle.Name = "ContentTitle"
 contentTitle.Size = UDim2.new(1, -20, 0, 40)
@@ -3974,7 +3930,6 @@ contentTitle.TextColor3 = Color3.new(1, 1, 1)
 contentTitle.BackgroundTransparency = 1
 contentTitle.TextXAlignment = Enum.TextXAlignment.Center
 
--- Контейнер для кнопок функций с прокруткой
 local scrollFrame = Instance.new("ScrollingFrame", rightPanel)
 scrollFrame.Name = "ScrollFrame"
 scrollFrame.Size = UDim2.new(1, -20, 1, -100)
@@ -3984,7 +3939,6 @@ scrollFrame.ScrollBarThickness = 6
 scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
--- Контейнер для кнопок функций
 local functionsContainer = Instance.new("Frame", scrollFrame)
 functionsContainer.Name = "FunctionsContainer"
 functionsContainer.Size = UDim2.new(1, 0, 0, 0)
@@ -3992,11 +3946,9 @@ functionsContainer.Position = UDim2.new(0, 0, 0, 0)
 functionsContainer.BackgroundTransparency = 1
 functionsContainer.AutomaticSize = Enum.AutomaticSize.Y
 
--- Убираем UIListLayout и используем ручное позиционирование
 local currentY = 0
 local padding = 8
 
--- Функции для создания элементов интерфейса
 local function createSectionHeader(text)
     currentY = currentY + padding
     local spacer = Instance.new("Frame", functionsContainer)
@@ -4389,7 +4341,6 @@ function showContent(tabName)
         
         createDivider()
         
-        -- ESP Settings
         createSectionHeader("🔷ESP Settings")
         createToggleSlider(getText("ESP"), Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
         createToggleSlider(getText("TeamCheck"), Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
@@ -4405,7 +4356,6 @@ function showContent(tabName)
         
         createDivider()
         
-        -- Aimbot Settings
         createSectionHeader("🔷Aimbot Settings")
         createToggleSlider(getText("Aimbot"), Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
         createToggleSlider(getText("TeamCheck"), Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
@@ -4416,7 +4366,6 @@ function showContent(tabName)
         
         createDivider()
         
-        -- Fly Settings
         createSectionHeader("🟨 Fly Settings")
         createToggleSlider("Fly", FlyConfig.Enabled, function(v)
             FlyConfig.Enabled = v
@@ -4433,7 +4382,6 @@ function showContent(tabName)
         
         createDivider()
         
-        -- NoClip Settings
         createSectionHeader("🟪 NoClip Settings")
         local noClipStatusLabel = Instance.new("TextLabel", functionsContainer)
         noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -4460,7 +4408,6 @@ function showContent(tabName)
         
         createDivider()
         
-        -- SpeedHack Settings
         createSectionHeader("🟦 SpeedHack Settings")
         createToggleSlider("SpeedHack", SpeedHackConfig.Enabled, function(v)
             SpeedHackConfig.Enabled = v
@@ -4581,7 +4528,6 @@ function showContent(tabName)
             end
         end)
         
-        -- Список игроков для телепорта (перемещаем ниже кнопок)
         local playerListLabel = Instance.new("TextLabel", functionsContainer)
         playerListLabel.Size = UDim2.new(1, -10, 0, 20)
         playerListLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -4593,7 +4539,6 @@ function showContent(tabName)
         playerListLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
-        -- Создаем список игроков
         local function createPlayerList()
             local allPlayers = Players:GetPlayers()
             for _, player in ipairs(allPlayers) do
@@ -4615,7 +4560,6 @@ function showContent(tabName)
                         TeleportConfig.SelectedPlayerName = player.Name
                         selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. player.Name
                         
-                        -- Обновляем цвет выбранного игрока
                         for _, child in pairs(functionsContainer:GetChildren()) do
                             if child:IsA("TextButton") and child.Text == player.Name then
                                 child.BackgroundColor3 = Color3.fromRGB(0,255,0)
@@ -4738,7 +4682,6 @@ function showContent(tabName)
             end
         end)
         
-        -- Item ESP
         local itemESPLabel = Instance.new("TextLabel", functionsContainer)
         itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
         itemESPLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -4759,7 +4702,6 @@ function showContent(tabName)
             end
         end)
         
-        -- Item Selection
         local itemSelectionHeader = Instance.new("TextLabel", functionsContainer)
         itemSelectionHeader.Size = UDim2.new(1, -10, 0, 25)
         itemSelectionHeader.Position = UDim2.new(0, 5, 0, currentY)
@@ -4890,14 +4832,14 @@ function showContent(tabName)
         currentY = currentY + 20 + padding
 
         local accentColors = {
-            Color3.fromRGB(0, 150, 0),    -- Зеленый
-            Color3.fromRGB(0, 100, 255),  -- Синий  
-            Color3.fromRGB(255, 0, 100),  -- Розовый
-            Color3.fromRGB(255, 150, 0),  -- Оранжевый
-            Color3.fromRGB(150, 0, 255),  -- Фиолетовый
-            Color3.fromRGB(255, 255, 0),  -- Желтый
-            Color3.fromRGB(0, 255, 255),  -- Голубой
-            Color3.fromRGB(255, 50, 50),  -- Красный
+            Color3.fromRGB(0, 150, 0),
+            Color3.fromRGB(0, 100, 255),
+            Color3.fromRGB(255, 0, 100),
+            Color3.fromRGB(255, 150, 0),
+            Color3.fromRGB(150, 0, 255),
+            Color3.fromRGB(255, 255, 0),
+            Color3.fromRGB(0, 255, 255),
+            Color3.fromRGB(255, 50, 50),
         }
 
         local colorRow = Instance.new("Frame", functionsContainer)
