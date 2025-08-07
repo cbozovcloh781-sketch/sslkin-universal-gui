@@ -264,12 +264,12 @@ local function getPlayerStand(player)
     
     print("Player ESP: Searching for stand data for player:", player.Name)
     
-    -- Ищем папку players в workspace
-    local playersFolder = workspace:FindFirstChild("players")
+    -- Ищем папку players в game (на том же уровне что и workspace)
+    local playersFolder = game:FindFirstChild("players")
     if not playersFolder then 
-        print("Player ESP: players folder not found in workspace")
+        print("Player ESP: players folder not found in game")
         -- Попробуем альтернативные названия
-        playersFolder = workspace:FindFirstChild("Players")
+        playersFolder = game:FindFirstChild("Players")
         if not playersFolder then
             print("Player ESP: Players folder also not found")
             return nil
@@ -350,12 +350,12 @@ local function getPlayerStyle(player)
     
     print("Player ESP: Searching for style data for player:", player.Name)
     
-    -- Ищем папку players в workspace
-    local playersFolder = workspace:FindFirstChild("players")
+    -- Ищем папку players в game (на том же уровне что и workspace)
+    local playersFolder = game:FindFirstChild("players")
     if not playersFolder then 
-        print("Player ESP: players folder not found in workspace")
+        print("Player ESP: players folder not found in game")
         -- Попробуем альтернативные названия
-        playersFolder = workspace:FindFirstChild("Players")
+        playersFolder = game:FindFirstChild("Players")
         if not playersFolder then
             print("Player ESP: Players folder also not found")
             return nil
