@@ -2581,12 +2581,16 @@ local function createOrUpdateESP(p)
     local standInfo = ""
     local styleInfo = ""
     
+    print("Player ESP: userStandESPEnabled =", userStandESPEnabled, "userStyleESPEnabled =", userStyleESPEnabled)
+    
     if userStandESPEnabled then
         local stand = getPlayerStand(p)
         if stand then
             standInfo = " | Stand: " .. stand
+            print("Player ESP: Found stand for", p.Name, "=", stand)
         else
             standInfo = " | Stand: None"
+            print("Player ESP: No stand found for", p.Name)
         end
     end
     
@@ -2594,12 +2598,15 @@ local function createOrUpdateESP(p)
         local style = getPlayerStyle(p)
         if style then
             styleInfo = " | Style: " .. style
+            print("Player ESP: Found style for", p.Name, "=", style)
         else
             styleInfo = " | Style: None"
+            print("Player ESP: No style found for", p.Name)
         end
     end
     
     d.tl.Text = baseText .. standInfo .. styleInfo
+    print("Player ESP: Final text for", p.Name, "=", d.tl.Text)
 end
 
 local function removeESP(p)
@@ -3585,50 +3592,82 @@ end
 
 -- Player ESP Functions
 local function getPlayerStand(player)
-    if not player or not player.Character then return nil end
+    if not player or not player.Character then 
+        print("Player ESP: Player or character not found for", player.Name)
+        return nil 
+    end
     
     -- Ищем папку players в workspace
     local playersFolder = workspace:FindFirstChild("players")
-    if not playersFolder then return nil end
+    if not playersFolder then 
+        print("Player ESP: players folder not found in workspace")
+        return nil 
+    end
     
     -- Ищем папку с именем игрока
     local playerFolder = playersFolder:FindFirstChild(player.Name)
-    if not playerFolder then return nil end
+    if not playerFolder then 
+        print("Player ESP: Player folder not found for", player.Name)
+        return nil 
+    end
     
     -- Ищем папку playerstats
     local playerStatsFolder = playerFolder:FindFirstChild("playerstats")
-    if not playerStatsFolder then return nil end
+    if not playerStatsFolder then 
+        print("Player ESP: playerstats folder not found for", player.Name)
+        return nil 
+    end
     
     -- Ищем файл stand
     local standFile = playerStatsFolder:FindFirstChild("stand")
-    if not standFile then return nil end
+    if not standFile then 
+        print("Player ESP: stand file not found for", player.Name)
+        return nil 
+    end
     
     -- Получаем значение стенда
     local standValue = standFile.Value
+    print("Player ESP: Found stand value for", player.Name, "=", standValue)
     return standValue
 end
 
 local function getPlayerStyle(player)
-    if not player or not player.Character then return nil end
+    if not player or not player.Character then 
+        print("Player ESP: Player or character not found for", player.Name)
+        return nil 
+    end
     
     -- Ищем папку players в workspace
     local playersFolder = workspace:FindFirstChild("players")
-    if not playersFolder then return nil end
+    if not playersFolder then 
+        print("Player ESP: players folder not found in workspace")
+        return nil 
+    end
     
     -- Ищем папку с именем игрока
     local playerFolder = playersFolder:FindFirstChild(player.Name)
-    if not playerFolder then return nil end
+    if not playerFolder then 
+        print("Player ESP: Player folder not found for", player.Name)
+        return nil 
+    end
     
     -- Ищем папку playerstats
     local playerStatsFolder = playerFolder:FindFirstChild("playerstats")
-    if not playerStatsFolder then return nil end
+    if not playerStatsFolder then 
+        print("Player ESP: playerstats folder not found for", player.Name)
+        return nil 
+    end
     
     -- Ищем файл spec
     local specFile = playerStatsFolder:FindFirstChild("spec")
-    if not specFile then return nil end
+    if not specFile then 
+        print("Player ESP: spec file not found for", player.Name)
+        return nil 
+    end
     
     -- Получаем значение стиля
     local specValue = specFile.Value
+    print("Player ESP: Found spec value for", player.Name, "=", specValue)
     return specValue
 end
 
