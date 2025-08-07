@@ -174,6 +174,18 @@ local AntiTimeStopConfig = {
     ServerSync = true,
 }
 
+local AutoPerfectBlockConfig = {
+    Enabled = false,
+    ToggleKey = Enum.KeyCode.X, -- Клавиша X для включения/выключения
+    DetectionRange = 3, -- Радиус в метрах
+    BlockKey = Enum.KeyCode.F, -- Клавиша для блока
+    VisualEffect = true,
+    SoundEffect = false,
+    BlockDelay = 0.1, -- Задержка перед блоком в секундах
+    AutoDisableOnAttack = true, -- Отключить при атаке
+    ShowDebugInfo = false, -- Показывать отладочную информацию
+}
+
 local isFlying = false
 local flyConnections = {}
 local originalGravity = workspace.Gravity
@@ -228,6 +240,11 @@ local timeStopDetected = false
 local timeStopStartTime = 0
 local timeStopDuration = 0
 local antiTimeStopEffect = nil
+
+local isAutoPerfectBlockEnabled = false
+local autoPerfectBlockConnections = {}
+local lastBlockTime = 0
+local autoBlockEffect = nil
 
 local isStandControlActive = false
 local currentControlledStand = nil
@@ -343,6 +360,7 @@ local Languages = {
         DiosDiary = "DIO's Diary",
         LuckyStoneMask = "Lucky Stone Mask",
         LuckyArrow = "Lucky Arrow",
+        AutoPerfectBlock = "Auto Perfect Block",
     },
     Russian = {
         MainFunctions = "ОСНОВНЫЕ ФУНКЦИИ",
@@ -376,6 +394,7 @@ local Languages = {
         AntiTimeStop = "АНТИ ОСТАНОВКА ВРЕМЕНИ",
         StartTeleport = "НАЧАТЬ ТЕЛЕПОРТ",
         StopTeleport = "ОСТАНОВИТЬ ТЕЛЕПОРТ",
+        AutoPerfectBlock = "АВТО ПЕРФЕКТ БЛОК",
         -- YBA Items
         MysteriousArrow = "Таинственная стрела",
         Rokakaka = "Рокакака",
@@ -1160,6 +1179,303 @@ local function stopAntiTimeStop()
     antiTimeStopConnections = {}
     
     print("Anti Time Stop disabled")
+end
+
+-- Auto Perfect Block Functions
+local function detectNearbyAttackers()
+    local attackers = {}
+    local localPlayer = Players.LocalPlayer
+    local localChar = localPlayer.Character
+    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
+    
+    if not localRoot then return attackers end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= localPlayer then
+            local char = player.Character
+            if char then
+                local root = char:FindFirstChild("HumanoidRootPart")
+                local humanoid = char:FindFirstChild("Humanoid")
+                
+                if root and humanoid and humanoid.Health > 0 then
+                    local distance = (root.Position - localRoot.Position).Magnitude
+                    
+                    if distance <= AutoPerfectBlockConfig.DetectionRange then
+                        -- Проверяем анимации атаки
+                        local isAttacking = false
+                        
+                        -- Проверяем стенд игрока
+                        local stand = char:FindFirstChild("Stand")
+                        if stand then
+                            local standAbilities = stand:FindFirstChild("Abilities")
+                            if standAbilities then
+                                for _, ability in pairs(standAbilities:GetChildren()) do
+                                    if ability:IsA("AnimationTrack") and ability.IsPlaying then
+                                        local animName = ability.Animation.AnimationId:lower()
+                                        if animName:find("attack") or 
+                                           animName:find("punch") or 
+                                           animName:find("kick") or
+                                           animName:find("hit") or
+                                           animName:find("combo") or
+                                           animName:find("barrage") or
+                                           animName:find("ora") or
+                                           animName:find("muda") or
+                                           animName:find("star") or
+                                           animName:find("platinum") or
+                                           animName:find("world") or
+                                           animName:find("hierophant") or
+                                           animName:find("green") or
+                                           animName:find("magician") or
+                                           animName:find("red") then
+                                            isAttacking = true
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- Проверяем анимации персонажа
+                        local animator = char:FindFirstChild("Humanoid"):FindFirstChild("Animator")
+                        if animator then
+                            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                                local animName = track.Animation.AnimationId:lower()
+                                if animName:find("attack") or 
+                                   animName:find("punch") or 
+                                   animName:find("kick") or
+                                   animName:find("hit") or
+                                   animName:find("combo") or
+                                   animName:find("swing") or
+                                   animName:find("barrage") or
+                                   animName:find("ora") or
+                                   animName:find("muda") or
+                                   animName:find("star") or
+                                   animName:find("platinum") or
+                                   animName:find("world") or
+                                   animName:find("hierophant") or
+                                   animName:find("green") or
+                                   animName:find("magician") or
+                                   animName:find("red") then
+                                    isAttacking = true
+                                    break
+                                end
+                            end
+                        end
+                        
+                        -- Проверяем скорость движения (быстрое движение может указывать на атаку)
+                        local velocity = root.Velocity
+                        if velocity.Magnitude > 50 then
+                            isAttacking = true
+                        end
+                        
+                        -- Проверяем направление движения (если игрок движется к нам)
+                        local directionToLocal = (localRoot.Position - root.Position).Unit
+                        local playerDirection = velocity.Unit
+                        local dotProduct = directionToLocal:Dot(playerDirection)
+                        
+                        if dotProduct > 0.7 and velocity.Magnitude > 20 then
+                            isAttacking = true
+                        end
+                        
+                        -- Проверяем расстояние до игрока (если очень близко, вероятно атакует)
+                        if distance < 2 and velocity.Magnitude > 10 then
+                            isAttacking = true
+                        end
+                        
+                        -- Проверяем нажатые клавиши у других игроков (если доступно)
+                        if UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+                           UserInputService:IsKeyDown(Enum.KeyCode.E) or
+                           UserInputService:IsKeyDown(Enum.KeyCode.R) or
+                           UserInputService:IsKeyDown(Enum.KeyCode.T) or
+                           UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+                           UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+                            -- Это может быть нажатие нашего игрока, но если есть другие игроки рядом
+                            if distance < 3 then
+                                isAttacking = true
+                            end
+                        end
+                        
+                        if isAttacking then
+                            table.insert(attackers, {
+                                Player = player,
+                                Character = char,
+                                Root = root,
+                                Distance = distance,
+                                Velocity = velocity
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return attackers
+end
+
+local function createAutoBlockEffect()
+    if not AutoPerfectBlockConfig.VisualEffect then return end
+    
+    local char = Players.LocalPlayer.Character
+    if not char then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "AutoBlockEffect"
+    highlight.FillColor = Color3.fromRGB(255, 255, 0) -- Желтый цвет
+    highlight.OutlineColor = Color3.fromRGB(255, 200, 0)
+    highlight.FillTransparency = 0.4
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = char
+    
+    autoBlockEffect = highlight
+end
+
+local function removeAutoBlockEffect()
+    if autoBlockEffect then
+        autoBlockEffect:Destroy()
+        autoBlockEffect = nil
+    end
+end
+
+local function performBlock()
+    local currentTime = tick()
+    if currentTime - lastBlockTime < AutoPerfectBlockConfig.BlockDelay then
+        return false
+    end
+    
+    lastBlockTime = currentTime
+    
+    -- Симулируем нажатие клавиши F более точно
+    local inputBegin = {
+        KeyCode = AutoPerfectBlockConfig.BlockKey,
+        UserInputType = Enum.UserInputType.Keyboard,
+        UserInputState = Enum.UserInputState.Begin
+    }
+    
+    local inputEnd = {
+        KeyCode = AutoPerfectBlockConfig.BlockKey,
+        UserInputType = Enum.UserInputType.Keyboard,
+        UserInputState = Enum.UserInputState.End
+    }
+    
+    -- Отправляем событие нажатия
+    UserInputService:FireInputEvent(inputBegin)
+    
+    -- Небольшая задержка перед отпусканием клавиши
+    task.spawn(function()
+        task.wait(0.05)
+        UserInputService:FireInputEvent(inputEnd)
+    end)
+    
+    -- Создаем эффект блока
+    if AutoPerfectBlockConfig.VisualEffect and autoBlockEffect then
+        autoBlockEffect.FillColor = Color3.fromRGB(0, 255, 0) -- Зеленый при блоке
+        task.spawn(function()
+            task.wait(0.2)
+            if autoBlockEffect then
+                autoBlockEffect.FillColor = Color3.fromRGB(255, 255, 0) -- Возвращаем желтый
+            end
+        end)
+    end
+    
+    -- Звуковой эффект
+    if AutoPerfectBlockConfig.SoundEffect then
+        local char = Players.LocalPlayer.Character
+        if char then
+            local sound = Instance.new("Sound", char)
+            sound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+            sound.Volume = 0.3
+            sound:Play()
+            game:GetService("Debris"):AddItem(sound, 1)
+        end
+    end
+    
+    if AutoPerfectBlockConfig.ShowDebugInfo then
+        print("Auto Perfect Block: Блок выполнен!")
+    end
+    
+    return true
+end
+
+local function startAutoPerfectBlock()
+    local plr = Players.LocalPlayer
+    local char = plr.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if not hum or not root then return end
+    
+    isAutoPerfectBlockEnabled = true
+    lastBlockTime = 0
+    
+    createAutoBlockEffect()
+    
+    local blockDetectionLoop = RunService.Heartbeat:Connect(function()
+        if not isAutoPerfectBlockEnabled or not char or not char.Parent then
+            return
+        end
+        
+        -- Проверяем, не атакуем ли мы сами
+        if AutoPerfectBlockConfig.AutoDisableOnAttack then
+            local isLocalAttacking = false
+            
+            if UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+               UserInputService:IsKeyDown(Enum.KeyCode.E) or
+               UserInputService:IsKeyDown(Enum.KeyCode.R) or
+               UserInputService:IsKeyDown(Enum.KeyCode.T) or
+               UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+               UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+                isLocalAttacking = true
+            end
+            
+            if isLocalAttacking then
+                if autoBlockEffect then
+                    autoBlockEffect.FillColor = Color3.fromRGB(255, 0, 0) -- Красный при атаке
+                end
+                return
+            end
+        end
+        
+        local attackers = detectNearbyAttackers()
+        
+        if #attackers > 0 then
+            if AutoPerfectBlockConfig.ShowDebugInfo then
+                print("Auto Perfect Block: Обнаружены атакующие игроки:", #attackers)
+            end
+            
+            -- Выполняем блок
+            performBlock()
+        else
+            if autoBlockEffect then
+                autoBlockEffect.FillColor = Color3.fromRGB(255, 255, 0) -- Желтый в режиме ожидания
+            end
+        end
+    end)
+    
+    local deathConnection = hum.Died:Connect(function()
+        stopAutoPerfectBlock()
+    end)
+    
+    table.insert(autoPerfectBlockConnections, blockDetectionLoop)
+    table.insert(autoPerfectBlockConnections, deathConnection)
+    
+    print("Auto Perfect Block активирован!")
+end
+
+local function stopAutoPerfectBlock()
+    isAutoPerfectBlockEnabled = false
+    
+    removeAutoBlockEffect()
+    
+    for _, connection in ipairs(autoPerfectBlockConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    autoPerfectBlockConnections = {}
+    
+    print("Auto Perfect Block отключен")
 end
 
 
@@ -2510,6 +2826,22 @@ UserInputService.InputBegan:Connect(function(input, gp)
                         task.wait(1)
                         guiCallbacks.antiTimeStop.Text = "Anti Time Stop: READY"
                     end)
+                end
+            end
+        elseif AutoPerfectBlockConfig.ToggleKey and input.KeyCode == AutoPerfectBlockConfig.ToggleKey then
+            if not isAutoPerfectBlockEnabled then
+                AutoPerfectBlockConfig.Enabled = true
+                startAutoPerfectBlock()
+                
+                if guiCallbacks.autoPerfectBlock then
+                    guiCallbacks.autoPerfectBlock.Text = "Auto Perfect Block: ON"
+                end
+            else
+                AutoPerfectBlockConfig.Enabled = false
+                stopAutoPerfectBlock()
+                
+                if guiCallbacks.autoPerfectBlock then
+                    guiCallbacks.autoPerfectBlock.Text = "Auto Perfect Block: OFF"
                 end
             end
         end
@@ -4903,6 +5235,13 @@ function showContent(tabName)
 end
 
 showContent("Main")
+
+-- Информация о функциях
+print("=== YBA HACK LOADED ===")
+print("Auto Perfect Block: Нажмите X для включения/выключения")
+print("Радиус обнаружения: 3 метра")
+print("Клавиша блока: F")
+print("========================")
 
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp and input.KeyCode == Enum.KeyCode.Insert then
