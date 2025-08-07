@@ -209,6 +209,7 @@ local speedResetTimer = 0
 local lastSpeedCheck = tick()
 local lastBehindDistance = 0
 local lastUpdateTime = tick()
+local originalHumanoidAutoRotate = nil
 
 local isYBAEnabled = false
 local ybaConnections = {}
@@ -1588,7 +1589,16 @@ local function createStealthTeleport()
             end
             
             local targetLookVector = targetCFrame.LookVector
-            bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetLookVector)
+            do
+                local forward = Vector3.new(targetLookVector.X, 0, targetLookVector.Z)
+                if forward.Magnitude < 1e-3 then
+                    forward = Vector3.new(0, 0, -1)
+                else
+                    forward = forward.Unit
+                end
+                local up = Vector3.new(0, 1, 0)
+                bg.CFrame = CFrame.lookAt(root.Position, root.Position + forward, up)
+            end
             
             local targetVelocity = currentTargetRoot.Velocity
             local targetSpeed = targetVelocity.Magnitude
@@ -1685,6 +1695,13 @@ local function startTeleport()
     speedResetTimer = 0
     lastSpeedCheck = tick()
     
+    -- disable character auto-rotation to allow BodyGyro to control facing
+    local humanoid = char:FindFirstChild("Humanoid")
+    if humanoid then
+        originalHumanoidAutoRotate = humanoid.AutoRotate
+        humanoid.AutoRotate = false
+    end
+    
     
     TeleportConfig.OriginalPosition = root.Position
     
@@ -1751,6 +1768,12 @@ local function stopTeleport()
     local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
     
+    -- restore AutoRotate
+    if humanoid and originalHumanoidAutoRotate ~= nil then
+        humanoid.AutoRotate = originalHumanoidAutoRotate
+        originalHumanoidAutoRotate = nil
+    end
+    
     
     for _, connection in ipairs(teleportConnections) do
         if connection then
@@ -1773,104 +1796,6 @@ local function stopTeleport()
     local bg = root and root:FindFirstChild("BodyGyro")
     if bg then
         bg:Destroy()
-    end
-    
-    
-    if humanoid then
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
-    end
-    
-    
-    if root and TeleportConfig.OriginalPosition then
-        
-        if not isNoClipping then
-            startNoClip()
-        end
-        
-        
-        local returnConnections = {}
-        
-        local returnLoop = RunService.Heartbeat:Connect(function()
-            if not root or not root.Parent then
-                return
-            end
-            
-            local currentPos = root.Position
-            local returnPos = TeleportConfig.OriginalPosition
-            local distance = (returnPos - currentPos).Magnitude
-            
-            if distance > 3 then
-                local returnBv = root:FindFirstChild("BodyVelocity")
-                if not returnBv then
-                    returnBv = Instance.new("BodyVelocity", root)
-                    returnBv.MaxForce = Vector3.new(1e6, 1e6, 1e6) 
-                end
-                
-                local returnDirection = (returnPos - currentPos).Unit
-                local returnSpeed = TeleportConfig.ReturnSpeed
-                
-                returnSpeed = returnSpeed + math.random(-5, 5)
-                
-                returnBv.Velocity = returnDirection * returnSpeed
-            else
-                
-                local returnBv = root:FindFirstChild("BodyVelocity")
-                if returnBv then
-                    returnBv.Velocity = Vector3.new(0, 0, 0)
-                    task.wait(0.5) 
-                    returnBv:Destroy()
-                end
-                
-                local returnBg = root:FindFirstChild("BodyGyro")
-                if returnBg then
-                    returnBg:Destroy()
-                end
-                
-                
-                root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
-                TeleportConfig.OriginalPosition = nil
-                
-                
-                local freezeBv = Instance.new("BodyVelocity", root)
-                freezeBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                freezeBv.Velocity = Vector3.new(0, 0, 0)
-                
-                task.wait(2) 
-                
-                if freezeBv then
-                    freezeBv:Destroy()
-                end
-                
-                
-                task.spawn(function()
-                    task.wait(5)
-                    if isNoClipping then
-                        stopNoClip()
-                    end
-                end)
-                
-                
-                for _, connection in ipairs(returnConnections) do
-                    if connection then
-                        pcall(function() connection:Disconnect() end)
-                    end
-                end
-                
-                if returnLoop then
-                    returnLoop:Disconnect()
-                end
-            end
-        end)
-        
-        table.insert(returnConnections, returnLoop)
-    end
-    
-    
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
     end
     
     if teleportBtn then
