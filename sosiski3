@@ -4688,16 +4688,14 @@ function showContent(tabName)
             end
         end)
         
-        -- Ползунок скорости для YBA (исправленный)
         createSlider("YBA Underground Speed", 1, 200, YBAConfig.UndergroundControl.FlightSpeed or 50, function(v)
             YBAConfig.UndergroundControl.FlightSpeed = v
-            -- Обновляем скорость в реальном времени если подземный полет активен
             if isUndergroundControlEnabled and controlledStandForUnderground then
                 print("YBA: Скорость подземного полета изменена на:", v)
             end
         end)
         
-        -- Ползунок скорости стенда (удален по запросу)
+
         
         local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
         antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -4876,7 +4874,7 @@ function showContent(tabName)
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
         
-        -- Настройка размытия (удалена по запросу)
+
         
         createDivider()
         
@@ -4923,7 +4921,6 @@ function showContent(tabName)
             local colorCorner = Instance.new("UICorner", colorBtn)
             colorCorner.CornerRadius = UDim.new(0, 6)
             
-            -- Подсветка выбранного цвета
             if MenuSettings.AccentColor == color then
                 local highlight = Instance.new("UIStroke", colorBtn)
                 highlight.Color = Color3.new(1, 1, 1)
@@ -4934,7 +4931,6 @@ function showContent(tabName)
                 MenuSettings.AccentColor = color
                 updateAccentColor()
                 
-                -- Обновляем подсветку
                 for _, btn in pairs(colorRow:GetChildren()) do
                     if btn:IsA("TextButton") then
                         local stroke = btn:FindFirstChild("UIStroke")
@@ -4948,7 +4944,6 @@ function showContent(tabName)
                     end
                 end
                 
-                -- Перезагружаем контент для обновления цветов
                 showContent(selectedTab)
             end)
         end
@@ -4957,40 +4952,32 @@ function showContent(tabName)
         
         createDivider()
         
-        -- Настройка языка
         createDropdown(getText("Language"), {"English", "Russian"}, MenuSettings.Language, function(selectedLanguage)
             MenuSettings.Language = selectedLanguage
             updateAllTexts()
         end)
     end
     
-    -- Обновляем размер контейнера
     functionsContainer.Size = UDim2.new(1, 0, 0, currentY)
     
-    -- Обновляем выбранную вкладку
     selectedTab = tabName
     
-    -- Восстанавливаем позицию прокрутки для новой вкладки
     if scrollFrame and tabScrollPositions[tabName] then
         scrollFrame.CanvasPosition = Vector2.new(0, tabScrollPositions[tabName])
     end
 end
 
--- Показываем контент по умолчанию
 showContent("Main")
 
--- Переключение меню по Insert
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp and input.KeyCode == Enum.KeyCode.Insert then
         mainFrame.Visible = not mainFrame.Visible
         if mainFrame.Visible then
-            -- Удаляем кнопку повторного открытия если меню открыто
             local existingButton = screenGui:FindFirstChild("ReopenButton")
             if existingButton then
                 existingButton:Destroy()
             end
         else
-            -- Создаем кнопку повторного открытия если меню закрыто
             createReopenButton()
         end
     end
