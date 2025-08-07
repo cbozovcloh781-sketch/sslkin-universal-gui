@@ -4832,7 +4832,6 @@ function showContent(tabName)
         Instance.new("UICorner", playerESPLabel).CornerRadius = UDim.new(0,4)
         currentY = currentY + 25 + padding
         
-        -- User Stand ESP
         local userStandToggleBtn = createToggleSlider("User Stand", false, function(v)
             if v then
                 startUserStandESP()
@@ -4841,7 +4840,6 @@ function showContent(tabName)
             end
         end)
         
-        -- User Style ESP
         local userStyleToggleBtn = createToggleSlider("User Style", false, function(v)
             if v then
                 startUserStyleESP()
@@ -4863,7 +4861,6 @@ function showContent(tabName)
         styleFiltersLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
-        -- Style filter toggles
         local function createStyleFilterToggle(styleName, defaultState)
             local btn = createToggleSlider(styleName, defaultState, function(v)
                 styleFilters[styleName] = v
@@ -4887,7 +4884,6 @@ function showContent(tabName)
         
         createDivider()
         
-        -- Настройка цвета акцента
         local accentColorLabel = Instance.new("TextLabel", functionsContainer)
         accentColorLabel.Text = getText("AccentColor")
         accentColorLabel.TextColor3 = Color3.new(1,1,1)
