@@ -81,7 +81,7 @@ local TeleportConfig = {
     SelectedPlayerName = nil,
     UseStealthMode = true,
     TeleportSpeed = 1400, -- Оптимизированная базовая скорость телепортации
-    ReturnSpeed = 2000,
+    ReturnSpeed = 1200, -- Уменьшена скорость возврата для плавности
     BehindPlayerDistance = 3.0,
     StabilizationTime = 0.4, -- Оптимизированное время стабилизации
     MaxSpeedResetTime = 1.8, -- Оптимизированное время сброса скорости
@@ -1981,11 +1981,11 @@ local function stopTeleport()
                 local returnDirection = (returnPos - currentPos).Unit
                 local returnSpeed = TeleportConfig.ReturnSpeed
                 
-                -- Улучшенная адаптивная скорость возврата
+                -- Оптимизированная адаптивная скорость возврата
                 if distance > 10 then
-                    returnSpeed = returnSpeed * 1.5 -- Ускорение для больших расстояний
+                    returnSpeed = returnSpeed * 1.2 -- Уменьшено ускорение для больших расстояний
                 elseif distance > 5 then
-                    returnSpeed = returnSpeed * 1.2 -- Умеренное ускорение
+                    returnSpeed = returnSpeed * 1.1 -- Уменьшено умеренное ускорение
                 end
                 
                 returnSpeed = returnSpeed + math.random(-3, 3) -- Уменьшена случайность
