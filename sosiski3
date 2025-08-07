@@ -1394,9 +1394,9 @@ local function startAutoPerfectBlock()
         local nearbyCount = 0
         
         for _, player in pairs(Players:GetPlayers()) do
-            if player ~= localPlayer then
+            if player ~= localPlayer and player and player.Character then
                 local char = player.Character
-                if char then
+                if char and char.Parent then
                     local root = char:FindFirstChild("HumanoidRootPart")
                     local humanoid = char:FindFirstChild("Humanoid")
                     
@@ -1442,7 +1442,7 @@ local function startAutoPerfectBlock()
                                 local standAbilities = stand:FindFirstChild("Abilities")
                                 if standAbilities then
                                     for _, ability in pairs(standAbilities:GetChildren()) do
-                                        if ability:IsA("AnimationTrack") and ability.IsPlaying then
+                                        if ability and ability:IsA("AnimationTrack") and ability.IsPlaying then
                                             shouldBlock = true
                                             if AutoPerfectBlockConfig.ShowDebugInfo then
                                                 print("Auto Perfect Block: Триггер (стенд атака) -", player.Name, "стенд атакует")
@@ -1454,23 +1454,29 @@ local function startAutoPerfectBlock()
                             end
                             
                             -- Условие 4: Проверяем анимации персонажа на атаки
-                            local animator = char:FindFirstChild("Humanoid"):FindFirstChild("Animator")
+                            local humanoid = char:FindFirstChild("Humanoid")
+                            local animator = humanoid and humanoid:FindFirstChild("Animator")
                             if animator then
-                                for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                                    local animName = track.Animation.AnimationId:lower()
-                                    if animName:find("attack") or 
-                                       animName:find("punch") or 
-                                       animName:find("kick") or
-                                       animName:find("hit") or
-                                       animName:find("combo") or
-                                       animName:find("barrage") or
-                                       animName:find("ora") or
-                                       animName:find("muda") then
-                                        shouldBlock = true
-                                        if AutoPerfectBlockConfig.ShowDebugInfo then
-                                            print("Auto Perfect Block: Триггер (анимация атаки) -", player.Name, "анимация атаки")
+                                local playingTracks = animator:GetPlayingAnimationTracks()
+                                if playingTracks then
+                                    for _, track in pairs(playingTracks) do
+                                        if track and track.Animation then
+                                            local animName = track.Animation.AnimationId:lower()
+                                            if animName:find("attack") or 
+                                               animName:find("punch") or 
+                                               animName:find("kick") or
+                                               animName:find("hit") or
+                                               animName:find("combo") or
+                                               animName:find("barrage") or
+                                               animName:find("ora") or
+                                               animName:find("muda") then
+                                                shouldBlock = true
+                                                if AutoPerfectBlockConfig.ShowDebugInfo then
+                                                    print("Auto Perfect Block: Триггер (анимация атаки) -", player.Name, "анимация атаки")
+                                                end
+                                                break
+                                            end
                                         end
-                                        break
                                     end
                                 end
                             end
