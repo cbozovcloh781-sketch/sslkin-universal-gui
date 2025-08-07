@@ -4528,34 +4528,44 @@ function showContent(tabName)
         
         local function createPlayerList()
             local allPlayers = Players:GetPlayers()
+            local playerList = {}
+            
             for _, player in ipairs(allPlayers) do
                 if player ~= Players.LocalPlayer then
-                    local playerBtn = Instance.new("TextButton", functionsContainer)
-                    playerBtn.Size = UDim2.new(1, -10, 0, 24)
-                    playerBtn.Position = UDim2.new(0, 5, 0, currentY)
-                    playerBtn.Text = player.Name
-                    playerBtn.Font = Enum.Font.Gotham
-                    playerBtn.TextSize = 12
-                    playerBtn.TextColor3 = Color3.new(1,1,1)
-                    playerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-                    playerBtn.AutoButtonColor = false
-                    Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
-                    currentY = currentY + 24 + padding
-                    
-                    playerBtn.MouseButton1Click:Connect(function()
-                        TeleportConfig.TargetPlayer = player
-                        TeleportConfig.SelectedPlayerName = player.Name
-                        selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. player.Name
-                        
-                        for _, child in pairs(functionsContainer:GetChildren()) do
-                            if child:IsA("TextButton") and child.Text == player.Name then
-                                child.BackgroundColor3 = Color3.fromRGB(0,255,0)
-                            elseif child:IsA("TextButton") and child.Text ~= "START TELEPORT" and child.Text ~= "STOP TELEPORT" and child.Text ~= player.Name then
-                                child.BackgroundColor3 = Color3.fromRGB(40,40,40)
-                            end
-                        end
-                    end)
+                    table.insert(playerList, player)
                 end
+            end
+            
+            table.sort(playerList, function(a, b)
+                return a.Name < b.Name
+            end)
+            
+            for _, player in ipairs(playerList) do
+                local playerBtn = Instance.new("TextButton", functionsContainer)
+                playerBtn.Size = UDim2.new(1, -10, 0, 24)
+                playerBtn.Position = UDim2.new(0, 5, 0, currentY)
+                playerBtn.Text = player.Name
+                playerBtn.Font = Enum.Font.Gotham
+                playerBtn.TextSize = 12
+                playerBtn.TextColor3 = Color3.new(1,1,1)
+                playerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+                playerBtn.AutoButtonColor = false
+                Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
+                currentY = currentY + 24 + padding
+                
+                playerBtn.MouseButton1Click:Connect(function()
+                    TeleportConfig.TargetPlayer = player
+                    TeleportConfig.SelectedPlayerName = player.Name
+                    selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. player.Name
+                    
+                    for _, child in pairs(functionsContainer:GetChildren()) do
+                        if child:IsA("TextButton") and child.Text == player.Name then
+                            child.BackgroundColor3 = Color3.fromRGB(0,255,0)
+                        elseif child:IsA("TextButton") and child.Text ~= "START TELEPORT" and child.Text ~= "STOP TELEPORT" and child.Text ~= player.Name then
+                            child.BackgroundColor3 = Color3.fromRGB(40,40,40)
+                        end
+                    end
+                end)
             end
         end
         
