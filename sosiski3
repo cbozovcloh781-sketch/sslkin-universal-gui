@@ -176,7 +176,7 @@ local AntiTimeStopConfig = {
 
 local AutoPerfectBlockConfig = {
     Enabled = false,
-    ToggleKey = Enum.KeyCode.X, -- Клавиша X для включения/выключения
+    ToggleKey = nil, -- Убрали горячую клавишу
     DetectionRange = 3, -- Радиус в метрах
     BlockKey = Enum.KeyCode.F, -- Клавиша для блока
     VisualEffect = true,
@@ -2828,22 +2828,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
                     end)
                 end
             end
-        elseif AutoPerfectBlockConfig.ToggleKey and input.KeyCode == AutoPerfectBlockConfig.ToggleKey then
-            if not isAutoPerfectBlockEnabled then
-                AutoPerfectBlockConfig.Enabled = true
-                startAutoPerfectBlock()
-                
-                if guiCallbacks.autoPerfectBlock then
-                    guiCallbacks.autoPerfectBlock.Text = "Auto Perfect Block: ON"
-                end
-            else
-                AutoPerfectBlockConfig.Enabled = false
-                stopAutoPerfectBlock()
-                
-                if guiCallbacks.autoPerfectBlock then
-                    guiCallbacks.autoPerfectBlock.Text = "Auto Perfect Block: OFF"
-                end
-            end
+
         end
     end
 end)
@@ -5238,7 +5223,7 @@ showContent("Main")
 
 -- Информация о функциях
 print("=== YBA HACK LOADED ===")
-print("Auto Perfect Block: Нажмите X для включения/выключения")
+print("Auto Perfect Block: Используйте интерфейс для включения/выключения")
 print("Радиус обнаружения: 3 метра")
 print("Клавиша блока: F")
 print("========================")
