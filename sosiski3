@@ -80,16 +80,16 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil,
     UseStealthMode = true,
-    TeleportSpeed = 1200,
-    ReturnSpeed = 2000,
-    BehindPlayerDistance = 3.0,
-    StabilizationTime = 0.5,
+    TeleportSpeed = 2000,
+    ReturnSpeed = 2400,
+    BehindPlayerDistance = 2.6,
+    StabilizationTime = 0.25,
     MaxSpeedResetTime = 2.0,
     SpeedResetThreshold = 50,
     InstantTurnSpeed = 600,
-    SmoothingFactor = 0.15,
-    MaxCorrectionSpeed = 300,
-    StabilizationThreshold = 0.8,
+    SmoothingFactor = 0.2,
+    MaxCorrectionSpeed = 180,
+    StabilizationThreshold = 0.9,
 }
 
 local YBAConfig = {
@@ -208,6 +208,7 @@ local isStabilizing = false
 local speedResetTimer = 0
 local lastSpeedCheck = tick()
 local lastBehindDistance = 0
+local lastUpdateTime = tick()
 
 local isYBAEnabled = false
 local ybaConnections = {}
@@ -1010,7 +1011,7 @@ local function startAntiTimeStop()
                     bg.Name = "AntiTimeStopBodyGyro"
                     bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
                     bg.D = 1000
-                    bg.P = 2000
+                    bg.P = 8000
                 end
             end
             
@@ -1533,14 +1534,19 @@ local function createStealthTeleport()
             speedResetTimer = 0
             
             local bv = root:FindFirstChild("BodyVelocity")
-            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold and distance > 5 then
+            local safeBehindDistance = lastBehindDistance or 0
+            if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold and safeBehindDistance > 5 then
                 bv.Velocity = bv.Velocity * 0.8
             end
 
-            if humanoid and humanoid.WalkSpeed > 16 and distance > 5 then
+            if humanoid and humanoid.WalkSpeed > 16 and (safeBehindDistance > 5) then
                 humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 1, 16)
             end
         end
+        
+        local now = tick()
+        local dt = now - lastUpdateTime
+        lastUpdateTime = now
         
         local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
         if currentTargetRoot then
@@ -1563,16 +1569,22 @@ local function createStealthTeleport()
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
                 bv.Velocity = Vector3.new(0, 0, 0)
+            else
+                bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
             end
             
             local bg = root:FindFirstChild("BodyGyro")
             if not bg then
                 bg = Instance.new("BodyGyro", root)
-                bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-                bg.D = 50
-                bg.P = 1000
+                bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+                bg.D = 1000
+                bg.P = 8000
+            else
+                bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+                bg.D = 1000
+                bg.P = 8000
             end
             
             local targetLookVector = targetCFrame.LookVector
@@ -1581,25 +1593,27 @@ local function createStealthTeleport()
             local targetVelocity = currentTargetRoot.Velocity
             local targetSpeed = targetVelocity.Magnitude
             
-            local predictionTime = 0.1
+            local predictionTime = math.clamp(0.05 + (targetSpeed / 300), 0.05, 0.25)
             local predictedPosition = behindPosition.Position + (targetVelocity * predictionTime)
             local predictedDistance = (predictedPosition - currentPos).Magnitude
             
             local adaptiveSpeed = TeleportConfig.TeleportSpeed
             if targetSpeed > 80 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.5
             elseif targetSpeed > 50 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.5
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0
             elseif targetSpeed > 20 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.2
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.4
             end
             
             if predictedDistance > 1.5 then
+                isStabilizing = false
+                stabilizationStartTime = nil
                 local direction = (predictedPosition - currentPos).Unit
                 local currentVelocity = bv.Velocity
-                local targetVelocity = direction * adaptiveSpeed
+                local targetVelocityVec = direction * adaptiveSpeed
                 
-                local accelerationFactor = 0.15
+                local accelerationFactor = 0.22
                 if targetSpeed > 80 then
                     accelerationFactor = 0.5
                 elseif targetSpeed > 50 then
@@ -1607,24 +1621,42 @@ local function createStealthTeleport()
                 elseif targetSpeed > 30 then
                     accelerationFactor = 0.3
                 end
-                local velocityDiff = targetVelocity - currentVelocity
+                
+                local velocityDiff = targetVelocityVec - currentVelocity
                 local acceleration = velocityDiff * accelerationFactor
                 
                 bv.Velocity = currentVelocity + acceleration
             else
                 local direction = (predictedPosition - currentPos).Unit
-                local correctionSpeed = math.min(predictedDistance * 15, 30)
+                local maxCorr = TeleportConfig.MaxCorrectionSpeed or 180
+                local correctionSpeed = math.min(predictedDistance * 45, maxCorr)
                 
                 if targetSpeed > 10 then
-                    correctionSpeed = correctionSpeed * 1.5
+                    correctionSpeed = correctionSpeed * 1.15
                 end
                 
                 bv.Velocity = direction * correctionSpeed
                 
-                if predictedDistance < 0.3 and targetSpeed < 5 then
-                    bv.Velocity = Vector3.new(0, 0, 0)
+                if predictedDistance < 0.25 and targetSpeed < 12 then
+                    if not isStabilizing then
+                        isStabilizing = true
+                        stabilizationStartTime = tick()
+                    end
+                    local elapsed = tick() - (stabilizationStartTime or tick())
+                    local smoothFactor = math.clamp(elapsed / (TeleportConfig.StabilizationTime + 1e-6), 0, 1)
+                    local smallSpeed = math.min(predictedDistance * 25, 15)
+                    local desiredVel = direction * smallSpeed
+                    bv.Velocity = bv.Velocity + (desiredVel - bv.Velocity) * math.max(0.55, 0.85 * smoothFactor)
+                    if predictedDistance < 0.05 then
+                        bv.Velocity = Vector3.new(0, 0, 0)
+                    end
+                else
+                    isStabilizing = false
+                    stabilizationStartTime = nil
                 end
             end
+            
+            lastBehindDistance = behindDistance
         end
     end)
     
