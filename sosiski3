@@ -361,6 +361,11 @@ local Languages = {
         LuckyStoneMask = "Lucky Stone Mask",
         LuckyArrow = "Lucky Arrow",
         AutoPerfectBlock = "Auto Perfect Block",
+        DetectionRange = "Detection Range",
+        BlockDelay = "Block Delay",
+        VisualEffects = "Visual Effects",
+        SoundEffects = "Sound Effects",
+        DebugInfo = "Debug Info",
     },
     Russian = {
         MainFunctions = "ОСНОВНЫЕ ФУНКЦИИ",
@@ -413,6 +418,11 @@ local Languages = {
         DiosDiary = "Дневник ДИО",
         LuckyStoneMask = "Счастливая каменная маска",
         LuckyArrow = "Счастливая стрела",
+        DetectionRange = "Радиус обнаружения",
+        BlockDelay = "Задержка блока",
+        VisualEffects = "Визуальные эффекты",
+        SoundEffects = "Звуковые эффекты",
+        DebugInfo = "Отладочная информация",
     }
 }
 
@@ -4976,7 +4986,56 @@ function showContent(tabName)
             end
         end)
         
-
+        createDivider()
+        
+        -- Auto Perfect Block Section
+        local autoPerfectBlockLabel = Instance.new("TextLabel", functionsContainer)
+        autoPerfectBlockLabel.Size = UDim2.new(1, -10, 0, 20)
+        autoPerfectBlockLabel.Position = UDim2.new(0, 5, 0, currentY)
+        autoPerfectBlockLabel.Text = getText("AutoPerfectBlock")
+        autoPerfectBlockLabel.Font = Enum.Font.GothamBold
+        autoPerfectBlockLabel.TextSize = 14
+        autoPerfectBlockLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+        autoPerfectBlockLabel.BackgroundTransparency = 1
+        autoPerfectBlockLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
+        
+        local autoPerfectBlockToggle = createToggleSlider(getText("AutoPerfectBlock"), isAutoPerfectBlockEnabled, function(v)
+            if v then
+                startAutoPerfectBlock()
+            else
+                stopAutoPerfectBlock()
+            end
+        end)
+        
+        -- Настройки Auto Perfect Block
+        createSlider(getText("DetectionRange"), 1, 10, AutoPerfectBlockConfig.DetectionRange, function(v)
+            AutoPerfectBlockConfig.DetectionRange = v
+            print("Auto Perfect Block: Радиус обнаружения изменен на", v, "метров")
+        end)
+        
+        createSlider(getText("BlockDelay"), 0.05, 0.5, AutoPerfectBlockConfig.BlockDelay, function(v)
+            AutoPerfectBlockConfig.BlockDelay = v
+            print("Auto Perfect Block: Задержка блока изменена на", v, "секунд")
+        end)
+        
+        -- Дополнительные настройки Auto Perfect Block
+        local visualEffectToggle = createToggleSlider(getText("VisualEffects"), AutoPerfectBlockConfig.VisualEffect, function(v)
+            AutoPerfectBlockConfig.VisualEffect = v
+            print("Auto Perfect Block: Визуальные эффекты", v and "включены" or "выключены")
+        end)
+        
+        local soundEffectToggle = createToggleSlider(getText("SoundEffects"), AutoPerfectBlockConfig.SoundEffect, function(v)
+            AutoPerfectBlockConfig.SoundEffect = v
+            print("Auto Perfect Block: Звуковые эффекты", v and "включены" or "выключены")
+        end)
+        
+        local debugInfoToggle = createToggleSlider(getText("DebugInfo"), AutoPerfectBlockConfig.ShowDebugInfo, function(v)
+            AutoPerfectBlockConfig.ShowDebugInfo = v
+            print("Auto Perfect Block: Отладочная информация", v and "включена" or "выключена")
+        end)
+        
+        createDivider()
         
         local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
         antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
