@@ -1198,7 +1198,7 @@ local function detectNearbyAttackers()
     local localChar = localPlayer.Character
     local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
     
-    if not localRoot then return attackers end
+    if not localRoot or not localRoot.Parent then return attackers end
     
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= localPlayer then
@@ -1365,7 +1365,7 @@ local function startAutoPerfectBlock()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local root = char and char:FindFirstChild("HumanoidRootPart")
     
-    if not hum or not root then return end
+    if not hum or not root or not root.Parent then return end
     
     isAutoPerfectBlockEnabled = true
     lastBlockTime = 0
@@ -1374,6 +1374,12 @@ local function startAutoPerfectBlock()
     
     local blockDetectionLoop = RunService.RenderStepped:Connect(function()
         if not isAutoPerfectBlockEnabled or not char or not char.Parent then
+            return
+        end
+        
+        -- Дополнительная проверка localRoot
+        local currentLocalRoot = char:FindFirstChild("HumanoidRootPart")
+        if not currentLocalRoot then
             return
         end
         
@@ -1409,11 +1415,11 @@ local function startAutoPerfectBlock()
                     local root = char:FindFirstChild("HumanoidRootPart")
                     local humanoid = char:FindFirstChild("Humanoid")
                     
-                    if root and humanoid and humanoid.Health > 0 then
-                        local distance = (root.Position - localRoot.Position).Magnitude
+                    if root and humanoid and humanoid.Health > 0 and currentLocalRoot then
+                        local distance = (currentLocalRoot.Position - root.Position).Magnitude
                         local velocity = root.Velocity
                         
-                                                if distance <= AutoPerfectBlockConfig.DetectionRange then
+                        if distance <= AutoPerfectBlockConfig.DetectionRange then
                             nearbyCount = nearbyCount + 1
                             
                             -- Агрессивная блокировка - блокируем при любом движении в радиусе
@@ -1425,8 +1431,8 @@ local function startAutoPerfectBlock()
                         end
                         
                         -- Дополнительная проверка: игрок движется к нам
-                        local directionToLocal = (localRoot.Position - root.Position).Unit
-                        local playerDirection = velocity.Unit
+                        local directionToLocal = (currentLocalRoot.Position - root.Position).Unit
+                        local playerDirection = velocity.Magnitude > 0 and velocity.Unit or Vector3.new(0, 0, 0)
                         local dotProduct = directionToLocal:Dot(playerDirection)
                         
                         if dotProduct > 0.3 and velocity.Magnitude > 10 then
@@ -1438,7 +1444,7 @@ local function startAutoPerfectBlock()
                         
                         -- Проверка: игрок в поле зрения камеры
                         local camera = workspace.CurrentCamera
-                        if camera then
+                        if camera and root then
                             local screenPos, onScreen = camera:WorldToViewportPoint(root.Position)
                             if onScreen and distance < 4 then
                                 shouldBlock = true
