@@ -4527,6 +4527,7 @@ function showContent(tabName)
         currentY = currentY + 20 + padding
         
         local playerButtons = {}
+        local playerListStartY = currentY
         
         local function createPlayerList()
             for _, btn in pairs(playerButtons) do
@@ -4535,6 +4536,8 @@ function showContent(tabName)
                 end
             end
             playerButtons = {}
+            
+            currentY = playerListStartY
             
             local allPlayers = Players:GetPlayers()
             local playerList = {}
