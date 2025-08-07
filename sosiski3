@@ -4549,7 +4549,7 @@ function showContent(tabName)
             end
             
             table.sort(playerList, function(a, b)
-                return a.Name < b.Name
+                return string.lower(a.Name) < string.lower(b.Name)
             end)
             
             for _, player in ipairs(playerList) do
