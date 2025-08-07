@@ -4669,6 +4669,38 @@ function showContent(tabName)
             end
         end)
         
+        createDivider()
+    
+    local playerESPLabel = Instance.new("TextLabel", functionsContainer)
+        playerESPLabel.Size = UDim2.new(1, -10, 0, 25)
+        playerESPLabel.Position = UDim2.new(0, 5, 0, currentY)
+        playerESPLabel.Text = "👥 PLAYER ESP"
+        playerESPLabel.Font = Enum.Font.GothamBold
+        playerESPLabel.TextSize = 14
+        playerESPLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+        playerESPLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        playerESPLabel.BorderSizePixel = 1
+        playerESPLabel.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        playerESPLabel.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", playerESPLabel).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
+        local userStandToggleBtn = createToggleSlider("User Stand", false, function(v)
+            if v then
+                startUserStandESP()
+            else
+                stopUserStandESP()
+            end
+        end)
+        
+        local userStyleToggleBtn = createToggleSlider("User Style", false, function(v)
+            if v then
+                startUserStyleESP()
+            else
+                stopUserStyleESP()
+            end
+        end)
+        
         local itemESPLabel = Instance.new("TextLabel", functionsContainer)
         itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
         itemESPLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -4738,38 +4770,6 @@ function showContent(tabName)
         createItemToggle(getText("DiosDiary"), YBAConfig.ItemESP.Items["DIO's Diary"])
         createItemToggle(getText("LuckyStoneMask"), YBAConfig.ItemESP.Items["Lucky Stone Mask"])
         createItemToggle(getText("LuckyArrow"), YBAConfig.ItemESP.Items["Lucky Arrow"])
-        
-            createDivider()
-    
-    local playerESPLabel = Instance.new("TextLabel", functionsContainer)
-        playerESPLabel.Size = UDim2.new(1, -10, 0, 25)
-        playerESPLabel.Position = UDim2.new(0, 5, 0, currentY)
-        playerESPLabel.Text = "👥 PLAYER ESP"
-        playerESPLabel.Font = Enum.Font.GothamBold
-        playerESPLabel.TextSize = 14
-        playerESPLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-        playerESPLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        playerESPLabel.BorderSizePixel = 1
-        playerESPLabel.BorderColor3 = Color3.fromRGB(100, 100, 120)
-        playerESPLabel.TextXAlignment = Enum.TextXAlignment.Left
-        Instance.new("UICorner", playerESPLabel).CornerRadius = UDim.new(0,4)
-        currentY = currentY + 25 + padding
-        
-        local userStandToggleBtn = createToggleSlider("User Stand", false, function(v)
-            if v then
-                startUserStandESP()
-            else
-                stopUserStandESP()
-            end
-        end)
-        
-        local userStyleToggleBtn = createToggleSlider("User Style", false, function(v)
-            if v then
-                startUserStyleESP()
-            else
-                stopUserStyleESP()
-            end
-        end)
         
     
         
