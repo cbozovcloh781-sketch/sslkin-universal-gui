@@ -1804,14 +1804,6 @@ local function stopTeleport()
         humanoid.AutoRotate = true -- Восстанавливаем авто-поворот
     end
     
-    -- Принудительное отключение NoClip при остановке телепортации
-    if isNoClipping then
-        task.spawn(function()
-            task.wait(0.5) -- Небольшая задержка для стабилизации
-            stopNoClip()
-        end)
-    end
-    
     -- Улучшенный возврат в исходную позицию
     if root and TeleportConfig.OriginalPosition then
         
@@ -1881,7 +1873,7 @@ local function stopTeleport()
                 
                 -- Быстрое отключение NoClip
                 task.spawn(function()
-                    task.wait(1) -- Уменьшено время ожидания для более быстрого отключения
+                    task.wait(3) -- Уменьшено время ожидания
                     if isNoClipping then
                         stopNoClip()
                     end
