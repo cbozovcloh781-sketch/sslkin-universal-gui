@@ -80,16 +80,22 @@ local TeleportConfig = {
     ToggleKey = nil,
     SelectedPlayerName = nil,
     UseStealthMode = true,
-    TeleportSpeed = 1200,
-    ReturnSpeed = 2000,
+    TeleportSpeed = 1400, -- Оптимизированная базовая скорость телепортации
+    ReturnSpeed = 1200, -- Уменьшена скорость возврата для плавности
     BehindPlayerDistance = 3.0,
-    StabilizationTime = 0.5,
-    MaxSpeedResetTime = 2.0,
-    SpeedResetThreshold = 50,
-    InstantTurnSpeed = 600,
-    SmoothingFactor = 0.15,
-    MaxCorrectionSpeed = 300,
-    StabilizationThreshold = 0.8,
+    StabilizationTime = 0.4, -- Оптимизированное время стабилизации
+    MaxSpeedResetTime = 1.8, -- Оптимизированное время сброса скорости
+    SpeedResetThreshold = 60, -- Оптимизированный порог сброса скорости
+    InstantTurnSpeed = 600, -- Оптимизированная скорость мгновенного поворота
+    SmoothingFactor = 0.18, -- Оптимизированный фактор сглаживания для плавности
+    MaxCorrectionSpeed = 250, -- Оптимизированная максимальная скорость коррекции
+    StabilizationThreshold = 0.7, -- Оптимизированный порог стабилизации
+    FastStabilization = true, -- Новый параметр для быстрой стабилизации
+    AdaptivePrediction = true, -- Новый параметр для адаптивного предсказания
+    QuickResponseMode = true, -- Новый параметр для режима быстрого отклика
+    CombatStabilization = true, -- Новый параметр для стабилизации во время боя
+    AttackDetection = true, -- Новый параметр для обнаружения атак
+    CombatDistance = 1.0, -- Оптимальная дистанция для боя
 }
 
 local YBAConfig = {
@@ -1515,7 +1521,7 @@ local function createStealthTeleport()
             return
         end
         
-        
+        -- Улучшенная проверка NoClip
         if isNoClipping and char and char.Parent then
             for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") and part.CanCollide then
@@ -1524,7 +1530,7 @@ local function createStealthTeleport()
             end
         end
         
-        
+        -- Улучшенный таймер сброса скорости
         local currentTime = tick()
         speedResetTimer = speedResetTimer + (currentTime - lastSpeedCheck)
         lastSpeedCheck = currentTime
@@ -1534,11 +1540,11 @@ local function createStealthTeleport()
             
             local bv = root:FindFirstChild("BodyVelocity")
             if bv and bv.Velocity.Magnitude > TeleportConfig.SpeedResetThreshold and distance > 5 then
-                bv.Velocity = bv.Velocity * 0.8
+                bv.Velocity = bv.Velocity * 0.7 -- Более агрессивный сброс скорости
             end
 
             if humanoid and humanoid.WalkSpeed > 16 and distance > 5 then
-                humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 1, 16)
+                humanoid.WalkSpeed = math.max(humanoid.WalkSpeed - 2, 16) -- Более быстрый сброс WalkSpeed
             end
         end
         
@@ -1548,10 +1554,11 @@ local function createStealthTeleport()
             local currentPos = root.Position
             local distance = (targetPos - currentPos).Magnitude
 
-                    if lastTeleportPosition then
+            -- Улучшенная проверка движения цели
+            if lastTeleportPosition then
                 local targetMovement = (targetPos - lastTeleportPosition).Magnitude
                 if targetMovement > 3 then
-                    task.wait(0.02)
+                    task.wait(0.01) -- Уменьшено время ожидания для более быстрого отклика
                 end
             end
             lastTeleportPosition = targetPos
@@ -1560,6 +1567,7 @@ local function createStealthTeleport()
             local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
             local behindDistance = (behindPosition.Position - currentPos).Magnitude
             
+            -- Улучшенные BodyVelocity и BodyGyro с плавностью
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
@@ -1571,8 +1579,8 @@ local function createStealthTeleport()
             if not bg then
                 bg = Instance.new("BodyGyro", root)
                 bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-                bg.D = 50
-                bg.P = 1000
+                bg.D = 60 -- Оптимизированная демпфирующая сила для плавности
+                bg.P = 1200 -- Оптимизированная пропорциональная сила для стабильности
             end
             
             local targetLookVector = targetCFrame.LookVector
@@ -1581,47 +1589,86 @@ local function createStealthTeleport()
             local targetVelocity = currentTargetRoot.Velocity
             local targetSpeed = targetVelocity.Magnitude
             
-            local predictionTime = 0.1
+            -- Улучшенное предсказание с адаптивным временем
+            local predictionTime = TeleportConfig.AdaptivePrediction and math.min(0.15, targetSpeed / 1000) or 0.1
             local predictedPosition = behindPosition.Position + (targetVelocity * predictionTime)
             local predictedDistance = (predictedPosition - currentPos).Magnitude
             
+            -- Оптимизированная адаптивная скорость для плавности
             local adaptiveSpeed = TeleportConfig.TeleportSpeed
-            if targetSpeed > 80 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 2.0
+            if targetSpeed > 100 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.8 -- Уменьшена максимальная скорость
+            elseif targetSpeed > 80 then
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.6
             elseif targetSpeed > 50 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.5
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.4 -- Оптимизированная скорость для средних целей
             elseif targetSpeed > 20 then
-                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.2
+                adaptiveSpeed = TeleportConfig.TeleportSpeed * 1.2 -- Оптимизированная базовая скорость
             end
             
-            if predictedDistance > 1.5 then
+            -- Улучшенная логика движения с быстрой стабилизацией
+            -- Проверка на атаку для специальной стабилизации
+            local isCurrentlyAttacking = UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+                                       UserInputService:IsKeyDown(Enum.KeyCode.E) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.R) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.T) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Q)
+            
+            if predictedDistance > TeleportConfig.StabilizationThreshold then
                 local direction = (predictedPosition - currentPos).Unit
                 local currentVelocity = bv.Velocity
                 local targetVelocity = direction * adaptiveSpeed
                 
-                local accelerationFactor = 0.15
-                if targetSpeed > 80 then
-                    accelerationFactor = 0.5
+                -- Оптимизированные факторы ускорения для плавности
+                local accelerationFactor = TeleportConfig.SmoothingFactor
+                if targetSpeed > 100 then
+                    accelerationFactor = 0.25 -- Оптимизированное ускорение для очень быстрых целей
+                elseif targetSpeed > 80 then
+                    accelerationFactor = 0.22
                 elseif targetSpeed > 50 then
-                    accelerationFactor = 0.4
+                    accelerationFactor = 0.2
                 elseif targetSpeed > 30 then
-                    accelerationFactor = 0.3
+                    accelerationFactor = 0.18
                 end
+                
                 local velocityDiff = targetVelocity - currentVelocity
                 local acceleration = velocityDiff * accelerationFactor
                 
+                -- Агрессивная логика для стабилизации во время атак
+                if isCurrentlyAttacking and predictedDistance < 1.5 then
+                    -- Полная остановка движения во время атак
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                    return -- Прерываем дальнейшую обработку
+                elseif isCurrentlyAttacking and predictedDistance < 2 then
+                    -- Уменьшаем скорость движения во время атак для стабильности
+                    acceleration = acceleration * 0.1
+                end
+                
                 bv.Velocity = currentVelocity + acceleration
             else
+                -- Оптимизированная коррекция для плавной стабилизации
                 local direction = (predictedPosition - currentPos).Unit
-                local correctionSpeed = math.min(predictedDistance * 15, 30)
+                local correctionSpeed = math.min(predictedDistance * 15, TeleportConfig.MaxCorrectionSpeed) -- Оптимизированная скорость коррекции
                 
                 if targetSpeed > 10 then
-                    correctionSpeed = correctionSpeed * 1.5
+                    correctionSpeed = correctionSpeed * 1.5 -- Оптимизированная скорость коррекции для движущихся целей
+                end
+                
+                -- Агрессивная логика для стабилизации во время атак
+                if isCurrentlyAttacking and predictedDistance < 1.5 then
+                    -- Полная остановка коррекции во время атак
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                    return -- Прерываем дальнейшую обработку
+                elseif isCurrentlyAttacking and predictedDistance < 2 then
+                    -- Значительно уменьшаем коррекцию во время атак
+                    correctionSpeed = correctionSpeed * 0.05
                 end
                 
                 bv.Velocity = direction * correctionSpeed
                 
-                if predictedDistance < 0.3 and targetSpeed < 5 then
+                -- Плавная остановка
+                if predictedDistance < 0.3 and targetSpeed < 5 then -- Оптимизированный порог остановки
                     bv.Velocity = Vector3.new(0, 0, 0)
                 end
             end
@@ -1629,6 +1676,161 @@ local function createStealthTeleport()
     end)
     
     table.insert(teleportConnections, stealthTeleportLoop)
+    
+    -- Дополнительная функция для быстрой стабилизации
+    if TeleportConfig.QuickResponseMode then
+        local quickStabilizationLoop = RunService.Heartbeat:Connect(function()
+            if not isTeleporting or not targetChar or not targetChar.Parent then
+                return
+            end
+            
+            local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+            if currentTargetRoot then
+                local targetPos = currentTargetRoot.Position
+                local currentPos = root.Position
+                local distance = (targetPos - currentPos).Magnitude
+                
+                -- Быстрая стабилизация для близких расстояний
+                if distance < 5 then
+                    local bv = root:FindFirstChild("BodyVelocity")
+                    if bv then
+                        local targetCFrame = currentTargetRoot.CFrame
+                        local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+                        local behindDistance = (behindPosition.Position - currentPos).Magnitude
+                        
+                        if behindDistance < 0.4 then
+                            -- Плавная стабилизация при близком расстоянии
+                            bv.Velocity = Vector3.new(0, 0, 0)
+                        elseif behindDistance < 1.0 then
+                            -- Плавная коррекция для финальной стабилизации
+                            local direction = (behindPosition.Position - currentPos).Unit
+                            bv.Velocity = direction * 15 -- Оптимизированная коррекция
+                        end
+                    end
+                end
+            end
+        end)
+        
+        table.insert(teleportConnections, quickStabilizationLoop)
+    end
+    
+    -- Функция стабилизации для боя
+    if TeleportConfig.CombatStabilization then
+        local isAttacking = false
+        local lastAttackTime = 0
+        
+        local attackDetectionLoop = RunService.Heartbeat:Connect(function()
+            if not isTeleporting or not targetChar or not targetChar.Parent then
+                return
+            end
+            
+            -- Обнаружение атак
+            if TeleportConfig.AttackDetection then
+                local currentTime = tick()
+                local isPressingAttack = UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+                                       UserInputService:IsKeyDown(Enum.KeyCode.E) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.R) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.T) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Q)
+                
+                if isPressingAttack and currentTime - lastAttackTime > 0.1 then
+                    isAttacking = true
+                    lastAttackTime = currentTime
+                elseif currentTime - lastAttackTime > 0.5 then
+                    isAttacking = false
+                end
+            end
+            
+            local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+            if currentTargetRoot then
+                local targetPos = currentTargetRoot.Position
+                local currentPos = root.Position
+                local distance = (targetPos - currentPos).Magnitude
+                
+                -- Агрессивная стабилизация во время боя
+                if distance < TeleportConfig.CombatDistance and isAttacking then
+                    local bv = root:FindFirstChild("BodyVelocity")
+                    if bv then
+                        local targetCFrame = currentTargetRoot.CFrame
+                        local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+                        local behindDistance = (behindPosition.Position - currentPos).Magnitude
+                        
+                        if behindDistance < 0.8 then
+                            -- Полная фиксация позиции во время атаки
+                            bv.Velocity = Vector3.new(0, 0, 0)
+                            
+                            -- Принудительная фиксация позиции
+                            root.CFrame = CFrame.new(behindPosition.Position)
+                            
+                            -- Дополнительная фиксация ориентации
+                            local bg = root:FindFirstChild("BodyGyro")
+                            if bg then
+                                bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetCFrame.LookVector)
+                                bg.D = 1000 -- Увеличиваем демпфирование для полной стабилизации
+                                bg.P = 2000 -- Увеличиваем пропорциональность
+                            end
+                        elseif behindDistance < 1.5 then
+                            -- Очень медленная коррекция во время атаки
+                            local direction = (behindPosition.Position - currentPos).Unit
+                            bv.Velocity = direction * 3 -- Минимальная коррекция
+                        end
+                    end
+                end
+            end
+        end)
+        
+        table.insert(teleportConnections, attackDetectionLoop)
+    end
+    
+    -- Дополнительная функция для принудительной фиксации во время атак
+    if TeleportConfig.CombatStabilization then
+        local forceStabilizationLoop = RunService.Heartbeat:Connect(function()
+            if not isTeleporting or not targetChar or not targetChar.Parent then
+                return
+            end
+            
+            local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+            if currentTargetRoot then
+                local targetPos = currentTargetRoot.Position
+                local currentPos = root.Position
+                local distance = (targetPos - currentPos).Magnitude
+                
+                -- Проверка на атаку
+                local isPressingAttack = UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+                                       UserInputService:IsKeyDown(Enum.KeyCode.E) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.R) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.T) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Q)
+                
+                if isPressingAttack and distance < 1.5 then
+                    local bv = root:FindFirstChild("BodyVelocity")
+                    if bv then
+                        -- Принудительная остановка всех движений во время атаки
+                        bv.Velocity = Vector3.new(0, 0, 0)
+                        
+                        -- Фиксация позиции за спиной игрока
+                        local targetCFrame = currentTargetRoot.CFrame
+                        local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+                        
+                        -- Принудительное позиционирование
+                        root.CFrame = CFrame.new(behindPosition.Position)
+                        
+                        -- Дополнительная фиксация
+                        local bg = root:FindFirstChild("BodyGyro")
+                        if bg then
+                            bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetCFrame.LookVector)
+                            bg.D = 2000 -- Максимальное демпфирование
+                            bg.P = 3000 -- Максимальная пропорциональность
+                        end
+                    end
+                end
+            end
+        end)
+        
+        table.insert(teleportConnections, forceStabilizationLoop)
+    end
 end
 
 local function startTeleport()
@@ -1730,11 +1932,12 @@ local function stopTeleport()
     teleportConnections = {}
     
     
+    -- Улучшенная остановка телепортации
     local bv = root and root:FindFirstChild("BodyVelocity")
     if bv then
-        
+        -- Более быстрая остановка
         bv.Velocity = Vector3.new(0, 0, 0)
-        task.wait(0.1) 
+        task.wait(0.05) -- Уменьшено время ожидания
         bv:Destroy()
     end
     
@@ -1743,19 +1946,19 @@ local function stopTeleport()
         bg:Destroy()
     end
     
-    
+    -- Быстрый сброс параметров персонажа
     if humanoid then
         humanoid.WalkSpeed = 16
         humanoid.JumpPower = 50
+        humanoid.AutoRotate = true -- Восстанавливаем авто-поворот
     end
     
-    
+    -- Улучшенный возврат в исходную позицию
     if root and TeleportConfig.OriginalPosition then
         
         if not isNoClipping then
             startNoClip()
         end
-        
         
         local returnConnections = {}
         
@@ -1768,7 +1971,7 @@ local function stopTeleport()
             local returnPos = TeleportConfig.OriginalPosition
             local distance = (returnPos - currentPos).Magnitude
             
-            if distance > 3 then
+            if distance > 2 then -- Уменьшен порог для более точного возврата
                 local returnBv = root:FindFirstChild("BodyVelocity")
                 if not returnBv then
                     returnBv = Instance.new("BodyVelocity", root)
@@ -1778,15 +1981,22 @@ local function stopTeleport()
                 local returnDirection = (returnPos - currentPos).Unit
                 local returnSpeed = TeleportConfig.ReturnSpeed
                 
-                returnSpeed = returnSpeed + math.random(-5, 5)
+                -- Оптимизированная адаптивная скорость возврата
+                if distance > 10 then
+                    returnSpeed = returnSpeed * 1.2 -- Уменьшено ускорение для больших расстояний
+                elseif distance > 5 then
+                    returnSpeed = returnSpeed * 1.1 -- Уменьшено умеренное ускорение
+                end
+                
+                returnSpeed = returnSpeed + math.random(-3, 3) -- Уменьшена случайность
                 
                 returnBv.Velocity = returnDirection * returnSpeed
             else
-                
+                -- Быстрая финальная стабилизация
                 local returnBv = root:FindFirstChild("BodyVelocity")
                 if returnBv then
                     returnBv.Velocity = Vector3.new(0, 0, 0)
-                    task.wait(0.5) 
+                    task.wait(0.2) -- Уменьшено время ожидания
                     returnBv:Destroy()
                 end
                 
@@ -1795,30 +2005,30 @@ local function stopTeleport()
                     returnBg:Destroy()
                 end
                 
-                
+                -- Точное позиционирование
                 root.CFrame = CFrame.new(TeleportConfig.OriginalPosition)
                 TeleportConfig.OriginalPosition = nil
                 
-                
+                -- Улучшенная фиксация позиции
                 local freezeBv = Instance.new("BodyVelocity", root)
                 freezeBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
                 freezeBv.Velocity = Vector3.new(0, 0, 0)
                 
-                task.wait(2) 
+                task.wait(1.5) -- Уменьшено время фиксации
                 
                 if freezeBv then
                     freezeBv:Destroy()
                 end
                 
-                
+                -- Быстрое отключение NoClip
                 task.spawn(function()
-                    task.wait(5)
+                    task.wait(3) -- Уменьшено время ожидания
                     if isNoClipping then
                         stopNoClip()
                     end
                 end)
                 
-                
+                -- Очистка соединений
                 for _, connection in ipairs(returnConnections) do
                     if connection then
                         pcall(function() connection:Disconnect() end)
