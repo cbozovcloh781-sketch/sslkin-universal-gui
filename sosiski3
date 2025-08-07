@@ -2744,7 +2744,7 @@ end
 
 Players.PlayerAdded:Connect(setupPlayerESP)
 
--- Player ESP обработчики (удалены, так как теперь используется основной ESP)
+
 
 Players.PlayerRemoving:Connect(function(player)
     removeESP(player)
@@ -4633,7 +4633,6 @@ function showContent(tabName)
     elseif tabName == "YBA Hacks" then
         contentTitle.Text = getText("YBAHacks")
         
-        -- YBA Stand Range (используем правильную функцию)
         local standRangeLabel = Instance.new("TextLabel", functionsContainer)
         standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
         standRangeLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -4654,7 +4653,6 @@ function showContent(tabName)
             end
         end)
         
-        -- Underground Flight
         local undergroundFlightToggleBtn = createToggleSlider(getText("UndergroundFlight"), isUndergroundControlEnabled, function(v)
             if v then
                 if startUndergroundControl then
@@ -4667,7 +4665,6 @@ function showContent(tabName)
             end
         end)
         
-        -- NoClip для YBA
         local ybaNoClipStatusLabel = Instance.new("TextLabel", functionsContainer)
         ybaNoClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
         ybaNoClipStatusLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -4702,7 +4699,6 @@ function showContent(tabName)
         
         -- Ползунок скорости стенда (удален по запросу)
         
-        -- Anti Time Stop (кнопка с таймером)
         local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
         antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
         antiTimeStopLabel.Position = UDim2.new(0, 5, 0, currentY)
