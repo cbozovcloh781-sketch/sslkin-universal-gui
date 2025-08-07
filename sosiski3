@@ -93,6 +93,9 @@ local TeleportConfig = {
     FastStabilization = true, -- Новый параметр для быстрой стабилизации
     AdaptivePrediction = true, -- Новый параметр для адаптивного предсказания
     QuickResponseMode = true, -- Новый параметр для режима быстрого отклика
+    CombatStabilization = true, -- Новый параметр для стабилизации во время боя
+    AttackDetection = true, -- Новый параметр для обнаружения атак
+    CombatDistance = 2.5, -- Оптимальная дистанция для боя
 }
 
 local YBAConfig = {
@@ -1604,6 +1607,14 @@ local function createStealthTeleport()
             end
             
             -- Улучшенная логика движения с быстрой стабилизацией
+            -- Проверка на атаку для специальной стабилизации
+            local isCurrentlyAttacking = UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+                                       UserInputService:IsKeyDown(Enum.KeyCode.E) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.R) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.T) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Q)
+            
             if predictedDistance > TeleportConfig.StabilizationThreshold then
                 local direction = (predictedPosition - currentPos).Unit
                 local currentVelocity = bv.Velocity
@@ -1624,6 +1635,12 @@ local function createStealthTeleport()
                 local velocityDiff = targetVelocity - currentVelocity
                 local acceleration = velocityDiff * accelerationFactor
                 
+                -- Специальная логика для стабилизации во время атак
+                if isCurrentlyAttacking and predictedDistance < 2 then
+                    -- Уменьшаем скорость движения во время атак для стабильности
+                    acceleration = acceleration * 0.3
+                end
+                
                 bv.Velocity = currentVelocity + acceleration
             else
                 -- Оптимизированная коррекция для плавной стабилизации
@@ -1632,6 +1649,12 @@ local function createStealthTeleport()
                 
                 if targetSpeed > 10 then
                     correctionSpeed = correctionSpeed * 1.5 -- Оптимизированная скорость коррекции для движущихся целей
+                end
+                
+                -- Специальная логика для стабилизации во время атак
+                if isCurrentlyAttacking and predictedDistance < 1.5 then
+                    -- Значительно уменьшаем коррекцию во время атак
+                    correctionSpeed = correctionSpeed * 0.2
                 end
                 
                 bv.Velocity = direction * correctionSpeed
@@ -1681,6 +1704,70 @@ local function createStealthTeleport()
         end)
         
         table.insert(teleportConnections, quickStabilizationLoop)
+    end
+    
+    -- Функция стабилизации для боя
+    if TeleportConfig.CombatStabilization then
+        local isAttacking = false
+        local lastAttackTime = 0
+        
+        local attackDetectionLoop = RunService.Heartbeat:Connect(function()
+            if not isTeleporting or not targetChar or not targetChar.Parent then
+                return
+            end
+            
+            -- Обнаружение атак
+            if TeleportConfig.AttackDetection then
+                local currentTime = tick()
+                local isPressingAttack = UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+                                       UserInputService:IsKeyDown(Enum.KeyCode.E) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.R) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.T) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+                                       UserInputService:IsKeyDown(Enum.KeyCode.Q)
+                
+                if isPressingAttack and currentTime - lastAttackTime > 0.1 then
+                    isAttacking = true
+                    lastAttackTime = currentTime
+                elseif currentTime - lastAttackTime > 0.5 then
+                    isAttacking = false
+                end
+            end
+            
+            local currentTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+            if currentTargetRoot then
+                local targetPos = currentTargetRoot.Position
+                local currentPos = root.Position
+                local distance = (targetPos - currentPos).Magnitude
+                
+                -- Специальная стабилизация во время боя
+                if distance < TeleportConfig.CombatDistance and isAttacking then
+                    local bv = root:FindFirstChild("BodyVelocity")
+                    if bv then
+                        local targetCFrame = currentTargetRoot.CFrame
+                        local behindPosition = targetCFrame * CFrame.new(0, 0, TeleportConfig.BehindPlayerDistance)
+                        local behindDistance = (behindPosition.Position - currentPos).Magnitude
+                        
+                        if behindDistance < 0.6 then
+                            -- Полная стабилизация во время атаки
+                            bv.Velocity = Vector3.new(0, 0, 0)
+                            
+                            -- Дополнительная фиксация позиции для точности ударов
+                            local bg = root:FindFirstChild("BodyGyro")
+                            if bg then
+                                bg.CFrame = CFrame.lookAt(root.Position, root.Position + targetCFrame.LookVector)
+                            end
+                        elseif behindDistance < 1.2 then
+                            -- Минимальная коррекция во время атаки
+                            local direction = (behindPosition.Position - currentPos).Unit
+                            bv.Velocity = direction * 8 -- Очень медленная коррекция
+                        end
+                    end
+                end
+            end
+        end)
+        
+        table.insert(teleportConnections, attackDetectionLoop)
     end
 end
 
