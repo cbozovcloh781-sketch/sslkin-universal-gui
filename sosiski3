@@ -181,7 +181,7 @@ local AutoPerfectBlockConfig = {
     BlockKey = Enum.KeyCode.F, -- Клавиша для блока
     VisualEffect = true,
     SoundEffect = false,
-    BlockDelay = 0.05, -- Задержка перед блоком в секундах (уменьшена)
+    BlockDelay = 0.2, -- Задержка перед блоком в секундах (увеличена для предотвращения спама)
     AutoDisableOnAttack = true, -- Отключить при атаке
     ShowDebugInfo = false, -- Показывать отладочную информацию
 }
@@ -1294,39 +1294,24 @@ end
 local function performBlock()
     local currentTime = tick()
     if currentTime - lastBlockTime < AutoPerfectBlockConfig.BlockDelay then
+        if AutoPerfectBlockConfig.ShowDebugInfo then
+            print("Auto Perfect Block: Слишком часто, пропускаем блок")
+        end
         return false
     end
     
     lastBlockTime = currentTime
     
-    -- Альтернативный метод симуляции нажатия клавиши F
+    -- Используем только VirtualInputManager для симуляции нажатия клавиши F
     local VirtualInputManager = game:GetService("VirtualInputManager")
     
-    -- Используем VirtualInputManager для более надежной симуляции
+    -- Отправляем событие нажатия
     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
     
     -- Отправляем событие отпускания через небольшую задержку
     task.spawn(function()
         task.wait(0.1)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-    end)
-    
-    -- Дублируем через UserInputService для совместимости
-    local input = {
-        KeyCode = Enum.KeyCode.F,
-        UserInputType = Enum.UserInputType.Keyboard,
-        UserInputState = Enum.UserInputState.Begin
-    }
-    UserInputService:FireInputEvent(input)
-    
-    task.spawn(function()
-        task.wait(0.1)
-        local inputEnd = {
-            KeyCode = Enum.KeyCode.F,
-            UserInputType = Enum.UserInputType.Keyboard,
-            UserInputState = Enum.UserInputState.End
-        }
-        UserInputService:FireInputEvent(inputEnd)
     end)
     
     -- Создаем эффект блока
@@ -1422,35 +1407,31 @@ local function startAutoPerfectBlock()
                         if distance <= AutoPerfectBlockConfig.DetectionRange then
                             nearbyCount = nearbyCount + 1
                             
-                            -- Агрессивная блокировка - блокируем при любом движении в радиусе
-                            if velocity.Magnitude > 1 or distance < 3 then
-                            shouldBlock = true
-                            if AutoPerfectBlockConfig.ShowDebugInfo then
-                                print("Auto Perfect Block: Триггер -", player.Name, "расстояние:", math.floor(distance), "скорость:", math.floor(velocity.Magnitude))
+                            -- Более строгая блокировка - только при реальной угрозе
+                            if velocity.Magnitude > 15 or distance < 2 then
+                                shouldBlock = true
+                                if AutoPerfectBlockConfig.ShowDebugInfo then
+                                    print("Auto Perfect Block: Триггер -", player.Name, "расстояние:", math.floor(distance), "скорость:", math.floor(velocity.Magnitude))
+                                end
                             end
-                        end
                         
-                        -- Дополнительная проверка: игрок движется к нам
+                        -- Дополнительная проверка: игрок движется к нам с высокой скоростью
                         local directionToLocal = (currentLocalRoot.Position - root.Position).Unit
                         local playerDirection = velocity.Magnitude > 0 and velocity.Unit or Vector3.new(0, 0, 0)
                         local dotProduct = directionToLocal:Dot(playerDirection)
                         
-                        if dotProduct > 0.3 and velocity.Magnitude > 10 then
+                        if dotProduct > 0.5 and velocity.Magnitude > 20 then
                             shouldBlock = true
                             if AutoPerfectBlockConfig.ShowDebugInfo then
                                 print("Auto Perfect Block: Триггер (направление) -", player.Name, "движется к нам")
                             end
                         end
                         
-                        -- Проверка: игрок в поле зрения камеры
-                        local camera = workspace.CurrentCamera
-                        if camera and root then
-                            local screenPos, onScreen = camera:WorldToViewportPoint(root.Position)
-                            if onScreen and distance < 4 then
-                                shouldBlock = true
-                                if AutoPerfectBlockConfig.ShowDebugInfo then
-                                    print("Auto Perfect Block: Триггер (камера) -", player.Name, "в поле зрения")
-                                end
+                        -- Проверка: игрок очень близко и движется
+                        if distance < 1.5 and velocity.Magnitude > 5 then
+                            shouldBlock = true
+                            if AutoPerfectBlockConfig.ShowDebugInfo then
+                                print("Auto Perfect Block: Триггер (близость) -", player.Name, "очень близко")
                             end
                         end
                         end
@@ -1469,6 +1450,9 @@ local function startAutoPerfectBlock()
                 autoBlockEffect.FillColor = Color3.fromRGB(255, 255, 0) -- Желтый в режиме ожидания
             end
         end
+        
+        -- Добавляем небольшую задержку для предотвращения спама
+        task.wait(0.05)
     end)
     
     local deathConnection = hum.Died:Connect(function()
