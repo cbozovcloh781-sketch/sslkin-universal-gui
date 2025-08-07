@@ -87,8 +87,8 @@ local TeleportConfig = {
     MaxSpeedResetTime = 2.0,
     SpeedResetThreshold = 50,
     InstantTurnSpeed = 600,
-    SmoothingFactor = 0.25,
-    MaxCorrectionSpeed = 600,
+    SmoothingFactor = 0.2,
+    MaxCorrectionSpeed = 180,
     StabilizationThreshold = 0.9,
 }
 
@@ -1011,7 +1011,7 @@ local function startAntiTimeStop()
                     bg.Name = "AntiTimeStopBodyGyro"
                     bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
                     bg.D = 1000
-                    bg.P = 2000
+                    bg.P = 8000
                 end
             end
             
@@ -1579,12 +1579,12 @@ local function createStealthTeleport()
             if not bg then
                 bg = Instance.new("BodyGyro", root)
                 bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-                bg.D = 2000
-                bg.P = 20000
+                bg.D = 1000
+                bg.P = 8000
             else
                 bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-                bg.D = 2000
-                bg.P = 20000
+                bg.D = 1000
+                bg.P = 8000
             end
             
             local targetLookVector = targetCFrame.LookVector
@@ -1596,14 +1596,6 @@ local function createStealthTeleport()
             local predictionTime = math.clamp(0.05 + (targetSpeed / 300), 0.05, 0.25)
             local predictedPosition = behindPosition.Position + (targetVelocity * predictionTime)
             local predictedDistance = (predictedPosition - currentPos).Magnitude
-            
-            -- Snap closer if we are way too far to avoid long catch-up
-            if behindDistance > 35 then
-                root.CFrame = CFrame.lookAt(behindPosition.Position, behindPosition.Position + targetLookVector)
-                bv.Velocity = Vector3.new(0, 0, 0)
-                lastBehindDistance = behindDistance
-                return
-            end
             
             local adaptiveSpeed = TeleportConfig.TeleportSpeed
             if targetSpeed > 80 then
@@ -1621,13 +1613,13 @@ local function createStealthTeleport()
                 local currentVelocity = bv.Velocity
                 local targetVelocityVec = direction * adaptiveSpeed
                 
-                local accelerationFactor = 0.25
+                local accelerationFactor = 0.22
                 if targetSpeed > 80 then
-                    accelerationFactor = 0.6
-                elseif targetSpeed > 50 then
                     accelerationFactor = 0.5
+                elseif targetSpeed > 50 then
+                    accelerationFactor = 0.4
                 elseif targetSpeed > 30 then
-                    accelerationFactor = 0.35
+                    accelerationFactor = 0.3
                 end
                 
                 local velocityDiff = targetVelocityVec - currentVelocity
@@ -1636,24 +1628,26 @@ local function createStealthTeleport()
                 bv.Velocity = currentVelocity + acceleration
             else
                 local direction = (predictedPosition - currentPos).Unit
-                local maxCorr = TeleportConfig.MaxCorrectionSpeed or 300
-                local correctionSpeed = math.min(predictedDistance * 90, maxCorr)
+                local maxCorr = TeleportConfig.MaxCorrectionSpeed or 180
+                local correctionSpeed = math.min(predictedDistance * 45, maxCorr)
                 
                 if targetSpeed > 10 then
-                    correctionSpeed = correctionSpeed * 1.25
+                    correctionSpeed = correctionSpeed * 1.15
                 end
                 
                 bv.Velocity = direction * correctionSpeed
                 
-                -- Enter stabilization when very close and target is not sprinting
                 if predictedDistance < 0.25 and targetSpeed < 12 then
                     if not isStabilizing then
                         isStabilizing = true
                         stabilizationStartTime = tick()
                     end
-                    if isStabilizing and (tick() - stabilizationStartTime) >= TeleportConfig.StabilizationTime then
-                        local desired = CFrame.lookAt(behindPosition.Position, behindPosition.Position + targetLookVector)
-                        root.CFrame = root.CFrame:Lerp(desired, 0.6)
+                    local elapsed = tick() - (stabilizationStartTime or tick())
+                    local smoothFactor = math.clamp(elapsed / (TeleportConfig.StabilizationTime + 1e-6), 0, 1)
+                    local smallSpeed = math.min(predictedDistance * 25, 15)
+                    local desiredVel = direction * smallSpeed
+                    bv.Velocity = bv.Velocity + (desiredVel - bv.Velocity) * math.max(0.55, 0.85 * smoothFactor)
+                    if predictedDistance < 0.05 then
                         bv.Velocity = Vector3.new(0, 0, 0)
                     end
                 else
