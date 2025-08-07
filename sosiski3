@@ -1404,37 +1404,78 @@ local function startAutoPerfectBlock()
                         local distance = (currentLocalRoot.Position - root.Position).Magnitude
                         local velocity = root.Velocity
                         
-                        if distance <= AutoPerfectBlockConfig.DetectionRange then
+                                                if distance <= AutoPerfectBlockConfig.DetectionRange then
                             nearbyCount = nearbyCount + 1
                             
-                            -- Более строгая блокировка - только при реальной угрозе
-                            if velocity.Magnitude > 15 or distance < 2 then
+                            -- Пропускаем игроков, которые стоят на месте
+                            if velocity.Magnitude < 2 then
+                                if AutoPerfectBlockConfig.ShowDebugInfo then
+                                    print("Auto Perfect Block: Игрок", player.Name, "стоит на месте, пропускаем")
+                                end
+                                goto continue
+                            end
+                            
+                            -- Блокируем только при реальной атаке - высокой скорости И движении к нам
+                            local directionToLocal = (currentLocalRoot.Position - root.Position).Unit
+                            local playerDirection = velocity.Magnitude > 0 and velocity.Unit or Vector3.new(0, 0, 0)
+                            local dotProduct = directionToLocal:Dot(playerDirection)
+                            
+                            -- Условие 1: Игрок движется к нам с высокой скоростью
+                            if dotProduct > 0.6 and velocity.Magnitude > 25 then
                                 shouldBlock = true
                                 if AutoPerfectBlockConfig.ShowDebugInfo then
-                                    print("Auto Perfect Block: Триггер -", player.Name, "расстояние:", math.floor(distance), "скорость:", math.floor(velocity.Magnitude))
+                                    print("Auto Perfect Block: Триггер (атака) -", player.Name, "атакует нас")
                                 end
                             end
-                        
-                        -- Дополнительная проверка: игрок движется к нам с высокой скоростью
-                        local directionToLocal = (currentLocalRoot.Position - root.Position).Unit
-                        local playerDirection = velocity.Magnitude > 0 and velocity.Unit or Vector3.new(0, 0, 0)
-                        local dotProduct = directionToLocal:Dot(playerDirection)
-                        
-                        if dotProduct > 0.5 and velocity.Magnitude > 20 then
-                            shouldBlock = true
-                            if AutoPerfectBlockConfig.ShowDebugInfo then
-                                print("Auto Perfect Block: Триггер (направление) -", player.Name, "движется к нам")
+                            
+                            -- Условие 2: Игрок очень близко и быстро движется
+                            if distance < 1.2 and velocity.Magnitude > 15 then
+                                shouldBlock = true
+                                if AutoPerfectBlockConfig.ShowDebugInfo then
+                                    print("Auto Perfect Block: Триггер (близкая атака) -", player.Name, "очень близко и быстро")
+                                end
+                            end
+                            
+                            -- Условие 3: Проверяем стенд игрока на активные атаки
+                            local stand = char:FindFirstChild("Stand")
+                            if stand then
+                                local standAbilities = stand:FindFirstChild("Abilities")
+                                if standAbilities then
+                                    for _, ability in pairs(standAbilities:GetChildren()) do
+                                        if ability:IsA("AnimationTrack") and ability.IsPlaying then
+                                            shouldBlock = true
+                                            if AutoPerfectBlockConfig.ShowDebugInfo then
+                                                print("Auto Perfect Block: Триггер (стенд атака) -", player.Name, "стенд атакует")
+                                            end
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            -- Условие 4: Проверяем анимации персонажа на атаки
+                            local animator = char:FindFirstChild("Humanoid"):FindFirstChild("Animator")
+                            if animator then
+                                for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                                    local animName = track.Animation.AnimationId:lower()
+                                    if animName:find("attack") or 
+                                       animName:find("punch") or 
+                                       animName:find("kick") or
+                                       animName:find("hit") or
+                                       animName:find("combo") or
+                                       animName:find("barrage") or
+                                       animName:find("ora") or
+                                       animName:find("muda") then
+                                        shouldBlock = true
+                                        if AutoPerfectBlockConfig.ShowDebugInfo then
+                                            print("Auto Perfect Block: Триггер (анимация атаки) -", player.Name, "анимация атаки")
+                                        end
+                                        break
+                                    end
+                                end
                             end
                         end
-                        
-                        -- Проверка: игрок очень близко и движется
-                        if distance < 1.5 and velocity.Magnitude > 5 then
-                            shouldBlock = true
-                            if AutoPerfectBlockConfig.ShowDebugInfo then
-                                print("Auto Perfect Block: Триггер (близость) -", player.Name, "очень близко")
-                            end
-                        end
-                        end
+                        ::continue::
                     end
                 end
             end
@@ -1451,8 +1492,8 @@ local function startAutoPerfectBlock()
             end
         end
         
-        -- Добавляем небольшую задержку для предотвращения спама
-        task.wait(0.05)
+        -- Увеличиваем задержку для предотвращения спама
+        task.wait(0.1)
     end)
     
     local deathConnection = hum.Died:Connect(function()
