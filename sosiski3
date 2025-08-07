@@ -4526,7 +4526,16 @@ function showContent(tabName)
         playerListLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentY = currentY + 20 + padding
         
+        local playerButtons = {}
+        
         local function createPlayerList()
+            for _, btn in pairs(playerButtons) do
+                if btn and btn.Parent then
+                    btn:Destroy()
+                end
+            end
+            playerButtons = {}
+            
             local allPlayers = Players:GetPlayers()
             local playerList = {}
             
@@ -4553,6 +4562,8 @@ function showContent(tabName)
                 Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
                 currentY = currentY + 24 + padding
                 
+                table.insert(playerButtons, playerBtn)
+                
                 playerBtn.MouseButton1Click:Connect(function()
                     TeleportConfig.TargetPlayer = player
                     TeleportConfig.SelectedPlayerName = player.Name
@@ -4570,6 +4581,15 @@ function showContent(tabName)
         end
         
         createPlayerList()
+        
+        spawn(function()
+            while true do
+                task.wait(2)
+                if selectedTab == "Main" then
+                    createPlayerList()
+                end
+            end
+        end)
         
     elseif tabName == "YBA Hacks" then
         contentTitle.Text = getText("YBAHacks")
