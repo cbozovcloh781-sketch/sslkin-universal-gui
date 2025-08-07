@@ -268,175 +268,29 @@ local styleFilters = {
 
 -- Player ESP Functions
 local function getPlayerStand(player)
-    if not player or not player.Character then 
-        print("Player ESP: Player or character not found for", player.Name)
-        return nil 
-    end
-    
-    print("Player ESP: Searching for stand data for player:", player.Name)
-    
-    -- Ищем папку players в game (на том же уровне что и workspace)
-    local playersFolder = game:FindFirstChild("players")
-    if not playersFolder then 
-        print("Player ESP: players folder not found in game")
-        -- Попробуем альтернативные названия
-        playersFolder = game:FindFirstChild("Players")
-        if not playersFolder then
-            print("Player ESP: Players folder also not found")
-            return nil
-        else
-            print("Player ESP: Found Players folder (capitalized)")
-        end
-    else
-        print("Player ESP: Found players folder (lowercase)")
-    end
-    
-    -- Ищем папку с именем игрока
+    if not player or not player.Character then return nil end
+    local playersFolder = game:FindFirstChild("players") or game:FindFirstChild("Players")
+    if not playersFolder then return nil end
     local playerFolder = playersFolder:FindFirstChild(player.Name)
-    if not playerFolder then 
-        print("Player ESP: Player folder not found for", player.Name)
-        -- Выведем все доступные папки
-        print("Player ESP: Available folders in players:")
-        for _, child in pairs(playersFolder:GetChildren()) do
-            print("  -", child.Name)
-        end
-        return nil 
-    end
-    
-    print("Player ESP: Found player folder:", playerFolder.Name)
-    
-    -- Ищем папку playerstats
-    local playerStatsFolder = playerFolder:FindFirstChild("playerstats")
-    if not playerStatsFolder then 
-        print("Player ESP: playerstats folder not found for", player.Name)
-        -- Попробуем альтернативные названия
-        playerStatsFolder = playerFolder:FindFirstChild("PlayerStats")
-        if not playerStatsFolder then
-            print("Player ESP: PlayerStats folder also not found")
-            -- Выведем все доступные папки в папке игрока
-            print("Player ESP: Available folders in player folder:")
-            for _, child in pairs(playerFolder:GetChildren()) do
-                print("  -", child.Name)
-            end
-            return nil
-        else
-            print("Player ESP: Found PlayerStats folder (capitalized)")
-        end
-    else
-        print("Player ESP: Found playerstats folder (lowercase)")
-    end
-    
-    -- Ищем файл stand
-    local standFile = playerStatsFolder:FindFirstChild("stand")
-    if not standFile then 
-        print("Player ESP: stand file not found for", player.Name)
-        -- Попробуем альтернативные названия
-        standFile = playerStatsFolder:FindFirstChild("Stand")
-        if not standFile then
-            print("Player ESP: Stand file also not found")
-            -- Выведем все доступные файлы в папке playerstats
-            print("Player ESP: Available files in playerstats folder:")
-            for _, child in pairs(playerStatsFolder:GetChildren()) do
-                print("  -", child.Name, "(" .. child.ClassName .. ")")
-            end
-            return nil
-        else
-            print("Player ESP: Found Stand file (capitalized)")
-        end
-    else
-        print("Player ESP: Found stand file (lowercase)")
-    end
-    
-    -- Получаем значение стенда
-    local standValue = standFile.Value
-    print("Player ESP: Found stand value for", player.Name, "=", standValue)
-    return standValue
+    if not playerFolder then return nil end
+    local playerStatsFolder = playerFolder:FindFirstChild("playerstats") or playerFolder:FindFirstChild("PlayerStats")
+    if not playerStatsFolder then return nil end
+    local standFile = playerStatsFolder:FindFirstChild("stand") or playerStatsFolder:FindFirstChild("Stand")
+    if not standFile then return nil end
+    return standFile.Value
 end
 
 local function getPlayerStyle(player)
-    if not player or not player.Character then 
-        print("Player ESP: Player or character not found for", player.Name)
-        return nil 
-    end
-    
-    print("Player ESP: Searching for style data for player:", player.Name)
-    
-    -- Ищем папку players в game (на том же уровне что и workspace)
-    local playersFolder = game:FindFirstChild("players")
-    if not playersFolder then 
-        print("Player ESP: players folder not found in game")
-        -- Попробуем альтернативные названия
-        playersFolder = game:FindFirstChild("Players")
-        if not playersFolder then
-            print("Player ESP: Players folder also not found")
-            return nil
-        else
-            print("Player ESP: Found Players folder (capitalized)")
-        end
-    else
-        print("Player ESP: Found players folder (lowercase)")
-    end
-    
-    -- Ищем папку с именем игрока
+    if not player or not player.Character then return nil end
+    local playersFolder = game:FindFirstChild("players") or game:FindFirstChild("Players")
+    if not playersFolder then return nil end
     local playerFolder = playersFolder:FindFirstChild(player.Name)
-    if not playerFolder then 
-        print("Player ESP: Player folder not found for", player.Name)
-        -- Выведем все доступные папки
-        print("Player ESP: Available folders in players:")
-        for _, child in pairs(playersFolder:GetChildren()) do
-            print("  -", child.Name)
-        end
-        return nil 
-    end
-    
-    print("Player ESP: Found player folder:", playerFolder.Name)
-    
-    -- Ищем папку playerstats
-    local playerStatsFolder = playerFolder:FindFirstChild("playerstats")
-    if not playerStatsFolder then 
-        print("Player ESP: playerstats folder not found for", player.Name)
-        -- Попробуем альтернативные названия
-        playerStatsFolder = playerFolder:FindFirstChild("PlayerStats")
-        if not playerStatsFolder then
-            print("Player ESP: PlayerStats folder also not found")
-            -- Выведем все доступные папки в папке игрока
-            print("Player ESP: Available folders in player folder:")
-            for _, child in pairs(playerFolder:GetChildren()) do
-                print("  -", child.Name)
-            end
-            return nil
-        else
-            print("Player ESP: Found PlayerStats folder (capitalized)")
-        end
-    else
-        print("Player ESP: Found playerstats folder (lowercase)")
-    end
-    
-    -- Ищем файл spec
-    local specFile = playerStatsFolder:FindFirstChild("spec")
-    if not specFile then 
-        print("Player ESP: spec file not found for", player.Name)
-        -- Попробуем альтернативные названия
-        specFile = playerStatsFolder:FindFirstChild("Spec")
-        if not specFile then
-            print("Player ESP: Spec file also not found")
-            -- Выведем все доступные файлы в папке playerstats
-            print("Player ESP: Available files in playerstats folder:")
-            for _, child in pairs(playerStatsFolder:GetChildren()) do
-                print("  -", child.Name, "(" .. child.ClassName .. ")")
-            end
-            return nil
-        else
-            print("Player ESP: Found Spec file (capitalized)")
-        end
-    else
-        print("Player ESP: Found spec file (lowercase)")
-    end
-    
-    -- Получаем значение стиля
-    local specValue = specFile.Value
-    print("Player ESP: Found spec value for", player.Name, "=", specValue)
-    return specValue
+    if not playerFolder then return nil end
+    local playerStatsFolder = playerFolder:FindFirstChild("playerstats") or playerFolder:FindFirstChild("PlayerStats")
+    if not playerStatsFolder then return nil end
+    local specFile = playerStatsFolder:FindFirstChild("spec") or playerStatsFolder:FindFirstChild("Spec")
+    if not specFile then return nil end
+    return specFile.Value
 end
 
 -- GUI элементы
@@ -2765,43 +2619,29 @@ local function createOrUpdateESP(p)
     local standInfo = ""
     local styleInfo = ""
     
-    print("Player ESP: userStandESPEnabled =", userStandESPEnabled, "userStyleESPEnabled =", userStyleESPEnabled)
-    
     if userStandESPEnabled then
         local stand = getPlayerStand(p)
         if stand then
             standInfo = " | Stand: " .. stand
-            print("Player ESP: Found stand for", p.Name, "=", stand)
         else
             standInfo = " | Stand: None"
-            print("Player ESP: No stand found for", p.Name)
         end
     end
     
     if userStyleESPEnabled then
         local style = getPlayerStyle(p)
         if style then
-            -- Проверяем, включен ли этот стиль в фильтрах
             if styleFilters[style] then
                 styleInfo = " | Style: " .. style
-                print("Player ESP: Found style for", p.Name, "=", style, "(filtered: enabled)")
-            else
-                styleInfo = " | Style: " .. style .. " (hidden)"
-                print("Player ESP: Found style for", p.Name, "=", style, "(filtered: disabled)")
             end
         else
             if styleFilters["None"] then
                 styleInfo = " | Style: None"
-                print("Player ESP: No style found for", p.Name, "(filtered: enabled)")
-            else
-                styleInfo = " | Style: None (hidden)"
-                print("Player ESP: No style found for", p.Name, "(filtered: disabled)")
             end
         end
     end
     
     d.tl.Text = baseText .. standInfo .. styleInfo
-    print("Player ESP: Final text for", p.Name, "=", d.tl.Text)
 end
 
 local function removeESP(p)
