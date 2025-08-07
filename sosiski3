@@ -181,7 +181,7 @@ local AutoPerfectBlockConfig = {
     BlockKey = Enum.KeyCode.F, -- Клавиша для блока
     VisualEffect = true,
     SoundEffect = false,
-    BlockDelay = 0.1, -- Задержка перед блоком в секундах
+    BlockDelay = 0.05, -- Задержка перед блоком в секундах (уменьшена)
     AutoDisableOnAttack = true, -- Отключить при атаке
     ShowDebugInfo = false, -- Показывать отладочную информацию
 }
@@ -1372,7 +1372,7 @@ local function startAutoPerfectBlock()
     
     createAutoBlockEffect()
     
-    local blockDetectionLoop = RunService.Heartbeat:Connect(function()
+    local blockDetectionLoop = RunService.RenderStepped:Connect(function()
         if not isAutoPerfectBlockEnabled or not char or not char.Parent then
             return
         end
@@ -1398,8 +1398,10 @@ local function startAutoPerfectBlock()
             end
         end
         
-        -- Упрощенная проверка - если есть игроки рядом, блокируем
-        local nearbyPlayers = 0
+        -- Агрессивная проверка - блокируем при любом движении рядом
+        local shouldBlock = false
+        local nearbyCount = 0
+        
         for _, player in pairs(Players:GetPlayers()) do
             if player ~= localPlayer then
                 local char = player.Character
@@ -1409,42 +1411,53 @@ local function startAutoPerfectBlock()
                     
                     if root and humanoid and humanoid.Health > 0 then
                         local distance = (root.Position - localRoot.Position).Magnitude
-                        if distance <= AutoPerfectBlockConfig.DetectionRange then
-                            nearbyPlayers = nearbyPlayers + 1
+                        local velocity = root.Velocity
+                        
+                                                if distance <= AutoPerfectBlockConfig.DetectionRange then
+                            nearbyCount = nearbyCount + 1
+                            
+                            -- Агрессивная блокировка - блокируем при любом движении в радиусе
+                            if velocity.Magnitude > 1 or distance < 3 then
+                            shouldBlock = true
+                            if AutoPerfectBlockConfig.ShowDebugInfo then
+                                print("Auto Perfect Block: Триггер -", player.Name, "расстояние:", math.floor(distance), "скорость:", math.floor(velocity.Magnitude))
+                            end
+                        end
+                        
+                        -- Дополнительная проверка: игрок движется к нам
+                        local directionToLocal = (localRoot.Position - root.Position).Unit
+                        local playerDirection = velocity.Unit
+                        local dotProduct = directionToLocal:Dot(playerDirection)
+                        
+                        if dotProduct > 0.3 and velocity.Magnitude > 10 then
+                            shouldBlock = true
+                            if AutoPerfectBlockConfig.ShowDebugInfo then
+                                print("Auto Perfect Block: Триггер (направление) -", player.Name, "движется к нам")
+                            end
+                        end
+                        
+                        -- Проверка: игрок в поле зрения камеры
+                        local camera = workspace.CurrentCamera
+                        if camera then
+                            local screenPos, onScreen = camera:WorldToViewportPoint(root.Position)
+                            if onScreen and distance < 4 then
+                                shouldBlock = true
+                                if AutoPerfectBlockConfig.ShowDebugInfo then
+                                    print("Auto Perfect Block: Триггер (камера) -", player.Name, "в поле зрения")
+                                end
+                            end
+                        end
                         end
                     end
                 end
             end
         end
         
-        if nearbyPlayers > 0 then
+        if shouldBlock then
             if AutoPerfectBlockConfig.ShowDebugInfo then
-                print("Auto Perfect Block: Игроки рядом:", nearbyPlayers)
+                print("Auto Perfect Block: Блокируем! Игроков рядом:", nearbyCount)
             end
             performBlock()
-        else
-            if autoBlockEffect then
-                autoBlockEffect.FillColor = Color3.fromRGB(255, 255, 0) -- Желтый в режиме ожидания
-            end
-        end
-        
-        -- Оригинальная логика как резерв
-        local attackers = detectNearbyAttackers()
-        
-        if #attackers > 0 then
-            if AutoPerfectBlockConfig.ShowDebugInfo then
-                print("Auto Perfect Block: Обнаружены атакующие игроки:", #attackers)
-                for i, attacker in ipairs(attackers) do
-                    print("  -", attacker.Player.Name, "на расстоянии", math.floor(attacker.Distance), "м, скорость:", math.floor(attacker.Velocity.Magnitude))
-                end
-            end
-            
-            -- Выполняем блок
-            if performBlock() then
-                if AutoPerfectBlockConfig.ShowDebugInfo then
-                    print("Auto Perfect Block: Блок выполнен успешно!")
-                end
-            end
         else
             if autoBlockEffect then
                 autoBlockEffect.FillColor = Color3.fromRGB(255, 255, 0) -- Желтый в режиме ожидания
@@ -1462,6 +1475,10 @@ local function startAutoPerfectBlock()
     print("Auto Perfect Block активирован!")
     print("Радиус обнаружения:", AutoPerfectBlockConfig.DetectionRange, "метров")
     print("Отладочная информация:", AutoPerfectBlockConfig.ShowDebugInfo and "включена" or "выключена")
+    print("ВНИМАНИЕ: Включите Debug Info для отладки!")
+    
+    -- Временно включаем отладку для тестирования
+    AutoPerfectBlockConfig.ShowDebugInfo = true
 end
 
 local function stopAutoPerfectBlock()
