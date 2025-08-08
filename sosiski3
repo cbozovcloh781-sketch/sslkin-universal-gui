@@ -603,17 +603,16 @@ local YBAFreeCamera = {} do
         local cameraPosition = standPosition + cameraOffset
         local newCameraCFrame = CFrame.lookAt(cameraPosition, standPosition)
         
-        -- Принудительно устанавливаем камеру
+        -- Осторожно устанавливаем только CFrame камеры (не тип)
         Camera.CFrame = newCameraCFrame
-        Camera.CameraType = Enum.CameraType.Scriptable -- Убеждаемся что камера в скриптовом режиме
         
-        -- Отключаем автоматическое управление камерой
+        -- Мягко отключаем управление камерой игроком
         local player = Players.LocalPlayer
         if player and player.Character then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid then
                 humanoid.AutoRotate = false
-                humanoid.PlatformStand = true -- Полностью отключаем управление игроком
+                -- НЕ включаем PlatformStand чтобы не триггерить античит
             end
         end
     end
@@ -646,12 +645,12 @@ local YBAFreeCamera = {} do
         cameraHeight = YBAConfig.CameraHeight or 8
         cameraRot = Vector2.new(0, 0)
         
-        -- Переключаем камеру в скриптовый режим
-        print("YBA: Переключаем камеру в скриптовый режим...")
-        Camera.CameraType = Enum.CameraType.Scriptable
-        print("YBA: Камера переключена, тип:", Camera.CameraType)
+        -- НЕ переключаем тип камеры чтобы обойти античит YBA
+        print("YBA: Сохраняем оригинальный тип камеры для обхода античита")
+        print("YBA: Текущий тип камеры:", Camera.CameraType)
         
-        -- Устанавливаем начальную позицию камеры за стендом
+        -- Устанавливаем начальную позицию камеры за стендом с задержкой
+        task.wait(0.1) -- Небольшая задержка чтобы не триггерить античит
         local standPosition = stand.Root.Position
         local initialOffset = Vector3.new(0, cameraHeight, cameraDistance)
         local initialCameraPosition = standPosition + initialOffset
@@ -662,7 +661,8 @@ local YBAFreeCamera = {} do
         print("YBA: Запускаем систему ввода...")
         startInput()
         print("YBA: Подключаем рендер...")
-        renderConnection = RunService.Heartbeat:Connect(stepFreecam)
+        -- Используем RenderStepped вместо Heartbeat для меньшей частоты
+        renderConnection = RunService.RenderStepped:Connect(stepFreecam)
         fcRunning = true
         
         print("YBA: Управление стендом успешно активировано!")
@@ -714,7 +714,7 @@ local YBAFreeCamera = {} do
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid then
                 humanoid.AutoRotate = true
-                humanoid.PlatformStand = false
+                -- PlatformStand не трогаем так как не включали
             end
         end
         
@@ -2240,12 +2240,13 @@ local function startYBA()
     if targetStand.Root and targetStand.Model then
         print("YBA: Отсоединяем стенд от игрока...")
         
-        -- Удаляем все связи с игроком
+        -- Мягко отключаем автоуправление стендом
         local humanoid = targetStand.Model:FindFirstChild("Humanoid")
         if humanoid then
-            humanoid.PlatformStand = true -- Отключает стандартное управление
+            -- НЕ включаем PlatformStand чтобы не триггерить античит
             humanoid.Sit = false
             humanoid.Jump = false
+            humanoid.AutoRotate = false
         end
         
         -- Убираем привязку к игроку через Weld/Motor6D
