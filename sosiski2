@@ -306,7 +306,7 @@ local MenuSettings = {
 local Languages = {
     English = {
         MainFunctions = "MAIN FUNCTIONS",
-        YBAHacks = "STAND RANGE HACKS",
+        YBAHacks = "YBA HACKS",
         MenuSettings = "MENU SETTINGS",
         
         BlurEffect = "Blur Effect",
@@ -330,7 +330,7 @@ local Languages = {
         TeleportToPlayer = "Teleport to Player",
         SelectedPlayer = "Selected Player",
         SelectPlayerForTeleport = "Select Player for Teleport",
-        YBAStandRange = "YBA Stand Range",
+        YBAStandRange = "Stand Range Hacks",
         StandSpeed = "Stand Speed",
         ItemESP = "Item ESP",
         AntiTimeStop = "ANTI TIME STOP",
@@ -357,7 +357,7 @@ local Languages = {
     },
     Russian = {
         MainFunctions = "ОСНОВНЫЕ ФУНКЦИИ",
-        YBAHacks = "ХАКИ СТЕНДОВ",
+        YBAHacks = "YBA ХАКИ",
         MenuSettings = "НАСТРОЙКИ МЕНЮ",
         
         BlurEffect = "Эффект размытия",
@@ -381,7 +381,7 @@ local Languages = {
         TeleportToPlayer = "Телепорт к игроку",
         SelectedPlayer = "Выбранный игрок",
         SelectPlayerForTeleport = "Выбрать игрока для телепорта",
-        YBAStandRange = "YBA Дальность стенда",
+        YBAStandRange = "Хаки дальности стенда",
         StandSpeed = "Скорость стенда",
         ItemESP = "ESP предметов",
         AntiTimeStop = "АНТИ ОСТАНОВКА ВРЕМЕНИ",
@@ -1952,7 +1952,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= 4 then
                         foundCount = foundCount + 1
                         print("[findStands] Found stand:", obj.Name, "Root:", standRoot.Name, "Distance:", distance)
                         table.insert(stands, {
@@ -1973,7 +1973,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= 4 then
                         print("[findStands] Fallback found stand:", obj.Name, "Root:", standRoot.Name, "Distance:", distance)
                         table.insert(stands, {
                             Model = obj,
@@ -2152,25 +2152,19 @@ local function startUndergroundMode()
     workspace.Gravity = 0
     hum.HipHeight = 0
     
-    local ctrl = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
+    local ctrl = {u = 0, d = 0} -- Убрано управление WASD - только вертикальное
     
     local inputDown = UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
-        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1
-        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
-        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
-        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 1
-        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 1
+        -- Убрано управление WASD - только вертикальное управление
+        if input.KeyCode == Enum.KeyCode.Space then ctrl.u = 1
         elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = -1 end
     end)
     
     local inputUp = UserInputService.InputEnded:Connect(function(input, gp)
         if gp then return end
-        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
-        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
-        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
-        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0
-        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 0
+        -- Убрано управление WASD - только вертикальное управление
+        if input.KeyCode == Enum.KeyCode.Space then ctrl.u = 0
         elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = 0 end
     end)
     
@@ -2179,16 +2173,10 @@ local function startUndergroundMode()
             return
         end
         
-        local cam = workspace.CurrentCamera
-        if not cam then return end
-        
-        local forward = cam.CFrame.lookVector
-        local right = cam.CFrame.rightVector
         local up = Vector3.new(0, 1, 0)
         
         local moveVector = Vector3.new(0, 0, 0)
-        moveVector = moveVector + (forward * (ctrl.f + ctrl.b))
-        moveVector = moveVector + (right * (ctrl.r + ctrl.l))
+        -- Убрано управление WASD от камеры - только вертикальное управление
         moveVector = moveVector + (up * (ctrl.u + ctrl.d))
         
         if moveVector.Magnitude > 0 then
@@ -2427,8 +2415,8 @@ local function startStandSwapMode(stand)
     -- ЭТАП 1: Игрок уходит под землю
     startUndergroundMode()
     
-    -- ЭТАП 2: Через 2.5 сек после ухода под землю - стенд отклеивается и улетает вверх
-    task.wait(2.5)
+    -- ЭТАП 2: Через 2 сек после ухода под землю - стенд отклеивается и улетает вверх
+    task.wait(2.0)
     
     -- ФИКСИРОВАННЫЙ Y для стенда относительно игрока (30м выше подземного игрока)
     if standFollowConn then standFollowConn:Disconnect() end
@@ -4738,10 +4726,7 @@ function showContent(tabName)
             end
         end)
         
-        local standSpeedToggleBtn = createToggleSlider(getText("StandSpeed"), false, function(v)
-            -- Это просто показ состояния, настройка скорости ниже
-            print("Stand Speed settings changed")
-        end)
+        -- Удален тумблер Stand Speed - теперь скорость регулируется только ползунком
         
         local ybaNoClipStatusLabel = Instance.new("TextLabel", functionsContainer)
         ybaNoClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -4766,9 +4751,9 @@ function showContent(tabName)
             end
         end)
         
-        createSlider("Stand Speed", 1, 200, YBAConfig.UndergroundControl.FlightSpeed or 50, function(v)
+        createSlider("Flight Speed", 1, 200, YBAConfig.UndergroundControl.FlightSpeed or 50, function(v)
             YBAConfig.UndergroundControl.FlightSpeed = v
-            print("🔥 Stand Speed изменена на:", v)
+            print("🔥 Flight Speed изменена на:", v)
         end)
         
 
