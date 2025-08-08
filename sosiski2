@@ -2105,9 +2105,7 @@ if _G._detachStandConnection then _G._detachStandConnection:Disconnect() end
 if _G._standSwapConn then _G._standSwapConn:Disconnect() end
 
 -- Новая реализация Stand Range Hack через тумблер меню
-local standFollowConn = nil
 local standSwapActive = false
-local standSwapYOffset = 30
 local freecamConn = nil
 local freecamActive = false
 
@@ -2237,20 +2235,32 @@ local function startStandSwapMode(stand)
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     standSwapActive = true
-    if standFollowConn then standFollowConn:Disconnect() end
-    standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
-        if not char or not root or not stand or not stand.Root then return end
-        stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
-    end)
+    
+    -- ОТСОЕДИНЯЕМ стенд от игрока (убираем все связи)
+    detachStandControl(stand)
+    
+    -- Присоединяем камеру к стенду
     setFreecamToStandHead(stand)
-    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности, камера на голове стенда")
+    print("[standSwap] Режим активирован: стенд ОТСОЕДИНЕН от игрока, камера присоединена к стенду")
 end
 
 local function stopStandSwapMode()
     standSwapActive = false
-    if standFollowConn then standFollowConn:Disconnect() end
-    -- ОТКЛЮЧЕНО: disableFreecam() - теперь используем YBAFreeCamera
-    print("[standSwap] Режим отключён")
+    
+    -- Останавливаем управление стендом
+    if detachedStand then
+        local bv = detachedStand.Root:FindFirstChild("BodyVelocity")
+        if bv then bv:Destroy() end
+        detachedStand = nil
+    end
+    if heartbeatConn then 
+        heartbeatConn:Disconnect() 
+        heartbeatConn = nil
+    end
+    
+    -- Отключаем камеру
+    disableFreecam()
+    print("[standSwap] Режим отключён - стенд и камера возвращены")
 end
 
 -- Подключаем к тумблеру меню
@@ -4895,31 +4905,7 @@ local function detachStandControl(stand)
     enableDetachedStandControl(stand)
 end
 
-local standFollowConn = nil
-local standSwapActive = false
-local standSwapYOffset = 30
-
-local function startStandSwapMode(stand)
-    if standSwapActive then return end
-    local player = game.Players.LocalPlayer
-    local char = player.Character
-    if not char or not stand or not stand.Root then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    standSwapActive = true
-    if standFollowConn then standFollowConn:Disconnect() end
-    standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
-        if not char or not root or not stand or not stand.Root then return end
-        stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
-    end)
-    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности")
-end
-
-local function stopStandSwapMode()
-    standSwapActive = false
-    if standFollowConn then standFollowConn:Disconnect() end
-    print("[standSwap] Режим отключён")
-end
+-- Дублированный код удален - используется версия выше
 
 -- Горячая клавиша H удалена по просьбе пользователя
 -- Отключаем существующие соединения если они есть
