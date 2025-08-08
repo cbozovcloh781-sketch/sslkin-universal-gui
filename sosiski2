@@ -2242,8 +2242,8 @@ local function startStandSwapMode(stand)
         if not char or not root or not stand or not stand.Root then return end
         stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
     end)
-    -- ОТКЛЮЧЕНО: setFreecamToStandHead(stand) - теперь используем YBAFreeCamera
-    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности")
+    setFreecamToStandHead(stand)
+    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности, камера на голове стенда")
 end
 
 local function stopStandSwapMode()
@@ -2253,24 +2253,16 @@ local function stopStandSwapMode()
     print("[standSwap] Режим отключён")
 end
 
--- НОВАЯ система Stand Range с плавной камерой
+-- Подключаем к тумблеру меню
 if _G._standRangeMenuConn then _G._standRangeMenuConn:Disconnect() end
 _G._standRangeMenuConn = game:GetService("RunService").RenderStepped:Connect(function()
     if YBAConfig.Enabled and not standSwapActive then
         local stands = findStands()
         if #stands > 0 then
-            local closestStand = stands[1]
-            -- Используем новую YBAFreeCamera вместо старой системы
-            if not YBAFreeCamera.IsRunning() then
-                YBAFreeCamera.Start(closestStand)
-            end
+            startStandSwapMode(stands[1])
         end
     elseif not YBAConfig.Enabled and standSwapActive then
         stopStandSwapMode()
-        -- Отключаем YBAFreeCamera тоже
-        if YBAFreeCamera.IsRunning() then
-            YBAFreeCamera.Stop()
-        end
     end
 end)
 
