@@ -1957,42 +1957,12 @@ local function freezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
     if not char then return end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
-    
-    if root then
-        originalPlayerPosition = root.Position
-        originalPlayerCFrame = root.CFrame
-        
-        local bv = root:FindFirstChild("BodyVelocity")
-        if not bv then
-            bv = Instance.new("BodyVelocity", root)
-            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-        end
-        bv.Velocity = Vector3.new(0, 0, 0)
-        
-        local gyro = root:FindFirstChild("BodyGyro")
-        if not gyro then
-            gyro = Instance.new("BodyGyro", root)
-            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-        end
-        gyro.CFrame = root.CFrame
-        
-        local camera = workspace.CurrentCamera
-        if camera then
-            camera.CameraType = Enum.CameraType.Scriptable
-        end
-    end
-    
     if humanoid then
         originalYBAWalkSpeed = humanoid.WalkSpeed
         originalYBAJumpPower = humanoid.JumpPower
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-        
-        humanoid.AutoRotate = false
-        humanoid.AutoJumpEnabled = false
+        humanoid.WalkSpeed = 0.1
+        humanoid.JumpPower = 0.1
     end
 end
 
@@ -2000,29 +1970,18 @@ local function unfreezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
     if not char then return end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
-    
-    if root then
-        local bv = root:FindFirstChild("BodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-        
-        local gyro = root:FindFirstChild("BodyGyro")
-        if gyro then
-            gyro:Destroy()
-        end
-    end
-    
     if humanoid then
         humanoid.WalkSpeed = originalYBAWalkSpeed
         humanoid.JumpPower = originalYBAJumpPower
-        
-        humanoid.AutoRotate = true
-        humanoid.AutoJumpEnabled = true
     end
+end
+
+local function getFirstPart(model)
+    for _, obj in ipairs(model:GetDescendants()) do
+        if obj:IsA("BasePart") then return obj end
+    end
+    return nil
 end
 
 local function activateFreeCamera(stand)
@@ -2030,74 +1989,157 @@ local function activateFreeCamera(stand)
         print("YBA: Ошибка - стенд или его Root не найден")
         return false
     end
-    
-    print("YBA: Активируем управление стендом: " .. stand.Name)
-
-    if YBAConfig.FreezePlayer then
-        print("YBA: Замораживаем игрока...")
-        freezePlayer()
+    local standModel = stand.Root:FindFirstAncestorOfClass("Model") or stand.Root.Parent
+    local char = Players.LocalPlayer.Character
+    -- Освобождаем стенд: переносим в workspace, удаляем Weld/Motor6D связывающие с Character
+    if standModel and standModel.Parent == char then
+        standModel.Parent = workspace
     end
-
+    for _, obj in ipairs(standModel:GetDescendants()) do
+        if (obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D")
+            or obj:IsA("Attachment") or obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint")
+            or obj:IsA("RodConstraint") or obj:IsA("SpringConstraint") or obj:IsA("RopeConstraint")
+            or obj:IsA("AlignPosition") or obj:IsA("AlignOrientation")) then
+            if (obj.Part0 and obj.Part0:IsDescendantOf(char)) or (obj.Part1 and obj.Part1:IsDescendantOf(char)) then
+                pcall(function() obj:Destroy() end)
+            elseif obj:IsA("Attachment") and obj.Parent and obj.Parent:IsDescendantOf(char) then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+    end
     freeCameraActive = true
     freeCameraTarget = stand
-
-    if YBAFreeCamera.Start(stand) then
-        print("YBA: Управление стендом активировано от третьего лица")
-        return true
-    else
-        print("YBA: Не удалось активировать управление стендом")
-        return false
+    local cam = workspace.CurrentCamera
+    local originalCameraType = cam.CameraType
+    local originalCameraSubject = cam.CameraSubject
+    cam.CameraType = Enum.CameraType.Scriptable
+    local yaw, pitch = 0, 0
+    local distance = 10
+    local minDist, maxDist = 3, 30
+    local dragging = false
+    local move = {W=0, A=0, S=0, D=0, Space=0, Shift=0}
+    local standSpeed = 30
+    local function getStandHead()
+        if standModel:FindFirstChild("Head") then return standModel.Head end
+        if standModel:FindFirstChild("HumanoidRootPart") then return standModel.HumanoidRootPart end
+        return getFirstPart(standModel)
     end
+    local inputBeganConn = UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            dragging = true
+        end
+        if input.KeyCode == Enum.KeyCode.W then move.W = 1 end
+        if input.KeyCode == Enum.KeyCode.A then move.A = 1 end
+        if input.KeyCode == Enum.KeyCode.S then move.S = 1 end
+        if input.KeyCode == Enum.KeyCode.D then move.D = 1 end
+        if input.KeyCode == Enum.KeyCode.Space then move.Space = 1 end
+        if input.KeyCode == Enum.KeyCode.LeftShift then move.Shift = 1 end
+    end)
+    local inputEndedConn = UserInputService.InputEnded:Connect(function(input, gp)
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            dragging = false
+        end
+        if input.KeyCode == Enum.KeyCode.W then move.W = 0 end
+        if input.KeyCode == Enum.KeyCode.A then move.A = 0 end
+        if input.KeyCode == Enum.KeyCode.S then move.S = 0 end
+        if input.KeyCode == Enum.KeyCode.D then move.D = 0 end
+        if input.KeyCode == Enum.KeyCode.Space then move.Space = 0 end
+        if input.KeyCode == Enum.KeyCode.LeftShift then move.Shift = 0 end
+    end)
+    local inputChangedConn = UserInputService.InputChanged:Connect(function(input, gp)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            yaw = yaw - input.Delta.x * 0.005
+            pitch = math.clamp(pitch - input.Delta.y * 0.005, -math.pi/2+0.1, math.pi/2-0.1)
+        elseif input.UserInputType == Enum.UserInputType.MouseWheel then
+            distance = math.clamp(distance - input.Position.Z, minDist, maxDist)
+        end
+    end)
+    -- Включаем флай для игрока, если не включён
+    if not isFlying then
+        startFly()
+    end
+    local function updateControl(dt)
+        if not freeCameraActive or not stand or not stand.Root then return end
+        -- Каждый кадр: если стенд снова стал дочерним Character, переносим в workspace
+        if standModel and standModel.Parent ~= workspace then
+            standModel.Parent = workspace
+        end
+        -- Каждый кадр: агрессивно удаляем все связи между стендом и Character
+        for _, obj in ipairs(standModel:GetDescendants()) do
+            if (obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D")
+                or obj:IsA("Attachment") or obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint")
+                or obj:IsA("RodConstraint") or obj:IsA("SpringConstraint") or obj:IsA("RopeConstraint")
+                or obj:IsA("AlignPosition") or obj:IsA("AlignOrientation")) then
+                if (obj.Part0 and obj.Part0:IsDescendantOf(char)) or (obj.Part1 and obj.Part1:IsDescendantOf(char)) then
+                    pcall(function() obj:Destroy() end)
+                elseif obj:IsA("Attachment") and obj.Parent and obj.Parent:IsDescendantOf(char) then
+                    pcall(function() obj:Destroy() end)
+                end
+            end
+        end
+        local moveVec = Vector3.new(move.D - move.A, move.Space, move.S - move.W)
+        if moveVec.Magnitude > 0 then
+            moveVec = moveVec.Unit * (standSpeed + (move.Shift > 0 and 20 or 0))
+            local camRot = CFrame.Angles(0, yaw, 0)
+            moveVec = camRot:VectorToWorldSpace(moveVec)
+            stand.Root.CFrame = stand.Root.CFrame + moveVec * dt
+        end
+        -- Камера: вращение вокруг головы стенда
+        local head = getStandHead()
+        if head then
+            local center = head.Position
+            local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 0, distance)
+            local camPos = (CFrame.new(center) * offset).Position
+            cam.CFrame = CFrame.new(camPos, center)
+        else
+            local fallback = stand.Root.CFrame
+            cam.CFrame = fallback
+        end
+        -- Перемещение игрока под землю через BodyVelocity (флай)
+        local player = Players.LocalPlayer
+        local char = player and player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local standPos = stand.Root.Position
+            local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
+            local bv = root:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity")
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                bv.Parent = root
+            end
+            bv.Velocity = (targetPos - root.Position) * 5
+        end
+    end
+    local controlConn = RunService.RenderStepped:Connect(updateControl)
+    table.insert(freeCameraConnections, controlConn)
+    table.insert(freeCameraConnections, inputBeganConn)
+    table.insert(freeCameraConnections, inputEndedConn)
+    table.insert(freeCameraConnections, inputChangedConn)
+    freeCameraConnections._restore = function()
+        cam.CameraType = originalCameraType
+        cam.CameraSubject = originalCameraSubject
+        stopFly()
+    end
+    print("YBA: Управление стендом активировано от третьего лица")
+    return true
 end
 
 local function disableFreeCamera()
     if not freeCameraActive then return end
-    
     print("YBA: Отключаем управление стендом")
-    
     freeCameraActive = false
     freeCameraTarget = nil
-
-    YBAFreeCamera.Stop()
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.AutoRotate = true
-        end
-    end
-
     for _, connection in ipairs(freeCameraConnections) do
-        if connection then
+        if connection and type(connection) == "function" then
+            pcall(connection)
+        elseif connection and typeof(connection) == "RBXScriptConnection" then
             pcall(function() connection:Disconnect() end)
         end
     end
     freeCameraConnections = {}
-    
     print("YBA: Управление стендом отключено")
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = originalYBAWalkSpeed
-            humanoid.JumpPower = originalYBAJumpPower
-        end
-
-        local root = player.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-            
-            local gyro = root:FindFirstChild("BodyGyro")
-            if gyro then
-                gyro:Destroy()
-            end
-        end
-    end
 end
 
 local function controlStand(stand)
@@ -2124,9 +2166,11 @@ local function startYBA()
     local stands = findStands()
     if #stands == 0 then return end
     local targetStand = stands[1]
-    if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
+    if YBAConfig.FreezePlayer and freezePlayer then pcall(freezePlayer) end
     if YBAConfig.SwitchCamera then end
-    if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
+    if YBAConfig.TransferControl and activateFreeCamera then pcall(activateFreeCamera, targetStand) end
+    local player = Players.LocalPlayer
+    local char = player and player.Character
     local humanoid = char and char:FindFirstChild("Humanoid")
     if humanoid then
         local deathConnection = humanoid.Died:Connect(function()
@@ -2134,26 +2178,23 @@ local function startYBA()
         end)
         table.insert(standControlConnections, deathConnection)
     end
-    task.spawn(function()
-        task.wait(5)
-        if not isYBAEnabled then return end
-        if startUndergroundControl then startUndergroundControl() end
-    end)
+    -- Безопасный запуск UndergroundControl
+    if startUndergroundControl then
+        pcall(function()
+            task.spawn(function()
+                task.wait(5)
+                if isYBAEnabled then startUndergroundControl() end
+            end)
+        end)
+    end
 end
 
 local function stopYBA()
     if not isYBAEnabled then return end
-    
     isYBAEnabled = false
     YBAConfig.Enabled = false
-    
-    if disableFreeCamera then
-        disableFreeCamera()
-    end
-    if unfreezePlayer then
-        unfreezePlayer()
-    end
-    
+    if disableFreeCamera then pcall(disableFreeCamera) end
+    if unfreezePlayer then pcall(unfreezePlayer) end
     for _, connection in ipairs(standControlConnections) do
         if connection then
             pcall(function() connection:Disconnect() end)
@@ -2161,12 +2202,8 @@ local function stopYBA()
     end
     standControlConnections = {}
     controlledStand = nil
-    
     print("Stand Range Hack деактивирован")
-    print("Автоматически отключаем Underground Flight...")
-    if stopUndergroundControl then
-        stopUndergroundControl()
-    end
+    if stopUndergroundControl then pcall(stopUndergroundControl) end
 end
 
 local function startUndergroundControl()
