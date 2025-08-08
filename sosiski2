@@ -2031,12 +2031,13 @@ local function setFreecamToStandHead(stand)
     local changedConn = UserInputService.InputChanged:Connect(onInputChanged)
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
         Camera.CameraType = Enum.CameraType.Scriptable
-        -- Third-person позиция (НЕ повторяет наклоны головы)
+        -- Third-person позиция (НЕ повторяет наклоны головы, свободное вращение)
         local basePos = head.Position
         local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
         local offset = rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
         local camPos = basePos + Vector3.new(0, camHeight, 0) + offset
-        Camera.CFrame = CFrame.new(camPos, basePos + Vector3.new(0, camHeight, 0))
+        local lookDir = rot:VectorToWorldSpace(Vector3.new(0, 0, -100))
+        Camera.CFrame = CFrame.new(camPos, camPos + lookDir)
     end)
     -- Отключение
     local function disconnectAll()
