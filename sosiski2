@@ -2123,9 +2123,10 @@ local function setFreecamToStandHead(stand)
     if wheelConn then wheelConn:Disconnect() wheelConn = nil end
     
     local rotating = false
-    local mouseSensitivity = 0.025 -- УМЕНЬШИЛИ чувствительность!
+    local mouseSensitivity = 0.035 -- Чуть повысили для естественности
     local minDistance, maxDistance = -5, -25
     local UserInputService = game:GetService("UserInputService")
+    local isShiftLocked = false
     
     -- Сохраняем оригинальные параметры камеры только ОДИН РАЗ
     if not originalCameraSubject then
@@ -2141,25 +2142,44 @@ local function setFreecamToStandHead(stand)
     Camera.CameraType = Enum.CameraType.Scriptable
     Camera.CFrame = CFrame.new(camPos, focusPos)
     
+    -- Проверяем шифтлок
+    local function checkShiftLock()
+        local success, result = pcall(function()
+            return UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
+        end)
+        return success and result
+    end
+    
     local function onInputBegan(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
             rotating = true
-            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+            isShiftLocked = checkShiftLock()
+            if not isShiftLocked then
+                UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+            end
         end
     end
     
     local function onInputEnded(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
             rotating = false
-            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            if not isShiftLocked then
+                UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            end
         end
     end
     
     local function onInputChanged(input, _)
         if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
-            -- БОЛЕЕ ПЛАВНАЯ обработка вращения
+            -- ПЛАВНАЯ обработка вращения с поддержкой шифтлока
             local deltaX = -input.Delta.x * mouseSensitivity
             local deltaY = -input.Delta.y * mouseSensitivity
+            
+            -- Для шифтлока увеличиваем чувствительность
+            if isShiftLocked then
+                deltaX = deltaX * 1.5
+                deltaY = deltaY * 1.5
+            end
             
             camRot = camRot + Vector2.new(deltaY, deltaX)
             camRot = Vector2.new(
@@ -2180,16 +2200,27 @@ local function setFreecamToStandHead(stand)
     changedConn = UserInputService.InputChanged:Connect(onInputChanged)
     wheelConn = UserInputService.InputChanged:Connect(onWheelMoved)
     
+    -- Переменные для легкой плавности
+    local lastCamPos = Camera.CFrame.Position
+    local lastFocusPos = Camera.CFrame.LookVector
+    
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
         if not stand or not stand.Root then return end
         
-        -- ПРОСТОЕ следование за стендом БЕЗ лагов
+        -- ПРОСТОЕ следование за стендом с ЛЕГКОЙ плавностью
         local focusPos = root.Position + Vector3.new(0, camHeight, 0)
         local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
-        local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
+        local targetCamPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
         
-        -- ПРЯМАЯ установка БЕЗ интерполяции
-        Camera.CFrame = CFrame.new(camPos, focusPos)
+        -- ЛЕГКАЯ плавность (не лагающая!)
+        local smoothedCamPos = lastCamPos:Lerp(targetCamPos, 0.25) -- быстрая плавность
+        local smoothedFocusPos = lastFocusPos:Lerp(focusPos, 0.3)
+        
+        Camera.CFrame = CFrame.new(smoothedCamPos, smoothedFocusPos)
+        
+        -- Обновляем позиции
+        lastCamPos = smoothedCamPos
+        lastFocusPos = smoothedFocusPos
     end)
     
     disableFreecam = function()
@@ -2198,7 +2229,12 @@ local function setFreecamToStandHead(stand)
         if endedConn then endedConn:Disconnect() endedConn = nil end
         if changedConn then changedConn:Disconnect() changedConn = nil end
         if wheelConn then wheelConn:Disconnect() wheelConn = nil end
-        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        
+        -- Восстанавливаем MouseBehavior только если не шифтлок
+        local currentShiftLock = UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
+        if not currentShiftLock then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        end
         
         -- ПРОСТОЕ возвращение к персонажу БЕЗ анимаций
         Camera.CameraType = originalCameraType or Enum.CameraType.Custom
