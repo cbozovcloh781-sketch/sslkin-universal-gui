@@ -1989,14 +1989,30 @@ local function activateFreeCamera(stand)
     end
     freeCameraActive = true
     freeCameraTarget = stand
-    -- Управление камерой: просто следуем за стендом, не меняя CameraType
     local cam = workspace.CurrentCamera
+    local originalCameraType = cam.CameraType
+    local originalCameraSubject = cam.CameraSubject
+    cam.CameraType = Enum.CameraType.Scriptable
+    -- Следуем за "головой" стенда
+    local function getStandHead()
+        return stand.Root.Parent:FindFirstChild("Head") or stand.Root
+    end
     local function updateCamera()
         if not freeCameraActive or not stand or not stand.Root then return end
-        cam.CFrame = stand.Root.CFrame * CFrame.new(0, 5, -15)
+        local head = getStandHead()
+        if head then
+            cam.CFrame = head.CFrame * CFrame.new(0, 2, -10)
+        else
+            cam.CFrame = stand.Root.CFrame * CFrame.new(0, 2, -10)
+        end
     end
     local camConn = RunService.RenderStepped:Connect(updateCamera)
     table.insert(freeCameraConnections, camConn)
+    -- Сохраняем возврат камеры
+    freeCameraConnections._restore = function()
+        cam.CameraType = originalCameraType
+        cam.CameraSubject = originalCameraSubject
+    end
     print("YBA: Управление стендом активировано от третьего лица")
     return true
 end
@@ -2007,7 +2023,9 @@ local function disableFreeCamera()
     freeCameraActive = false
     freeCameraTarget = nil
     for _, connection in ipairs(freeCameraConnections) do
-        if connection then
+        if connection and type(connection) == "function" then
+            pcall(connection)
+        elseif connection then
             pcall(function() connection:Disconnect() end)
         end
     end
