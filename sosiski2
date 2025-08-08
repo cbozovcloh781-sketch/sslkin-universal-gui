@@ -493,9 +493,10 @@ local YBAFreeCamera = {} do
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveY = -1 end
         
         -- Двигаем стенд ПЛАВНО
-        local bodyVelocity = standRoot:FindFirstChild("BodyVelocity")
+        local bodyVelocity = standRoot:FindFirstChild("StandBodyVelocity") or standRoot:FindFirstChild("BodyVelocity")
         if not bodyVelocity then
             bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.Name = "StandBodyVelocity"
             bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
             bodyVelocity.Parent = standRoot
         end
@@ -650,14 +651,12 @@ local YBAFreeCamera = {} do
 
         -- Останавливаем стенд ПЛАВНО
         if targetStand and targetStand.Root then
-            local bodyVelocity = targetStand.Root:FindFirstChild("BodyVelocity")
+            local bodyVelocity = targetStand.Root:FindFirstChild("StandBodyVelocity") or targetStand.Root:FindFirstChild("BodyVelocity")
             if bodyVelocity then 
                 -- Плавная остановка
                 bodyVelocity.Velocity = Vector3.new(0, 0, 0)
                 game:GetService("Debris"):AddItem(bodyVelocity, 1)
             end
-            
-            -- BodyPosition больше не используется
         end
 
         -- Отключаем соединения
@@ -2366,7 +2365,10 @@ local function startStandSwapMode(stand)
         print("🔥 NoClip включен с полетом для игрока!")
     end
     
-    -- ЭТАП 3: ОЧИЩАЕМ СТАРЫЕ СОЕДИНЕНИЯ И ОТСОЕДИНЯЕМ стенд
+    -- ЭТАП 3: АГРЕССИВНО ОТСОЕДИНЯЕМ СТЕНД НАХУЙ!
+    
+    print("🔥 Начинаем АГРЕССИВНОЕ отсоединение стенда...")
+    
     -- Отключаем все старые глобальные соединения
     if _G._detachStandConnection then 
         _G._detachStandConnection:Disconnect() 
@@ -2380,14 +2382,28 @@ local function startStandSwapMode(stand)
         _G._standRangeMenuConn:Disconnect() 
         _G._standRangeMenuConn = nil
     end
+    
+    -- АГРЕССИВНО меняем Parent стенда
+    local originalParent = stand.Parent
+    stand.Parent = workspace -- перемещаем стенд в workspace
+    print("🔥 Стенд перемещен из", originalParent.Name, "в workspace")
+    
     -- Удаляем ВСЕ соединения из стенда
     for _, part in pairs(stand:GetDescendants()) do
         if part:IsA("BasePart") then
+            -- Убираем все Body объекты
             for _, obj in pairs(part:GetChildren()) do
-                if obj:IsA("Weld") or obj:IsA("Motor6D") or obj:IsA("Attachment") or obj:IsA("Constraint") or obj:IsA("BodyPosition") or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") then
+                if obj:IsA("Weld") or obj:IsA("Motor6D") or obj:IsA("Attachment") or obj:IsA("Constraint") or 
+                   obj:IsA("BodyPosition") or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") or
+                   obj:IsA("BodyForce") or obj:IsA("BodyThrust") or obj:IsA("RocketPropulsion") then
+                    print("🔥 Удаляем из стенда:", obj.Name, obj.ClassName)
                     obj:Destroy()
                 end
             end
+            
+            -- Отключаем Anchored если есть
+            part.Anchored = false
+            part.CanCollide = true
         end
     end
     
@@ -2395,15 +2411,29 @@ local function startStandSwapMode(stand)
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             for _, obj in pairs(part:GetChildren()) do
-                if obj:IsA("Weld") or obj:IsA("Motor6D") then
+                if obj:IsA("Weld") or obj:IsA("Motor6D") or obj:IsA("Attachment") then
                     if obj.Part0 and obj.Part1 then
-                        if obj.Part0.Parent == stand or obj.Part1.Parent == stand then
+                        if obj.Part0.Parent == stand or obj.Part1.Parent == stand or
+                           (obj.Part0.Parent and obj.Part0.Parent.Parent == stand) or
+                           (obj.Part1.Parent and obj.Part1.Parent.Parent == stand) then
+                            print("🔥 Удаляем соединение игрока:", obj.Name, obj.ClassName)
                             obj:Destroy()
                         end
                     end
                 end
             end
         end
+    end
+    
+    -- Дополнительно: создаем BodyVelocity для стенда чтобы он мог двигаться независимо
+    local standBodyVel = stand.Root:FindFirstChild("StandBodyVelocity")
+    if not standBodyVel then
+        standBodyVel = Instance.new("BodyVelocity")
+        standBodyVel.Name = "StandBodyVelocity"
+        standBodyVel.MaxForce = Vector3.new(4000, 4000, 4000)
+        standBodyVel.Velocity = Vector3.new(0, 0, 0)
+        standBodyVel.Parent = stand.Root
+        print("🔥 Добавлен независимый BodyVelocity для стенда")
     end
     
     -- ТЕЛЕПОРТИРУЕМ СТЕНД ПОДАЛЬШЕ ОТ ИГРОКА для отсоединения
@@ -2417,7 +2447,11 @@ local function startStandSwapMode(stand)
     
     -- НЕ добавляем BodyPosition - он мешает управлению стендом!
     
-    print("🔥 Стенд ОТСОЕДИНЕН от игрока и перемещен на высоту:", targetStandPos.Y)
+    -- Проверяем что стенд действительно отсоединился
+    local distanceFromPlayer = (stand.Root.Position - root.Position).Magnitude
+    print("🔥 Стенд ОТСОЕДИНЕН! Расстояние от игрока:", math.floor(distanceFromPlayer), "блоков")
+    print("🔥 Позиция стенда:", targetStandPos)
+    print("🔥 Parent стенда:", stand.Parent.Name)
     
     -- ЭТАП 4: Ждем секунду для стабилизации
     task.wait(1)
