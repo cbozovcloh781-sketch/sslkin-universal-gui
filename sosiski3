@@ -469,6 +469,7 @@ local YBAFreeCamera = {} do
     local cameraHeight = 8
     local renderConnection = nil
     local inputConnections = {}
+    local lastDebugTime = 0
 
     local NAV_SPEED = 1
 
@@ -542,10 +543,10 @@ local YBAFreeCamera = {} do
         local standPosition = standRoot.Position
         
         -- Отладочная информация (выводим каждые 5 секунд)
-        if not stepFreecam.lastDebugTime then stepFreecam.lastDebugTime = 0 end
-        if tick() - stepFreecam.lastDebugTime > 5 then
-            print("YBA Debug: Камера активна, позиция стенда:", standPosition)
-            stepFreecam.lastDebugTime = tick()
+        if tick() - lastDebugTime > 5 then
+            print("YBA Debug: Камера работает, позиция стенда:", standPosition)
+            print("YBA Debug: Состояние ввода - W:", input.W, "A:", input.A, "S:", input.S, "D:", input.D)
+            lastDebugTime = tick()
         end
 
         -- Движение стенда
@@ -1920,8 +1921,11 @@ local function findStands()
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     
     if not playerRoot then 
+        print("YBA: Игрок не найден или нет HumanoidRootPart")
         return stands 
     end
+    
+    print("YBA: Начинаем поиск стендов в workspace...")
     
     local standNames = {
         "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
@@ -1930,16 +1934,23 @@ local function findStands()
         "Strength", "Wheel of Fortune", "Hanged Man", "Emperor", "Empress",
         "Judgment", "High Priestess", "Death Thirteen", "Lovers", "Sun",
         "Bastet", "Thunder McQueen", "Anubis", "Khnum", "Tohth", "Horus",
-        "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth"
+        "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth",
+        -- Добавляем еще варианты
+        "stand", "STAND", "GER", "SPTW", "TW", "SP", "KC", "KCR", "CD", "WS", "MIH",
+        "TWOH", "SPOH", "D4C", "KQ", "BTD", "SF", "SM", "HP", "SC", "HG", "MR"
     }
     
     local foundCount = 0
+    local checkedModels = 0
+    
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") then
+            checkedModels = checkedModels + 1
             local isStand = false
             for _, standName in ipairs(standNames) do
                 if obj.Name:find(standName) or obj.Name:lower():find(standName:lower()) then
                     isStand = true
+                    print("YBA: Найдена потенциальная модель стенда:", obj.Name)
                     break
                 end
             end
@@ -1948,6 +1959,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                    print("YBA: Стенд", obj.Name, "на расстоянии:", distance)
                     if distance <= 20 then
                         foundCount = foundCount + 1
                         table.insert(stands, {
@@ -1956,11 +1968,18 @@ local function findStands()
                             Distance = distance,
                             Name = obj.Name
                         })
+                        print("YBA: Добавлен стенд:", obj.Name)
+                    else
+                        print("YBA: Стенд", obj.Name, "слишком далеко:", distance)
                     end
+                else
+                    print("YBA: У модели", obj.Name, "нет подходящего Root части")
                 end
             end
         end
     end
+    
+    print("YBA: Проверено моделей:", checkedModels, "Найдено стендов:", foundCount)
     
     if #stands == 0 then
         for _, obj in pairs(workspace:GetDescendants()) do
@@ -2151,16 +2170,33 @@ local function controlStand(stand)
 end
 
 local function startYBA()
-    if isYBAEnabled then return end
-    isYBAEnabled = true
-    YBAConfig.Enabled = true
-    if not findStands then return end
-    local stands = findStands()
-    if #stands == 0 then 
-        print("YBA: Стенды не найдены!")
+    if isYBAEnabled then 
+        print("YBA: Уже активирован!")
         return 
     end
+    
+    print("YBA: Начинаем активацию Stand Range...")
+    isYBAEnabled = true
+    YBAConfig.Enabled = true
+    
+    if not findStands then 
+        print("YBA: Функция findStands не найдена!")
+        return 
+    end
+    
+    print("YBA: Ищем стенды...")
+    local stands = findStands()
+    print("YBA: Найдено стендов:", #stands)
+    
+    if #stands == 0 then 
+        print("YBA: Стенды не найдены! Проверьте, что у вас есть стенд.")
+        isYBAEnabled = false
+        YBAConfig.Enabled = false
+        return 
+    end
+    
     local targetStand = stands[1]
+    print("YBA: Выбран стенд:", targetStand.Name, "Тип модели:", targetStand.Model.ClassName)
     
     print("YBA: Найден стенд: " .. targetStand.Name .. " на расстоянии: " .. targetStand.Distance)
     
