@@ -492,16 +492,18 @@ local YBAFreeCamera = {} do
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveY = 1 end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveY = -1 end
         
-        -- Двигаем стенд ПЛАВНО
+        -- Двигаем стенд через НОВУЮ систему
         local bodyVelocity = standRoot:FindFirstChild("StandBodyVelocity") or standRoot:FindFirstChild("BodyVelocity")
         if not bodyVelocity then
             bodyVelocity = Instance.new("BodyVelocity")
             bodyVelocity.Name = "StandBodyVelocity"
-            bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+            bodyVelocity.MaxForce = Vector3.new(10000, 10000, 10000)
             bodyVelocity.Parent = standRoot
         end
         
-        -- Убираем BodyPosition - он блокирует стенд
+        -- Используем SuperBodyPosition для контроля позиции
+        local superBodyPos = standRoot:FindFirstChild("SuperBodyPosition")
+        local bodyAngVel = standRoot:FindFirstChild("StandBodyAngularVelocity")
         
         if moveX ~= 0 or moveZ ~= 0 or moveY ~= 0 then
             -- Движение относительно камеры БЕЗ рывков
@@ -533,6 +535,13 @@ local YBAFreeCamera = {} do
             local lerpedVel = currentVel:Lerp(moveVector, 0.15)
             
             bodyVelocity.Velocity = lerpedVel
+            
+            -- Обновляем SuperBodyPosition для движения
+            if superBodyPos then
+                local currentPos = standRoot.Position
+                local newPos = currentPos + (moveVector * 0.1) -- небольшое смещение
+                superBodyPos.Position = newPos
+            end
         else
             -- ПЛАВНОЕ торможение
             local currentVel = bodyVelocity.Velocity
@@ -2365,9 +2374,9 @@ local function startStandSwapMode(stand)
         print("🔥 NoClip включен с полетом для игрока!")
     end
     
-    -- ЭТАП 3: АГРЕССИВНО ОТСОЕДИНЯЕМ СТЕНД НАХУЙ!
+    -- ЭТАП 3: НОВЫЙ МЕТОД - ПЕРЕОПРЕДЕЛЯЕМ УПРАВЛЕНИЕ СТЕНДОМ
     
-    print("🔥 Начинаем АГРЕССИВНОЕ отсоединение стенда...")
+    print("🔥 НОВЫЙ метод отсоединения через переопределение...")
     
     -- Отключаем все старые глобальные соединения
     if _G._detachStandConnection then 
@@ -2383,66 +2392,55 @@ local function startStandSwapMode(stand)
         _G._standRangeMenuConn = nil
     end
     
-    -- АГРЕССИВНО меняем Parent стенда
-    local originalParent = stand.Parent
-    stand.Parent = workspace -- перемещаем стенд в workspace
-    print("🔥 Стенд перемещен из", originalParent.Name, "в workspace")
-    
-    -- Удаляем ВСЕ соединения из стенда
-    for _, part in pairs(stand:GetDescendants()) do
-        if part:IsA("BasePart") then
-            -- Убираем все Body объекты
-            for _, obj in pairs(part:GetChildren()) do
-                if obj:IsA("Weld") or obj:IsA("Motor6D") or obj:IsA("Attachment") or obj:IsA("Constraint") or 
-                   obj:IsA("BodyPosition") or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") or
-                   obj:IsA("BodyForce") or obj:IsA("BodyThrust") or obj:IsA("RocketPropulsion") then
-                    print("🔥 Удаляем из стенда:", obj.Name, obj.ClassName)
-                    obj:Destroy()
-                end
-            end
-            
-            -- Отключаем Anchored если есть
-            part.Anchored = false
-            part.CanCollide = true
-        end
+    -- НЕ удаляем соединения, а ПЕРЕОПРЕДЕЛЯЕМ через мощный BodyPosition
+    local superBodyPos = stand.Root:FindFirstChild("SuperBodyPosition")
+    if not superBodyPos then
+        superBodyPos = Instance.new("BodyPosition")
+        superBodyPos.Name = "SuperBodyPosition"
+        superBodyPos.MaxForce = Vector3.new(math.huge, math.huge, math.huge) -- МАКСИМАЛЬНАЯ сила
+        superBodyPos.P = 50000 -- очень высокая мощность
+        superBodyPos.D = 5000 -- высокий демпфинг
+        superBodyPos.Parent = stand.Root
+        print("🔥 Добавлен СУПЕР BodyPosition для переопределения")
     end
     
-    -- Удаляем соединения из игрока к стенду
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            for _, obj in pairs(part:GetChildren()) do
-                if obj:IsA("Weld") or obj:IsA("Motor6D") or obj:IsA("Attachment") then
-                    if obj.Part0 and obj.Part1 then
-                        if obj.Part0.Parent == stand or obj.Part1.Parent == stand or
-                           (obj.Part0.Parent and obj.Part0.Parent.Parent == stand) or
-                           (obj.Part1.Parent and obj.Part1.Parent.Parent == stand) then
-                            print("🔥 Удаляем соединение игрока:", obj.Name, obj.ClassName)
-                            obj:Destroy()
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- Дополнительно: создаем BodyVelocity для стенда чтобы он мог двигаться независимо
+    -- Дополнительно: создаем BodyVelocity для движения
     local standBodyVel = stand.Root:FindFirstChild("StandBodyVelocity")
     if not standBodyVel then
         standBodyVel = Instance.new("BodyVelocity")
         standBodyVel.Name = "StandBodyVelocity"
-        standBodyVel.MaxForce = Vector3.new(4000, 4000, 4000)
+        standBodyVel.MaxForce = Vector3.new(10000, 10000, 10000) -- увеличенная сила
         standBodyVel.Velocity = Vector3.new(0, 0, 0)
         standBodyVel.Parent = stand.Root
-        print("🔥 Добавлен независимый BodyVelocity для стенда")
+        print("🔥 Добавлен мощный BodyVelocity для движения")
     end
     
-    -- ТЕЛЕПОРТИРУЕМ СТЕНД ПОДАЛЬШЕ ОТ ИГРОКА для отсоединения
+    -- Создаем BodyAngularVelocity для контроля поворотов
+    local standBodyAngVel = stand.Root:FindFirstChild("StandBodyAngularVelocity")
+    if not standBodyAngVel then
+        standBodyAngVel = Instance.new("BodyAngularVelocity")
+        standBodyAngVel.Name = "StandBodyAngularVelocity"
+        standBodyAngVel.MaxTorque = Vector3.new(10000, 10000, 10000)
+        standBodyAngVel.AngularVelocity = Vector3.new(0, 0, 0)
+        standBodyAngVel.Parent = stand.Root
+        print("🔥 Добавлен BodyAngularVelocity для поворотов")
+    end
+    
+    -- ПЕРЕОПРЕДЕЛЯЕМ ПОЗИЦИЮ СТЕНДА через SuperBodyPosition
     local playerPos = root.Position
     local targetStandPos = Vector3.new(playerPos.X + 50, playerPos.Y + standSwapYOffset, playerPos.Z + 50) -- на 50 блоков от игрока
-    stand.Root.CFrame = CFrame.new(targetStandPos)
-    stand.Root.Anchored = false -- убеждаемся что стенд не закреплен
     
-    -- Добавляем небольшую задержку для отсоединения
+    -- Используем SuperBodyPosition для ПРИНУДИТЕЛЬНОЙ позиции
+    local superBodyPos = stand.Root:FindFirstChild("SuperBodyPosition")
+    if superBodyPos then
+        superBodyPos.Position = targetStandPos
+        print("🔥 SuperBodyPosition установлен на:", targetStandPos)
+    end
+    
+    -- Дублируем через CFrame на случай если BodyPosition не справится
+    stand.Root.CFrame = CFrame.new(targetStandPos)
+    
+    -- Добавляем небольшую задержку для стабилизации
     task.wait(0.5)
     
     -- НЕ добавляем BodyPosition - он мешает управлению стендом!
