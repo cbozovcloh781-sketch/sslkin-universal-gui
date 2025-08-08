@@ -512,9 +512,9 @@ local YBAFreeCamera = {} do
         table.insert(inputConnections, UserInputService.InputChanged:Connect(function(inputObj, gameProcessed)
             -- НЕ игнорируем gameProcessed для мыши
             if inputObj.UserInputType == Enum.UserInputType.MouseMovement then
-                -- Правильная настройка осей: Y для наклона (вверх/вниз), X для поворота (лево/право)
+                -- ИСПРАВЛЕНО: убираем инверсию осей для нормального управления
                 local sensitivity = 0.003
-                input.MouseDelta = Vector2.new(-inputObj.Delta.y * sensitivity, inputObj.Delta.x * sensitivity)
+                input.MouseDelta = Vector2.new(inputObj.Delta.y * sensitivity, inputObj.Delta.x * sensitivity)
                 -- print("YBA Input: Движение мыши", input.MouseDelta) -- Слишком много сообщений
             elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
                 input.MouseWheel = -inputObj.Position.Z
@@ -649,16 +649,28 @@ local YBAFreeCamera = {} do
                 math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), 
                 cameraRot.Y % (2 * math.pi)
             )
+            
+            -- ИСПРАВЛЕНО: Синхронизируем поворот игрока с камерой стенда
+            local player = Players.LocalPlayer
+            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local playerRoot = player.Character.HumanoidRootPart
+                local targetPlayerCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
+                playerRoot.CFrame = targetPlayerCFrame
+            end
+            
             input.MouseDelta = Vector2.new()
         end
         
-        -- Поворот стенда КАЖДЫЙ КАДР если зажат Shift (шифтлок режим)
+        -- ИСПРАВЛЕНО: Стенд всегда копирует направление камеры (не только при Shift)
+        local currentPos = standRoot.Position
+        local currentCFrame = standRoot.CFrame
+        local targetCFrame = CFrame.new(currentPos) * CFrame.Angles(0, cameraRot.Y, 0)
+        -- Плавный поворот для естественности
+        standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.2)
+        
+        -- Дополнительно: если зажат Shift - ускоряем поворот стенда
         if input.LeftShift then
-            local currentPos = standRoot.Position
-            local currentCFrame = standRoot.CFrame
-            local targetCFrame = CFrame.new(currentPos) * CFrame.Angles(0, cameraRot.Y, 0)
-            -- Более быстрый поворот для отзывчивости
-            standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.3)
+            standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.5)
         end
 
         -- Обработка колеса мыши для зума
@@ -717,10 +729,21 @@ local YBAFreeCamera = {} do
             end
         end
         
-        -- Сброс параметров камеры
+        -- Сброс параметров камеры и синхронизация с направлением игрока
         cameraDistance = YBAConfig.CameraDistance or 12
         cameraHeight = YBAConfig.CameraHeight or 8
-        cameraRot = Vector2.new(0, 0)
+        
+        -- ИСПРАВЛЕНО: Инициализируем камеру в направлении взгляда игрока
+        local player = Players.LocalPlayer
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local playerCFrame = player.Character.HumanoidRootPart.CFrame
+            local playerLookDirection = playerCFrame.LookVector
+            local playerYRotation = math.atan2(playerLookDirection.X, playerLookDirection.Z)
+            cameraRot = Vector2.new(0, playerYRotation)
+            print("YBA: Синхронизация с направлением игрока, угол:", math.deg(playerYRotation))
+        else
+            cameraRot = Vector2.new(0, 0)
+        end
         
         -- НЕ переключаем тип камеры чтобы обойти античит YBA
         print("YBA: Сохраняем оригинальный тип камеры для обхода античита")
@@ -729,8 +752,23 @@ local YBAFreeCamera = {} do
         -- Устанавливаем начальную позицию камеры за стендом с задержкой
         task.wait(0.1) -- Небольшая задержка чтобы не триггерить античит
         local standPosition = stand.Root.Position
-        local initialOffset = Vector3.new(0, cameraHeight, cameraDistance)
-        local initialCameraPosition = standPosition + initialOffset
+        
+        -- ИСПРАВЛЕНО: Позиционируем стенд в направлении взгляда игрока
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local playerCFrame = player.Character.HumanoidRootPart.CFrame
+            stand.Root.CFrame = CFrame.new(standPosition, standPosition + playerCFrame.LookVector)
+            print("YBA: Стенд повернут в направлении игрока")
+        end
+        
+        -- Позиционируем камеру с учетом поворота стенда
+        local horizontalDistance = math.cos(cameraRot.X) * cameraDistance
+        local verticalOffset = math.sin(cameraRot.X) * cameraDistance
+        local cameraOffset = Vector3.new(
+            math.sin(cameraRot.Y) * horizontalDistance,
+            verticalOffset + cameraHeight,
+            math.cos(cameraRot.Y) * horizontalDistance
+        )
+        local initialCameraPosition = standPosition + cameraOffset
         Camera.CFrame = CFrame.lookAt(initialCameraPosition, standPosition)
         print("YBA: Установлена начальная позиция камеры:", initialCameraPosition)
         
