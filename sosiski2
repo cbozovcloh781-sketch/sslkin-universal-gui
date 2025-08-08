@@ -2142,16 +2142,13 @@ local function setFreecamToStandHead(stand)
     Camera.CameraType = Enum.CameraType.Scriptable
     Camera.CFrame = CFrame.new(camPos, focusPos)
     
-    -- Проверяем шифтлок
+    -- Проверяем шифтлок ПРАВИЛЬНО
     local function checkShiftLock()
-        local success, result = pcall(function()
-            return UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
-        end)
-        return success and result
+        return UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
     end
     
     local function onInputBegan(input, _)
-        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        if input.UserInputType == Enum.UserInputType.MouseButton2 or checkShiftLock() then
             rotating = true
             isShiftLocked = checkShiftLock()
             if not isShiftLocked then
@@ -2170,22 +2167,28 @@ local function setFreecamToStandHead(stand)
     end
     
     local function onInputChanged(input, _)
-        if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
-            -- ПЛАВНАЯ обработка вращения с поддержкой шифтлока
-            local deltaX = -input.Delta.x * mouseSensitivity
-            local deltaY = -input.Delta.y * mouseSensitivity
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            -- Проверяем активен ли поворот камеры (ПКМ или шифтлок)
+            local canRotate = rotating or checkShiftLock()
             
-            -- Для шифтлока увеличиваем чувствительность
-            if isShiftLocked then
-                deltaX = deltaX * 1.5
-                deltaY = deltaY * 1.5
+            if canRotate then
+                -- ПЛАВНАЯ обработка вращения с поддержкой шифтлока
+                local deltaX = -input.Delta.x * mouseSensitivity
+                local deltaY = -input.Delta.y * mouseSensitivity
+                
+                -- Для шифтлока увеличиваем чувствительность
+                local currentShiftLock = checkShiftLock()
+                if currentShiftLock then
+                    deltaX = deltaX * 1.5
+                    deltaY = deltaY * 1.5
+                end
+                
+                camRot = camRot + Vector2.new(deltaY, deltaX)
+                camRot = Vector2.new(
+                    math.clamp(camRot.X, -math.rad(80), math.rad(25)), -- РЕАЛИСТИЧНЫЕ углы как у настоящей камеры!
+                    camRot.Y % (2 * math.pi)
+                )
             end
-            
-            camRot = camRot + Vector2.new(deltaY, deltaX)
-            camRot = Vector2.new(
-                math.clamp(camRot.X, -math.rad(85), math.rad(85)), 
-                camRot.Y % (2 * math.pi)
-            )
         end
     end
     
