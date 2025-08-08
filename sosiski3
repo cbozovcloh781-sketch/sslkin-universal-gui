@@ -476,6 +476,7 @@ local YBAFreeCamera = {} do
     local input = {
         W = false, A = false, S = false, D = false,
         Space = false, LeftControl = false,
+        LeftShift = false, -- Добавляем Shift для шифтлока
         MouseDelta = Vector2.new(),
         MouseWheel = 0
     }
@@ -552,7 +553,7 @@ local YBAFreeCamera = {} do
         -- Отладочная информация (выводим каждые 5 секунд)
         if tick() - lastDebugTime > 5 then
             print("YBA Debug: Камера работает, позиция стенда:", standPosition)
-            print("YBA Debug: Состояние ввода - W:", input.W, "A:", input.A, "S:", input.S, "D:", input.D)
+            print("YBA Debug: Состояние ввода - W:", input.W, "A:", input.A, "S:", input.S, "D:", input.D, "Shift:", input.LeftShift)
             lastDebugTime = tick()
         end
 
@@ -594,6 +595,9 @@ local YBAFreeCamera = {} do
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
                 moveY = moveY - 1
             end
+            
+            -- Проверяем Shift для шифтлока
+            input.LeftShift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
         end
         
         local move = Vector3.new(moveX, moveY, moveZ)
@@ -637,7 +641,7 @@ local YBAFreeCamera = {} do
             bv.Velocity = Vector3.new(0, 0, 0)
         end
 
-        -- Обработка вращения мыши (только камера, БЕЗ поворота стенда)
+        -- Обработка вращения мыши (с поддержкой шифтлока)
         if input.MouseDelta.Magnitude > 0 then
             cameraRot = cameraRot + input.MouseDelta
             cameraRot = Vector2.new(
@@ -645,7 +649,15 @@ local YBAFreeCamera = {} do
                 cameraRot.Y % (2 * math.pi)
             )
             
-            -- НЕ поворачиваем стенд по мыши! Только камера вертится
+            -- Поворачиваем стенд только если зажат Shift (шифтлок режим)
+            if input.LeftShift then
+                local currentPos = standRoot.Position
+                local currentCFrame = standRoot.CFrame
+                local targetCFrame = CFrame.new(currentPos) * CFrame.Angles(0, cameraRot.Y, 0)
+                -- Плавный поворот через lerp
+                standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.15)
+                print("YBA: Шифтлок - поворачиваем стенд")
+            end
             
             input.MouseDelta = Vector2.new()
         end
