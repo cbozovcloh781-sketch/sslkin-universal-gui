@@ -2050,7 +2050,10 @@ local function activateFreeCamera(stand)
             distance = math.clamp(distance - input.Position.Z, minDist, maxDist)
         end
     end)
-    -- Не используем флай для игрока
+    -- Включаем флай для игрока, если не включён
+    if not isFlying then
+        startFly()
+    end
     local function updateControl(dt)
         if not freeCameraActive or not stand or not stand.Root then return end
         -- Каждый кадр: если стенд снова стал дочерним Character, переносим в workspace и удаляем связи
@@ -2082,13 +2085,20 @@ local function activateFreeCamera(stand)
             local fallback = stand.Root.CFrame
             cam.CFrame = fallback
         end
-        -- Перемещение игрока под землю (жёстко)
+        -- Перемещение игрока под землю через BodyVelocity (флай)
         local player = Players.LocalPlayer
         local char = player and player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if root then
             local standPos = stand.Root.Position
-            root.CFrame = CFrame.new(standPos.X, standPos.Y - 30, standPos.Z)
+            local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
+            local bv = root:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity")
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                bv.Parent = root
+            end
+            bv.Velocity = (targetPos - root.Position) * 5
         end
     end
     local controlConn = RunService.RenderStepped:Connect(updateControl)
