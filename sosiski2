@@ -4788,20 +4788,12 @@ local function detachStandControl(stand)
     -- Можно добавить свою физику управления, если нужно
 end
 
--- Назначаем кнопку G для отсоединения стенда
-local detachKey = Enum.KeyCode.G
-if _G._detachStandConnection then _G._detachStandConnection:Disconnect() end
-_G._detachStandConnection = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == detachKey then
-        local stands = findStands()
-        if #stands > 0 then
-            detachStandControl(stands[1])
-        else
-            print("[detachStandControl] Стенд не найден!")
-        end
-    end
-end)
+-- Горячие клавиши удалены по просьбе пользователя
+-- Отключаем существующие соединения если они есть
+if _G._detachStandConnection then 
+    _G._detachStandConnection:Disconnect() 
+    _G._detachStandConnection = nil
+end
 
 local detachedStand = nil
 local heartbeatConn = nil
@@ -4851,7 +4843,6 @@ end
 
 local standFollowConn = nil
 local standSwapActive = false
-local standSwapKey = Enum.KeyCode.H
 local standSwapYOffset = 30
 
 local function startStandSwapMode(stand)
@@ -4876,19 +4867,9 @@ local function stopStandSwapMode()
     print("[standSwap] Режим отключён")
 end
 
-if _G._standSwapConn then _G._standSwapConn:Disconnect() end
-_G._standSwapConn = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == standSwapKey then
-        local stands = findStands()
-        if #stands > 0 then
-            if not standSwapActive then
-                startStandSwapMode(stands[1])
-            else
-                stopStandSwapMode()
-            end
-        else
-            print("[standSwap] Стенд не найден!")
-        end
-    end
-end)
+-- Горячая клавиша H удалена по просьбе пользователя
+-- Отключаем существующие соединения если они есть
+if _G._standSwapConn then 
+    _G._standSwapConn:Disconnect() 
+    _G._standSwapConn = nil
+end
