@@ -2006,6 +2006,7 @@ local function setFreecamToStandHead(stand)
     local camHeight = 4    -- вверх
     local camRot = Vector2.new(0, 0)
     local rotating = false
+    local mouseSensitivity = 0.01
     local UserInputService = game:GetService("UserInputService")
     local function onInputBegan(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
@@ -2021,7 +2022,7 @@ local function setFreecamToStandHead(stand)
     end
     local function onInputChanged(input, _)
         if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
-            camRot = camRot + Vector2.new(-input.Delta.y, -input.Delta.x) * 0.003
+            camRot = camRot + Vector2.new(-input.Delta.y, -input.Delta.x) * mouseSensitivity
             camRot = Vector2.new(math.clamp(camRot.X, -math.rad(80), math.rad(80)), camRot.Y % (2 * math.pi))
         end
     end
