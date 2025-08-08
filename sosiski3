@@ -1884,13 +1884,12 @@ local function findStands()
     local player = Players.LocalPlayer
     local playerChar = player.Character
     local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    
     if not playerRoot then 
+        print("[findStands] playerRoot not found")
         return stands 
     end
-    
     local standNames = {
-        "Stand", "StandModel", "StandPart", "StandRoot", "StandHumanoidRootPart",
+        "Stand", "StandModel", "StandPart", "StandRoot", "HumanoidRootPart",
         "Star Platinum", "The World", "Hierophant Green", "Magician's Red",
         "Hermit Purple", "Silver Chariot", "Tower of Gray", "Dark Blue Moon",
         "Strength", "Wheel of Fortune", "Hanged Man", "Emperor", "Empress",
@@ -1898,7 +1897,6 @@ local function findStands()
         "Bastet", "Thunder McQueen", "Anubis", "Khnum", "Tohth", "Horus",
         "Atum", "Osiris", "Horus", "Anubis", "Bastet", "Khnum", "Tohth"
     }
-    
     local foundCount = 0
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") then
@@ -1909,13 +1907,13 @@ local function findStands()
                     break
                 end
             end
-            
             if isStand then
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
                     if distance <= 20 then
                         foundCount = foundCount + 1
+                        print("[findStands] Found stand:", obj.Name, "Root:", standRoot.Name, "Distance:", distance)
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1927,14 +1925,15 @@ local function findStands()
             end
         end
     end
-    
     if #stands == 0 then
+        print("[findStands] No stands found in first pass, trying fallback...")
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
                     if distance <= 20 then
+                        print("[findStands] Fallback found stand:", obj.Name, "Root:", standRoot.Name, "Distance:", distance)
                         table.insert(stands, {
                             Model = obj,
                             Root = standRoot,
@@ -1946,7 +1945,10 @@ local function findStands()
             end
         end
     end
-    
+    print("[findStands] Total stands found:", #stands)
+    for i, s in ipairs(stands) do
+        print(string.format("[findStands] Stand #%d: %s (Root: %s, Distance: %.2f)", i, s.Name, s.Root and s.Root.Name or "nil", s.Distance or -1))
+    end
     table.sort(stands, function(a, b) return a.Distance < b.Distance end)
     return stands
 end
@@ -2027,25 +2029,23 @@ end
 
 local function activateFreeCamera(stand)
     if not stand or not stand.Root then 
-        print("YBA: Ошибка - стенд или его Root не найден")
+        print("[activateFreeCamera] Ошибка - стенд или его Root не найден", stand and stand.Name, stand and stand.Root)
         return false
     end
-    
-    print("YBA: Активируем управление стендом: " .. stand.Name)
-
+    print("[activateFreeCamera] Активируем управление стендом:", stand.Name, "Root:", stand.Root.Name)
     if YBAConfig.FreezePlayer then
-        print("YBA: Замораживаем игрока...")
+        print("[activateFreeCamera] Замораживаем игрока...")
         freezePlayer()
     end
-
     freeCameraActive = true
     freeCameraTarget = stand
-
-    if YBAFreeCamera.Start(stand) then
-        print("YBA: Управление стендом активировано от третьего лица")
+    local result = YBAFreeCamera.Start(stand)
+    print("[activateFreeCamera] YBAFreeCamera.Start вернул:", result)
+    if result then
+        print("[activateFreeCamera] Управление стендом активировано от третьего лица")
         return true
     else
-        print("YBA: Не удалось активировать управление стендом")
+        print("[activateFreeCamera] Не удалось активировать управление стендом")
         return false
     end
 end
@@ -2124,11 +2124,12 @@ local function startYBA()
     YBAConfig.Enabled = true
     if not findStands then return end
     local stands = findStands()
-    if #stands == 0 then return end
+    if #stands == 0 then print("[startYBA] Нет стендов для управления!") return end
     local targetStand = stands[1]
+    print("[startYBA] Выбран стенд:", targetStand.Name, "Root:", targetStand.Root and targetStand.Root.Name or "nil")
     if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
     if YBAConfig.SwitchCamera and activateFreeCamera then
-        print("YBA: SwitchCamera активирован, пробую включить свободную камеру для стенда: " .. targetStand.Name)
+        print("[startYBA] SwitchCamera активирован, пробую включить свободную камеру для стенда:", targetStand.Name)
         activateFreeCamera(targetStand)
     end
     if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
