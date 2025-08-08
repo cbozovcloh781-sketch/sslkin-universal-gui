@@ -472,15 +472,51 @@ local YBAFreeCamera = {} do
 
     local fcRunning = false
     local targetStand = nil
+    local cameraAnchor = nil  -- НОВЫЙ ПОДХОД!
     local originalCameraSubject = nil
     local originalCameraType = nil
-    local originalMouseBehavior = nil
-    
-    -- НЕ НУЖНЫ переменные - используем стандартную Roblox камеру!
 
-    -- УБИРАЕМ ВСЮ ОБРАБОТКУ МЫШИ - пусть работает стандартная Roblox камера!
+    -- Создаем НЕВИДИМУЮ часть для камеры
+    local function createCameraAnchor(stand)
+        local standRoot = stand.Root
+        
+        -- Создаем невидимую часть для камеры
+        local anchor = Instance.new("Part")
+        anchor.Name = "YBACameraAnchor"
+        anchor.Size = Vector3.new(1, 1, 1)
+        anchor.Transparency = 1  -- НЕВИДИМАЯ!
+        anchor.CanCollide = false
+        anchor.Anchored = false
+        
+        -- Ищем голову стенда
+        local headPart = nil
+        for _, child in pairs(stand:GetChildren()) do
+            if child:IsA("BasePart") and (string.find(child.Name:lower(), "head") or child.Name == "Head") then
+                headPart = child
+                break
+            end
+        end
+        
+        local targetPosition
+        if headPart then
+            targetPosition = headPart.Position + Vector3.new(0, 2, 0)  -- чуть выше головы
+        else
+            targetPosition = standRoot.Position + Vector3.new(0, 5, 0)  -- выше корня
+        end
+        
+        anchor.Position = targetPosition
+        anchor.Parent = stand
+        
+        -- Приваривываем к корню стенда
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = standRoot
+        weld.Part1 = anchor
+        weld.Parent = anchor
+        
+        return anchor
+    end
 
-    -- ПРОСТАЯ функция - только управление стендом!
+    -- ПРОСТОЕ управление стендом
     local function updateStand()
         if not targetStand or not targetStand.Root then return end
         
@@ -507,7 +543,7 @@ local YBAFreeCamera = {} do
         end
         
         if moveX ~= 0 or moveZ ~= 0 or moveY ~= 0 then
-            -- Движение относительно КАМЕРЫ (стандартной Roblox камеры!)
+            -- Движение относительно камеры
             local cameraCFrame = Camera.CFrame
             local cameraLookVector = cameraCFrame.LookVector
             local cameraRightVector = cameraCFrame.RightVector
@@ -533,13 +569,13 @@ local YBAFreeCamera = {} do
         -- Сохраняем настройки
         originalCameraSubject = Camera.CameraSubject
         originalCameraType = Camera.CameraType
-        originalMouseBehavior = UserInputService.MouseBehavior
 
-        -- Ничего не сбрасываем - пусть камера работает как обычно!
-
-        -- ПРОБУЕМ ДРУГОЙ ПОДХОД - используем Attach вместо Scriptable!
-        Camera.CameraType = Enum.CameraType.Attach
-        Camera.CameraSubject = standRoot
+        -- СОЗДАЕМ НЕВИДИМЫЙ АНКЕР ДЛЯ КАМЕРЫ!
+        cameraAnchor = createCameraAnchor(stand)
+        
+        -- ПРИВЯЗЫВАЕМ КАМЕРУ К АНКЕРУ!
+        Camera.CameraSubject = cameraAnchor
+        Camera.CameraType = Enum.CameraType.Custom  -- ОБЫЧНАЯ КАМЕРА!
 
         -- Отключаем автоповорот игрока
         local player = Players.LocalPlayer
@@ -548,11 +584,11 @@ local YBAFreeCamera = {} do
             if humanoid then humanoid.AutoRotate = false end
         end
 
-        -- ТОЛЬКО управление стендом - НИКАКИХ обработчиков мыши!
+        -- Управление стендом
         RunService:BindToRenderStep("YBAStandControl", Enum.RenderPriority.Camera.Value, updateStand)
 
         fcRunning = true
-        print("YBA: ПРОСТАЯ камера активирована - " .. stand.Name)
+        print("YBA: Камера с АНКЕРОМ активирована - " .. stand.Name)
         return true
     end
 
@@ -565,13 +601,18 @@ local YBAFreeCamera = {} do
             if bodyVelocity then bodyVelocity:Destroy() end
         end
 
+        -- УДАЛЯЕМ АНКЕР КАМЕРЫ!
+        if cameraAnchor then
+            cameraAnchor:Destroy()
+            cameraAnchor = nil
+        end
+
         -- Отключаем управление стендом
         RunService:UnbindFromRenderStep("YBAStandControl")
 
-        -- Восстанавливаем все
+        -- Восстанавливаем камеру
         Camera.CameraType = originalCameraType or Enum.CameraType.Custom
         Camera.CameraSubject = originalCameraSubject or (Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("Humanoid"))
-        UserInputService.MouseBehavior = originalMouseBehavior or Enum.MouseBehavior.Default
 
         -- Восстанавливаем игрока
         local player = Players.LocalPlayer
