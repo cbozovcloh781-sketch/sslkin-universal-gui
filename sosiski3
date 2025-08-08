@@ -1983,10 +1983,7 @@ local function activateFreeCamera(stand)
         return false
     end
     print("YBA: Активируем управление стендом: " .. stand.Name)
-    if YBAConfig.FreezePlayer then
-        print("YBA: Замораживаем игрока...")
-        freezePlayer()
-    end
+    -- Не замораживаем игрока, не трогаем WalkSpeed/JumpPower
     freeCameraActive = true
     freeCameraTarget = stand
     local cam = workspace.CurrentCamera
@@ -2003,6 +2000,13 @@ local function activateFreeCamera(stand)
     local function getStandHead()
         return stand.Root.Parent:FindFirstChild("Head") or stand.Root
     end
+    -- Отключаем управление игроком (запоминаем старые обработчики, если есть)
+    local function blockPlayerInput(actionName, inputState, inputObj)
+        return Enum.ContextActionResult.Sink
+    end
+    local ContextActionService = game:GetService("ContextActionService")
+    ContextActionService:BindAction("BlockPlayerMove", blockPlayerInput, false,
+        Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Space, Enum.KeyCode.LeftShift)
     -- Управление мышью и колесом
     local inputBeganConn = UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
@@ -2035,6 +2039,10 @@ local function activateFreeCamera(stand)
             distance = math.clamp(distance - input.Position.Z, minDist, maxDist)
         end
     end)
+    -- Включаем флай для игрока
+    if not isFlying then
+        startFly()
+    end
     -- Управление стендом и игроком
     local function updateControl(dt)
         if not freeCameraActive or not stand or not stand.Root then return end
@@ -2047,25 +2055,31 @@ local function activateFreeCamera(stand)
             moveVec = camRot:VectorToWorldSpace(moveVec)
             stand.Root.CFrame = stand.Root.CFrame + moveVec * dt
         end
-        -- Камера
+        -- Камера (позиция + пользовательское вращение, без качки)
         local head = getStandHead()
+        local camPos, camLook
         if head then
             local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 2, distance)
-            cam.CFrame = head.CFrame * offset
+            camPos = (head.CFrame * offset).Position
+            camLook = head.Position
         else
-            cam.CFrame = stand.Root.CFrame * CFrame.new(0, 2, -distance)
+            local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 2, distance)
+            camPos = (stand.Root.CFrame * offset).Position
+            camLook = stand.Root.Position
         end
-        -- Перемещение игрока под карту
+        cam.CFrame = CFrame.new(camPos, camLook)
+        -- Перемещение игрока под карту через флай (BodyVelocity)
         local player = Players.LocalPlayer
         local char = player and player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if root then
             local standPos = stand.Root.Position
             local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
-            local playerPos = root.Position
-            -- Следовать за стендом по XZ, но не по Y
-            local newPos = Vector3.new(standPos.X, targetPos.Y, standPos.Z)
-            root.CFrame = CFrame.new(newPos)
+            -- Корректируем BodyVelocity игрока (флай)
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = (targetPos - root.Position) * 5
+            end
         end
     end
     local controlConn = RunService.RenderStepped:Connect(updateControl)
@@ -2076,6 +2090,7 @@ local function activateFreeCamera(stand)
     freeCameraConnections._restore = function()
         cam.CameraType = originalCameraType
         cam.CameraSubject = originalCameraSubject
+        ContextActionService:UnbindAction("BlockPlayerMove")
     end
     print("YBA: Управление стендом активировано от третьего лица")
     return true
