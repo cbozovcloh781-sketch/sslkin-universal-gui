@@ -2375,44 +2375,69 @@ local function startStandSwapMode(stand)
     local char = player.Character
     if not char or not stand or not stand.Root then return end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not root or not humanoid then return end
     standSwapActive = true
     
-    print("🔥 STAND RANGE HACKS: Последовательность активации...")
+    print("🔥 STAND RANGE HACK: Стабильная активация...")
     
-    -- ЭТАП 1: Стенд поднимается на 30м вверх от текущей позиции
-    local originalStandY = stand.Root.Position.Y
-    local targetStandY = originalStandY + standSwapYOffset
+    -- ЭТАП 1: Сразу фиксируем игрока в безопасной позиции
+    local safePlayerPos = root.Position + Vector3.new(0, 5, 0) -- поднимаем игрока на 5м
+    root.CFrame = CFrame.new(safePlayerPos)
+    root.Anchored = true -- временно закрепляем игрока
     
-    -- Плавно поднимаем стенд (твинер должен работать для стенда)
-    local standRiseTween = TweenService:Create(stand.Root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
-        Position = Vector3.new(stand.Root.Position.X, targetStandY, stand.Root.Position.Z)
-    })
-    standRiseTween:Play()
-    
-    -- Ждем пока стенд поднимется + 5 секунд
-    standRiseTween.Completed:Wait()
-    task.wait(5.0)
-    
-    -- ЭТАП 2: Включаем только ноуклип (игрок будет следовать за стендом)
+    -- ЭТАП 2: Сразу включаем NoClip БЕЗ BodyVelocity чтобы избежать хаоса
     if not isNoClipping then
-        startNoClip()
-        print("🔥 NoClip автоматически включен для стенд хака!")
+        -- Специальная версия NoClip для Range Hack (без движения)
+        isNoClipping = true
+        workspace.Gravity = 0
+        
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+        
+        print("🔥 NoClip включен (режим стабилизации)")
     end
     
-    -- ЭТАП 3: Игрок следует за стендом (синхронизация позиций) - с задержкой
-    task.wait(1) -- даем время стенду устояться на новой позиции
+    -- ЭТАП 3: МГНОВЕННО перемещаем стенд на нужную высоту
+    local originalStandPos = stand.Root.Position
+    local targetStandPos = Vector3.new(originalStandPos.X, originalStandPos.Y + standSwapYOffset, originalStandPos.Z)
+    stand.Root.CFrame = CFrame.new(targetStandPos)
     
+    -- Добавляем BodyPosition к стенду для стабильности
+    local bodyPosition = stand.Root:FindFirstChild("BodyPosition")
+    if not bodyPosition then
+        bodyPosition = Instance.new("BodyPosition")
+        bodyPosition.MaxForce = Vector3.new(4000, 4000, 4000)
+        bodyPosition.Position = targetStandPos
+        bodyPosition.D = 1000 -- высокий демпфинг для стабильности
+        bodyPosition.P = 5000 -- высокая мощность
+        bodyPosition.Parent = stand.Root
+    end
+    
+    print("🔥 Стенд перемещен на высоту:", targetStandPos.Y)
+    
+    -- ЭТАП 4: Ждем секунду для стабилизации
+    task.wait(1)
+    
+    -- ЭТАП 5: Освобождаем игрока и активируем камеру
+    root.Anchored = false
+    
+    -- Включаем камеру стенда
+    if YBAFreeCamera.Start(stand) then
+        print("🔥 КАМЕРА АКТИВИРОВАНА для стенда:", stand.Name)
+    else
+        print("🔥 ОШИБКА активации камеры для стенда:", stand.Name)
+    end
+    
+    -- ЭТАП 6: Настраиваем БЕЗОПАСНОЕ следование (ТОЛЬКО если игрок не управляет)
     if standFollowConn then standFollowConn:Disconnect() end
     standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
         if not char or not root or not stand or not stand.Root then return end
         
-        -- Игрок может летать на поверхности вместе со стендом
-        local standPos = stand.Root.Position
-        local currentPos = root.Position
-        
-        -- Опциональное следование - игрок может лететь самостоятельно или следовать за стендом
-        -- Проверяем, нажимает ли игрок клавиши управления
+        -- Проверяем управление игроком
         local isPlayerControlling = UserInputService:IsKeyDown(Enum.KeyCode.W) or 
                                    UserInputService:IsKeyDown(Enum.KeyCode.A) or 
                                    UserInputService:IsKeyDown(Enum.KeyCode.S) or 
@@ -2420,30 +2445,29 @@ local function startStandSwapMode(stand)
                                    UserInputService:IsKeyDown(Enum.KeyCode.Space) or 
                                    UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
         
-        -- Если игрок не управляет сам, то следуем за стендом
-        if not isPlayerControlling then
-            local targetPos = Vector3.new(standPos.X, standPos.Y - 35, standPos.Z) -- под стендом
+        -- БЕЗОПАСНОЕ следование - только если игрок НЕ управляет
+        if not isPlayerControlling and not root.Anchored then
+            local standPos = stand.Root.Position
+            local currentPos = root.Position
             
-            -- Ограничиваем дистанцию телепорта чтобы не улетать слишком далеко
-            local distance = (targetPos - currentPos).Magnitude
-            if distance < 1000 then -- максимум 1км за раз
-                root.Position = targetPos
-            else
-                print("🔥 СЛИШКОМ ДАЛЕКИЙ ТЕЛЕПОРТ ЗАБЛОКИРОВАН:", distance)
+            -- Игрок остается НА ТОЙ ЖЕ ВЫСОТЕ что и стенд (не под картой!)
+            local targetPos = Vector3.new(standPos.X, standPos.Y - 10, standPos.Z) -- чуть ниже стенда
+            
+            -- Проверяем что позиция безопасна (не под картой)
+            if targetPos.Y > -1000 then -- минимальная высота
+                local distance = (targetPos - currentPos).Magnitude
+                if distance > 5 and distance < 500 then -- ограничиваем телепорт
+                    root.CFrame = CFrame.new(targetPos)
+                end
             end
         end
     end)
     
-    -- ЭТАП 4: Присоединяем камеру к стенду с помощью YBAFreeCamera
-    if YBAFreeCamera.Start(stand) then
-        print("🔥 КАМЕРА АКТИВИРОВАНА для стенда:", stand.Name)
-    else
-        print("🔥 ОШИБКА активации камеры для стенда:", stand.Name)
-    end
-    print("🔥 АКТИВИРОВАН: Stand Range Hack готов!")
-    print("🔥 Управление стендом: WASD + Space/Ctrl (в камере стенда)")
-    print("🔥 Управление полетом игрока: WASD + Space/Ctrl (автоматически через NoClip)")
-    print("🔥 Камера: ПКМ для поворота, колесико для зума")
+    print("🔥 ✅ СТАБИЛЬНАЯ АКТИВАЦИЯ ЗАВЕРШЕНА!")
+    print("🔥 🎮 Управление стендом: WASD + Space/Ctrl")
+    print("🔥 🎮 Управление игроком: WASD + Space/Ctrl")
+    print("🔥 🎥 Камера: ПКМ поворот, колесико зум")
+    print("🔥 ⚠️  Игрок следует за стендом только если не управляется")
 end
 
 local function stopStandSwapMode()
