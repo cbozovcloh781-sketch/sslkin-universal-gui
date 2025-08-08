@@ -553,12 +553,37 @@ local YBAFreeCamera = {} do
             lastDebugTime = tick()
         end
 
-        -- Движение стенда
-        local moveX = (input.D and 1 or 0) - (input.A and 1 or 0)
-        local moveZ = (input.S and 1 or 0) - (input.W and 1 or 0)
-        local moveY = (input.Space and 1 or 0) - (input.LeftControl and 1 or 0)
+        -- Движение стенда через прямую проверку клавиш (обход блокировки YBA)
+        local moveX = 0
+        local moveZ = 0 
+        local moveY = 0
+        
+        -- Прямая проверка клавиш через UserInputService
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveX = moveX + 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveX = moveX - 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveZ = moveZ + 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveZ = moveZ - 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveY = moveY + 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveY = moveY - 1
+        end
         
         local move = Vector3.new(moveX, moveY, moveZ)
+        
+        -- Отладка движения
+        if move.Magnitude > 0 then
+            print("YBA: Движение детектировано:", moveX, moveY, moveZ)
+        end
 
         local bv = standRoot:FindFirstChild("BodyVelocity")
         if not bv then
