@@ -483,16 +483,16 @@ local YBAFreeCamera = {} do
     local rightMouseDown = false
     local connections = {}
 
-    -- Обработка движения мыши - ПРЯМО КАК В ROBLOX
+    -- Накопитель для движения мыши
+    local mouseDelta = Vector2.new(0, 0)
+    
+    -- Обработка движения мыши - ПРАВИЛЬНАЯ ЛОГИКА!
     local function onInputChanged(input, gameProcessed)
         if gameProcessed or UserInputService.MenuIsOpen then return end
         
-        if input.UserInputType == Enum.UserInputType.MouseMovement and rightMouseDown then
-            -- ОБЫЧНАЯ логика камеры как в Roblox - БЕЗ ВСЯКИХ ЗАМОРОЧЕК!
-            local sensitivity = 0.005
-            cameraAngleY = cameraAngleY - input.Delta.X * sensitivity
-            cameraAngleX = cameraAngleX - input.Delta.Y * sensitivity
-            cameraAngleX = math.clamp(cameraAngleX, -math.rad(80), math.rad(80))
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            -- НАКАПЛИВАЕМ движения мыши ВСЕГДА!
+            mouseDelta = mouseDelta + input.Delta
             
         elseif input.UserInputType == Enum.UserInputType.MouseWheel then
             cameraDistance = math.clamp(cameraDistance - input.Position.Z * 2, 3, 50)
@@ -505,7 +505,7 @@ local YBAFreeCamera = {} do
         
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
             rightMouseDown = true
-            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+            -- НЕ БЛОКИРУЕМ МЫШЬ! Просто включаем режим поворота!
         end
     end
 
@@ -514,16 +514,26 @@ local YBAFreeCamera = {} do
         
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
             rightMouseDown = false
-            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         end
     end
 
-    -- Основная функция камеры - МАКСИМАЛЬНО ПРОСТАЯ
+    -- Основная функция камеры - ПРАВИЛЬНАЯ ОБРАБОТКА!
     local function updateCamera()
         if not targetStand or not targetStand.Root then return end
         
         local standRoot = targetStand.Root
         local standPosition = standRoot.Position + Vector3.new(0, 5, 0) -- немного выше стенда
+        
+        -- ОБРАБАТЫВАЕМ МЫШЬ ЗДЕСЬ, А НЕ В InputChanged!
+        if rightMouseDown and mouseDelta.Magnitude > 0 then
+            local sensitivity = 0.005
+            cameraAngleY = cameraAngleY - mouseDelta.X * sensitivity
+            cameraAngleX = cameraAngleX - mouseDelta.Y * sensitivity
+            cameraAngleX = math.clamp(cameraAngleX, -math.rad(80), math.rad(80))
+            
+            -- СБРАСЫВАЕМ НАКОПЛЕННЫЕ ДВИЖЕНИЯ!
+            mouseDelta = Vector2.new(0, 0)
+        end
         
         -- Управление стендом WASD
         local moveX = 0
@@ -582,6 +592,7 @@ local YBAFreeCamera = {} do
         cameraAngleY = 0
         cameraDistance = 10
         rightMouseDown = false
+        mouseDelta = Vector2.new(0, 0)
 
         -- Настраиваем камеру
         Camera.CameraType = Enum.CameraType.Scriptable
@@ -639,6 +650,7 @@ local YBAFreeCamera = {} do
         -- Сброс
         targetStand = nil
         rightMouseDown = false
+        mouseDelta = Vector2.new(0, 0)
         fcRunning = false
 
         print("YBA: Камера отключена")
