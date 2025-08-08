@@ -631,13 +631,7 @@ local YBAFreeCamera = {} do
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
             bv.Velocity = worldMove * standSpeed
             
-            -- Поворачиваем стенд в направлении движения (только по Y оси)
-            local moveDirection = Vector3.new(worldMove.X, 0, worldMove.Z)
-            if moveDirection.Magnitude > 0 then
-                local targetAngle = math.atan2(-moveDirection.X, -moveDirection.Z)
-                local currentPos = standRoot.Position
-                standRoot.CFrame = CFrame.new(currentPos) * CFrame.Angles(0, targetAngle, 0)
-            end
+            -- УБРАНО: автоматический поворот стенда при движении
         else
             bv.Velocity = Vector3.new(0, 0, 0)
         end
