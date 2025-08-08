@@ -2002,10 +2002,10 @@ local function setFreecamToStandHead(stand)
     if beganConn then beganConn:Disconnect() end
     if endedConn then endedConn:Disconnect() end
     if changedConn then changedConn:Disconnect() end
-    local camDistance = -10
-    local camHeight = 4
+    if wheelConn then wheelConn:Disconnect() end
     local rotating = false
     local mouseSensitivity = 0.08
+    local minDistance, maxDistance = -3, -30
     local UserInputService = game:GetService("UserInputService")
     local function onInputBegan(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
@@ -2025,9 +2025,15 @@ local function setFreecamToStandHead(stand)
             camRot = Vector2.new(math.clamp(camRot.X, -math.rad(80), math.rad(80)), camRot.Y % (2 * math.pi))
         end
     end
+    local function onWheelMoved(input, _)
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            camDistance = math.clamp(camDistance + input.Position.Z, maxDistance, minDistance)
+        end
+    end
     beganConn = UserInputService.InputBegan:Connect(onInputBegan)
     endedConn = UserInputService.InputEnded:Connect(onInputEnded)
     changedConn = UserInputService.InputChanged:Connect(onInputChanged)
+    wheelConn = UserInputService.InputChanged:Connect(onWheelMoved)
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
         Camera.CameraType = Enum.CameraType.Scriptable
         local focusPos = root.Position + Vector3.new(0, camHeight, 0)
@@ -2040,6 +2046,7 @@ local function setFreecamToStandHead(stand)
         if beganConn then beganConn:Disconnect() end
         if endedConn then endedConn:Disconnect() end
         if changedConn then changedConn:Disconnect() end
+        if wheelConn then wheelConn:Disconnect() end
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
     end
