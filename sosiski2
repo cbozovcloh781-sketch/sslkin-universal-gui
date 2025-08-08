@@ -2179,12 +2179,14 @@ local function startUndergroundMode()
             return
         end
         
-        local forward = Vector3.new(0, 0, -1) -- Фиксированное направление вперед
-        local right = Vector3.new(1, 0, 0)    -- Фиксированное направление вправо
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        
+        local forward = cam.CFrame.lookVector
+        local right = cam.CFrame.rightVector
         local up = Vector3.new(0, 1, 0)
         
         local moveVector = Vector3.new(0, 0, 0)
-        -- WASD управление без привязки к камере (фиксированные направления)
         moveVector = moveVector + (forward * (ctrl.f + ctrl.b))
         moveVector = moveVector + (right * (ctrl.r + ctrl.l))
         moveVector = moveVector + (up * (ctrl.u + ctrl.d))
@@ -2425,8 +2427,8 @@ local function startStandSwapMode(stand)
     -- ЭТАП 1: Игрок уходит под землю
     startUndergroundMode()
     
-    -- ЭТАП 2: Через 2 сек после ухода под землю - стенд отклеивается и улетает вверх
-    task.wait(2.0)
+    -- ЭТАП 2: Через 5 сек после ухода под землю - стенд отклеивается и улетает вверх
+    task.wait(5.0)
     
     -- ФИКСИРОВАННЫЙ Y для стенда относительно игрока (30м выше подземного игрока)
     if standFollowConn then standFollowConn:Disconnect() end
