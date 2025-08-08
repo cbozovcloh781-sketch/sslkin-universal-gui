@@ -475,6 +475,7 @@ local YBAFreeCamera = {} do
         MouseWheel = 0
     }
     local mouseConnection, mouseWheelConnection, inputBeganConnection, inputEndedConnection
+    local lastMousePos = Vector2.new()
 
     local function onInputBegan(inputObj, gp)
         if gp then return end
