@@ -489,7 +489,8 @@ local YBAFreeCamera = {} do
 
         -- Простое отслеживание ввода через UserInputService
         table.insert(inputConnections, UserInputService.InputBegan:Connect(function(inputObj, gameProcessed)
-            -- НЕ игнорируем gameProcessed для лучшей совместимости
+            -- Игнорируем ввод если игрок в чате/меню
+            if gameProcessed then return end
             local keyName = inputObj.KeyCode.Name
             if input[keyName] ~= nil then
                 input[keyName] = true
@@ -498,7 +499,8 @@ local YBAFreeCamera = {} do
         end))
 
         table.insert(inputConnections, UserInputService.InputEnded:Connect(function(inputObj, gameProcessed)
-            -- НЕ игнорируем gameProcessed для лучшей совместимости
+            -- Игнорируем ввод если игрок в чате/меню
+            if gameProcessed then return end
             local keyName = inputObj.KeyCode.Name
             if input[keyName] ~= nil then
                 input[keyName] = false
@@ -559,24 +561,39 @@ local YBAFreeCamera = {} do
         local moveZ = 0 
         local moveY = 0
         
-        -- Прямая проверка клавиш через UserInputService
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveX = moveX + 1
+        -- Проверяем, что игрок не в чате/меню
+        local gameGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+        local chatInFocus = false
+        if gameGui then
+            local chatGui = gameGui:FindFirstChild("Chat")
+            if chatGui and chatGui:FindFirstChild("Frame") and chatGui.Frame:FindFirstChild("ChatBarParentFrame") then
+                local chatBar = chatGui.Frame.ChatBarParentFrame:FindFirstChild("Frame")
+                if chatBar and chatBar:FindFirstChild("BoxFrame") and chatBar.BoxFrame:FindFirstChild("Frame") and chatBar.BoxFrame.Frame:FindFirstChild("ChatBar") then
+                    chatInFocus = chatBar.BoxFrame.Frame.ChatBar:IsFocused()
+                end
+            end
         end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveX = moveX - 1
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveZ = moveZ + 1
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveZ = moveZ - 1
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            moveY = moveY + 1
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            moveY = moveY - 1
+        
+        -- Прямая проверка клавиш только если не в чате
+        if not chatInFocus then
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                moveX = moveX + 1
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                moveX = moveX - 1
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                moveZ = moveZ + 1
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                moveZ = moveZ - 1
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                moveY = moveY + 1
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+                moveY = moveY - 1
+            end
         end
         
         local move = Vector3.new(moveX, moveY, moveZ)
@@ -620,7 +637,7 @@ local YBAFreeCamera = {} do
             bv.Velocity = Vector3.new(0, 0, 0)
         end
 
-        -- Обработка вращения мыши
+        -- Обработка вращения мыши (только камера, БЕЗ поворота стенда)
         if input.MouseDelta.Magnitude > 0 then
             cameraRot = cameraRot + input.MouseDelta
             cameraRot = Vector2.new(
@@ -628,12 +645,7 @@ local YBAFreeCamera = {} do
                 cameraRot.Y % (2 * math.pi)
             )
             
-            -- Мягко поворачиваем стенд по движению мыши (только по Y оси)
-            local currentPos = standRoot.Position
-            local currentCFrame = standRoot.CFrame
-            local targetCFrame = CFrame.new(currentPos) * CFrame.Angles(0, cameraRot.Y, 0)
-            -- Плавный поворот через lerp
-            standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.1)
+            -- НЕ поворачиваем стенд по мыши! Только камера вертится
             
             input.MouseDelta = Vector2.new()
         end
