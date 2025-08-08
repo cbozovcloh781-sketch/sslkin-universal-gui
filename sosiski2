@@ -467,105 +467,251 @@ end
 local YBAFreeCamera = {} do
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
+    local ContextActionService = game:GetService("ContextActionService")
     local Camera = workspace.CurrentCamera
     local Players = game:GetService("Players")
 
+    local pi = math.pi
+    local clamp = math.clamp
+    local exp = math.exp
+    local rad = math.rad
+    local sign = math.sign
+    local sqrt = math.sqrt
+    local tan = math.tan
+
     local fcRunning = false
     local targetStand = nil
+    
+    -- Настройки как в оригинальной freecam
+    local INPUT_PRIORITY = Enum.ContextActionPriority.High.Value
+    local NAV_GAIN = Vector3.new(1, 1, 1) * 64
+    local PAN_GAIN = Vector2.new(0.75, 1) * 8
+    local FOV_GAIN = 300
+    local PITCH_LIMIT = rad(90)
+    local VEL_STIFFNESS = 1.5
+    local PAN_STIFFNESS = 1.0
+    local FOV_STIFFNESS = 4.0
+
+    -- Состояние камеры
+    local cameraPos = Vector3.new()
+    local cameraRot = Vector2.new()
+    local cameraFov = 0
+
+    -- Спринги (система сглаживания)
+    local Spring = {}
+    Spring.__index = Spring
+
+    function Spring.new(freq, pos)
+        local self = setmetatable({}, Spring)
+        self.f = freq
+        self.p = pos
+        self.v = pos * 0
+        return self
+    end
+
+    function Spring:Update(dt, goal)
+        local f = self.f * 2 * pi
+        local p0 = self.p
+        local v0 = self.v
+        local offset = goal - p0
+        local decay = exp(-f * dt)
+        local p1 = goal + (v0 * dt - offset * (f * dt + 1)) * decay
+        local v1 = (f * dt * (offset * f - v0) + v0) * decay
+        self.p = p1
+        self.v = v1
+        return p1
+    end
+
+    function Spring:Reset(pos)
+        self.p = pos
+        self.v = pos * 0
+    end
+
+    local velSpring = Spring.new(VEL_STIFFNESS, Vector3.new())
+    local panSpring = Spring.new(PAN_STIFFNESS, Vector2.new())
+    local fovSpring = Spring.new(FOV_STIFFNESS, 0)
+
+    -- Система ввода
+    local keyboard = {
+        W = 0, A = 0, S = 0, D = 0, E = 0, Q = 0,
+        U = 0, H = 0, J = 0, K = 0, I = 0, Y = 0,
+        Up = 0, Down = 0, LeftShift = 0, RightShift = 0,
+    }
+
+    local mouse = {
+        Delta = Vector2.new(),
+        MouseWheel = 0,
+    }
+
+    local NAV_KEYBOARD_SPEED = Vector3.new(1, 1, 1)
+    local PAN_MOUSE_SPEED = Vector2.new(1, 1) * (pi / 64)
+    local FOV_WHEEL_SPEED = 1.0
+    local NAV_ADJ_SPEED = 0.75
+    local NAV_SHIFT_MUL = 0.25
+    local navSpeed = 1
+
+    -- Функции ввода
+    local function getVel(dt)
+        navSpeed = clamp(navSpeed + dt * (keyboard.Up - keyboard.Down) * NAV_ADJ_SPEED, 0.01, 4)
+        
+        local kKeyboard = Vector3.new(
+            keyboard.D - keyboard.A + keyboard.K - keyboard.H,
+            keyboard.E - keyboard.Q + keyboard.I - keyboard.Y,
+            keyboard.S - keyboard.W + keyboard.J - keyboard.U
+        ) * NAV_KEYBOARD_SPEED
+
+        local shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+        return kKeyboard * (navSpeed * (shift and NAV_SHIFT_MUL or 1))
+    end
+
+    local function getPan(dt)
+        local kMouse = mouse.Delta * PAN_MOUSE_SPEED
+        mouse.Delta = Vector2.new()
+        return kMouse
+    end
+
+    local function getFov(dt)
+        local kMouse = mouse.MouseWheel * FOV_WHEEL_SPEED
+        mouse.MouseWheel = 0
+        return kMouse
+    end
+
+    -- Обработчики ввода
+    local function Keypress(action, state, input)
+        keyboard[input.KeyCode.Name] = state == Enum.UserInputState.Begin and 1 or 0
+        return Enum.ContextActionResult.Sink
+    end
+
+    local function MousePan(action, state, input)
+        local delta = input.Delta
+        mouse.Delta = Vector2.new(-delta.Y, -delta.X)
+        return Enum.ContextActionResult.Sink
+    end
+
+    local function MouseWheel(action, state, input)
+        mouse[input.UserInputType.Name] = -input.Position.Z
+        return Enum.ContextActionResult.Sink
+    end
+
+    local function startInput()
+        ContextActionService:BindActionAtPriority("YBAFreecamKeyboard", Keypress, false, INPUT_PRIORITY,
+            Enum.KeyCode.W, Enum.KeyCode.U,
+            Enum.KeyCode.A, Enum.KeyCode.H,
+            Enum.KeyCode.S, Enum.KeyCode.J,
+            Enum.KeyCode.D, Enum.KeyCode.K,
+            Enum.KeyCode.E, Enum.KeyCode.I,
+            Enum.KeyCode.Q, Enum.KeyCode.Y,
+            Enum.KeyCode.Up, Enum.KeyCode.Down
+        )
+        ContextActionService:BindActionAtPriority("YBAFreecamMousePan", MousePan, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
+        ContextActionService:BindActionAtPriority("YBAFreecamMouseWheel", MouseWheel, false, INPUT_PRIORITY, Enum.UserInputType.MouseWheel)
+    end
+
+    local function stopInput()
+        navSpeed = 1
+        for k, v in pairs(keyboard) do keyboard[k] = 0 end
+        for k, v in pairs(mouse) do if typeof(v) == "number" then mouse[k] = 0 else mouse[k] = Vector2.new() end end
+        ContextActionService:UnbindAction("YBAFreecamKeyboard")
+        ContextActionService:UnbindAction("YBAFreecamMousePan")
+        ContextActionService:UnbindAction("YBAFreecamMouseWheel")
+    end
+
+    -- Функция для движения стенда
+    local function moveStand(vel)
+        if not targetStand or not targetStand.Root then return end
+        
+        local standRoot = targetStand.Root
+        local bodyVelocity = standRoot:FindFirstChild("BodyVelocity")
+        if not bodyVelocity then
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+            bodyVelocity.Parent = standRoot
+        end
+
+        if vel.Magnitude > 0 then
+            local speed = YBAConfig.UndergroundControl and YBAConfig.UndergroundControl.FlightSpeed or 50
+            bodyVelocity.Velocity = vel * speed
+        else
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+    end
+
+    -- Основная функция камеры
+    local function stepFreecam(dt)
+        local vel = velSpring:Update(dt, getVel(dt))
+        local pan = panSpring:Update(dt, getPan(dt))
+        local fov = fovSpring:Update(dt, getFov(dt))
+
+        local zoomFactor = sqrt(tan(rad(70/2)) / tan(rad(cameraFov/2)))
+
+        cameraFov = clamp(cameraFov + fov * FOV_GAIN * (dt / zoomFactor), 1, 120)
+        cameraRot = cameraRot + pan * PAN_GAIN * (dt / zoomFactor)
+        cameraRot = Vector2.new(clamp(cameraRot.X, -PITCH_LIMIT, PITCH_LIMIT), cameraRot.Y % (2 * pi))
+
+        local cameraCFrame = CFrame.new(cameraPos) * CFrame.fromOrientation(cameraRot.X, cameraRot.Y, 0) * CFrame.new(vel * NAV_GAIN * dt)
+        cameraPos = cameraCFrame.Position
+
+        Camera.CFrame = cameraCFrame
+        Camera.Focus = cameraCFrame
+        Camera.FieldOfView = cameraFov
+
+        -- Двигаем стенд вместе с камерой
+        moveStand(vel * NAV_GAIN)
+    end
+
+    -- Сохранение/восстановление состояния
     local originalCameraSubject = nil
     local originalCameraType = nil
     local originalMouseBehavior = nil
-    local heartbeatConnection = nil
-    
+
     function YBAFreeCamera.Start(stand)
         if fcRunning then YBAFreeCamera.Stop() end
         if not stand or not stand.Root then 
             print("YBA: Ошибка - стенд не найден") 
             return false 
         end
-        
+
         targetStand = stand
-        local standRoot = stand.Root
-        
+
         -- Сохраняем оригинальные настройки
         originalCameraSubject = Camera.CameraSubject
         originalCameraType = Camera.CameraType
         originalMouseBehavior = UserInputService.MouseBehavior
-        
-        -- Устанавливаем камеру на стенд
-        Camera.CameraSubject = standRoot
-        Camera.CameraType = Enum.CameraType.Custom
-        
-        -- ГЛАВНОЕ: ВКЛЮЧАЕМ SHIFTLOCK РЕЖИМ!
-        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-        
+
+        -- Инициализируем камеру
+        local cameraCFrame = Camera.CFrame
+        cameraRot = Vector2.new(cameraCFrame:ToEulerAnglesYXZ())
+        cameraPos = cameraCFrame.Position
+        cameraFov = Camera.FieldOfView
+
+        velSpring:Reset(Vector3.new())
+        panSpring:Reset(Vector2.new())
+        fovSpring:Reset(0)
+
+        -- Настраиваем камеру
+        Camera.CameraType = Enum.CameraType.Scriptable
+        Camera.CameraSubject = nil
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+
         -- Отключаем автоповорот игрока
         local player = Players.LocalPlayer
         if player and player.Character then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid then humanoid.AutoRotate = false end
         end
-        
-        -- Подключаем управление стендом
-        heartbeatConnection = RunService.Heartbeat:Connect(function()
-            if not targetStand or not targetStand.Root or not targetStand.Root.Parent then 
-                return 
-            end
-            
-            local moveX = 0
-            local moveZ = 0
-            local moveY = 0
-            
-            -- Простое управление WASD
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveZ = moveZ - 1 end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveZ = moveZ + 1 end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveX = moveX - 1 end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveX = moveX + 1 end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveY = moveY + 1 end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveY = moveY - 1 end
-            
-            local moveVector = Vector3.new(moveX, moveY, moveZ)
-            
-            local bodyVelocity = standRoot:FindFirstChild("BodyVelocity")
-            if not bodyVelocity then
-                bodyVelocity = Instance.new("BodyVelocity")
-                bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
-                bodyVelocity.Parent = standRoot
-            end
-            
-            if moveVector.Magnitude > 0 then
-                -- Движение относительно камеры
-                local cameraCFrame = Camera.CFrame
-                local cameraLookVector = cameraCFrame.LookVector
-                local cameraRightVector = cameraCFrame.RightVector
-                
-                local worldMoveVector = (cameraRightVector * moveX) + (Vector3.new(0, 1, 0) * moveY) + (cameraLookVector * -moveZ)
-                
-                local speed = YBAConfig.UndergroundControl and YBAConfig.UndergroundControl.FlightSpeed or 50
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                    speed = speed * 2
-                end
-                
-                bodyVelocity.Velocity = worldMoveVector * speed
-            else
-                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            end
-        end)
-        
+
+        -- Запускаем камеру
+        RunService:BindToRenderStep("YBAFreecam", Enum.RenderPriority.Camera.Value, stepFreecam)
+        startInput()
+
         fcRunning = true
-        print("YBA: Камера как ШИФТЛОК активирована - " .. stand.Name)
+        print("YBA: НАСТОЯЩАЯ freecam активирована - " .. stand.Name)
         return true
     end
 
     function YBAFreeCamera.Stop()
         if not fcRunning then return end
-        
-        -- Отключаем соединение
-        if heartbeatConnection then
-            heartbeatConnection:Disconnect()
-            heartbeatConnection = nil
-        end
-        
+
         -- Останавливаем стенд
         if targetStand and targetStand.Root then
             local bodyVelocity = targetStand.Root:FindFirstChild("BodyVelocity")
@@ -573,27 +719,31 @@ local YBAFreeCamera = {} do
                 bodyVelocity:Destroy() 
             end
         end
-        
+
+        -- Отключаем камеру
+        stopInput()
+        RunService:UnbindFromRenderStep("YBAFreecam")
+
+        -- Восстанавливаем настройки
+        Camera.CameraType = originalCameraType or Enum.CameraType.Custom
+        Camera.CameraSubject = originalCameraSubject or (Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("Humanoid"))
+        UserInputService.MouseBehavior = originalMouseBehavior or Enum.MouseBehavior.Default
+
         -- Восстанавливаем игрока
         local player = Players.LocalPlayer
         if player and player.Character then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid then humanoid.AutoRotate = true end
         end
-        
-        -- ВОССТАНАВЛИВАЕМ ВСЕ НАСТРОЙКИ
-        Camera.CameraType = originalCameraType or Enum.CameraType.Custom
-        Camera.CameraSubject = originalCameraSubject or (player.Character and player.Character:FindFirstChild("Humanoid"))
-        UserInputService.MouseBehavior = originalMouseBehavior or Enum.MouseBehavior.Default
-        
+
         -- Очищаем переменные
         targetStand = nil
         originalCameraSubject = nil
         originalCameraType = nil
         originalMouseBehavior = nil
         fcRunning = false
-        
-        print("YBA: Камера отключена")
+
+        print("YBA: Freecam отключена")
     end
 
     function YBAFreeCamera.Toggle(stand)
