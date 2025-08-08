@@ -2117,6 +2117,8 @@ local function controlStand(stand)
 end
 
 local function startYBA()
+    local plr = Players.LocalPlayer
+    local char = plr and plr.Character
     if isYBAEnabled then return end
     isYBAEnabled = true
     YBAConfig.Enabled = true
