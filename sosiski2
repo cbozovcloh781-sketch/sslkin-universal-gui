@@ -500,16 +500,7 @@ local YBAFreeCamera = {} do
             bodyVelocity.Parent = standRoot
         end
         
-        -- Добавляем BodyPosition для предотвращения падения стенда
-        local bodyPosition = standRoot:FindFirstChild("BodyPosition")
-        if not bodyPosition then
-            bodyPosition = Instance.new("BodyPosition")
-            bodyPosition.MaxForce = Vector3.new(0, 4000, 0) -- Только по Y оси
-            bodyPosition.Position = standRoot.Position
-            bodyPosition.D = 500 -- Демпфинг
-            bodyPosition.P = 3000 -- Мощность
-            bodyPosition.Parent = standRoot
-        end
+        -- Убираем BodyPosition - он блокирует стенд
         
         if moveX ~= 0 or moveZ ~= 0 or moveY ~= 0 then
             -- Движение относительно камеры БЕЗ рывков
@@ -541,28 +532,10 @@ local YBAFreeCamera = {} do
             local lerpedVel = currentVel:Lerp(moveVector, 0.15)
             
             bodyVelocity.Velocity = lerpedVel
-            
-            -- Обновляем BodyPosition для движения по Y
-            if moveY ~= 0 and bodyPosition then
-                bodyPosition.Position = Vector3.new(
-                    bodyPosition.Position.X,
-                    standRoot.Position.Y + (moveY * 2),
-                    bodyPosition.Position.Z
-                )
-            end
         else
             -- ПЛАВНОЕ торможение
             local currentVel = bodyVelocity.Velocity
             bodyVelocity.Velocity = currentVel:Lerp(Vector3.new(0, 0, 0), 0.25)
-            
-            -- Фиксируем позицию стенда по Y при остановке
-            if bodyPosition then
-                bodyPosition.Position = Vector3.new(
-                    standRoot.Position.X,
-                    standRoot.Position.Y,
-                    standRoot.Position.Z
-                )
-            end
         end
     end
 
@@ -684,10 +657,7 @@ local YBAFreeCamera = {} do
                 game:GetService("Debris"):AddItem(bodyVelocity, 1)
             end
             
-            local bodyPosition = targetStand.Root:FindFirstChild("BodyPosition")
-            if bodyPosition then
-                game:GetService("Debris"):AddItem(bodyPosition, 1)
-            end
+            -- BodyPosition больше не используется
         end
 
         -- Отключаем соединения
@@ -2389,28 +2359,66 @@ local function startStandSwapMode(stand)
         print("🔥 NoClip включен с полетом для игрока!")
     end
     
-    -- ЭТАП 3: МГНОВЕННО перемещаем стенд на нужную высоту
+    -- ЭТАП 3: ОЧИЩАЕМ СТАРЫЕ СОЕДИНЕНИЯ И ОТСОЕДИНЯЕМ стенд
+    -- Отключаем все старые глобальные соединения
+    if _G._detachStandConnection then 
+        _G._detachStandConnection:Disconnect() 
+        _G._detachStandConnection = nil
+    end
+    if _G._standSwapConn then 
+        _G._standSwapConn:Disconnect() 
+        _G._standSwapConn = nil
+    end
+    if _G._standRangeMenuConn then 
+        _G._standRangeMenuConn:Disconnect() 
+        _G._standRangeMenuConn = nil
+    end
+    -- Удаляем ВСЕ соединения из стенда
+    for _, part in pairs(stand:GetDescendants()) do
+        if part:IsA("BasePart") then
+            for _, obj in pairs(part:GetChildren()) do
+                if obj:IsA("Weld") or obj:IsA("Motor6D") or obj:IsA("Attachment") or obj:IsA("Constraint") or obj:IsA("BodyPosition") or obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") then
+                    obj:Destroy()
+                end
+            end
+        end
+    end
+    
+    -- Удаляем соединения из игрока к стенду
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            for _, obj in pairs(part:GetChildren()) do
+                if obj:IsA("Weld") or obj:IsA("Motor6D") then
+                    if obj.Part0 and obj.Part1 then
+                        if obj.Part0.Parent == stand or obj.Part1.Parent == stand then
+                            obj:Destroy()
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- МГНОВЕННО перемещаем стенд на нужную высоту
     local originalStandPos = stand.Root.Position
     local targetStandPos = Vector3.new(originalStandPos.X, originalStandPos.Y + standSwapYOffset, originalStandPos.Z)
     stand.Root.CFrame = CFrame.new(targetStandPos)
+    stand.Root.Anchored = false -- убеждаемся что стенд не закреплен
     
-    -- Добавляем BodyPosition к стенду для стабильности
-    local bodyPosition = stand.Root:FindFirstChild("BodyPosition")
-    if not bodyPosition then
-        bodyPosition = Instance.new("BodyPosition")
-        bodyPosition.MaxForce = Vector3.new(4000, 4000, 4000)
-        bodyPosition.Position = targetStandPos
-        bodyPosition.D = 1000 -- высокий демпфинг для стабильности
-        bodyPosition.P = 5000 -- высокая мощность
-        bodyPosition.Parent = stand.Root
-    end
+    -- НЕ добавляем BodyPosition - он мешает управлению стендом!
     
-    print("🔥 Стенд перемещен на высоту:", targetStandPos.Y)
+    print("🔥 Стенд ОТСОЕДИНЕН от игрока и перемещен на высоту:", targetStandPos.Y)
     
     -- ЭТАП 4: Ждем секунду для стабилизации
     task.wait(1)
     
-    -- ЭТАП 5: Активируем камеру
+    -- ЭТАП 5: Активируем камеру (с принудительной очисткой)
+    
+    -- Принудительно останавливаем старую камеру если была
+    if YBAFreeCamera.IsRunning() then
+        YBAFreeCamera.Stop()
+        task.wait(0.1) -- даем время на очистку
+    end
     
     -- Включаем камеру стенда
     if YBAFreeCamera.Start(stand) then
@@ -2421,11 +2429,12 @@ local function startStandSwapMode(stand)
     
     -- ЭТАП 6: Готово! Игрок летает сам через NoClip, стенд управляется через камеру
     
-    print("🔥 ✅ RANGE HACK АКТИВИРОВАН БЕЗ БАГОВ!")
+    print("🔥 ✅ RANGE HACK АКТИВИРОВАН!")
     print("🔥 🎮 Стенд: WASD + Space/Ctrl (управление через камеру)")
     print("🔥 ✈️  Игрок: WASD + Space/Ctrl (полет через NoClip)")
     print("🔥 🎥 Камера: ПКМ поворот, колесико зум")
-    print("🔥 ❌ НИКАКИХ ТЕЛЕПОРТОВ - только стабильный полет!")
+    print("🔥 🔧 Все старые соединения очищены!")
+    print("🔥 ❌ Стенд ПОЛНОСТЬЮ отсоединен от игрока!")
 end
 
 local function stopStandSwapMode()
