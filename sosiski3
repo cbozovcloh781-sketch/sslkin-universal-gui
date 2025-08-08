@@ -4705,12 +4705,14 @@ local function startStandSwapMode(stand)
         if not char or not root or not stand or not stand.Root then return end
         stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
     end)
-    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности")
+    setFreecamToStandHead(stand)
+    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности, камера на голове стенда")
 end
 
 local function stopStandSwapMode()
     standSwapActive = false
     if standFollowConn then standFollowConn:Disconnect() end
+    disableFreecam()
     print("[standSwap] Режим отключён")
 end
 
@@ -4728,5 +4730,98 @@ _G._standSwapConn = game:GetService("UserInputService").InputBegan:Connect(funct
         else
             print("[standSwap] Стенд не найден!")
         end
+    end
+end)
+
+-- Third-person freecam для стенда
+local freecamConn = nil
+local freecamActive = false
+local camYaw, camPitch = 0, 0
+local camDistance = 10
+local minDistance, maxDistance = 3, 30
+local lastMousePos = nil
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+
+local function setThirdPersonFreecam(stand)
+    if not stand or not stand.Root then return end
+    local head = stand.Model:FindFirstChild("Head") or stand.Model:FindFirstChild("HeadPart") or stand.Model:FindFirstChild("HumanoidRootPart")
+    if not head then return end
+    freecamActive = true
+    camYaw, camPitch = 0, 0
+    camDistance = 10
+    lastMousePos = UserInputService:GetMouseLocation()
+    if freecamConn then freecamConn:Disconnect() end
+
+    freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
+        -- Управление мышью
+        local mousePos = UserInputService:GetMouseLocation()
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+            local delta = mousePos - lastMousePos
+            camYaw = camYaw - delta.X * 0.003
+            camPitch = math.clamp(camPitch - delta.Y * 0.003, -math.pi/2 + 0.1, math.pi/2 - 0.1)
+        end
+        lastMousePos = mousePos
+
+        -- Колесо мыши
+        for _, input in ipairs(UserInputService:GetMouseInputs()) do
+            if input.UserInputType == Enum.UserInputType.MouseWheel then
+                camDistance = math.clamp(camDistance - input.Position.Z, minDistance, maxDistance)
+            end
+        end
+
+        -- Позиция камеры
+        local center = head.Position
+        local offset = CFrame.Angles(0, camYaw, 0) * CFrame.Angles(camPitch, 0, 0) * CFrame.new(0, 0, camDistance)
+        local camPos = center + offset.Position
+        Camera.CameraType = Enum.CameraType.Scriptable
+        Camera.CFrame = CFrame.new(camPos, center)
+    end)
+end
+
+local function disableFreecam()
+    freecamActive = false
+    if freecamConn then freecamConn:Disconnect() end
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+end
+
+-- Stand Range Hack: стенд следует за игроком, камера третьего лица
+local standFollowConn = nil
+local standSwapActive = false
+local standSwapYOffset = 30
+
+local function startStandSwapMode(stand)
+    if standSwapActive then return end
+    local player = game.Players.LocalPlayer
+    local char = player.Character
+    if not char or not stand or not stand.Root then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    standSwapActive = true
+    if standFollowConn then standFollowConn:Disconnect() end
+    standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not char or not root or not stand or not stand.Root then return end
+        stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
+    end)
+    setThirdPersonFreecam(stand)
+    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности, камера третьего лица")
+end
+
+local function stopStandSwapMode()
+    standSwapActive = false
+    if standFollowConn then standFollowConn:Disconnect() end
+    disableFreecam()
+    print("[standSwap] Режим отключён")
+end
+
+if _G._standRangeMenuConn then _G._standRangeMenuConn:Disconnect() end
+_G._standRangeMenuConn = game:GetService("RunService").RenderStepped:Connect(function()
+    if YBAConfig.Enabled and not standSwapActive then
+        local stands = findStands()
+        if #stands > 0 then
+            startStandSwapMode(stands[1])
+        end
+    elseif not YBAConfig.Enabled and standSwapActive then
+        stopStandSwapMode()
     end
 end)
