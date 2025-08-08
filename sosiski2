@@ -506,7 +506,10 @@ local YBAFreeCamera = {} do
     end
     local function onInputChanged(inputObj, gp)
         if inputObj.UserInputType == Enum.UserInputType.MouseMovement then
-            input.MouseDelta = Vector2.new(-inputObj.Delta.y, -inputObj.Delta.x)
+            -- Улучшенная обработка движения мыши с проверкой на разумные пределы
+            local deltaX = math.clamp(-inputObj.Delta.y, -50, 50)
+            local deltaY = math.clamp(-inputObj.Delta.x, -50, 50)
+            input.MouseDelta = input.MouseDelta + Vector2.new(deltaX, deltaY)
         elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
             input.MouseWheel = -inputObj.Position.Z
         end
@@ -523,8 +526,14 @@ local YBAFreeCamera = {} do
         for k in pairs(input) do if typeof(input[k]) == "number" then input[k] = 0 end end
         input.MouseDelta = Vector2.new()
         input.MouseWheel = 0
+        -- Сбрасываем значения для сглаживания камеры
+        targetCameraRot = Vector2.new()
+        smoothedCameraRot = Vector2.new()
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
     end
+    local targetCameraRot = Vector2.new()
+    local smoothedCameraRot = Vector2.new()
+    
     local function stepFreecam(dt)
         if not targetStand or not targetStand.Root or not targetStand.Root.Parent then return end
         local standRoot = targetStand.Root
@@ -539,7 +548,7 @@ local YBAFreeCamera = {} do
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
         if move.Magnitude > 0 then
-            local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
+            local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, smoothedCameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
             local standSpeed = math.floor(YBAConfig.UndergroundControl and YBAConfig.UndergroundControl.FlightSpeed or 100)
             if isShiftPressed then standSpeed = standSpeed + 50 end
@@ -551,10 +560,27 @@ local YBAFreeCamera = {} do
             cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 20)
             input.MouseWheel = 0
         end
-        cameraRot = cameraRot + input.MouseDelta * 0.002
-        input.MouseDelta = Vector2.new()
-        cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
-        local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
+        
+        -- Используем настраиваемую чувствительность мыши вместо жестко заданной
+        local mouseSensitivity = YBAConfig.MouseLookSensitivity or 0.003
+        if input.MouseDelta.Magnitude > 0 then
+            targetCameraRot = targetCameraRot + input.MouseDelta * mouseSensitivity
+            input.MouseDelta = Vector2.new()
+        end
+        
+        -- Ограничиваем вертикальное вращение
+        targetCameraRot = Vector2.new(math.clamp(targetCameraRot.X, -math.rad(80), math.rad(80)), targetCameraRot.Y % (2 * math.pi))
+        
+        -- Применяем сглаживание для плавности камеры
+        local smoothingFactor = YBAConfig.CameraSmoothing or 0.08
+        smoothedCameraRot = Vector2.new(
+            smoothedCameraRot.X + (targetCameraRot.X - smoothedCameraRot.X) * smoothingFactor,
+            smoothedCameraRot.Y + (targetCameraRot.Y - smoothedCameraRot.Y) * smoothingFactor
+        )
+        
+        -- Используем сглаженные значения для камеры
+        cameraRot = smoothedCameraRot
+        local rot = CFrame.Angles(0, smoothedCameraRot.Y, 0) * CFrame.Angles(smoothedCameraRot.X, 0, 0)
         local cameraOffset = Vector3.new(0, cameraHeight - 2, cameraDistance)
         local cf = CFrame.new(standPosition) * rot * CFrame.new(cameraOffset)
         cameraPos = cf.Position
@@ -568,6 +594,9 @@ local YBAFreeCamera = {} do
         local standPosition = stand.Root.Position
         cameraPos = standPosition + Vector3.new(0, cameraHeight - 2, cameraDistance)
         cameraRot = Vector2.new()
+        -- Инициализируем значения для сглаживания
+        targetCameraRot = Vector2.new()
+        smoothedCameraRot = Vector2.new()
         cameraFov = Camera.FieldOfView
         local player = Players.LocalPlayer
         if player and player.Character then
