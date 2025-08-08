@@ -255,7 +255,17 @@ local playerESPElements = {}
 local userStandESPEnabled = false
 local userStyleESPEnabled = false
 
-
+-- Глобальные переменные для freecam (объявить один раз в файле, вне функции)
+freecamConn = nil
+beganConn = nil
+endedConn = nil
+changedConn = nil
+wheelConn = nil
+camRot = camRot or Vector2.new(0, 0)
+camDistance = camDistance or -10
+camHeight = camHeight or 4
+originalCameraSubject = nil
+originalCameraType = nil
 
 -- Player ESP Functions
 local function getPlayerStand(player)
@@ -1994,12 +2004,6 @@ local standSwapYOffset = 30
 local freecamConn = nil
 local freecamActive = false
 
-local freecamConn, beganConn, endedConn, changedConn, wheelConn = nil, nil, nil, nil, nil
-local camRot = Vector2.new(0, 0)
-local camDistance = -10
-local camHeight = 4
-local originalCameraSubject = nil
-local originalCameraType = nil
 local function setFreecamToStandHead(stand)
     if not stand or not stand.Root then return end
     local root = stand.Root
