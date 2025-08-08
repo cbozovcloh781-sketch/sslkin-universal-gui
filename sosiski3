@@ -500,10 +500,16 @@ local YBAFreeCamera = {} do
 
     local function startInput()
         for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
-            ContextActionService:BindActionAtPriority("FreecamKey_"..key, onKey, false, INPUT_PRIORITY, Enum.KeyCode[key])
+            pcall(function()
+                ContextActionService:BindAction("FreecamKey_"..key, onKey, false, Enum.KeyCode[key])
+            end)
         end
-        ContextActionService:BindActionAtPriority("FreecamMouse", onMouse, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
-        ContextActionService:BindActionAtPriority("FreecamMouseWheel", onMouseWheel, false, INPUT_PRIORITY, Enum.UserInputType.MouseWheel)
+        pcall(function()
+            ContextActionService:BindAction("FreecamMouse", onMouse, false, Enum.UserInputType.MouseMovement)
+        end)
+        pcall(function()
+            ContextActionService:BindAction("FreecamMouseWheel", onMouseWheel, false, Enum.UserInputType.MouseWheel)
+        end)
     end
 
     local function stopInput()
@@ -512,10 +518,16 @@ local YBAFreeCamera = {} do
         end
         input.MouseDelta = Vector2.new()
         input.MouseWheel = 0
-        ContextActionService:UnbindAction("FreecamMouse")
-        ContextActionService:UnbindAction("FreecamMouseWheel")
+        pcall(function()
+            ContextActionService:UnbindAction("FreecamMouse")
+        end)
+        pcall(function()
+            ContextActionService:UnbindAction("FreecamMouseWheel")
+        end)
         for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
-            ContextActionService:UnbindAction("FreecamKey_"..key)
+            pcall(function()
+                ContextActionService:UnbindAction("FreecamKey_"..key)
+            end)
         end
     end
 
