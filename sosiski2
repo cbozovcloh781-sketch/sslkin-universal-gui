@@ -2117,6 +2117,7 @@ local originalPlayerY = 0
 local undergroundPlayerY = 0
 local undergroundFlyConnection = nil
 local returnToSurfaceActive = false
+local descentTween = nil
 
 -- ПОДЗЕМНЫЙ РЕЖИМ С ТВОИМ ФЛАЕМ!
 local function startUndergroundMode()
@@ -2214,10 +2215,19 @@ local function startUndergroundMode()
     
     -- Плавно опускаемся под землю
     local targetPos = Vector3.new(root.Position.X, undergroundPlayerY, root.Position.Z)
-    local descentTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
+    descentTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
         Position = targetPos
     })
     descentTween:Play()
+    
+    -- Остановка твинера когда достигли цели чтобы не падать дальше
+    descentTween.Completed:Connect(function()
+        if descentTween then 
+            descentTween:Cancel()
+            descentTween = nil
+        end
+        print("🔥 ДОСТИГЛИ 30 МЕТРОВ ПОД ЗЕМЛЕЙ!")
+    end)
     
     print("🔥 УШЛИ ПОД ЗЕМЛЮ НА 30 МЕТРОВ! Управление: WASD + Space/Ctrl")
 end
@@ -2229,11 +2239,27 @@ local function stopUndergroundMode()
     undergroundMode = false
     returnToSurfaceActive = true
     
+    -- Останавливаем твинер опускания если он еще работает
+    if descentTween then
+        descentTween:Cancel()
+        descentTween = nil
+        print("🔥 ОТМЕНЕН ТВИНЕР ОПУСКАНИЯ")
+    end
+    
     local player = Players.LocalPlayer
     local char = player.Character
-    if not char then return end
+    if not char then 
+        print("🔥 ПЕРСОНАЖ НЕ НАЙДЕН - БЕЗОПАСНЫЙ ВЫХОД")
+        return 
+    end
     local root = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
+    
+    -- Проверка на жизнь персонажа
+    if hum and hum.Health <= 0 then
+        print("🔥 ПЕРСОНАЖ МЕРТВ - БЕЗОПАСНЫЙ ВЫХОД БЕЗ ТЕЛЕПОРТА")
+        return
+    end
     
     -- Отключаем подземные соединения
     if undergroundFlyConnection then
@@ -2243,7 +2269,7 @@ local function stopUndergroundMode()
         undergroundFlyConnection = nil
     end
     
-    if root and hum then
+    if root and hum and hum.Health > 0 then
         -- Плавно возвращаемся на поверхность используя ТВОЙ ФЛАЙ
         local returnPos = Vector3.new(root.Position.X, originalPlayerY, root.Position.Z)
         local returnTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
@@ -2470,6 +2496,18 @@ end
 -- Подключаем к тумблеру меню
 if _G._standRangeMenuConn then _G._standRangeMenuConn:Disconnect() end
 _G._standRangeMenuConn = game:GetService("RunService").RenderStepped:Connect(function()
+    -- Проверка на смерть персонажа для автоотключения
+    local player = Players.LocalPlayer
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    
+    if standSwapActive and (not char or not hum or hum.Health <= 0) then
+        print("🔥 ПЕРСОНАЖ УМЕР - АВТООТКЛЮЧЕНИЕ STAND RANGE HACK")
+        YBAConfig.Enabled = false
+        stopStandSwapMode()
+        return
+    end
+    
     if YBAConfig.Enabled and not standSwapActive then
         local stands = findStands()
         if #stands > 0 then
