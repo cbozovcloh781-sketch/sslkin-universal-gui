@@ -2105,7 +2105,9 @@ if _G._detachStandConnection then _G._detachStandConnection:Disconnect() end
 if _G._standSwapConn then _G._standSwapConn:Disconnect() end
 
 -- Новая реализация Stand Range Hack через тумблер меню
+local standFollowConn = nil
 local standSwapActive = false
+local standSwapYOffset = 30
 local freecamConn = nil
 local freecamActive = false
 
@@ -2131,17 +2133,13 @@ local function setFreecamToStandHead(stand)
         originalCameraType = Camera.CameraType
     end
     
-    -- ПЛАВНЫЙ переход к стенду вместо мгновенного
-    local currentCamCFrame = Camera.CFrame
-    local targetPos = root.Position + Vector3.new(0, camHeight, 0)
-    local targetCamPos = targetPos + Vector3.new(0, 3, 10) -- Начальная позиция камеры
-    
-    -- Плавная анимация к стенду
-    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(Camera, tweenInfo, {CFrame = CFrame.new(targetCamPos, targetPos)})
+    -- ПРОСТАЯ установка камеры БЕЗ анимаций
+    local focusPos = root.Position + Vector3.new(0, camHeight, 0)
+    local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
+    local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
     
     Camera.CameraType = Enum.CameraType.Scriptable
-    tween:Play()
+    Camera.CFrame = CFrame.new(camPos, focusPos)
     
     local function onInputBegan(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
@@ -2185,16 +2183,13 @@ local function setFreecamToStandHead(stand)
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
         if not stand or not stand.Root then return end
         
-        -- ПЛАВНОЕ следование за стендом
-        local currentFocusPos = root.Position + Vector3.new(0, camHeight, 0)
+        -- ПРОСТОЕ следование за стендом БЕЗ лагов
+        local focusPos = root.Position + Vector3.new(0, camHeight, 0)
         local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
-        local targetCamPos = currentFocusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
+        local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
         
-        -- ИНТЕРПОЛЯЦИЯ вместо мгновенной установки
-        local currentCamPos = Camera.CFrame.Position
-        local lerpedCamPos = currentCamPos:Lerp(targetCamPos, 0.1) -- плавность!
-        
-        Camera.CFrame = CFrame.new(lerpedCamPos, currentFocusPos)
+        -- ПРЯМАЯ установка БЕЗ интерполяции
+        Camera.CFrame = CFrame.new(camPos, focusPos)
     end)
     
     disableFreecam = function()
@@ -2205,15 +2200,9 @@ local function setFreecamToStandHead(stand)
         if wheelConn then wheelConn:Disconnect() wheelConn = nil end
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         
-        -- ПЛАВНОЕ возвращение к персонажу
-        local player = game.Players.LocalPlayer
-        if player and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                Camera.CameraType = Enum.CameraType.Custom
-                Camera.CameraSubject = humanoid
-            end
-        end
+        -- ПРОСТОЕ возвращение к персонажу БЕЗ анимаций
+        Camera.CameraType = originalCameraType or Enum.CameraType.Custom
+        Camera.CameraSubject = originalCameraSubject or (game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid"))
         
         -- Сброс переменных
         originalCameraSubject = nil
@@ -2236,31 +2225,30 @@ local function startStandSwapMode(stand)
     if not root then return end
     standSwapActive = true
     
-    -- ОТСОЕДИНЯЕМ стенд от игрока (убираем все связи)
-    detachStandControl(stand)
+    -- ВОЗВРАЩАЕМ: стенд летит на 30 метров вверх от игрока
+    if standFollowConn then standFollowConn:Disconnect() end
+    standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not char or not root or not stand or not stand.Root then return end
+        stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
+    end)
     
-    -- Присоединяем камеру к стенду
+    -- Простая камера без лагов
     setFreecamToStandHead(stand)
-    print("[standSwap] Режим активирован: стенд ОТСОЕДИНЕН от игрока, камера присоединена к стенду")
+    print("[standSwap] Режим активирован: стенд на 30м выше игрока, простая камера")
 end
 
 local function stopStandSwapMode()
     standSwapActive = false
     
-    -- Останавливаем управление стендом
-    if detachedStand then
-        local bv = detachedStand.Root:FindFirstChild("BodyVelocity")
-        if bv then bv:Destroy() end
-        detachedStand = nil
-    end
-    if heartbeatConn then 
-        heartbeatConn:Disconnect() 
-        heartbeatConn = nil
+    -- Отключаем следование стенда за игроком
+    if standFollowConn then 
+        standFollowConn:Disconnect() 
+        standFollowConn = nil
     end
     
     -- Отключаем камеру
     disableFreecam()
-    print("[standSwap] Режим отключён - стенд и камера возвращены")
+    print("[standSwap] Режим отключён")
 end
 
 -- Подключаем к тумблеру меню
