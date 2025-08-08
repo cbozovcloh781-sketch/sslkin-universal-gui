@@ -2033,13 +2033,12 @@ local function setFreecamToStandHead(stand)
     local changedConn = UserInputService.InputChanged:Connect(onInputChanged)
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
         Camera.CameraType = Enum.CameraType.Scriptable
-        local basePos = head.Position + Vector3.new(0, camHeight, 0)
+        local focusPos = head.Position + Vector3.new(0, camHeight, 0)
         local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
-        local targetPos = basePos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
+        local targetPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
         if not camPos then camPos = targetPos end
         camPos = camPos:Lerp(targetPos, smoothing)
-        local lookDir = rot:VectorToWorldSpace(Vector3.new(0, 0, -1))
-        Camera.CFrame = CFrame.new(camPos, camPos + lookDir)
+        Camera.CFrame = CFrame.new(camPos, focusPos)
     end)
     -- Отключение
     local function disconnectAll()
