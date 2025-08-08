@@ -2179,23 +2179,15 @@ local function startFlightMode()
         local cam = workspace.CurrentCamera
         if not cam then return end
         
-        -- Убираем Y из направления камеры для горизонтального движения
-        local camLook = cam.CFrame.lookVector
-        local forward = Vector3.new(camLook.X, 0, camLook.Z).Unit
+        -- Используем ТОЧНО ТАКУЮ ЖЕ логику как в оригинальном полете
+        local forward = cam.CFrame.lookVector
         local right = cam.CFrame.rightVector
         local up = Vector3.new(0, 1, 0)
         
         local moveVector = Vector3.new(0, 0, 0)
-        -- Горизонтальное движение от мышки/камеры
         moveVector = moveVector + (forward * (ctrl.f + ctrl.b))
         moveVector = moveVector + (right * (ctrl.r + ctrl.l))
-        -- Вертикальное движение только от ctrl/space
         moveVector = moveVector + (up * (ctrl.u + ctrl.d))
-        
-        -- Поворот персонажа по направлению камеры (только по Y)
-        local camCFrame = cam.CFrame
-        local newCFrame = CFrame.new(root.Position, root.Position + Vector3.new(camLook.X, 0, camLook.Z))
-        root.CFrame = newCFrame
         
         if moveVector.Magnitude > 0 then
             -- Используем Flight Speed для скорости!
@@ -2419,14 +2411,10 @@ local function startStandSwapMode(stand)
     local originalStandY = stand.Root.Position.Y
     local targetStandY = originalStandY + standSwapYOffset
     
-    -- Плавно поднимаем стенд
-    local standRiseTween = TweenService:Create(stand.Root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
-        Position = Vector3.new(stand.Root.Position.X, targetStandY, stand.Root.Position.Z)
-    })
-    standRiseTween:Play()
+    -- Просто телепортируем стенд наверх (без твинера чтобы не кикал античит)
+    stand.Root.CFrame = CFrame.new(stand.Root.Position.X, targetStandY, stand.Root.Position.Z)
     
-    -- Ждем пока стенд поднимется + 5 секунд
-    standRiseTween.Completed:Wait()
+    -- Ждем 5 секунд
     task.wait(5.0)
     
     -- ЭТАП 2: Включаем режим полета с ноуклипом (игрок сам управляет высотой)
