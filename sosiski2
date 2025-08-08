@@ -474,8 +474,9 @@ local YBAFreeCamera = {} do
     local targetStand = nil
     local originalCameraSubject = nil
     local originalCameraType = nil
+    local originalMouseBehavior = nil
+    local heartbeatConnection = nil
     
-    -- ПРОСТАЯ камера - просто задаем CameraSubject!
     function YBAFreeCamera.Start(stand)
         if fcRunning then YBAFreeCamera.Stop() end
         if not stand or not stand.Root then 
@@ -489,10 +490,14 @@ local YBAFreeCamera = {} do
         -- Сохраняем оригинальные настройки
         originalCameraSubject = Camera.CameraSubject
         originalCameraType = Camera.CameraType
+        originalMouseBehavior = UserInputService.MouseBehavior
         
-        -- МАКСИМАЛЬНО ПРОСТОЕ РЕШЕНИЕ - используем стандартную камеру Roblox!
+        -- Устанавливаем камеру на стенд
         Camera.CameraSubject = standRoot
         Camera.CameraType = Enum.CameraType.Custom
+        
+        -- ГЛАВНОЕ: ВКЛЮЧАЕМ SHIFTLOCK РЕЖИМ!
+        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
         
         -- Отключаем автоповорот игрока
         local player = Players.LocalPlayer
@@ -502,10 +507,8 @@ local YBAFreeCamera = {} do
         end
         
         -- Подключаем управление стендом
-        local heartbeatConnection
         heartbeatConnection = RunService.Heartbeat:Connect(function()
             if not targetStand or not targetStand.Root or not targetStand.Root.Parent then 
-                if heartbeatConnection then heartbeatConnection:Disconnect() end
                 return 
             end
             
@@ -550,12 +553,18 @@ local YBAFreeCamera = {} do
         end)
         
         fcRunning = true
-        print("YBA: ПРОСТАЯ камера активирована - " .. stand.Name)
+        print("YBA: Камера как ШИФТЛОК активирована - " .. stand.Name)
         return true
     end
 
     function YBAFreeCamera.Stop()
         if not fcRunning then return end
+        
+        -- Отключаем соединение
+        if heartbeatConnection then
+            heartbeatConnection:Disconnect()
+            heartbeatConnection = nil
+        end
         
         -- Останавливаем стенд
         if targetStand and targetStand.Root then
@@ -572,14 +581,16 @@ local YBAFreeCamera = {} do
             if humanoid then humanoid.AutoRotate = true end
         end
         
-        -- Восстанавливаем камеру
+        -- ВОССТАНАВЛИВАЕМ ВСЕ НАСТРОЙКИ
         Camera.CameraType = originalCameraType or Enum.CameraType.Custom
         Camera.CameraSubject = originalCameraSubject or (player.Character and player.Character:FindFirstChild("Humanoid"))
+        UserInputService.MouseBehavior = originalMouseBehavior or Enum.MouseBehavior.Default
         
         -- Очищаем переменные
         targetStand = nil
         originalCameraSubject = nil
         originalCameraType = nil
+        originalMouseBehavior = nil
         fcRunning = false
         
         print("YBA: Камера отключена")
