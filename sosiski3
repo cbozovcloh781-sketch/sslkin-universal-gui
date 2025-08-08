@@ -1983,14 +1983,24 @@ local function activateFreeCamera(stand)
         return false
     end
     print("YBA: Активируем управление стендом: " .. stand.Name)
-    -- Не замораживаем игрока, не трогаем WalkSpeed/JumpPower
+    -- Освобождаем стенд: переносим в workspace, удаляем Weld/Attachment
+    local char = Players.LocalPlayer.Character
+    if stand.Root.Parent == char then
+        stand.Root.Parent.Parent = workspace
+    end
+    for _, obj in ipairs(stand.Root.Parent:GetDescendants()) do
+        if obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D") or obj:IsA("Attachment") then
+            if obj.Part0 and obj.Part0:IsDescendantOf(char) or obj.Part1 and obj.Part1 and obj.Part1:IsDescendantOf(char) then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+    end
     freeCameraActive = true
     freeCameraTarget = stand
     local cam = workspace.CurrentCamera
     local originalCameraType = cam.CameraType
     local originalCameraSubject = cam.CameraSubject
     cam.CameraType = Enum.CameraType.Scriptable
-    -- Свободная камера: вращение мышью (ПКМ), отдаление колесом
     local yaw, pitch = 0, 0
     local distance = 10
     local minDist, maxDist = 3, 30
@@ -2000,14 +2010,12 @@ local function activateFreeCamera(stand)
     local function getStandHead()
         return stand.Root.Parent:FindFirstChild("Head") or stand.Root
     end
-    -- Отключаем управление игроком (запоминаем старые обработчики, если есть)
     local function blockPlayerInput(actionName, inputState, inputObj)
         return Enum.ContextActionResult.Sink
     end
     local ContextActionService = game:GetService("ContextActionService")
     ContextActionService:BindAction("BlockPlayerMove", blockPlayerInput, false,
         Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Space, Enum.KeyCode.LeftShift)
-    -- Управление мышью и колесом
     local inputBeganConn = UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
@@ -2039,23 +2047,18 @@ local function activateFreeCamera(stand)
             distance = math.clamp(distance - input.Position.Z, minDist, maxDist)
         end
     end)
-    -- Включаем флай для игрока
     if not isFlying then
         startFly()
     end
-    -- Управление стендом и игроком
     local function updateControl(dt)
         if not freeCameraActive or not stand or not stand.Root then return end
-        -- Движение стенда
         local moveVec = Vector3.new(move.D - move.A, move.Space, move.S - move.W)
         if moveVec.Magnitude > 0 then
             moveVec = moveVec.Unit * (standSpeed + (move.Shift > 0 and 20 or 0))
-            -- Поворот движения относительно камеры
             local camRot = CFrame.Angles(0, yaw, 0)
             moveVec = camRot:VectorToWorldSpace(moveVec)
             stand.Root.CFrame = stand.Root.CFrame + moveVec * dt
         end
-        -- Камера (позиция + пользовательское вращение, без качки)
         local head = getStandHead()
         local camPos, camLook
         if head then
@@ -2068,14 +2071,12 @@ local function activateFreeCamera(stand)
             camLook = stand.Root.Position
         end
         cam.CFrame = CFrame.new(camPos, camLook)
-        -- Перемещение игрока под карту через флай (BodyVelocity)
         local player = Players.LocalPlayer
         local char = player and player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if root then
             local standPos = stand.Root.Position
             local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
-            -- Корректируем BodyVelocity игрока (флай)
             local bv = root:FindFirstChild("BodyVelocity")
             if bv then
                 bv.Velocity = (targetPos - root.Position) * 5
@@ -2104,7 +2105,7 @@ local function disableFreeCamera()
     for _, connection in ipairs(freeCameraConnections) do
         if connection and type(connection) == "function" then
             pcall(connection)
-        elseif connection then
+        elseif connection and typeof(connection) == "RBXScriptConnection" then
             pcall(function() connection:Disconnect() end)
         end
     end
