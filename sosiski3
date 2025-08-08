@@ -457,12 +457,9 @@ end
 local YBAFreeCamera = {} do
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
-    local ContextActionService = game:GetService("ContextActionService")
     local Camera = workspace.CurrentCamera
 
     local fcRunning = false
-    local INPUT_PRIORITY = Enum.ContextActionPriority.High.Value
-
     local cameraPos = Vector3.new()
     local cameraRot = Vector2.new()
     local cameraFov = 70
@@ -470,205 +467,130 @@ local YBAFreeCamera = {} do
     local originalCameraCFrame = nil
     local cameraDistance = 10
     local cameraHeight = 5
-
     local NAV_SPEED = 1
-
     local input = {
         W = 0, A = 0, S = 0, D = 0,
         Space = 0, LeftControl = 0,
-        Up = 0, Down = 0,
         MouseDelta = Vector2.new(),
         MouseWheel = 0
     }
+    local mouseConnection, mouseWheelConnection, inputBeganConnection, inputEndedConnection
 
-    local function onKey(actionName, inputState, inputObj)
-        input[inputObj.KeyCode.Name] = (inputState == Enum.UserInputState.Begin) and 1 or 0
-        return Enum.ContextActionResult.Sink
+    local function onInputBegan(inputObj, gp)
+        if gp then return end
+        if inputObj.UserInputType == Enum.UserInputType.Keyboard then
+            local name = inputObj.KeyCode.Name
+            if input[name] ~= nil then input[name] = 1 end
+        elseif inputObj.UserInputType == Enum.UserInputType.MouseButton2 then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+        end
     end
-
-    local function onMouse(actionName, inputState, inputObj)
-        input.MouseDelta = Vector2.new(-inputObj.Delta.y, -inputObj.Delta.x)
-        return Enum.ContextActionResult.Sink
+    local function onInputEnded(inputObj, gp)
+        if gp then return end
+        if inputObj.UserInputType == Enum.UserInputType.Keyboard then
+            local name = inputObj.KeyCode.Name
+            if input[name] ~= nil then input[name] = 0 end
+        elseif inputObj.UserInputType == Enum.UserInputType.MouseButton2 then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        end
     end
-
-    local function onMouseWheel(actionName, inputState, inputObj)
-        if inputObj.UserInputType == Enum.UserInputType.MouseWheel then
+    local function onInputChanged(inputObj, gp)
+        if inputObj.UserInputType == Enum.UserInputType.MouseMovement then
+            input.MouseDelta = Vector2.new(-inputObj.Delta.y, -inputObj.Delta.x)
+        elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
             input.MouseWheel = -inputObj.Position.Z
         end
-        return Enum.ContextActionResult.Sink
     end
-
     local function startInput()
-        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
-            pcall(function()
-                ContextActionService:BindAction("FreecamKey_"..key, onKey, false, Enum.KeyCode[key])
-            end)
-        end
-        pcall(function()
-            ContextActionService:BindAction("FreecamMouse", onMouse, false, Enum.UserInputType.MouseMovement)
-        end)
-        pcall(function()
-            ContextActionService:BindAction("FreecamMouseWheel", onMouseWheel, false, Enum.UserInputType.MouseWheel)
-        end)
+        inputBeganConnection = UserInputService.InputBegan:Connect(onInputBegan)
+        inputEndedConnection = UserInputService.InputEnded:Connect(onInputEnded)
+        mouseConnection = UserInputService.InputChanged:Connect(onInputChanged)
     end
-
     local function stopInput()
-        for k in pairs(input) do
-            if typeof(input[k]) == "number" then input[k] = 0 end
-        end
+        if inputBeganConnection then inputBeganConnection:Disconnect() end
+        if inputEndedConnection then inputEndedConnection:Disconnect() end
+        if mouseConnection then mouseConnection:Disconnect() end
+        for k in pairs(input) do if typeof(input[k]) == "number" then input[k] = 0 end end
         input.MouseDelta = Vector2.new()
         input.MouseWheel = 0
-        pcall(function()
-            ContextActionService:UnbindAction("FreecamMouse")
-        end)
-        pcall(function()
-            ContextActionService:UnbindAction("FreecamMouseWheel")
-        end)
-        for _, key in pairs({"W", "A", "S", "D", "Space", "LeftControl", "Up", "Down"}) do
-            pcall(function()
-                ContextActionService:UnbindAction("FreecamKey_"..key)
-            end)
-        end
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
     end
-
     local function stepFreecam(dt)
-        if not targetStand or not targetStand.Root or not targetStand.Root.Parent then
-            return
-        end
-
+        if not targetStand or not targetStand.Root or not targetStand.Root.Parent then return end
         local standRoot = targetStand.Root
         local standPosition = standRoot.Position
-
         local moveX = input.D - input.A
         local moveZ = input.S - input.W
         local moveY = input.Space - input.LeftControl
-        
         local move = Vector3.new(moveX, moveY, moveZ) * NAV_SPEED
-
         local bv = standRoot:FindFirstChild("BodyVelocity")
         if not bv then
             bv = Instance.new("BodyVelocity", standRoot)
             bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
         end
-        
         if move.Magnitude > 0 then
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
-            local standSpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed)
-            
-            if isShiftPressed then
-                standSpeed = standSpeed + 50
-                print("Ускорение активировано - скорость:", standSpeed)
-            end
-            
+            local standSpeed = math.floor(YBAConfig.UndergroundControl and YBAConfig.UndergroundControl.FlightSpeed or 100)
+            if isShiftPressed then standSpeed = standSpeed + 50 end
             bv.Velocity = worldMove * standSpeed
-
-            if moveY ~= 0 then
-                print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
-            end
         else
             bv.Velocity = Vector3.new(0, 0, 0)
         end
-
-        local pan = input.MouseDelta * math.rad(0.8)
-        input.MouseDelta = Vector2.new()
-
         if input.MouseWheel ~= 0 then
             cameraDistance = math.clamp(cameraDistance + input.MouseWheel * 1.5, 3, 20)
             input.MouseWheel = 0
         end
-
-        cameraRot = cameraRot + pan
+        cameraRot = cameraRot + input.MouseDelta * 0.002
+        input.MouseDelta = Vector2.new()
         cameraRot = Vector2.new(math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), cameraRot.Y % (2 * math.pi))
-
-        local player = Players.LocalPlayer
-        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local playerRoot = player.Character.HumanoidRootPart
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            
-            if humanoid then
-                local targetCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
-                playerRoot.CFrame = targetCFrame
-
-                humanoid.AutoRotate = false
-            end
-        end
-
         local rot = CFrame.Angles(0, cameraRot.Y, 0) * CFrame.Angles(cameraRot.X, 0, 0)
-        local cameraOffset = Vector3.new(0, cameraHeight - 2, cameraDistance) 
+        local cameraOffset = Vector3.new(0, cameraHeight - 2, cameraDistance)
         local cf = CFrame.new(standPosition) * rot * CFrame.new(cameraOffset)
-
         cameraPos = cf.Position
         Camera.CFrame = cf
     end
-
     function YBAFreeCamera.Start(stand)
-        if fcRunning then 
-            YBAFreeCamera.Stop() 
-        end
-        
-        if not stand or not stand.Root then
-            print("YBA: Ошибка - стенд не найден")
-            return false
-        end
-        
+        if fcRunning then YBAFreeCamera.Stop() end
+        if not stand or not stand.Root then print("YBA: Ошибка - стенд не найден") return false end
         targetStand = stand
         originalCameraCFrame = Camera.CFrame
-        
         local standPosition = stand.Root.Position
-        cameraPos = standPosition + Vector3.new(0, cameraHeight - 2, cameraDistance) 
+        cameraPos = standPosition + Vector3.new(0, cameraHeight - 2, cameraDistance)
         cameraRot = Vector2.new()
         cameraFov = Camera.FieldOfView
-
         local player = Players.LocalPlayer
         if player and player.Character then
             local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = false 
-            end
+            if humanoid then humanoid.AutoRotate = false end
         end
-        
         Camera.CameraType = Enum.CameraType.Scriptable
         RunService:BindToRenderStep("YBAFreecam", Enum.RenderPriority.Camera.Value, stepFreecam)
         startInput()
         fcRunning = true
-        
         print("YBA: Управление стендом активировано: " .. stand.Name)
         return true
     end
-
     function YBAFreeCamera.Stop()
         if not fcRunning then return end
         stopInput()
         RunService:UnbindFromRenderStep("YBAFreecam")
         Camera.CameraType = Enum.CameraType.Custom
-
         if targetStand and targetStand.Root then
             local bv = targetStand.Root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
+            if bv then bv:Destroy() end
         end
-
         local player = Players.LocalPlayer
         if player and player.Character then
             local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = true
-            end
+            if humanoid then humanoid.AutoRotate = true end
         end
-        
-        if originalCameraCFrame then
-            Camera.CFrame = originalCameraCFrame
-        end
-        
+        if originalCameraCFrame then Camera.CFrame = originalCameraCFrame end
         targetStand = nil
         originalCameraCFrame = nil
         fcRunning = false
-        
         print("YBA: Управление стендом отключено")
     end
-
     function YBAFreeCamera.Toggle(stand)
         if fcRunning then
             YBAFreeCamera.Stop()
