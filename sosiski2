@@ -2174,7 +2174,7 @@ local function setFreecamToStandHead(stand)
             if canRotate then
                 -- ПЛАВНАЯ обработка вращения с поддержкой шифтлока
                 local deltaX = -input.Delta.x * mouseSensitivity
-                local deltaY = -input.Delta.y * mouseSensitivity
+                local deltaY = input.Delta.y * mouseSensitivity -- УБРАЛ МИНУС! Теперь как в нормальных играх
                 
                 -- Для шифтлока увеличиваем чувствительность
                 local currentShiftLock = checkShiftLock()
