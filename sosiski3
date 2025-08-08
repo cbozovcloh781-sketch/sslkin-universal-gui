@@ -2116,19 +2116,8 @@ local function controlStand(stand)
     end
 end
 
-local function isAvatarEditorActive()
-    local avatarEditor = CoreGui:FindFirstChild("RobloxGui")
-        and CoreGui.RobloxGui:FindFirstChild("Modules")
-        and CoreGui.RobloxGui.Modules:FindFirstChild("AvatarEditorPrompts")
-    return avatarEditor ~= nil
-end
-
 local function startYBA()
     if isYBAEnabled then return end
-    if isAvatarEditorActive() then
-        warn("AvatarEditor открыт, Stand Range не будет активирован для предотвращения ошибок.")
-        return
-    end
     isYBAEnabled = true
     YBAConfig.Enabled = true
     if not findStands then return end
