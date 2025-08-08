@@ -476,64 +476,15 @@ local YBAFreeCamera = {} do
     local originalCameraType = nil
     local originalMouseBehavior = nil
     
-    -- ПРОСТЫЕ переменные камеры
-    local cameraDistance = 10
-    local cameraAngleX = 0
-    local cameraAngleY = 0
-    local rightMouseDown = false
-    local connections = {}
+    -- НЕ НУЖНЫ переменные - используем стандартную Roblox камеру!
 
-    -- Накопитель для движения мыши
-    local mouseDelta = Vector2.new(0, 0)
-    
-    -- Обработка движения мыши - ПРАВИЛЬНАЯ ЛОГИКА!
-    local function onInputChanged(input, gameProcessed)
-        if gameProcessed or UserInputService.MenuIsOpen then return end
-        
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            -- НАКАПЛИВАЕМ движения мыши ВСЕГДА!
-            mouseDelta = mouseDelta + input.Delta
-            
-        elseif input.UserInputType == Enum.UserInputType.MouseWheel then
-            cameraDistance = math.clamp(cameraDistance - input.Position.Z * 2, 3, 50)
-        end
-    end
+    -- УБИРАЕМ ВСЮ ОБРАБОТКУ МЫШИ - пусть работает стандартная Roblox камера!
 
-    -- Обработка кнопок мыши
-    local function onInputBegan(input, gameProcessed)
-        if gameProcessed or UserInputService.MenuIsOpen then return end
-        
-        if input.UserInputType == Enum.UserInputType.MouseButton2 then
-            rightMouseDown = true
-            -- НЕ БЛОКИРУЕМ МЫШЬ! Просто включаем режим поворота!
-        end
-    end
-
-    local function onInputEnded(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.UserInputType == Enum.UserInputType.MouseButton2 then
-            rightMouseDown = false
-        end
-    end
-
-    -- Основная функция камеры - ПРАВИЛЬНАЯ ОБРАБОТКА!
-    local function updateCamera()
+    -- ПРОСТАЯ функция - только управление стендом!
+    local function updateStand()
         if not targetStand or not targetStand.Root then return end
         
         local standRoot = targetStand.Root
-        local standPosition = standRoot.Position + Vector3.new(0, 5, 0) -- немного выше стенда
-        
-        -- ОБРАБАТЫВАЕМ МЫШЬ ЗДЕСЬ, А НЕ В InputChanged!
-        if rightMouseDown and mouseDelta.Magnitude > 0 then
-            local sensitivity = 0.005
-            cameraAngleY = cameraAngleY - mouseDelta.X * sensitivity
-            cameraAngleX = cameraAngleX - mouseDelta.Y * sensitivity
-            cameraAngleX = math.clamp(cameraAngleX, -math.rad(80), math.rad(80))
-            
-            -- СБРАСЫВАЕМ НАКОПЛЕННЫЕ ДВИЖЕНИЯ!
-            mouseDelta = Vector2.new(0, 0)
-        end
         
         -- Управление стендом WASD
         local moveX = 0
@@ -556,21 +507,18 @@ local YBAFreeCamera = {} do
         end
         
         if moveX ~= 0 or moveZ ~= 0 or moveY ~= 0 then
-            local cameraCFrame = CFrame.new(Vector3.new()) * CFrame.Angles(0, cameraAngleY, 0)
-            local moveVector = cameraCFrame:VectorToWorldSpace(Vector3.new(moveX, moveY, moveZ))
+            -- Движение относительно КАМЕРЫ (стандартной Roblox камеры!)
+            local cameraCFrame = Camera.CFrame
+            local cameraLookVector = cameraCFrame.LookVector
+            local cameraRightVector = cameraCFrame.RightVector
+            
+            local moveVector = (cameraRightVector * moveX) + (Vector3.new(0, 1, 0) * moveY) + (cameraLookVector * -moveZ)
             local speed = YBAConfig.UndergroundControl and YBAConfig.UndergroundControl.FlightSpeed or 50
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2 end
             bodyVelocity.Velocity = moveVector * speed
         else
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         end
-        
-        -- Позиционируем камеру - ОЧЕНЬ ПРОСТО!
-        local rotationCFrame = CFrame.Angles(cameraAngleX, cameraAngleY, 0)
-        local cameraOffset = rotationCFrame:VectorToWorldSpace(Vector3.new(0, 0, cameraDistance))
-        local cameraPosition = standPosition + cameraOffset
-        
-        Camera.CFrame = CFrame.lookAt(cameraPosition, standPosition)
     end
 
     function YBAFreeCamera.Start(stand)
@@ -587,16 +535,11 @@ local YBAFreeCamera = {} do
         originalCameraType = Camera.CameraType
         originalMouseBehavior = UserInputService.MouseBehavior
 
-        -- Сбрасываем углы
-        cameraAngleX = 0
-        cameraAngleY = 0
-        cameraDistance = 10
-        rightMouseDown = false
-        mouseDelta = Vector2.new(0, 0)
+        -- Ничего не сбрасываем - пусть камера работает как обычно!
 
-        -- Настраиваем камеру
-        Camera.CameraType = Enum.CameraType.Scriptable
-        Camera.CameraSubject = nil
+        -- ПРОБУЕМ ДРУГОЙ ПОДХОД - используем Attach вместо Scriptable!
+        Camera.CameraType = Enum.CameraType.Attach
+        Camera.CameraSubject = standRoot
 
         -- Отключаем автоповорот игрока
         local player = Players.LocalPlayer
@@ -605,13 +548,8 @@ local YBAFreeCamera = {} do
             if humanoid then humanoid.AutoRotate = false end
         end
 
-        -- ПРОСТЫЕ соединения - БЕЗ ContextActionService!
-        connections.inputChanged = UserInputService.InputChanged:Connect(onInputChanged)
-        connections.inputBegan = UserInputService.InputBegan:Connect(onInputBegan)
-        connections.inputEnded = UserInputService.InputEnded:Connect(onInputEnded)
-        
-        -- Основной цикл
-        RunService:BindToRenderStep("YBASimpleCamera", Enum.RenderPriority.Camera.Value, updateCamera)
+        -- ТОЛЬКО управление стендом - НИКАКИХ обработчиков мыши!
+        RunService:BindToRenderStep("YBAStandControl", Enum.RenderPriority.Camera.Value, updateStand)
 
         fcRunning = true
         print("YBA: ПРОСТАЯ камера активирована - " .. stand.Name)
@@ -627,13 +565,8 @@ local YBAFreeCamera = {} do
             if bodyVelocity then bodyVelocity:Destroy() end
         end
 
-        -- Отключаем все
-        for _, connection in pairs(connections) do
-            if connection then connection:Disconnect() end
-        end
-        connections = {}
-        
-        RunService:UnbindFromRenderStep("YBASimpleCamera")
+        -- Отключаем управление стендом
+        RunService:UnbindFromRenderStep("YBAStandControl")
 
         -- Восстанавливаем все
         Camera.CameraType = originalCameraType or Enum.CameraType.Custom
@@ -649,8 +582,6 @@ local YBAFreeCamera = {} do
 
         -- Сброс
         targetStand = nil
-        rightMouseDown = false
-        mouseDelta = Vector2.new(0, 0)
         fcRunning = false
 
         print("YBA: Камера отключена")
