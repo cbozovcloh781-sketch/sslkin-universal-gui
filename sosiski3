@@ -550,6 +550,14 @@ local YBAFreeCamera = {} do
             end
             
             bv.Velocity = worldMove * standSpeed
+            
+            -- Обновляем SuperBodyPosition для движения
+            local superBodyPos = standRoot:FindFirstChild("SuperBodyPosition")
+            if superBodyPos then
+                local currentPos = standRoot.Position
+                local newPos = currentPos + (worldMove * standSpeed * 0.01) -- небольшое смещение
+                superBodyPos.Position = newPos
+            end
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -2032,6 +2040,32 @@ local function activateFreeCamera(stand)
     end
     
     print("YBA: Активируем управление стендом: " .. stand.Name)
+    
+    -- НОВЫЙ МЕТОД: ПЕРЕОПРЕДЕЛЯЕМ УПРАВЛЕНИЕ СТЕНДОМ
+    print("🔥 ОТСОЕДИНЯЕМ стенд через мощный BodyPosition...")
+    
+    -- Создаем мощный BodyPosition для переопределения позиции стенда
+    local superBodyPos = stand.Root:FindFirstChild("SuperBodyPosition")
+    if not superBodyPos then
+        superBodyPos = Instance.new("BodyPosition")
+        superBodyPos.Name = "SuperBodyPosition"
+        superBodyPos.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        superBodyPos.P = 50000 -- очень высокая мощность
+        superBodyPos.D = 5000 -- высокий демпфинг
+        superBodyPos.Parent = stand.Root
+        print("🔥 Добавлен СУПЕР BodyPosition для отсоединения")
+    end
+    
+    -- Телепортируем стенд подальше от игрока
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local playerPos = char.HumanoidRootPart.Position
+        local targetStandPos = Vector3.new(playerPos.X + 50, playerPos.Y + 30, playerPos.Z + 50)
+        superBodyPos.Position = targetStandPos
+        stand.Root.CFrame = CFrame.new(targetStandPos)
+        print("🔥 Стенд отсоединен на позицию:", targetStandPos)
+    end
 
     if YBAConfig.FreezePlayer then
         print("YBA: Замораживаем игрока...")
@@ -2124,12 +2158,13 @@ local function startYBA()
         isYBAEnabled = true
         YBAConfig.Enabled = true
         if not findStands then return end
-        local stands = findStands()
-        if #stands == 0 then return end
-        local targetStand = stands[1]
-        if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
-        if YBAConfig.SwitchCamera then end
-        if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
+                 local stands = findStands()
+         if #stands == 0 then return end
+         local targetStand = stands[1]
+         controlledStand = targetStand -- сохраняем для очистки
+         if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
+         if YBAConfig.SwitchCamera then end
+         if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
     end)
     
     if not success then
@@ -2171,6 +2206,16 @@ local function stopYBA()
         end
     end
     standControlConnections = {}
+    
+    -- Очищаем SuperBodyPosition из стенда
+    if controlledStand and controlledStand.Root then
+        local superBodyPos = controlledStand.Root:FindFirstChild("SuperBodyPosition")
+        if superBodyPos then
+            superBodyPos:Destroy()
+            print("🔥 SuperBodyPosition удален из стенда")
+        end
+    end
+    
     controlledStand = nil
     
     print("Stand Range Hack деактивирован")
