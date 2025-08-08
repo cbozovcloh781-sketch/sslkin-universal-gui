@@ -2120,10 +2120,7 @@ local function isAvatarEditorActive()
     local avatarEditor = CoreGui:FindFirstChild("RobloxGui")
         and CoreGui.RobloxGui:FindFirstChild("Modules")
         and CoreGui.RobloxGui.Modules:FindFirstChild("AvatarEditorPrompts")
-    if avatarEditor and avatarEditor.Visible ~= nil then
-        return avatarEditor.Visible
-    end
-    return false
+    return avatarEditor ~= nil
 end
 
 local function startYBA()
