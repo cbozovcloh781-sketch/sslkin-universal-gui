@@ -4733,28 +4733,34 @@ _G._standSwapConn = game:GetService("UserInputService").InputBegan:Connect(funct
     end
 end)
 
--- Third-person freecam для стенда
+-- Third-person freecam для стенда (компактная версия)
 local freecamConn = nil
-local freecamActive = false
 local camYaw, camPitch = 0, 0
 local camDistance = 10
 local minDistance, maxDistance = 3, 30
 local lastMousePos = nil
+local freecamActive = false
+local freecamHead = nil
 local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 
-local function setThirdPersonFreecam(stand)
-    if not stand or not stand.Root then return end
-    local head = stand.Model:FindFirstChild("Head") or stand.Model:FindFirstChild("HeadPart") or stand.Model:FindFirstChild("HumanoidRootPart")
-    if not head then return end
+if _G._freecamWheelConn then _G._freecamWheelConn:Disconnect() end
+_G._freecamWheelConn = UserInputService.InputChanged:Connect(function(input)
+    if freecamActive and input.UserInputType == Enum.UserInputType.MouseWheel then
+        camDistance = math.clamp(camDistance - input.Position.Z, minDistance, maxDistance)
+    end
+end)
+
+function setThirdPersonFreecam(stand)
+    if freecamConn then freecamConn:Disconnect() end
     freecamActive = true
     camYaw, camPitch = 0, 0
     camDistance = 10
     lastMousePos = UserInputService:GetMouseLocation()
-    if freecamConn then freecamConn:Disconnect() end
-
+    freecamHead = stand.Model:FindFirstChild("Head") or stand.Model:FindFirstChild("HeadPart") or stand.Model:FindFirstChild("HumanoidRootPart")
+    if not freecamHead then return end
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
-        -- Управление мышью
+        if not freecamHead then return end
         local mousePos = UserInputService:GetMouseLocation()
         if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
             local delta = mousePos - lastMousePos
@@ -4762,16 +4768,7 @@ local function setThirdPersonFreecam(stand)
             camPitch = math.clamp(camPitch - delta.Y * 0.003, -math.pi/2 + 0.1, math.pi/2 - 0.1)
         end
         lastMousePos = mousePos
-
-        -- Колесо мыши
-        for _, input in ipairs(UserInputService:GetMouseInputs()) do
-            if input.UserInputType == Enum.UserInputType.MouseWheel then
-                camDistance = math.clamp(camDistance - input.Position.Z, minDistance, maxDistance)
-            end
-        end
-
-        -- Позиция камеры
-        local center = head.Position
+        local center = freecamHead.Position
         local offset = CFrame.Angles(0, camYaw, 0) * CFrame.Angles(camPitch, 0, 0) * CFrame.new(0, 0, camDistance)
         local camPos = center + offset.Position
         Camera.CameraType = Enum.CameraType.Scriptable
@@ -4779,7 +4776,7 @@ local function setThirdPersonFreecam(stand)
     end)
 end
 
-local function disableFreecam()
+function disableFreecam()
     freecamActive = false
     if freecamConn then freecamConn:Disconnect() end
     workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
