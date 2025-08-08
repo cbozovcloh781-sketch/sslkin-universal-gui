@@ -1994,6 +1994,12 @@ local standSwapYOffset = 30
 local freecamConn = nil
 local freecamActive = false
 
+local freecamConn, beganConn, endedConn, changedConn, wheelConn = nil, nil, nil, nil, nil
+local camRot = Vector2.new(0, 0)
+local camDistance = -10
+local camHeight = 4
+local originalCameraSubject = nil
+local originalCameraType = nil
 local function setFreecamToStandHead(stand)
     if not stand or not stand.Root then return end
     local root = stand.Root
@@ -2007,6 +2013,15 @@ local function setFreecamToStandHead(stand)
     local mouseSensitivity = 0.08
     local minDistance, maxDistance = -3, -30
     local UserInputService = game:GetService("UserInputService")
+    -- Сохраняем оригинальные параметры камеры
+    originalCameraSubject = Camera.CameraSubject
+    originalCameraType = Camera.CameraType
+    -- Мгновенно перемещаем камеру к стенду
+    local focusPos = root.Position + Vector3.new(0, camHeight, 0)
+    local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
+    local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
+    Camera.CameraType = Enum.CameraType.Scriptable
+    Camera.CFrame = CFrame.new(camPos, focusPos)
     local function onInputBegan(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
             rotating = true
@@ -2035,10 +2050,10 @@ local function setFreecamToStandHead(stand)
     changedConn = UserInputService.InputChanged:Connect(onInputChanged)
     wheelConn = UserInputService.InputChanged:Connect(onWheelMoved)
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
-        Camera.CameraType = Enum.CameraType.Scriptable
         local focusPos = root.Position + Vector3.new(0, camHeight, 0)
         local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
         local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
+        Camera.CameraType = Enum.CameraType.Scriptable
         Camera.CFrame = CFrame.new(camPos, focusPos)
     end)
     disableFreecam = function()
@@ -2048,7 +2063,9 @@ local function setFreecamToStandHead(stand)
         if changedConn then changedConn:Disconnect() end
         if wheelConn then wheelConn:Disconnect() end
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+        -- Возвращаем камеру к персонажу
+        Camera.CameraType = originalCameraType or Enum.CameraType.Custom
+        Camera.CameraSubject = originalCameraSubject or game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
     end
 end
 
