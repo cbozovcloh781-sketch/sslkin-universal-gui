@@ -550,6 +550,14 @@ local YBAFreeCamera = {} do
             end
             
             bv.Velocity = worldMove * standSpeed
+            
+            -- Обновляем SuperBodyPosition для движения
+            local superBodyPos = standRoot:FindFirstChild("SuperBodyPosition")
+            if superBodyPos then
+                local currentPos = standRoot.Position
+                local newPos = currentPos + (worldMove * standSpeed * 0.01) -- небольшое смещение
+                superBodyPos.Position = newPos
+            end
 
             if moveY ~= 0 then
                 print("YBA: Стенд движется по вертикали: " .. (moveY > 0 and "вверх" or "вниз"))
@@ -2032,6 +2040,32 @@ local function activateFreeCamera(stand)
     end
     
     print("YBA: Активируем управление стендом: " .. stand.Name)
+    
+    -- НОВЫЙ МЕТОД: ПЕРЕОПРЕДЕЛЯЕМ УПРАВЛЕНИЕ СТЕНДОМ
+    print("🔥 ОТСОЕДИНЯЕМ стенд через мощный BodyPosition...")
+    
+    -- Создаем мощный BodyPosition для переопределения позиции стенда
+    local superBodyPos = stand.Root:FindFirstChild("SuperBodyPosition")
+    if not superBodyPos then
+        superBodyPos = Instance.new("BodyPosition")
+        superBodyPos.Name = "SuperBodyPosition"
+        superBodyPos.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        superBodyPos.P = 50000 -- очень высокая мощность
+        superBodyPos.D = 5000 -- высокий демпфинг
+        superBodyPos.Parent = stand.Root
+        print("🔥 Добавлен СУПЕР BodyPosition для отсоединения")
+    end
+    
+    -- Телепортируем стенд подальше от игрока
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local playerPos = char.HumanoidRootPart.Position
+        local targetStandPos = Vector3.new(playerPos.X + 50, playerPos.Y + 30, playerPos.Z + 50)
+        superBodyPos.Position = targetStandPos
+        stand.Root.CFrame = CFrame.new(targetStandPos)
+        print("🔥 Стенд отсоединен на позицию:", targetStandPos)
+    end
 
     if YBAConfig.FreezePlayer then
         print("YBA: Замораживаем игрока...")
@@ -2118,15 +2152,27 @@ end
 
 local function startYBA()
     if isYBAEnabled then return end
-    isYBAEnabled = true
-    YBAConfig.Enabled = true
-    if not findStands then return end
-    local stands = findStands()
-    if #stands == 0 then return end
-    local targetStand = stands[1]
-    if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
-    if YBAConfig.SwitchCamera then end
-    if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
+    
+    -- Защита от ошибок при активации YBA
+    local success, err = pcall(function()
+        isYBAEnabled = true
+        YBAConfig.Enabled = true
+        if not findStands then return end
+                 local stands = findStands()
+         if #stands == 0 then return end
+         local targetStand = stands[1]
+         controlledStand = targetStand -- сохраняем для очистки
+         if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
+         if YBAConfig.SwitchCamera then end
+         if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
+    end)
+    
+    if not success then
+        print("🔥 ОШИБКА активации YBA:", err)
+        isYBAEnabled = false
+        YBAConfig.Enabled = false
+        return
+    end
     local humanoid = char and char:FindFirstChild("Humanoid")
     if humanoid then
         local deathConnection = humanoid.Died:Connect(function()
@@ -2160,6 +2206,16 @@ local function stopYBA()
         end
     end
     standControlConnections = {}
+    
+    -- Очищаем SuperBodyPosition из стенда
+    if controlledStand and controlledStand.Root then
+        local superBodyPos = controlledStand.Root:FindFirstChild("SuperBodyPosition")
+        if superBodyPos then
+            superBodyPos:Destroy()
+            print("🔥 SuperBodyPosition удален из стенда")
+        end
+    end
+    
     controlledStand = nil
     
     print("Stand Range Hack деактивирован")
@@ -2253,8 +2309,10 @@ local function startUndergroundControl()
     
     print("Запускаем основной цикл подземного полета...")
     local undergroundFlyLoop = RunService.RenderStepped:Connect(function()
-        if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
-            print("Подземный полет остановлен - стенд не найден или функция отключена")
+        -- Защита от ошибок в подземном полете
+        local success, err = pcall(function()
+            if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
+                print("Подземный полет остановлен - стенд не найден или функция отключена")
             if hum then
                 hum.JumpPower = flyOriginalJumpPower
                 hum.JumpHeight = flyOriginalJumpHeight
@@ -2311,6 +2369,11 @@ local function startUndergroundControl()
             bv.Velocity = smoothedVelocity
         else
             bv.Velocity = Vector3.new(0, 0, 0)
+        end
+        end) -- конец pcall
+        
+        if not success then
+            -- Игнорируем ошибки подземного полета
         end
     end)
     
@@ -2784,7 +2847,10 @@ RunService.RenderStepped:Connect(function()
         
         if isPlayerAlive(player) and root then
             if Config.ESP.Enabled then
-                createOrUpdateESP(player)
+                local success4, err4 = pcall(createOrUpdateESP, player)
+                if not success4 then
+                    -- Игнорируем ошибки ESP
+                end
                 if Config.ESP.ShowLines then
                     if not Lines[player] then
                         local ln = Drawing.new("Line")
@@ -2792,12 +2858,16 @@ RunService.RenderStepped:Connect(function()
                         ln.Transparency = 1
                         Lines[player] = ln
                     end
-                    local pos, onScreen = cam:WorldToViewportPoint(root.Position)
-                    Lines[player].Visible = onScreen
-                    if onScreen then
-                        Lines[player].From = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y)
-                        Lines[player].To = Vector2.new(pos.X, pos.Y)
-                        Lines[player].Color = getESPColor(player)
+                    local success3, pos, onScreen = pcall(cam.WorldToViewportPoint, cam, root.Position)
+                    if success3 then
+                        Lines[player].Visible = onScreen
+                        if onScreen then
+                            Lines[player].From = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y)
+                            Lines[player].To = Vector2.new(pos.X, pos.Y)
+                            Lines[player].Color = getESPColor(player)
+                        end
+                    else
+                        Lines[player].Visible = false
                     end
                 elseif Lines[player] then
                     Lines[player].Visible = false
@@ -2816,16 +2886,28 @@ if Config.Aimbot.Enabled then
     local target = getClosestTarget()
     if target then
         local cam = workspace.CurrentCamera
-        cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target.Position)
+        -- Защита от конфликтов с CoreGui
+        local success, err = pcall(function()
+            cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target.Position)
+        end)
+        if not success then
+            -- Игнорируем ошибки камеры чтобы не спамить консоль
+        end
     end
 end
 
 
-local cam = workspace.CurrentCamera
-FOVCircle.Visible = Config.Aimbot.Enabled
-FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
-FOVCircle.Color = Config.Aimbot.FOVRainbow and getRainbow() or Config.Aimbot.FOVColor
-FOVCircle.Radius = Config.Aimbot.FOV
+-- Защита операций с FOV кругом
+local success2, err2 = pcall(function()
+    local cam = workspace.CurrentCamera
+    FOVCircle.Visible = Config.Aimbot.Enabled
+    FOVCircle.Position = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
+    FOVCircle.Color = Config.Aimbot.FOVRainbow and getRainbow() or Config.Aimbot.FOVColor
+    FOVCircle.Radius = Config.Aimbot.FOV
+end)
+if not success2 then
+    -- Игнорируем ошибки FOV круга
+end
 
 
     
