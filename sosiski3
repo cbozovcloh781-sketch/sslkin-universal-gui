@@ -2019,12 +2019,6 @@ local function activateFreeCamera(stand)
         if standModel:FindFirstChild("HumanoidRootPart") then return standModel.HumanoidRootPart end
         return getFirstPart(standModel)
     end
-    local function blockPlayerInput(actionName, inputState, inputObj)
-        return Enum.ContextActionResult.Sink
-    end
-    local ContextActionService = game:GetService("ContextActionService")
-    ContextActionService:BindAction("BlockPlayerMove", blockPlayerInput, false,
-        Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Space, Enum.KeyCode.LeftShift)
     local inputBeganConn = UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
@@ -2061,6 +2055,17 @@ local function activateFreeCamera(stand)
     end
     local function updateControl(dt)
         if not freeCameraActive or not stand or not stand.Root then return end
+        -- Каждый кадр: если стенд снова стал дочерним Character, переносим в workspace и удаляем связи
+        if standModel and standModel.Parent == char then
+            standModel.Parent = workspace
+            for _, obj in ipairs(standModel:GetDescendants()) do
+                if (obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D")) then
+                    if (obj.Part0 and obj.Part0:IsDescendantOf(char)) or (obj.Part1 and obj.Part1:IsDescendantOf(char)) then
+                        pcall(function() obj:Destroy() end)
+                    end
+                end
+            end
+        end
         local moveVec = Vector3.new(move.D - move.A, move.Space, move.S - move.W)
         if moveVec.Magnitude > 0 then
             moveVec = moveVec.Unit * (standSpeed + (move.Shift > 0 and 20 or 0))
@@ -2101,7 +2106,6 @@ local function activateFreeCamera(stand)
     freeCameraConnections._restore = function()
         cam.CameraType = originalCameraType
         cam.CameraSubject = originalCameraSubject
-        ContextActionService:UnbindAction("BlockPlayerMove")
     end
     print("YBA: Управление стендом активировано от третьего лица")
     return true
