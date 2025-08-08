@@ -2118,6 +2118,150 @@ local undergroundPlayerY = 0
 local undergroundFlyConnection = nil
 local returnToSurfaceActive = false
 local descentTween = nil
+local flightMode = false
+local flightConnections = {}
+
+-- РЕЖИМ ПОЛЕТА (БЕЗ АВТООПУСКАНИЯ)
+local function startFlightMode()
+    if flightMode then return end
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return end
+    
+    print("🔥 РЕЖИМ ПОЛЕТА: Активирован!")
+    flightMode = true
+    
+    -- Сохраняем оригинальную Y позицию
+    originalPlayerY = root.Position.Y
+    
+    -- ВКЛЮЧАЕМ НОУКЛИП АВТОМАТИЧЕСКИ!
+    if not isNoClipping then
+        startNoClip()
+        print("🔥 NoClip автоматически включен!")
+    end
+    
+    -- Активируем флай
+    local flyOriginalJumpPower = hum.JumpPower
+    local flyOriginalJumpHeight = hum.JumpHeight
+    local flyOriginalGravity = workspace.Gravity
+    local flyOriginalHipHeight = hum.HipHeight
+    
+    hum.JumpPower = 0
+    hum.JumpHeight = 0
+    workspace.Gravity = 0
+    hum.HipHeight = 0
+    
+    local ctrl = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
+    
+    local inputDown = UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1
+        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
+        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
+        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 1
+        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 1
+        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = -1 end
+    end)
+    
+    local inputUp = UserInputService.InputEnded:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
+        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
+        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
+        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0
+        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 0
+        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = 0 end
+    end)
+    
+    local renderConnection = RunService.RenderStepped:Connect(function()
+        if not flightMode or not char or not char:FindFirstChild("Humanoid") or not root then
+            return
+        end
+        
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        
+        -- Убираем Y из направления камеры для горизонтального движения
+        local camLook = cam.CFrame.lookVector
+        local forward = Vector3.new(camLook.X, 0, camLook.Z).Unit
+        local right = cam.CFrame.rightVector
+        local up = Vector3.new(0, 1, 0)
+        
+        local moveVector = Vector3.new(0, 0, 0)
+        -- Горизонтальное движение от мышки/камеры
+        moveVector = moveVector + (forward * (ctrl.f + ctrl.b))
+        moveVector = moveVector + (right * (ctrl.r + ctrl.l))
+        -- Вертикальное движение только от ctrl/space
+        moveVector = moveVector + (up * (ctrl.u + ctrl.d))
+        
+        -- Поворот персонажа по направлению камеры (только по Y)
+        local camCFrame = cam.CFrame
+        local newCFrame = CFrame.new(root.Position, root.Position + Vector3.new(camLook.X, 0, camLook.Z))
+        root.CFrame = newCFrame
+        
+        if moveVector.Magnitude > 0 then
+            -- Используем Flight Speed для скорости!
+            local speed = (YBAConfig.UndergroundControl.FlightSpeed or 50) / 5
+            moveVector = moveVector.Unit * speed
+            local bv = root:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", root)
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            end
+            bv.Velocity = moveVector
+        else
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+    end)
+    
+    -- Сохраняем соединения
+    flightConnections = {inputDown, inputUp, renderConnection}
+    
+    print("🔥 РЕЖИМ ПОЛЕТА АКТИВИРОВАН! Управление: WASD + Space/Ctrl")
+end
+
+local function stopFlightMode()
+    if not flightMode then return end
+    print("🔥 РЕЖИМ ПОЛЕТА: Отключение!")
+    
+    flightMode = false
+    
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then 
+        print("🔥 ПЕРСОНАЖ НЕ НАЙДЕН - БЕЗОПАСНЫЙ ВЫХОД")
+        return 
+    end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    
+    -- Отключаем соединения полета
+    if flightConnections then
+        for _, conn in pairs(flightConnections) do
+            if conn then conn:Disconnect() end
+        end
+        flightConnections = nil
+    end
+    
+    if root and hum and hum.Health > 0 then
+        -- Восстанавливаем нормальные настройки
+        hum.JumpPower = 50
+        hum.JumpHeight = 7.2
+        hum.HipHeight = 2
+        workspace.Gravity = 196.2
+        
+        local bv = root:FindFirstChild("BodyVelocity")
+        if bv then bv:Destroy() end
+        
+        print("🔥 РЕЖИМ ПОЛЕТА ОТКЛЮЧЕН!")
+    end
+end
 
 -- ПОДЗЕМНЫЙ РЕЖИМ С ТВОИМ ФЛАЕМ!
 local function startUndergroundMode()
@@ -2473,14 +2617,13 @@ local function startStandSwapMode(stand)
     standRiseTween.Completed:Wait()
     task.wait(5.0)
     
-    -- ЭТАП 2: Теперь игрок опускается под землю
-    startUndergroundMode()
+    -- ЭТАП 2: Включаем режим полета с ноуклипом (игрок сам управляет высотой)
+    startFlightMode()
     
     -- ЭТАП 3: Стенд следует за игроком на фиксированной высоте
     if standFollowConn then standFollowConn:Disconnect() end
     standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
         if not char or not root or not stand or not stand.Root then return end
-        if not undergroundMode then return end
         
         -- Y стенда ФИКСИРОВАН относительно исходной позиции игрока + 30м вверх
         local standY = originalPlayerY + standSwapYOffset
@@ -2507,8 +2650,8 @@ local function stopStandSwapMode()
         standFollowConn = nil
     end
     
-    -- ЭТАП 3: Возвращаем игрока на поверхность (это соединит его со стендом)
-    stopUndergroundMode()
+    -- ЭТАП 3: Отключаем режим полета
+    stopFlightMode()
     
     print("🔥 ОТКЛЮЧЕН: Возвращение в исходное состояние...")
 end
@@ -2526,6 +2669,12 @@ _G._standRangeMenuConn = game:GetService("RunService").RenderStepped:Connect(fun
         YBAConfig.Enabled = false
         stopStandSwapMode()
         return
+    end
+    
+    -- Также проверяем режим полета отдельно
+    if flightMode and (not char or not hum or hum.Health <= 0) then
+        print("🔥 ПЕРСОНАЖ УМЕР - АВТООТКЛЮЧЕНИЕ РЕЖИМА ПОЛЕТА")
+        stopFlightMode()
     end
     
     if YBAConfig.Enabled and not standSwapActive then
