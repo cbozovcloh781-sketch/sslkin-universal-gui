@@ -4889,3 +4889,35 @@ UserInputService.InputBegan:Connect(function(input, gp)
         end
     end
 end)
+
+local function detachStandControl(stand)
+    if not stand or not stand.Root then
+        print("[detachStandControl] Нет валидного стенда!")
+        return
+    end
+    print("[detachStandControl] Открепляю стенд:", stand.Name)
+    -- Отключаем привязку стенда к игроку (например, убираем Weld/Attachment, если есть)
+    -- Даем управление через BodyVelocity
+    local bv = stand.Root:FindFirstChild("BodyVelocity")
+    if not bv then
+        bv = Instance.new("BodyVelocity", stand.Root)
+        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    end
+    bv.Velocity = Vector3.new(0,0,0)
+    -- Можно добавить свою физику управления, если нужно
+end
+
+-- Назначаем кнопку G для отсоединения стенда
+local detachKey = Enum.KeyCode.G
+if _G._detachStandConnection then _G._detachStandConnection:Disconnect() end
+_G._detachStandConnection = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == detachKey then
+        local stands = findStands()
+        if #stands > 0 then
+            detachStandControl(stands[1])
+        else
+            print("[detachStandControl] Стенд не найден!")
+        end
+    end
+end)
