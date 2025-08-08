@@ -2050,9 +2050,7 @@ local function activateFreeCamera(stand)
             distance = math.clamp(distance - input.Position.Z, minDist, maxDist)
         end
     end)
-    if not isFlying then
-        startFly()
-    end
+    -- Не используем флай для игрока
     local function updateControl(dt)
         if not freeCameraActive or not stand or not stand.Root then return end
         -- Каждый кадр: если стенд снова стал дочерним Character, переносим в workspace и удаляем связи
@@ -2073,29 +2071,24 @@ local function activateFreeCamera(stand)
             moveVec = camRot:VectorToWorldSpace(moveVec)
             stand.Root.CFrame = stand.Root.CFrame + moveVec * dt
         end
+        -- Камера: вращение вокруг головы стенда
         local head = getStandHead()
-        local camPos, camLook
         if head then
-            local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 2, distance)
-            camPos = (head.CFrame * offset).Position
-            camLook = head.Position
+            local center = head.Position
+            local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 0, distance)
+            local camPos = (CFrame.new(center) * offset).Position
+            cam.CFrame = CFrame.new(camPos, center)
         else
             local fallback = stand.Root.CFrame
-            local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 2, distance)
-            camPos = (fallback * offset).Position
-            camLook = fallback.Position
+            cam.CFrame = fallback
         end
-        cam.CFrame = CFrame.new(camPos, camLook)
+        -- Перемещение игрока под землю (жёстко)
         local player = Players.LocalPlayer
         local char = player and player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if root then
             local standPos = stand.Root.Position
-            local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv.Velocity = (targetPos - root.Position) * 5
-            end
+            root.CFrame = CFrame.new(standPos.X, standPos.Y - 30, standPos.Z)
         end
     end
     local controlConn = RunService.RenderStepped:Connect(updateControl)
@@ -2106,6 +2099,7 @@ local function activateFreeCamera(stand)
     freeCameraConnections._restore = function()
         cam.CameraType = originalCameraType
         cam.CameraSubject = originalCameraSubject
+        stopFly()
     end
     print("YBA: Управление стендом активировано от третьего лица")
     return true
