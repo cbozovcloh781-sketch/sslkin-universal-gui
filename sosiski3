@@ -2116,37 +2116,48 @@ local function controlStand(stand)
     end
 end
 
+local function isAvatarEditorActive()
+    local avatarEditor = CoreGui:FindFirstChild("RobloxGui")
+        and CoreGui.RobloxGui:FindFirstChild("Modules")
+        and CoreGui.RobloxGui.Modules:FindFirstChild("AvatarEditorPrompts")
+    if avatarEditor and avatarEditor.Visible ~= nil then
+        return avatarEditor.Visible
+    end
+    return false
+end
+
 local function startYBA()
     if isYBAEnabled then return end
+    if isAvatarEditorActive() then
+        warn("AvatarEditor открыт, Stand Range не будет активирован для предотвращения ошибок.")
+        return
+    end
     isYBAEnabled = true
     YBAConfig.Enabled = true
-    local player = Players.LocalPlayer
-    local char = player and player.Character
-    if not char then return end
-    local humanoid = char:FindFirstChild("Humanoid")
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not humanoid or not root then return end
-    local stands = findStands and findStands() or {}
+    if not findStands then return end
+    local stands = findStands()
     if #stands == 0 then return end
     local targetStand = stands[1]
-    -- Не замораживаем игрока, не меняем физику, только камера
-    local originalCameraType = workspace.CurrentCamera.CameraType
-    local originalCameraCFrame = workspace.CurrentCamera.CFrame
-    local function restoreCamera()
-        workspace.CurrentCamera.CameraType = originalCameraType
-        workspace.CurrentCamera.CFrame = originalCameraCFrame
-    end
-    -- Включаем свободную камеру только для стенда
-    if YBAConfig.TransferControl and activateFreeCamera then
-        activateFreeCamera(targetStand)
-    end
-    -- Безопасное отключение при смерти
+    if YBAConfig.FreezePlayer and freezePlayer then pcall(freezePlayer) end
+    if YBAConfig.SwitchCamera then end
+    if YBAConfig.TransferControl and activateFreeCamera then pcall(activateFreeCamera, targetStand) end
+    local player = Players.LocalPlayer
+    local char = player and player.Character
+    local humanoid = char and char:FindFirstChild("Humanoid")
     if humanoid then
         local deathConnection = humanoid.Died:Connect(function()
             stopYBA()
-            restoreCamera()
         end)
         table.insert(standControlConnections, deathConnection)
+    end
+    -- Безопасный запуск UndergroundControl
+    if startUndergroundControl then
+        pcall(function()
+            task.spawn(function()
+                task.wait(5)
+                if isYBAEnabled then startUndergroundControl() end
+            end)
+        end)
     end
 end
 
@@ -2154,9 +2165,8 @@ local function stopYBA()
     if not isYBAEnabled then return end
     isYBAEnabled = false
     YBAConfig.Enabled = false
-    if disableFreeCamera then
-        disableFreeCamera()
-    end
+    if disableFreeCamera then pcall(disableFreeCamera) end
+    if unfreezePlayer then pcall(unfreezePlayer) end
     for _, connection in ipairs(standControlConnections) do
         if connection then
             pcall(function() connection:Disconnect() end)
@@ -2165,9 +2175,7 @@ local function stopYBA()
     standControlConnections = {}
     controlledStand = nil
     print("Stand Range Hack деактивирован")
-    if stopUndergroundControl then
-        stopUndergroundControl()
-    end
+    if stopUndergroundControl then pcall(stopUndergroundControl) end
 end
 
 local function startUndergroundControl()
