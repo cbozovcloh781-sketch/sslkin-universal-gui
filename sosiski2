@@ -593,10 +593,11 @@ local YBAFreeCamera = {} do
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then
                 moveZ = moveZ - 1
             end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            -- ИСПРАВЛЕНО: используем input таблицу вместо прямых IsKeyDown
+            if input.Space then
                 moveY = moveY + 1
             end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            if input.LeftControl then
                 moveY = moveY - 1
             end
         end
@@ -676,22 +677,20 @@ local YBAFreeCamera = {} do
             input.MouseWheel = 0
         end
 
-        -- ИСПРАВЛЕНО: позиционирование камеры без влияния зума на угол наклона
-        local horizontalDistance = cameraDistance
-        local verticalOffset = cameraHeight
-        
-        -- Применяем поворот камеры для наклона
-        local pitchOffset = math.sin(cameraRot.X) * cameraDistance
-        local adjustedHorizontalDistance = math.cos(cameraRot.X) * cameraDistance
-        
+        -- ИСПРАВЛЕНО: зум без изменения угла - используем фиксированную высоту
         local cameraOffset = Vector3.new(
-            math.sin(cameraRot.Y) * adjustedHorizontalDistance,
-            verticalOffset + pitchOffset,
-            math.cos(cameraRot.Y) * adjustedHorizontalDistance
+            math.sin(cameraRot.Y) * cameraDistance,
+            cameraHeight,
+            math.cos(cameraRot.Y) * cameraDistance
         )
         
+        -- Создаем CFrame камеры с учетом поворотов, но без влияния зума на высоту
         local cameraPosition = standPosition + cameraOffset
+        local lookDirection = (standPosition - cameraPosition).Unit
         local newCameraCFrame = CFrame.lookAt(cameraPosition, standPosition)
+        
+        -- Применяем наклон вокруг оси X (вверх/вниз)
+        newCameraCFrame = newCameraCFrame * CFrame.Angles(cameraRot.X, 0, 0)
         
         -- Осторожно устанавливаем только CFrame камеры (не тип)
         Camera.CFrame = newCameraCFrame
@@ -2882,13 +2881,17 @@ end)
 
 -- Обработчики клавиш для ускорения Ctrl в Stand Range Hack
 UserInputService.InputBegan:Connect(function(input, gp)
-    if not gp and input.KeyCode == Enum.KeyCode.LeftControl then
+    -- ИСПРАВЛЕНО: убираем двойное отрицание для ясности
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.LeftControl then
         isShiftPressed = true
         print("Ctrl нажат - ускорение активировано")
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gp)
+    -- ИСПРАВЛЕНО: проверяем что игра не обрабатывает ввод
+    if gp then return end
     if input.KeyCode == Enum.KeyCode.LeftControl then
         isShiftPressed = false
         print("Ctrl отпущен - ускорение деактивировано")
