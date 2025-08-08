@@ -1957,19 +1957,12 @@ local function freezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
     if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
-    if root then
-        originalPlayerPosition = root.Position
-        originalPlayerCFrame = root.CFrame
-        root.Anchored = true
-    end
     if humanoid then
         originalYBAWalkSpeed = humanoid.WalkSpeed
         originalYBAJumpPower = humanoid.JumpPower
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-        humanoid.PlatformStand = true
+        humanoid.WalkSpeed = 0.1
+        humanoid.JumpPower = 0.1
     end
 end
 
@@ -1977,15 +1970,10 @@ local function unfreezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
     if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
-    if root then
-        root.Anchored = false
-    end
     if humanoid then
         humanoid.WalkSpeed = originalYBAWalkSpeed
         humanoid.JumpPower = originalYBAJumpPower
-        humanoid.PlatformStand = false
     end
 end
 
