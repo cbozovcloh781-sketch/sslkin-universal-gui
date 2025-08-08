@@ -1977,20 +1977,27 @@ local function unfreezePlayer()
     end
 end
 
+local function getFirstPart(model)
+    for _, obj in ipairs(model:GetDescendants()) do
+        if obj:IsA("BasePart") then return obj end
+    end
+    return nil
+end
+
 local function activateFreeCamera(stand)
     if not stand or not stand.Root then 
         print("YBA: Ошибка - стенд или его Root не найден")
         return false
     end
-    print("YBA: Активируем управление стендом: " .. stand.Name)
-    -- Освобождаем стенд: переносим в workspace, удаляем Weld/Attachment
+    local standModel = stand.Root:FindFirstAncestorOfClass("Model") or stand.Root.Parent
     local char = Players.LocalPlayer.Character
-    if stand.Root.Parent == char then
-        stand.Root.Parent.Parent = workspace
+    -- Освобождаем стенд: переносим в workspace, удаляем Weld/Motor6D связывающие с Character
+    if standModel and standModel.Parent == char then
+        standModel.Parent = workspace
     end
-    for _, obj in ipairs(stand.Root.Parent:GetDescendants()) do
-        if obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D") or obj:IsA("Attachment") then
-            if obj.Part0 and obj.Part0:IsDescendantOf(char) or obj.Part1 and obj.Part1 and obj.Part1:IsDescendantOf(char) then
+    for _, obj in ipairs(standModel:GetDescendants()) do
+        if (obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D")) then
+            if (obj.Part0 and obj.Part0:IsDescendantOf(char)) or (obj.Part1 and obj.Part1:IsDescendantOf(char)) then
                 pcall(function() obj:Destroy() end)
             end
         end
@@ -2008,7 +2015,9 @@ local function activateFreeCamera(stand)
     local move = {W=0, A=0, S=0, D=0, Space=0, Shift=0}
     local standSpeed = 30
     local function getStandHead()
-        return stand.Root.Parent:FindFirstChild("Head") or stand.Root
+        if standModel:FindFirstChild("Head") then return standModel.Head end
+        if standModel:FindFirstChild("HumanoidRootPart") then return standModel.HumanoidRootPart end
+        return getFirstPart(standModel)
     end
     local function blockPlayerInput(actionName, inputState, inputObj)
         return Enum.ContextActionResult.Sink
@@ -2066,9 +2075,10 @@ local function activateFreeCamera(stand)
             camPos = (head.CFrame * offset).Position
             camLook = head.Position
         else
+            local fallback = stand.Root.CFrame
             local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 2, distance)
-            camPos = (stand.Root.CFrame * offset).Position
-            camLook = stand.Root.Position
+            camPos = (fallback * offset).Position
+            camLook = fallback.Position
         end
         cam.CFrame = CFrame.new(camPos, camLook)
         local player = Players.LocalPlayer
