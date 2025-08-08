@@ -1996,8 +1996,13 @@ local function activateFreeCamera(stand)
         standModel.Parent = workspace
     end
     for _, obj in ipairs(standModel:GetDescendants()) do
-        if (obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D")) then
+        if (obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D")
+            or obj:IsA("Attachment") or obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint")
+            or obj:IsA("RodConstraint") or obj:IsA("SpringConstraint") or obj:IsA("RopeConstraint")
+            or obj:IsA("AlignPosition") or obj:IsA("AlignOrientation")) then
             if (obj.Part0 and obj.Part0:IsDescendantOf(char)) or (obj.Part1 and obj.Part1:IsDescendantOf(char)) then
+                pcall(function() obj:Destroy() end)
+            elseif obj:IsA("Attachment") and obj.Parent and obj.Parent:IsDescendantOf(char) then
                 pcall(function() obj:Destroy() end)
             end
         end
@@ -2056,14 +2061,20 @@ local function activateFreeCamera(stand)
     end
     local function updateControl(dt)
         if not freeCameraActive or not stand or not stand.Root then return end
-        -- Каждый кадр: если стенд снова стал дочерним Character, переносим в workspace и удаляем связи
-        if standModel and standModel.Parent == char then
+        -- Каждый кадр: если стенд снова стал дочерним Character, переносим в workspace
+        if standModel and standModel.Parent ~= workspace then
             standModel.Parent = workspace
-            for _, obj in ipairs(standModel:GetDescendants()) do
-                if (obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D")) then
-                    if (obj.Part0 and obj.Part0:IsDescendantOf(char)) or (obj.Part1 and obj.Part1:IsDescendantOf(char)) then
-                        pcall(function() obj:Destroy() end)
-                    end
+        end
+        -- Каждый кадр: агрессивно удаляем все связи между стендом и Character
+        for _, obj in ipairs(standModel:GetDescendants()) do
+            if (obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D")
+                or obj:IsA("Attachment") or obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint")
+                or obj:IsA("RodConstraint") or obj:IsA("SpringConstraint") or obj:IsA("RopeConstraint")
+                or obj:IsA("AlignPosition") or obj:IsA("AlignOrientation")) then
+                if (obj.Part0 and obj.Part0:IsDescendantOf(char)) or (obj.Part1 and obj.Part1:IsDescendantOf(char)) then
+                    pcall(function() obj:Destroy() end)
+                elseif obj:IsA("Attachment") and obj.Parent and obj.Parent:IsDescendantOf(char) then
+                    pcall(function() obj:Destroy() end)
                 end
             end
         end
