@@ -2002,11 +2002,11 @@ local function setFreecamToStandHead(stand)
     freecamActive = true
     if freecamConn then freecamConn:Disconnect() end
     -- Third-person offset параметры
-    local camDistance = 10 -- назад
+    local camDistance = -10 -- назад (отрицательное значение — камера позади головы)
     local camHeight = 4    -- вверх
     local camRot = Vector2.new(0, 0)
     local rotating = false
-    local mouseSensitivity = 0.01
+    local mouseSensitivity = 0.05 -- чувствительность мыши, увеличьте если нужно быстрее
     local UserInputService = game:GetService("UserInputService")
     local function onInputBegan(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
