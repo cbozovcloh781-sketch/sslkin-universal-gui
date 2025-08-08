@@ -2152,19 +2152,25 @@ local function startUndergroundMode()
     workspace.Gravity = 0
     hum.HipHeight = 0
     
-    local ctrl = {u = 0, d = 0} -- Убрано управление WASD - только вертикальное
+    local ctrl = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
     
     local inputDown = UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
-        -- Убрано управление WASD - только вертикальное управление
-        if input.KeyCode == Enum.KeyCode.Space then ctrl.u = 1
+        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1
+        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
+        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
+        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 1
+        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 1
         elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = -1 end
     end)
     
     local inputUp = UserInputService.InputEnded:Connect(function(input, gp)
         if gp then return end
-        -- Убрано управление WASD - только вертикальное управление
-        if input.KeyCode == Enum.KeyCode.Space then ctrl.u = 0
+        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
+        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
+        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
+        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0
+        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 0
         elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = 0 end
     end)
     
@@ -2173,10 +2179,14 @@ local function startUndergroundMode()
             return
         end
         
+        local forward = Vector3.new(0, 0, -1) -- Фиксированное направление вперед
+        local right = Vector3.new(1, 0, 0)    -- Фиксированное направление вправо
         local up = Vector3.new(0, 1, 0)
         
         local moveVector = Vector3.new(0, 0, 0)
-        -- Убрано управление WASD от камеры - только вертикальное управление
+        -- WASD управление без привязки к камере (фиксированные направления)
+        moveVector = moveVector + (forward * (ctrl.f + ctrl.b))
+        moveVector = moveVector + (right * (ctrl.r + ctrl.l))
         moveVector = moveVector + (up * (ctrl.u + ctrl.d))
         
         if moveVector.Magnitude > 0 then
