@@ -2002,11 +2002,13 @@ local function setFreecamToStandHead(stand)
     freecamActive = true
     if freecamConn then freecamConn:Disconnect() end
     -- Third-person offset параметры
-    local camDistance = -10 -- назад (отрицательное значение — камера позади головы)
-    local camHeight = 4    -- вверх
+    local camDistance = -10 -- камера позади головы
+    local camHeight = 4
     local camRot = Vector2.new(0, 0)
     local rotating = false
-    local mouseSensitivity = 0.05 -- чувствительность мыши, увеличьте если нужно быстрее
+    local mouseSensitivity = 0.05
+    local smoothing = YBAConfig.CameraSmoothing or 0.08
+    local camPos = nil
     local UserInputService = game:GetService("UserInputService")
     local function onInputBegan(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
@@ -2031,13 +2033,12 @@ local function setFreecamToStandHead(stand)
     local changedConn = UserInputService.InputChanged:Connect(onInputChanged)
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
         Camera.CameraType = Enum.CameraType.Scriptable
-        -- Third-person позиция (НЕ повторяет наклоны головы, свободное вращение)
         local basePos = head.Position
         local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
-        local offset = rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
-        local camPos = basePos + Vector3.new(0, camHeight, 0) + offset
-        local lookDir = rot:VectorToWorldSpace(Vector3.new(0, 0, -100))
-        Camera.CFrame = CFrame.new(camPos, camPos + lookDir)
+        local targetPos = basePos + Vector3.new(0, camHeight, 0) + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
+        if not camPos then camPos = targetPos end
+        camPos = camPos:Lerp(targetPos, smoothing)
+        Camera.CFrame = CFrame.new(camPos, basePos + Vector3.new(0, camHeight, 0))
     end)
     -- Отключение
     local function disconnectAll()
