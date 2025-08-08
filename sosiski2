@@ -1996,19 +1996,16 @@ local freecamActive = false
 
 local function setFreecamToStandHead(stand)
     if not stand or not stand.Root then return end
-    local head = stand.Model:FindFirstChild("Head") or stand.Model:FindFirstChild("HeadPart") or stand.Model:FindFirstChild("HumanoidRootPart")
-    if not head then return end
+    local root = stand.Root
     local Camera = workspace.CurrentCamera
-    freecamActive = true
     if freecamConn then freecamConn:Disconnect() end
-    -- Third-person offset параметры
-    local camDistance = -10 -- камера позади головы
+    if beganConn then beganConn:Disconnect() end
+    if endedConn then endedConn:Disconnect() end
+    if changedConn then changedConn:Disconnect() end
+    local camDistance = -10
     local camHeight = 4
-    local camRot = Vector2.new(0, 0)
     local rotating = false
-    local mouseSensitivity = 0.05
-    local smoothing = YBAConfig.CameraSmoothing or 0.08
-    local camPos = nil
+    local mouseSensitivity = 0.08
     local UserInputService = game:GetService("UserInputService")
     local function onInputBegan(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
@@ -2028,29 +2025,21 @@ local function setFreecamToStandHead(stand)
             camRot = Vector2.new(math.clamp(camRot.X, -math.rad(80), math.rad(80)), camRot.Y % (2 * math.pi))
         end
     end
-    local beganConn = UserInputService.InputBegan:Connect(onInputBegan)
-    local endedConn = UserInputService.InputEnded:Connect(onInputEnded)
-    local changedConn = UserInputService.InputChanged:Connect(onInputChanged)
+    beganConn = UserInputService.InputBegan:Connect(onInputBegan)
+    endedConn = UserInputService.InputEnded:Connect(onInputEnded)
+    changedConn = UserInputService.InputChanged:Connect(onInputChanged)
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
         Camera.CameraType = Enum.CameraType.Scriptable
-        local focusPos = head.Position + Vector3.new(0, camHeight, 0)
+        local focusPos = root.Position + Vector3.new(0, camHeight, 0)
         local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
-        local targetPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
-        if not camPos then camPos = targetPos end
-        camPos = camPos:Lerp(targetPos, smoothing)
+        local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
         Camera.CFrame = CFrame.new(camPos, focusPos)
     end)
-    -- Отключение
-    local function disconnectAll()
+    disableFreecam = function()
         if freecamConn then freecamConn:Disconnect() end
         if beganConn then beganConn:Disconnect() end
         if endedConn then endedConn:Disconnect() end
         if changedConn then changedConn:Disconnect() end
-    end
-    -- Переопределяем disableFreecam для корректного отключения
-    disableFreecam = function()
-        freecamActive = false
-        disconnectAll()
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
     end
