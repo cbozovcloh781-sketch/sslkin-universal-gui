@@ -606,6 +606,16 @@ local YBAFreeCamera = {} do
         -- Принудительно устанавливаем камеру
         Camera.CFrame = newCameraCFrame
         Camera.CameraType = Enum.CameraType.Scriptable -- Убеждаемся что камера в скриптовом режиме
+        
+        -- Отключаем автоматическое управление камерой
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = false
+                humanoid.PlatformStand = true -- Полностью отключаем управление игроком
+            end
+        end
     end
 
     function YBAFreeCamera.Start(stand)
@@ -698,6 +708,16 @@ local YBAFreeCamera = {} do
             end
         end
 
+        -- Восстанавливаем управление игроком
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = true
+                humanoid.PlatformStand = false
+            end
+        end
+        
         -- Сбрасываем переменные
         targetStand = nil
         originalCameraCFrame = nil
@@ -2231,17 +2251,18 @@ local function startYBA()
         -- Убираем привязку к игроку через Weld/Motor6D
         local connectionsRemoved = 0
         for _, child in pairs(targetStand.Root:GetChildren()) do
-            if child:IsA("Weld") or child:IsA("Motor6D") or child:IsA("ManualWeld") or child:IsA("Attachment") then
+            if child:IsA("Weld") or child:IsA("Motor6D") or child:IsA("ManualWeld") then
                 print("YBA: Найдена связь:", child.Name, child.ClassName)
-                if child.Part0 and child.Part0.Parent == player.Character then
-                    print("YBA: Удаляем связь с игроком (Part0):", child.Name)
-                    child:Destroy()
-                    connectionsRemoved = connectionsRemoved + 1
-                elseif child.Part1 and child.Part1.Parent == player.Character then
-                    print("YBA: Удаляем связь с игроком (Part1):", child.Name)
+                if (child.Part0 and child.Part0.Parent == player.Character) or 
+                   (child.Part1 and child.Part1.Parent == player.Character) then
+                    print("YBA: Удаляем связь с игроком:", child.Name)
                     child:Destroy()
                     connectionsRemoved = connectionsRemoved + 1
                 end
+            elseif child:IsA("Attachment") then
+                -- Attachment не имеет Part0/Part1, но может связывать через Constraint
+                print("YBA: Найдена привязка:", child.Name, child.ClassName)
+                -- Не удаляем Attachment, только соединения
             end
         end
         
@@ -2263,6 +2284,12 @@ local function startYBA()
         
         print("YBA: Удалено связей с игроком:", connectionsRemoved)
         
+        -- Альтернативный способ: переместить стенд в workspace
+        if targetStand.Model.Parent ~= workspace then
+            print("YBA: Перемещаем стенд в workspace")
+            targetStand.Model.Parent = workspace
+        end
+        
         -- Позиционируем стенд рядом с игроком после отсоединения
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local playerRoot = player.Character.HumanoidRootPart
@@ -2273,6 +2300,8 @@ local function startYBA()
             -- Останавливаем любое существующее движение стенда
             targetStand.Root.Velocity = Vector3.new(0, 0, 0)
             targetStand.Root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            
+            print("YBA: Стенд позиционирован на:", standPosition)
         end
         
         print("YBA: Стенд отсоединен и готов к управлению")
