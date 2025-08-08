@@ -509,7 +509,8 @@ local YBAFreeCamera = {} do
         table.insert(inputConnections, UserInputService.InputChanged:Connect(function(inputObj, gameProcessed)
             -- НЕ игнорируем gameProcessed для мыши
             if inputObj.UserInputType == Enum.UserInputType.MouseMovement then
-                input.MouseDelta = Vector2.new(-inputObj.Delta.y, -inputObj.Delta.x) * 0.005
+                -- Исправляем инверсию осей: X для поворота, Y для наклона
+                input.MouseDelta = Vector2.new(-inputObj.Delta.y, inputObj.Delta.x) * 0.005
                 -- print("YBA Input: Движение мыши", input.MouseDelta) -- Слишком много сообщений
             elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
                 input.MouseWheel = -inputObj.Position.Z
@@ -598,6 +599,13 @@ local YBAFreeCamera = {} do
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRot.Y, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
             bv.Velocity = worldMove * standSpeed
+            
+            -- Поворачиваем стенд в направлении движения
+            local moveDirection = Vector3.new(worldMove.X, 0, worldMove.Z).Unit
+            if moveDirection.Magnitude > 0 then
+                local targetCFrame = CFrame.lookAt(standPosition, standPosition + moveDirection)
+                standRoot.CFrame = targetCFrame
+            end
         else
             bv.Velocity = Vector3.new(0, 0, 0)
         end
@@ -609,6 +617,12 @@ local YBAFreeCamera = {} do
                 math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), 
                 cameraRot.Y % (2 * math.pi)
             )
+            
+            -- Поворачиваем стенд по движению мыши (по Y оси)
+            local standDirection = Vector3.new(math.sin(cameraRot.Y), 0, math.cos(cameraRot.Y))
+            local targetCFrame = CFrame.lookAt(standPosition, standPosition + standDirection)
+            standRoot.CFrame = targetCFrame
+            
             input.MouseDelta = Vector2.new()
         end
 
