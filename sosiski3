@@ -4782,7 +4782,7 @@ function disableFreecam()
     workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 end
 
--- Stand Range Hack: стенд следует за игроком, камера третьего лица
+-- Stand Range Hack: стенд следует за игроком, оригинальная freecam
 local standFollowConn = nil
 local standSwapActive = false
 local standSwapYOffset = 30
@@ -4800,14 +4800,14 @@ local function startStandSwapMode(stand)
         if not char or not root or not stand or not stand.Root then return end
         stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
     end)
-    setThirdPersonFreecam(stand)
-    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности, камера третьего лица")
+    YBAFreeCamera.Start(stand)
+    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности, оригинальная камера")
 end
 
 local function stopStandSwapMode()
     standSwapActive = false
     if standFollowConn then standFollowConn:Disconnect() end
-    disableFreecam()
+    YBAFreeCamera.Stop()
     print("[standSwap] Режим отключён")
 end
 
