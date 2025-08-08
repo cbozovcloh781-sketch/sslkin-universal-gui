@@ -2136,6 +2136,8 @@ local function startFlightMode()
     if not isNoClipping then
         startNoClip()
         print("🔥 NoClip автоматически включен!")
+    else
+        print("🔥 NoClip уже был включен!")
     end
     
     -- Активируем флай
@@ -2190,8 +2192,8 @@ local function startFlightMode()
         moveVector = moveVector + (up * (ctrl.u + ctrl.d))
         
         if moveVector.Magnitude > 0 then
-            -- Используем Flight Speed для скорости!
-            local speed = (YBAConfig.UndergroundControl.FlightSpeed or 50) / 5
+            -- Используем Flight Speed для скорости как в оригинальном полете!
+            local speed = (YBAConfig.UndergroundControl.FlightSpeed or 50)
             moveVector = moveVector.Unit * speed
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
@@ -2264,7 +2266,7 @@ local function setFreecamToStandHead(stand)
     if wheelConn then wheelConn:Disconnect() wheelConn = nil end
     
     local rotating = false
-    local mouseSensitivity = 0.035 -- Чуть повысили для естественности
+    local mouseSensitivity = 0.01 -- Уменьшил чувствительность
     local minDistance, maxDistance = -5, -25
     local UserInputService = game:GetService("UserInputService")
     local isShiftLocked = false
