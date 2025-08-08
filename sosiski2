@@ -112,7 +112,7 @@ local YBAConfig = {
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
     UndergroundControl = {
-        FlightSpeed = 20, -- Уменьшили скорость для лучшего контроля
+        FlightSpeed = 40, -- Дефолтная скорость полета
         AutoNoClip = true,
         OriginalPosition = nil,
     },
@@ -517,8 +517,11 @@ local YBAFreeCamera = {} do
                 input.MouseDelta = Vector2.new(inputObj.Delta.y * sensitivity, -inputObj.Delta.x * sensitivity)
                 -- print("YBA Input: Движение мыши", input.MouseDelta) -- Слишком много сообщений
             elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
-                input.MouseWheel = -inputObj.Position.Z
-                print("YBA Input: Колесо мыши", input.MouseWheel)
+                -- ИСПРАВЛЕНО: проверяем что GUI не активно и не обработано игрой
+                if not gameProcessed then
+                    input.MouseWheel = -inputObj.Position.Z
+                    print("YBA Input: Колесо мыши", input.MouseWheel)
+                end
             end
         end))
     end
@@ -673,14 +676,18 @@ local YBAFreeCamera = {} do
             input.MouseWheel = 0
         end
 
-        -- Исправленное позиционирование камеры
-        local horizontalDistance = math.cos(cameraRot.X) * cameraDistance
-        local verticalOffset = math.sin(cameraRot.X) * cameraDistance
+        -- ИСПРАВЛЕНО: позиционирование камеры без влияния зума на угол наклона
+        local horizontalDistance = cameraDistance
+        local verticalOffset = cameraHeight
+        
+        -- Применяем поворот камеры для наклона
+        local pitchOffset = math.sin(cameraRot.X) * cameraDistance
+        local adjustedHorizontalDistance = math.cos(cameraRot.X) * cameraDistance
         
         local cameraOffset = Vector3.new(
-            math.sin(cameraRot.Y) * horizontalDistance,
-            verticalOffset + cameraHeight,
-            math.cos(cameraRot.Y) * horizontalDistance
+            math.sin(cameraRot.Y) * adjustedHorizontalDistance,
+            verticalOffset + pitchOffset,
+            math.cos(cameraRot.Y) * adjustedHorizontalDistance
         )
         
         local cameraPosition = standPosition + cameraOffset
