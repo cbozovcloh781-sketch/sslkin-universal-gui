@@ -306,7 +306,7 @@ local MenuSettings = {
 local Languages = {
     English = {
         MainFunctions = "MAIN FUNCTIONS",
-        YBAHacks = "STAND RANGE HACKS",
+        YBAHacks = "YBA HACKS",
         MenuSettings = "MENU SETTINGS",
         
         BlurEffect = "Blur Effect",
@@ -330,7 +330,7 @@ local Languages = {
         TeleportToPlayer = "Teleport to Player",
         SelectedPlayer = "Selected Player",
         SelectPlayerForTeleport = "Select Player for Teleport",
-        YBAStandRange = "YBA Stand Range",
+        YBAStandRange = "Stand Range Hacks",
         StandSpeed = "Stand Speed",
         ItemESP = "Item ESP",
         AntiTimeStop = "ANTI TIME STOP",
@@ -357,7 +357,7 @@ local Languages = {
     },
     Russian = {
         MainFunctions = "ОСНОВНЫЕ ФУНКЦИИ",
-        YBAHacks = "ХАКИ СТЕНДОВ",
+        YBAHacks = "YBA ХАКИ",
         MenuSettings = "НАСТРОЙКИ МЕНЮ",
         
         BlurEffect = "Эффект размытия",
@@ -381,7 +381,7 @@ local Languages = {
         TeleportToPlayer = "Телепорт к игроку",
         SelectedPlayer = "Выбранный игрок",
         SelectPlayerForTeleport = "Выбрать игрока для телепорта",
-        YBAStandRange = "YBA Дальность стенда",
+        YBAStandRange = "Хаки дальности стенда",
         StandSpeed = "Скорость стенда",
         ItemESP = "ESP предметов",
         AntiTimeStop = "АНТИ ОСТАНОВКА ВРЕМЕНИ",
@@ -1952,7 +1952,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= 4 then
                         foundCount = foundCount + 1
                         print("[findStands] Found stand:", obj.Name, "Root:", standRoot.Name, "Distance:", distance)
                         table.insert(stands, {
@@ -1973,7 +1973,7 @@ local function findStands()
                 local standRoot = obj:FindFirstChild("HumanoidRootPart")
                 if standRoot then
                     local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                    if distance <= 20 then
+                    if distance <= 4 then
                         print("[findStands] Fallback found stand:", obj.Name, "Root:", standRoot.Name, "Distance:", distance)
                         table.insert(stands, {
                             Model = obj,
@@ -2111,16 +2111,14 @@ local standSwapYOffset = 30
 local freecamConn = nil
 local freecamActive = false
 
--- Переменные для подземного режима 
-local undergroundMode = false
+-- Переменные для режима полета
 local originalPlayerY = 0
-local undergroundPlayerY = 0
-local undergroundFlyConnection = nil
-local returnToSurfaceActive = false
+local flightMode = false
+local flightConnections = {}
 
--- ПОДЗЕМНЫЙ РЕЖИМ С ТВОИМ ФЛАЕМ!
-local function startUndergroundMode()
-    if undergroundMode then return end
+-- РЕЖИМ ПОЛЕТА (БЕЗ АВТООПУСКАНИЯ)
+local function startFlightMode()
+    if flightMode then return end
     local player = Players.LocalPlayer
     local char = player.Character
     if not char then return end
@@ -2128,20 +2126,21 @@ local function startUndergroundMode()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
     
-    print("🔥 ПОДЗЕМНЫЙ РЕЖИМ: Уходим под землю!")
-    undergroundMode = true
+    print("🔥 РЕЖИМ ПОЛЕТА: Активирован!")
+    flightMode = true
     
     -- Сохраняем оригинальную Y позицию
     originalPlayerY = root.Position.Y
-    undergroundPlayerY = originalPlayerY - 30 -- 30 метров вниз!
     
     -- ВКЛЮЧАЕМ НОУКЛИП АВТОМАТИЧЕСКИ!
     if not isNoClipping then
         startNoClip()
         print("🔥 NoClip автоматически включен!")
+    else
+        print("🔥 NoClip уже был включен!")
     end
     
-    -- Активируем твой флай для подземки
+    -- Активируем флай
     local flyOriginalJumpPower = hum.JumpPower
     local flyOriginalJumpHeight = hum.JumpHeight
     local flyOriginalGravity = workspace.Gravity
@@ -2175,13 +2174,14 @@ local function startUndergroundMode()
     end)
     
     local renderConnection = RunService.RenderStepped:Connect(function()
-        if not undergroundMode or not char or not char:FindFirstChild("Humanoid") or not root then
+        if not flightMode or not char or not char:FindFirstChild("Humanoid") or not root then
             return
         end
         
         local cam = workspace.CurrentCamera
         if not cam then return end
         
+        -- Используем ТОЧНО ТАКУЮ ЖЕ логику как в оригинальном полете
         local forward = cam.CFrame.lookVector
         local right = cam.CFrame.rightVector
         local up = Vector3.new(0, 1, 0)
@@ -2192,8 +2192,8 @@ local function startUndergroundMode()
         moveVector = moveVector + (up * (ctrl.u + ctrl.d))
         
         if moveVector.Magnitude > 0 then
-            -- Используем Stand Speed для скорости!
-            local speed = (YBAConfig.UndergroundControl.FlightSpeed or 50) / 5 -- делим на 5 для нормальной скорости
+            -- Используем Flight Speed для скорости как в оригинальном полете!
+            local speed = (YBAConfig.UndergroundControl.FlightSpeed or 50)
             moveVector = moveVector.Unit * speed
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
@@ -2210,64 +2210,49 @@ local function startUndergroundMode()
     end)
     
     -- Сохраняем соединения
-    undergroundFlyConnection = {inputDown, inputUp, renderConnection}
+    flightConnections = {inputDown, inputUp, renderConnection}
     
-    -- Плавно опускаемся под землю
-    local targetPos = Vector3.new(root.Position.X, undergroundPlayerY, root.Position.Z)
-    local descentTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
-        Position = targetPos
-    })
-    descentTween:Play()
-    
-    print("🔥 УШЛИ ПОД ЗЕМЛЮ НА 30 МЕТРОВ! Управление: WASD + Space/Ctrl")
+    print("🔥 РЕЖИМ ПОЛЕТА АКТИВИРОВАН! Управление: WASD + Space/Ctrl")
 end
 
-local function stopUndergroundMode()
-    if not undergroundMode then return end
-    print("🔥 ПОДЗЕМНЫЙ РЕЖИМ: Возвращаемся на поверхность!")
+local function stopFlightMode()
+    if not flightMode then return end
+    print("🔥 РЕЖИМ ПОЛЕТА: Отключение!")
     
-    undergroundMode = false
-    returnToSurfaceActive = true
+    flightMode = false
     
     local player = Players.LocalPlayer
     local char = player.Character
-    if not char then return end
+    if not char then 
+        print("🔥 ПЕРСОНАЖ НЕ НАЙДЕН - БЕЗОПАСНЫЙ ВЫХОД")
+        return 
+    end
     local root = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
     
-    -- Отключаем подземные соединения
-    if undergroundFlyConnection then
-        for _, conn in pairs(undergroundFlyConnection) do
+    -- Отключаем соединения полета
+    if flightConnections then
+        for _, conn in pairs(flightConnections) do
             if conn then conn:Disconnect() end
         end
-        undergroundFlyConnection = nil
+        flightConnections = nil
     end
     
-    if root and hum then
-        -- Плавно возвращаемся на поверхность используя ТВОЙ ФЛАЙ
-        local returnPos = Vector3.new(root.Position.X, originalPlayerY, root.Position.Z)
-        local returnTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
-            Position = returnPos
-        })
+    if root and hum and hum.Health > 0 then
+        -- Восстанавливаем нормальные настройки
+        hum.JumpPower = 50
+        hum.JumpHeight = 7.2
+        hum.HipHeight = 2
+        workspace.Gravity = 196.2
         
-        returnTween:Play()
-        returnTween.Completed:Connect(function()
-            -- Восстанавливаем нормальные настройки
-            if hum then
-                hum.JumpPower = 50
-                hum.JumpHeight = 7.2
-                hum.HipHeight = 2
-            end
-            workspace.Gravity = 196.2
-            
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv then bv:Destroy() end
-            
-            returnToSurfaceActive = false
-            print("🔥 ВЕРНУЛИСЬ НА ПОВЕРХНОСТЬ!")
-        end)
+        local bv = root:FindFirstChild("BodyVelocity")
+        if bv then bv:Destroy() end
+        
+        print("🔥 РЕЖИМ ПОЛЕТА ОТКЛЮЧЕН!")
     end
 end
+
+-- Старые функции удалены - используется новый startFlightMode/stopFlightMode
 
 local function setFreecamToStandHead(stand)
     if not stand or not stand.Root then return end
@@ -2281,7 +2266,7 @@ local function setFreecamToStandHead(stand)
     if wheelConn then wheelConn:Disconnect() wheelConn = nil end
     
     local rotating = false
-    local mouseSensitivity = 0.035 -- Чуть повысили для естественности
+    local mouseSensitivity = 0.01 -- Уменьшил чувствительность
     local minDistance, maxDistance = -5, -25
     local UserInputService = game:GetService("UserInputService")
     local isShiftLocked = false
@@ -2343,7 +2328,7 @@ local function setFreecamToStandHead(stand)
                 
                 camRot = camRot + Vector2.new(deltaY, deltaX)
                 camRot = Vector2.new(
-                    math.clamp(camRot.X, -math.rad(80), math.rad(25)), -- РЕАЛИСТИЧНЫЕ углы как у настоящей камеры!
+                    math.clamp(camRot.X, -math.rad(89), math.rad(89)), -- Разрешаем смотреть вниз и вверх
                     camRot.Y % (2 * math.pi)
                 )
             end
@@ -2410,7 +2395,19 @@ end
 local function disableFreecam()
     freecamActive = false
     if freecamConn then freecamConn:Disconnect() end
-    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+    
+    -- Правильно возвращаем камеру к персонажу
+    local player = Players.LocalPlayer
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    
+    local cam = workspace.CurrentCamera
+    cam.CameraType = Enum.CameraType.Custom
+    if hum then
+        cam.CameraSubject = hum
+    end
+    
+    print("🔥 КАМЕРА ВОЗВРАЩЕНА К ПЕРСОНАЖУ")
 end
 
 local function startStandSwapMode(stand)
@@ -2424,24 +2421,48 @@ local function startStandSwapMode(stand)
     
     print("🔥 STAND RANGE HACKS: Последовательность активации...")
     
-    -- ЭТАП 1: Игрок уходит под землю
-    startUndergroundMode()
+    -- ЭТАП 1: Стенд поднимается на 30м вверх от текущей позиции
+    local originalStandY = stand.Root.Position.Y
+    local targetStandY = originalStandY + standSwapYOffset
     
-    -- ЭТАП 2: Через 2.5 сек после ухода под землю - стенд отклеивается и улетает вверх
-    task.wait(2.5)
+    -- Плавно поднимаем стенд (твинер должен работать для стенда)
+    local standRiseTween = TweenService:Create(stand.Root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
+        Position = Vector3.new(stand.Root.Position.X, targetStandY, stand.Root.Position.Z)
+    })
+    standRiseTween:Play()
     
-    -- ФИКСИРОВАННЫЙ Y для стенда относительно игрока (30м выше подземного игрока)
+    -- Ждем пока стенд поднимется + 5 секунд
+    standRiseTween.Completed:Wait()
+    task.wait(5.0)
+    
+    -- ЭТАП 2: Включаем только ноуклип (игрок будет следовать за стендом)
+    if not isNoClipping then
+        startNoClip()
+        print("🔥 NoClip автоматически включен для стенд хака!")
+    end
+    
+    -- ЭТАП 3: Игрок следует за стендом (синхронизация позиций) - с задержкой
+    task.wait(1) -- даем время стенду устояться на новой позиции
+    
     if standFollowConn then standFollowConn:Disconnect() end
     standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
         if not char or not root or not stand or not stand.Root then return end
-        if not undergroundMode then return end
         
-        -- Y стенда ФИКСИРОВАН относительно подземного игрока + 30м вверх
-        local standY = root.Position.Y + standSwapYOffset
-        stand.Root.CFrame = CFrame.new(root.Position.X, standY, root.Position.Z)
+        -- Игрок остается на исходной высоте, следует только по X и Z (с ограничением дистанции)
+        local standPos = stand.Root.Position
+        local currentPos = root.Position
+        local targetPos = Vector3.new(standPos.X, originalPlayerY, standPos.Z)
+        
+        -- Ограничиваем дистанцию телепорта чтобы не улетать слишком далеко
+        local distance = (targetPos - currentPos).Magnitude
+        if distance < 1000 then -- максимум 1км за раз
+            root.Position = targetPos
+        else
+            print("🔥 СЛИШКОМ ДАЛЕКИЙ ТЕЛЕПОРТ ЗАБЛОКИРОВАН:", distance)
+        end
     end)
     
-    -- ЭТАП 3: Присоединяем камеру к стенду
+    -- ЭТАП 4: Присоединяем камеру к стенду
     setFreecamToStandHead(stand)
     print("🔥 АКТИВИРОВАН: Игрок под землей, стенд на поверхности, камера на стенде!")
 end
@@ -2461,8 +2482,11 @@ local function stopStandSwapMode()
         standFollowConn = nil
     end
     
-    -- ЭТАП 3: Возвращаем игрока на поверхность (это соединит его со стендом)
-    stopUndergroundMode()
+    -- ЭТАП 3: Отключаем ноуклип если нужно
+    if isNoClipping then
+        stopNoClip()
+        print("🔥 NoClip отключен!")
+    end
     
     print("🔥 ОТКЛЮЧЕН: Возвращение в исходное состояние...")
 end
@@ -2470,6 +2494,20 @@ end
 -- Подключаем к тумблеру меню
 if _G._standRangeMenuConn then _G._standRangeMenuConn:Disconnect() end
 _G._standRangeMenuConn = game:GetService("RunService").RenderStepped:Connect(function()
+    -- Проверка на смерть персонажа для автоотключения
+    local player = Players.LocalPlayer
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    
+    if standSwapActive and (not char or not hum or hum.Health <= 0) then
+        print("🔥 ПЕРСОНАЖ УМЕР - АВТООТКЛЮЧЕНИЕ STAND RANGE HACK")
+        YBAConfig.Enabled = false
+        stopStandSwapMode()
+        return
+    end
+    
+    -- Проверка режима полета убрана так как больше не используется отдельно
+    
     if YBAConfig.Enabled and not standSwapActive then
         local stands = findStands()
         if #stands > 0 then
@@ -4738,10 +4776,7 @@ function showContent(tabName)
             end
         end)
         
-        local standSpeedToggleBtn = createToggleSlider(getText("StandSpeed"), false, function(v)
-            -- Это просто показ состояния, настройка скорости ниже
-            print("Stand Speed settings changed")
-        end)
+        -- Удален тумблер Stand Speed - теперь скорость регулируется только ползунком
         
         local ybaNoClipStatusLabel = Instance.new("TextLabel", functionsContainer)
         ybaNoClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -4766,9 +4801,9 @@ function showContent(tabName)
             end
         end)
         
-        createSlider("Stand Speed", 1, 200, YBAConfig.UndergroundControl.FlightSpeed or 50, function(v)
+        createSlider("Flight Speed", 1, 200, YBAConfig.UndergroundControl.FlightSpeed or 50, function(v)
             YBAConfig.UndergroundControl.FlightSpeed = v
-            print("🔥 Stand Speed изменена на:", v)
+            print("🔥 Flight Speed изменена на:", v)
         end)
         
 
