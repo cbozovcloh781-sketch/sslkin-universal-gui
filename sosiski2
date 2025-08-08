@@ -512,9 +512,9 @@ local YBAFreeCamera = {} do
         table.insert(inputConnections, UserInputService.InputChanged:Connect(function(inputObj, gameProcessed)
             -- НЕ игнорируем gameProcessed для мыши
             if inputObj.UserInputType == Enum.UserInputType.MouseMovement then
-                -- ИСПРАВЛЕНО: убираем инверсию осей для нормального управления
+                -- ИСПРАВЛЕНО: инвертируем ось X для горизонтального поворота
                 local sensitivity = 0.003
-                input.MouseDelta = Vector2.new(inputObj.Delta.y * sensitivity, inputObj.Delta.x * sensitivity)
+                input.MouseDelta = Vector2.new(inputObj.Delta.y * sensitivity, -inputObj.Delta.x * sensitivity)
                 -- print("YBA Input: Движение мыши", input.MouseDelta) -- Слишком много сообщений
             elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
                 input.MouseWheel = -inputObj.Position.Z
