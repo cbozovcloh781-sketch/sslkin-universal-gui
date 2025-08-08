@@ -540,6 +540,13 @@ local YBAFreeCamera = {} do
 
         local standRoot = targetStand.Root
         local standPosition = standRoot.Position
+        
+        -- Отладочная информация (выводим каждые 5 секунд)
+        if not stepFreecam.lastDebugTime then stepFreecam.lastDebugTime = 0 end
+        if tick() - stepFreecam.lastDebugTime > 5 then
+            print("YBA Debug: Камера активна, позиция стенда:", standPosition)
+            stepFreecam.lastDebugTime = tick()
+        end
 
         -- Движение стенда
         local moveX = (input.D and 1 or 0) - (input.A and 1 or 0)
@@ -621,14 +628,20 @@ local YBAFreeCamera = {} do
         cameraRot = Vector2.new(0, 0)
         
         -- Переключаем камеру в скриптовый режим
+        print("YBA: Переключаем камеру в скриптовый режим...")
         Camera.CameraType = Enum.CameraType.Scriptable
+        print("YBA: Камера переключена, тип:", Camera.CameraType)
         
         -- Запускаем ввод и рендер
+        print("YBA: Запускаем систему ввода...")
         startInput()
+        print("YBA: Подключаем рендер...")
         renderConnection = RunService.Heartbeat:Connect(stepFreecam)
         fcRunning = true
         
         print("YBA: Управление стендом успешно активировано!")
+        print("YBA: fcRunning =", fcRunning)
+        print("YBA: renderConnection =", renderConnection ~= nil)
         return true
     end
 
@@ -2054,19 +2067,19 @@ local function activateFreeCamera(stand)
     
     print("YBA: Активируем управление стендом: " .. stand.Name)
 
-    if YBAConfig.FreezePlayer then
-        print("YBA: Замораживаем игрока...")
-        freezePlayer()
-    end
-
     freeCameraActive = true
     freeCameraTarget = stand
 
-    if YBAFreeCamera.Start(stand) then
-        print("YBA: Управление стендом активировано от третьего лица")
+    -- Запускаем свободную камеру
+    local success = YBAFreeCamera.Start(stand)
+    if success then
+        print("YBA: Управление стендом успешно активировано!")
+        controlledStand = stand -- Сохраняем ссылку на контролируемый стенд
         return true
     else
         print("YBA: Не удалось активировать управление стендом")
+        freeCameraActive = false
+        freeCameraTarget = nil
         return false
     end
 end
@@ -2143,24 +2156,69 @@ local function startYBA()
     YBAConfig.Enabled = true
     if not findStands then return end
     local stands = findStands()
-    if #stands == 0 then return end
+    if #stands == 0 then 
+        print("YBA: Стенды не найдены!")
+        return 
+    end
     local targetStand = stands[1]
     
-    -- Позиционируем стенд рядом с игроком перед активацией
+    print("YBA: Найден стенд: " .. targetStand.Name .. " на расстоянии: " .. targetStand.Distance)
+    
+    -- Отсоединяем стенд от игрока (делаем его свободным)
     local player = Players.LocalPlayer
-    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and targetStand.Root then
-        local playerRoot = player.Character.HumanoidRootPart
-        local standPosition = playerRoot.Position + playerRoot.CFrame.LookVector * 3 + Vector3.new(0, 0, 0)
-        targetStand.Root.CFrame = CFrame.new(standPosition, playerRoot.Position)
+    if targetStand.Root and targetStand.Model then
+        print("YBA: Отсоединяем стенд от игрока...")
         
-        -- Останавливаем любое существующее движение стенда
-        targetStand.Root.Velocity = Vector3.new(0, 0, 0)
-        targetStand.Root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        -- Удаляем все связи с игроком
+        local humanoid = targetStand.Model:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.PlatformStand = true -- Отключает стандартное управление
+            humanoid.Sit = false
+            humanoid.Jump = false
+        end
+        
+        -- Убираем привязку к игроку через Weld/Motor6D
+        for _, child in pairs(targetStand.Root:GetChildren()) do
+            if child:IsA("Weld") or child:IsA("Motor6D") or child:IsA("ManualWeld") then
+                if child.Part0 and child.Part0.Parent == player.Character then
+                    print("YBA: Удаляем связь с игроком:", child.Name)
+                    child:Destroy()
+                end
+                if child.Part1 and child.Part1.Parent == player.Character then
+                    print("YBA: Удаляем связь с игроком:", child.Name)
+                    child:Destroy()
+                end
+            end
+        end
+        
+        -- Позиционируем стенд рядом с игроком после отсоединения
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local playerRoot = player.Character.HumanoidRootPart
+            local standPosition = playerRoot.Position + playerRoot.CFrame.LookVector * 5
+            targetStand.Root.CFrame = CFrame.new(standPosition, playerRoot.Position)
+            targetStand.Root.Anchored = false
+            
+            -- Останавливаем любое существующее движение стенда
+            targetStand.Root.Velocity = Vector3.new(0, 0, 0)
+            targetStand.Root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        end
+        
+        print("YBA: Стенд отсоединен и готов к управлению")
     end
     
-    if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
-    if YBAConfig.SwitchCamera then end
-    if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
+    if YBAConfig.FreezePlayer and freezePlayer then 
+        print("YBA: Замораживаем игрока...")
+        freezePlayer() 
+    end
+    if YBAConfig.SwitchCamera then 
+        print("YBA: Переключение камеры включено")
+    end
+    if YBAConfig.TransferControl and activateFreeCamera then 
+        print("YBA: Активируем управление стендом...")
+        activateFreeCamera(targetStand) 
+    end
+    
+    local char = player.Character
     local humanoid = char and char:FindFirstChild("Humanoid")
     if humanoid then
         local deathConnection = humanoid.Died:Connect(function()
