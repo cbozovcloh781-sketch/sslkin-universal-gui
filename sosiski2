@@ -544,7 +544,7 @@ local YBAFreeCamera = {} do
     }
 
     local NAV_KEYBOARD_SPEED = Vector3.new(1, 1, 1)
-    local PAN_MOUSE_SPEED = Vector2.new(1, 1) * (pi / 64)
+    local PAN_MOUSE_SPEED = Vector2.new(1, 1) * (pi / 32)  -- УВЕЛИЧИЛ ЧУВСТВИТЕЛЬНОСТЬ В 2 РАЗА!
     local FOV_WHEEL_SPEED = 1.0
     local NAV_ADJ_SPEED = 0.75
     local NAV_SHIFT_MUL = 0.25
@@ -578,17 +578,32 @@ local YBAFreeCamera = {} do
 
     -- Обработчики ввода
     local function Keypress(action, state, input)
+        -- Если меню открыто - не обрабатываем ввод
+        if UserInputService.MenuIsOpen then
+            return Enum.ContextActionResult.Pass
+        end
+        
         keyboard[input.KeyCode.Name] = state == Enum.UserInputState.Begin and 1 or 0
         return Enum.ContextActionResult.Sink
     end
 
     local function MousePan(action, state, input)
+        -- ВАЖНО: Если меню открыто - НЕ КРУТИМ КАМЕРУ!
+        if UserInputService.MenuIsOpen then
+            return Enum.ContextActionResult.Pass
+        end
+        
         local delta = input.Delta
         mouse.Delta = Vector2.new(-delta.Y, -delta.X)
         return Enum.ContextActionResult.Sink
     end
 
     local function MouseWheel(action, state, input)
+        -- БЛОКИРУЕМ КОЛЕСИКО ЕСЛИ МЕНЮ ОТКРЫТО!
+        if UserInputService.MenuIsOpen then
+            return Enum.ContextActionResult.Pass
+        end
+        
         mouse[input.UserInputType.Name] = -input.Position.Z
         return Enum.ContextActionResult.Sink
     end
