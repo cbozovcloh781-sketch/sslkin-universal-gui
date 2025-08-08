@@ -1998,19 +1998,34 @@ local function activateFreeCamera(stand)
     local distance = 10
     local minDist, maxDist = 3, 30
     local dragging = false
+    local move = {W=0, A=0, S=0, D=0, Space=0, Shift=0}
+    local standSpeed = 30
     local function getStandHead()
         return stand.Root.Parent:FindFirstChild("Head") or stand.Root
     end
+    -- Управление мышью и колесом
     local inputBeganConn = UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
             dragging = true
         end
+        if input.KeyCode == Enum.KeyCode.W then move.W = 1 end
+        if input.KeyCode == Enum.KeyCode.A then move.A = 1 end
+        if input.KeyCode == Enum.KeyCode.S then move.S = 1 end
+        if input.KeyCode == Enum.KeyCode.D then move.D = 1 end
+        if input.KeyCode == Enum.KeyCode.Space then move.Space = 1 end
+        if input.KeyCode == Enum.KeyCode.LeftShift then move.Shift = 1 end
     end)
     local inputEndedConn = UserInputService.InputEnded:Connect(function(input, gp)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
             dragging = false
         end
+        if input.KeyCode == Enum.KeyCode.W then move.W = 0 end
+        if input.KeyCode == Enum.KeyCode.A then move.A = 0 end
+        if input.KeyCode == Enum.KeyCode.S then move.S = 0 end
+        if input.KeyCode == Enum.KeyCode.D then move.D = 0 end
+        if input.KeyCode == Enum.KeyCode.Space then move.Space = 0 end
+        if input.KeyCode == Enum.KeyCode.LeftShift then move.Shift = 0 end
     end)
     local inputChangedConn = UserInputService.InputChanged:Connect(function(input, gp)
         if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
@@ -2020,8 +2035,19 @@ local function activateFreeCamera(stand)
             distance = math.clamp(distance - input.Position.Z, minDist, maxDist)
         end
     end)
-    local function updateCamera()
+    -- Управление стендом и игроком
+    local function updateControl(dt)
         if not freeCameraActive or not stand or not stand.Root then return end
+        -- Движение стенда
+        local moveVec = Vector3.new(move.D - move.A, move.Space, move.S - move.W)
+        if moveVec.Magnitude > 0 then
+            moveVec = moveVec.Unit * (standSpeed + (move.Shift > 0 and 20 or 0))
+            -- Поворот движения относительно камеры
+            local camRot = CFrame.Angles(0, yaw, 0)
+            moveVec = camRot:VectorToWorldSpace(moveVec)
+            stand.Root.CFrame = stand.Root.CFrame + moveVec * dt
+        end
+        -- Камера
         local head = getStandHead()
         if head then
             local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 2, distance)
@@ -2029,9 +2055,21 @@ local function activateFreeCamera(stand)
         else
             cam.CFrame = stand.Root.CFrame * CFrame.new(0, 2, -distance)
         end
+        -- Перемещение игрока под карту
+        local player = Players.LocalPlayer
+        local char = player and player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local standPos = stand.Root.Position
+            local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
+            local playerPos = root.Position
+            -- Следовать за стендом по XZ, но не по Y
+            local newPos = Vector3.new(standPos.X, targetPos.Y, standPos.Z)
+            root.CFrame = CFrame.new(newPos)
+        end
     end
-    local camConn = RunService.RenderStepped:Connect(updateCamera)
-    table.insert(freeCameraConnections, camConn)
+    local controlConn = RunService.RenderStepped:Connect(updateControl)
+    table.insert(freeCameraConnections, controlConn)
     table.insert(freeCameraConnections, inputBeganConn)
     table.insert(freeCameraConnections, inputEndedConn)
     table.insert(freeCameraConnections, inputChangedConn)
