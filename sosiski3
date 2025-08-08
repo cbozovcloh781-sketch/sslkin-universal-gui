@@ -1957,42 +1957,19 @@ local function freezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
     if not char then return end
-    
     local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
-    
     if root then
         originalPlayerPosition = root.Position
         originalPlayerCFrame = root.CFrame
-        
-        local bv = root:FindFirstChild("BodyVelocity")
-        if not bv then
-            bv = Instance.new("BodyVelocity", root)
-            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-        end
-        bv.Velocity = Vector3.new(0, 0, 0)
-        
-        local gyro = root:FindFirstChild("BodyGyro")
-        if not gyro then
-            gyro = Instance.new("BodyGyro", root)
-            gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-        end
-        gyro.CFrame = root.CFrame
-        
-        local camera = workspace.CurrentCamera
-        if camera then
-            camera.CameraType = Enum.CameraType.Scriptable
-        end
+        root.Anchored = true
     end
-    
     if humanoid then
         originalYBAWalkSpeed = humanoid.WalkSpeed
         originalYBAJumpPower = humanoid.JumpPower
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
-        
-        humanoid.AutoRotate = false
-        humanoid.AutoJumpEnabled = false
+        humanoid.PlatformStand = true
     end
 end
 
@@ -2000,28 +1977,15 @@ local function unfreezePlayer()
     local player = Players.LocalPlayer
     local char = player.Character
     if not char then return end
-    
     local root = char:FindFirstChild("HumanoidRootPart")
     local humanoid = char:FindFirstChild("Humanoid")
-    
     if root then
-        local bv = root:FindFirstChild("BodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-        
-        local gyro = root:FindFirstChild("BodyGyro")
-        if gyro then
-            gyro:Destroy()
-        end
+        root.Anchored = false
     end
-    
     if humanoid then
         humanoid.WalkSpeed = originalYBAWalkSpeed
         humanoid.JumpPower = originalYBAJumpPower
-        
-        humanoid.AutoRotate = true
-        humanoid.AutoJumpEnabled = true
+        humanoid.PlatformStand = false
     end
 end
 
@@ -2030,74 +1994,37 @@ local function activateFreeCamera(stand)
         print("YBA: Ошибка - стенд или его Root не найден")
         return false
     end
-    
     print("YBA: Активируем управление стендом: " .. stand.Name)
-
     if YBAConfig.FreezePlayer then
         print("YBA: Замораживаем игрока...")
         freezePlayer()
     end
-
     freeCameraActive = true
     freeCameraTarget = stand
-
-    if YBAFreeCamera.Start(stand) then
-        print("YBA: Управление стендом активировано от третьего лица")
-        return true
-    else
-        print("YBA: Не удалось активировать управление стендом")
-        return false
+    -- Управление камерой: просто следуем за стендом, не меняя CameraType
+    local cam = workspace.CurrentCamera
+    local function updateCamera()
+        if not freeCameraActive or not stand or not stand.Root then return end
+        cam.CFrame = stand.Root.CFrame * CFrame.new(0, 5, -15)
     end
+    local camConn = RunService.RenderStepped:Connect(updateCamera)
+    table.insert(freeCameraConnections, camConn)
+    print("YBA: Управление стендом активировано от третьего лица")
+    return true
 end
 
 local function disableFreeCamera()
     if not freeCameraActive then return end
-    
     print("YBA: Отключаем управление стендом")
-    
     freeCameraActive = false
     freeCameraTarget = nil
-
-    YBAFreeCamera.Stop()
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.AutoRotate = true
-        end
-    end
-
     for _, connection in ipairs(freeCameraConnections) do
         if connection then
             pcall(function() connection:Disconnect() end)
         end
     end
     freeCameraConnections = {}
-    
     print("YBA: Управление стендом отключено")
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = originalYBAWalkSpeed
-            humanoid.JumpPower = originalYBAJumpPower
-        end
-
-        local root = player.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-            
-            local gyro = root:FindFirstChild("BodyGyro")
-            if gyro then
-                gyro:Destroy()
-            end
-        end
-    end
 end
 
 local function controlStand(stand)
