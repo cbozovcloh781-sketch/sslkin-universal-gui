@@ -4923,14 +4923,14 @@ _G._detachStandConnection = game:GetService("UserInputService").InputBegan:Conne
 end)
 
 local detachedStand = nil
-local detachedControlConn = nil
-local detachedInput = {W=0,A=0,S=0,D=0,Space=0,LeftControl=0}
+local heartbeatConn = nil
 
 local function updateDetachedStandVelocity()
     if not detachedStand or not detachedStand.Root then return end
-    local moveX = detachedInput.D - detachedInput.A
-    local moveZ = detachedInput.S - detachedInput.W
-    local moveY = detachedInput.Space - detachedInput.LeftControl
+    local UserInputService = game:GetService("UserInputService")
+    local moveX = (UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0)
+    local moveZ = (UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0)
+    local moveY = (UserInputService:IsKeyDown(Enum.KeyCode.Space) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and 1 or 0)
     local move = Vector3.new(moveX, moveY, moveZ)
     local speed = 50
     local bv = detachedStand.Root:FindFirstChild("BodyVelocity")
@@ -4947,17 +4947,9 @@ end
 
 local function enableDetachedStandControl(stand)
     detachedStand = stand
-    for k in pairs(detachedInput) do detachedInput[k] = 0 end
-    if detachedControlConn then detachedControlConn:Disconnect() end
-    detachedControlConn = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
-        if gp then return end
-        local name = input.KeyCode.Name
-        if detachedInput[name] ~= nil then detachedInput[name] = 1; updateDetachedStandVelocity() end
-    end)
-    game:GetService("UserInputService").InputEnded:Connect(function(input, gp)
-        if gp then return end
-        local name = input.KeyCode.Name
-        if detachedInput[name] ~= nil then detachedInput[name] = 0; updateDetachedStandVelocity() end
+    if heartbeatConn then heartbeatConn:Disconnect() end
+    heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
+        updateDetachedStandVelocity()
     end)
 end
 
