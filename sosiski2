@@ -2381,24 +2381,12 @@ local function startStandSwapMode(stand)
     
     print("🔥 STAND RANGE HACK: Стабильная активация...")
     
-    -- ЭТАП 1: Сразу фиксируем игрока в безопасной позиции
-    local safePlayerPos = root.Position + Vector3.new(0, 5, 0) -- поднимаем игрока на 5м
-    root.CFrame = CFrame.new(safePlayerPos)
-    root.Anchored = true -- временно закрепляем игрока
+    -- ЭТАП 1: Просто включаем NoClip, БЕЗ телепортов игрока
     
-    -- ЭТАП 2: Сразу включаем NoClip БЕЗ BodyVelocity чтобы избежать хаоса
+    -- ЭТАП 2: Включаем НОРМАЛЬНЫЙ NoClip с полетом
     if not isNoClipping then
-        -- Специальная версия NoClip для Range Hack (без движения)
-        isNoClipping = true
-        workspace.Gravity = 0
-        
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
-            end
-        end
-        
-        print("🔥 NoClip включен (режим стабилизации)")
+        startNoClip()
+        print("🔥 NoClip включен с полетом для игрока!")
     end
     
     -- ЭТАП 3: МГНОВЕННО перемещаем стенд на нужную высоту
@@ -2422,8 +2410,7 @@ local function startStandSwapMode(stand)
     -- ЭТАП 4: Ждем секунду для стабилизации
     task.wait(1)
     
-    -- ЭТАП 5: Освобождаем игрока и активируем камеру
-    root.Anchored = false
+    -- ЭТАП 5: Активируем камеру
     
     -- Включаем камеру стенда
     if YBAFreeCamera.Start(stand) then
@@ -2432,42 +2419,13 @@ local function startStandSwapMode(stand)
         print("🔥 ОШИБКА активации камеры для стенда:", stand.Name)
     end
     
-    -- ЭТАП 6: Настраиваем БЕЗОПАСНОЕ следование (ТОЛЬКО если игрок не управляет)
-    if standFollowConn then standFollowConn:Disconnect() end
-    standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
-        if not char or not root or not stand or not stand.Root then return end
-        
-        -- Проверяем управление игроком
-        local isPlayerControlling = UserInputService:IsKeyDown(Enum.KeyCode.W) or 
-                                   UserInputService:IsKeyDown(Enum.KeyCode.A) or 
-                                   UserInputService:IsKeyDown(Enum.KeyCode.S) or 
-                                   UserInputService:IsKeyDown(Enum.KeyCode.D) or 
-                                   UserInputService:IsKeyDown(Enum.KeyCode.Space) or 
-                                   UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-        
-        -- БЕЗОПАСНОЕ следование - только если игрок НЕ управляет
-        if not isPlayerControlling and not root.Anchored then
-            local standPos = stand.Root.Position
-            local currentPos = root.Position
-            
-            -- Игрок остается НА ТОЙ ЖЕ ВЫСОТЕ что и стенд (не под картой!)
-            local targetPos = Vector3.new(standPos.X, standPos.Y - 10, standPos.Z) -- чуть ниже стенда
-            
-            -- Проверяем что позиция безопасна (не под картой)
-            if targetPos.Y > -1000 then -- минимальная высота
-                local distance = (targetPos - currentPos).Magnitude
-                if distance > 5 and distance < 500 then -- ограничиваем телепорт
-                    root.CFrame = CFrame.new(targetPos)
-                end
-            end
-        end
-    end)
+    -- ЭТАП 6: Готово! Игрок летает сам через NoClip, стенд управляется через камеру
     
-    print("🔥 ✅ СТАБИЛЬНАЯ АКТИВАЦИЯ ЗАВЕРШЕНА!")
-    print("🔥 🎮 Управление стендом: WASD + Space/Ctrl")
-    print("🔥 🎮 Управление игроком: WASD + Space/Ctrl")
+    print("🔥 ✅ RANGE HACK АКТИВИРОВАН БЕЗ БАГОВ!")
+    print("🔥 🎮 Стенд: WASD + Space/Ctrl (управление через камеру)")
+    print("🔥 ✈️  Игрок: WASD + Space/Ctrl (полет через NoClip)")
     print("🔥 🎥 Камера: ПКМ поворот, колесико зум")
-    print("🔥 ⚠️  Игрок следует за стендом только если не управляется")
+    print("🔥 ❌ НИКАКИХ ТЕЛЕПОРТОВ - только стабильный полет!")
 end
 
 local function stopStandSwapMode()
@@ -2482,11 +2440,7 @@ local function stopStandSwapMode()
         print("🔥 КАМЕРА ОТКЛЮЧЕНА от стенда")
     end
     
-    -- ЭТАП 2: Отключаем следование стенда за игроком
-    if standFollowConn then 
-        standFollowConn:Disconnect() 
-        standFollowConn = nil
-    end
+    -- ЭТАП 2: Больше нет следования - это было причиной багов
     
     -- ЭТАП 3: Отключаем ноуклип если нужно
     if isNoClipping then
