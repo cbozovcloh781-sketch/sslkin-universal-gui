@@ -1961,79 +1961,6 @@ local function unfreezePlayer()
     end
 end
 
-local function activateFreeCamera(stand)
-    if not stand or not stand.Root then 
-        print("[activateFreeCamera] Ошибка - стенд или его Root не найден", stand and stand.Name, stand and stand.Root)
-        return false
-    end
-    print("[activateFreeCamera] Активируем управление стендом:", stand.Name, "Root:", stand.Root.Name)
-    if YBAConfig.FreezePlayer then
-        print("[activateFreeCamera] Замораживаем игрока...")
-        freezePlayer()
-    end
-    freeCameraActive = true
-    freeCameraTarget = stand
-    local result = YBAFreeCamera.Start(stand)
-    print("[activateFreeCamera] YBAFreeCamera.Start вернул:", result)
-    if result then
-        print("[activateFreeCamera] Управление стендом активировано от третьего лица")
-        return true
-    else
-        print("[activateFreeCamera] Не удалось активировать управление стендом")
-        return false
-    end
-end
-
-local function disableFreeCamera()
-    if not freeCameraActive then return end
-    
-    print("YBA: Отключаем управление стендом")
-    
-    freeCameraActive = false
-    freeCameraTarget = nil
-
-    YBAFreeCamera.Stop()
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.AutoRotate = true
-        end
-    end
-
-    for _, connection in ipairs(freeCameraConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    freeCameraConnections = {}
-    
-    print("YBA: Управление стендом отключено")
-
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = originalYBAWalkSpeed
-            humanoid.JumpPower = originalYBAJumpPower
-        end
-
-        local root = player.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            local bv = root:FindFirstChild("BodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-            
-            local gyro = root:FindFirstChild("BodyGyro")
-            if gyro then
-                gyro:Destroy()
-            end
-        end
-    end
-end
-
 local function controlStand(stand)
     if not stand or not stand.Root then 
         print("YBA: Ошибка - стенд или его Root не найден")
@@ -2050,286 +1977,78 @@ local function controlStand(stand)
     end
 end
 
-local function startYBA()
-    local plr = Players.LocalPlayer
-    local char = plr and plr.Character
-    if isYBAEnabled then return end
-    isYBAEnabled = true
-    YBAConfig.Enabled = true
-    if not findStands then return end
-    local stands = findStands()
-    if #stands == 0 then print("[startYBA] Нет стендов для управления!") return end
-    local targetStand = stands[1]
-    print("[startYBA] Выбран стенд:", targetStand.Name, "Root:", targetStand.Root and targetStand.Root.Name or "nil")
-    if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
-    if YBAConfig.SwitchCamera and activateFreeCamera then
-        print("[startYBA] SwitchCamera активирован, пробую включить свободную камеру для стенда:", targetStand.Name)
-        activateFreeCamera(targetStand)
-    end
-    if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        local deathConnection = humanoid.Died:Connect(function()
-            stopYBA()
-        end)
-        table.insert(standControlConnections, deathConnection)
-    end
-    task.spawn(function()
-        task.wait(5)
-        if not isYBAEnabled then return end
-        if startUndergroundControl then startUndergroundControl() end
+-- Удаляем старую реализацию Stand Range Hack и горячие клавиши
+startYBA = nil
+stopYBA = nil
+activateFreeCamera = nil
+detachStandControl = nil
+enableDetachedStandControl = nil
+YBAFreeCamera = nil
+if _G._detachStandConnection then _G._detachStandConnection:Disconnect() end
+if _G._standSwapConn then _G._standSwapConn:Disconnect() end
+
+-- Новая реализация Stand Range Hack через тумблер меню
+local standFollowConn = nil
+local standSwapActive = false
+local standSwapYOffset = 30
+local freecamConn = nil
+local freecamActive = false
+
+local function setFreecamToStandHead(stand)
+    if not stand or not stand.Root then return end
+    local head = stand.Model:FindFirstChild("Head") or stand.Model:FindFirstChild("HeadPart") or stand.Model:FindFirstChild("HumanoidRootPart")
+    if not head then return end
+    local Camera = workspace.CurrentCamera
+    freecamActive = true
+    if freecamConn then freecamConn:Disconnect() end
+    freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
+        Camera.CameraType = Enum.CameraType.Scriptable
+        Camera.CFrame = head.CFrame * CFrame.new(0, 0, 0)
     end)
 end
 
-local function stopYBA()
-    if not isYBAEnabled then return end
-    
-    isYBAEnabled = false
-    YBAConfig.Enabled = false
-    
-    if disableFreeCamera then
-        disableFreeCamera()
-    end
-    if unfreezePlayer then
-        unfreezePlayer()
-    end
-    
-    for _, connection in ipairs(standControlConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    standControlConnections = {}
-    controlledStand = nil
-    
-    print("Stand Range Hack деактивирован")
-    print("Автоматически отключаем Underground Flight...")
-    if stopUndergroundControl then
-        stopUndergroundControl()
-    end
+local function disableFreecam()
+    freecamActive = false
+    if freecamConn then freecamConn:Disconnect() end
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 end
 
-local function startUndergroundControl()
-    print("=== ЗАПУСК ПОДЗЕМНОГО ПОЛЕТА ===")
-    
-    if isUndergroundControlEnabled then 
-        print("Подземный полет уже активен!")
-        return 
-    end
-    
-    local plr = Players.LocalPlayer
-    local char = plr.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not root then 
-        print("Персонаж не найден!")
-        return 
-    end
-    
-    print("Персонаж найден, позиция:", root.Position)
-    
-    if not findStands then
-        print("Функция findStands не найдена!")
-        return
-    end
-    
-    local stands = findStands()
-    if #stands == 0 then
-        print("Стенды не найдены! Убедитесь, что у вас есть стенд.")
-        return
-    end
-    
-    controlledStandForUnderground = stands[1].Root
-    isUndergroundControlEnabled = true
-    
-    print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
-    print("Перемещаем персонажа под стенд на 30 метров вниз")
-    
-    if not YBAConfig.UndergroundControl.OriginalPosition then
-        YBAConfig.UndergroundControl.OriginalPosition = root.Position
-        print("Исходная позиция сохранена:", root.Position)
-    end
-    
-    if YBAConfig.UndergroundControl.AutoNoClip and not isNoClipping and startNoClip then
-        startNoClip()
-        print("NoClip включен для подземного полета")
-    elseif not startNoClip then
-        print("ОШИБКА: Функция startNoClip не найдена!")
-    end
-    
-    local flyOriginalJumpPower = hum.JumpPower
-    local flyOriginalJumpHeight = hum.JumpHeight
-    local flyOriginalGravity = workspace.Gravity
-    local flyOriginalHipHeight = hum.HipHeight
-    
-    hum.JumpPower = 0
-    hum.JumpHeight = 0
-    workspace.Gravity = 0
-    hum.HipHeight = 0
-    
-    local standPos = controlledStandForUnderground.Position
-    local undergroundPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
-    
-    print("Стенд позиция:", standPos)
-    print("Целевая подземная позиция:", undergroundPos)
-    print("Текущая позиция персонажа:", root.Position)
-    
-    local initialBv = Instance.new("BodyVelocity", root)
-    initialBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    local direction = (undergroundPos - root.Position).Unit
-    local speed = 200
-    initialBv.Velocity = direction * speed
-    
-    print("Создан BodyVelocity со скоростью:", initialBv.Velocity)
-    
-    task.spawn(function()
-        task.wait(1)
-        if initialBv and initialBv.Parent then
-            initialBv:Destroy()
-            print("Начальный BodyVelocity удален")
-        end
+local function startStandSwapMode(stand)
+    if standSwapActive then return end
+    local player = game.Players.LocalPlayer
+    local char = player.Character
+    if not char or not stand or not stand.Root then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    standSwapActive = true
+    if standFollowConn then standFollowConn:Disconnect() end
+    standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not char or not root or not stand or not stand.Root then return end
+        stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
     end)
-    
-    print("Запускаем основной цикл подземного полета...")
-    local undergroundFlyLoop = RunService.RenderStepped:Connect(function()
-        if not isUndergroundControlEnabled or not controlledStandForUnderground or not controlledStandForUnderground.Parent then
-            print("Подземный полет остановлен - стенд не найден или функция отключена")
-            if hum then
-                hum.JumpPower = flyOriginalJumpPower
-                hum.JumpHeight = flyOriginalJumpHeight
-                hum.HipHeight = flyOriginalHipHeight
-            end
-            if not isNoClipping then
-                workspace.Gravity = flyOriginalGravity
-            end
-            return
-        end
-        
-        local char = Players.LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then 
-            if isUndergroundControlEnabled then
-                stopUndergroundControl()
-            end
-            return 
-        end
-        
-        local standPos = controlledStandForUnderground.Position
-        local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
-        
-        local bv = root:FindFirstChild("BodyVelocity")
-        if not bv then
-            bv = Instance.new("BodyVelocity", root)
-            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-        end
-        
-        local direction = (targetPos - root.Position).Unit
-        local distance = (targetPos - root.Position).Magnitude
-        
-        if distance > 2 then
-            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed)
-            
-            if isShiftPressed then
-                flySpeed = flySpeed + 50
-            end
-            
-            local currentVelocity = bv.Velocity
-            local targetVelocity = direction * flySpeed
-            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.15
-            bv.Velocity = smoothedVelocity
-        elseif distance > 0.5 then
-            local flySpeed = math.floor(YBAConfig.UndergroundControl.FlightSpeed * 0.2)
-            
-            if isShiftPressed then
-                flySpeed = flySpeed + 10
-            end
-            
-            local currentVelocity = bv.Velocity
-            local targetVelocity = direction * flySpeed
-            local smoothedVelocity = currentVelocity + (targetVelocity - currentVelocity) * 0.1
-            bv.Velocity = smoothedVelocity
-        else
-            bv.Velocity = Vector3.new(0, 0, 0)
-        end
-    end)
-    
-    table.insert(undergroundControlConnections, undergroundFlyLoop)
-    
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        local deathConnection = humanoid.Died:Connect(function()
-            print("Игрок умер, отключаем Underground Flight...")
-            stopUndergroundControl()
-        end)
-        table.insert(undergroundControlConnections, deathConnection)
-    end
-    
-    print("Полет под землей за стендом активирован!")
-    print("Персонаж перенесен под стенд на расстоянии 30 метров под землей")
+    setFreecamToStandHead(stand)
+    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности, камера на голове стенда")
 end
 
-local function stopUndergroundControl()
-    if not isUndergroundControlEnabled then return end
-    
-    isUndergroundControlEnabled = false
-    
-    local char = Players.LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if hum then
-        hum.JumpPower = 50
-        hum.JumpHeight = 7.2
-        hum.HipHeight = 2
-    end
-    
-    workspace.Gravity = 196.2
-    
-    if root then
-        local bv = root:FindFirstChild("BodyVelocity")
-        if bv then
-            bv:Destroy()
-        end
-    end
-    
-    for _, connection in ipairs(undergroundControlConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    undergroundControlConnections = {}
-    
-    if YBAConfig.UndergroundControl.OriginalPosition then
-        if root then
-            print("Плавно возвращаем персонажа в исходную позицию...")
-            
-            local returnBv = Instance.new("BodyVelocity", root)
-            returnBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-            
-            local direction = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Unit
-            local distance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
-            local returnSpeed = 100
-            
-            returnBv.Velocity = direction * returnSpeed
-            
-            local returnConnection = RunService.Heartbeat:Connect(function()
-                local currentDistance = (YBAConfig.UndergroundControl.OriginalPosition - root.Position).Magnitude
-                
-                if currentDistance < 2 then
-                    returnBv:Destroy()
-                    returnConnection:Disconnect()
-                    YBAConfig.UndergroundControl.OriginalPosition = nil
-                    print("Персонаж успешно возвращен в исходную позицию")
-                end
-            end)
-        end
-    end
-    
-    controlledStandForUnderground = nil
-    
-    print("Полет под землей за стендом отключен!")
+local function stopStandSwapMode()
+    standSwapActive = false
+    if standFollowConn then standFollowConn:Disconnect() end
+    disableFreecam()
+    print("[standSwap] Режим отключён")
 end
+
+-- Подключаем к тумблеру меню
+if _G._standRangeMenuConn then _G._standRangeMenuConn:Disconnect() end
+_G._standRangeMenuConn = game:GetService("RunService").RenderStepped:Connect(function()
+    if YBAConfig.Enabled and not standSwapActive then
+        local stands = findStands()
+        if #stands > 0 then
+            startStandSwapMode(stands[1])
+        end
+    elseif not YBAConfig.Enabled and standSwapActive then
+        stopStandSwapMode()
+    end
+end)
 
 local function getAlivePlayers()
     local alivePlayers = {}
