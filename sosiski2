@@ -542,6 +542,8 @@ local YBAFreeCamera = {} do
         Delta = Vector2.new(),
         MouseWheel = 0,
     }
+    
+    local isRightMouseDown = false
 
     local NAV_KEYBOARD_SPEED = Vector3.new(1, 1, 1)
     local PAN_MOUSE_SPEED = Vector2.new(1, 1) * (pi / 32)  -- УВЕЛИЧИЛ ЧУВСТВИТЕЛЬНОСТЬ В 2 РАЗА!
@@ -593,8 +595,26 @@ local YBAFreeCamera = {} do
             return Enum.ContextActionResult.Pass
         end
         
-        local delta = input.Delta
-        mouse.Delta = Vector2.new(-delta.Y, -delta.X)
+        -- ТОЛЬКО ЕСЛИ ЗАЖАТА ПКМ - КРУТИМ КАМЕРУ!
+        if isRightMouseDown then
+            local delta = input.Delta
+            mouse.Delta = Vector2.new(-delta.Y, -delta.X)
+        end
+        return Enum.ContextActionResult.Sink
+    end
+    
+    local function MouseButton(action, state, input)
+        -- Отслеживаем ПКМ
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            isRightMouseDown = (state == Enum.UserInputState.Begin)
+            
+            -- Блокируем/разблокируем мышь
+            if isRightMouseDown then
+                UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+            else
+                UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            end
+        end
         return Enum.ContextActionResult.Sink
     end
 
@@ -619,15 +639,18 @@ local YBAFreeCamera = {} do
             Enum.KeyCode.Up, Enum.KeyCode.Down
         )
         ContextActionService:BindActionAtPriority("YBAFreecamMousePan", MousePan, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
+        ContextActionService:BindActionAtPriority("YBAFreecamMouseButton", MouseButton, false, INPUT_PRIORITY, Enum.UserInputType.MouseButton2)
         ContextActionService:BindActionAtPriority("YBAFreecamMouseWheel", MouseWheel, false, INPUT_PRIORITY, Enum.UserInputType.MouseWheel)
     end
 
     local function stopInput()
         navSpeed = 1
+        isRightMouseDown = false
         for k, v in pairs(keyboard) do keyboard[k] = 0 end
         for k, v in pairs(mouse) do if typeof(v) == "number" then mouse[k] = 0 else mouse[k] = Vector2.new() end end
         ContextActionService:UnbindAction("YBAFreecamKeyboard")
         ContextActionService:UnbindAction("YBAFreecamMousePan")
+        ContextActionService:UnbindAction("YBAFreecamMouseButton")
         ContextActionService:UnbindAction("YBAFreecamMouseWheel")
     end
 
