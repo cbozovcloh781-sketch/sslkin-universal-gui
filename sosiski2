@@ -2354,6 +2354,13 @@ local function startStandSwapMode(stand)
     -- ЭТАП 1: Просто включаем NoClip, БЕЗ телепортов игрока
     
     -- ЭТАП 2: Включаем НОРМАЛЬНЫЙ NoClip с полетом
+    -- Сначала принудительно отключаем Fly чтобы не было конфликта
+    if isFlying then
+        stopFly()
+        FlyConfig.Enabled = false
+        print("🔥 Fly отключен для предотвращения конфликта")
+    end
+    
     if not isNoClipping then
         startNoClip()
         print("🔥 NoClip включен с полетом для игрока!")
@@ -2399,11 +2406,14 @@ local function startStandSwapMode(stand)
         end
     end
     
-    -- МГНОВЕННО перемещаем стенд на нужную высоту
-    local originalStandPos = stand.Root.Position
-    local targetStandPos = Vector3.new(originalStandPos.X, originalStandPos.Y + standSwapYOffset, originalStandPos.Z)
+    -- ТЕЛЕПОРТИРУЕМ СТЕНД ПОДАЛЬШЕ ОТ ИГРОКА для отсоединения
+    local playerPos = root.Position
+    local targetStandPos = Vector3.new(playerPos.X + 50, playerPos.Y + standSwapYOffset, playerPos.Z + 50) -- на 50 блоков от игрока
     stand.Root.CFrame = CFrame.new(targetStandPos)
     stand.Root.Anchored = false -- убеждаемся что стенд не закреплен
+    
+    -- Добавляем небольшую задержку для отсоединения
+    task.wait(0.5)
     
     -- НЕ добавляем BodyPosition - он мешает управлению стендом!
     
@@ -2451,10 +2461,40 @@ local function stopStandSwapMode()
     
     -- ЭТАП 2: Больше нет следования - это было причиной багов
     
-    -- ЭТАП 3: Отключаем ноуклип если нужно
+    -- ЭТАП 3: ПРИНУДИТЕЛЬНО отключаем NoClip И Fly
     if isNoClipping then
         stopNoClip()
         print("🔥 NoClip отключен!")
+    end
+    
+    -- Также отключаем Fly если был включен
+    if isFlying then
+        stopFly()
+        FlyConfig.Enabled = false
+        print("🔥 Fly также отключен!")
+    end
+    
+    -- Дополнительная очистка - на случай если stopNoClip не сработал
+    local char = Players.LocalPlayer.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            -- Восстанавливаем гравитацию
+            workspace.Gravity = 196.2
+            
+            -- Удаляем BodyVelocity принудительно
+            local bodyVel = root:FindFirstChild("BodyVelocity")
+            if bodyVel then
+                bodyVel:Destroy()
+            end
+            
+            -- Восстанавливаем коллизии
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
     end
     
     print("🔥 ОТКЛЮЧЕН: Возвращение в исходное состояние...")
