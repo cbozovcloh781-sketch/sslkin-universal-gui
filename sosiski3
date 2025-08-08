@@ -4967,3 +4967,47 @@ local function detachStandControl(stand)
     bv.Velocity = Vector3.new(0,0,0)
     enableDetachedStandControl(stand)
 end
+
+local standFollowConn = nil
+local standSwapActive = false
+local standSwapKey = Enum.KeyCode.H
+local standSwapYOffset = 30
+
+local function startStandSwapMode(stand)
+    if standSwapActive then return end
+    local player = game.Players.LocalPlayer
+    local char = player.Character
+    if not char or not stand or not stand.Root then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    standSwapActive = true
+    if standFollowConn then standFollowConn:Disconnect() end
+    standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not char or not root or not stand or not stand.Root then return end
+        stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
+    end)
+    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности")
+end
+
+local function stopStandSwapMode()
+    standSwapActive = false
+    if standFollowConn then standFollowConn:Disconnect() end
+    print("[standSwap] Режим отключён")
+end
+
+if _G._standSwapConn then _G._standSwapConn:Disconnect() end
+_G._standSwapConn = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == standSwapKey then
+        local stands = findStands()
+        if #stands > 0 then
+            if not standSwapActive then
+                startStandSwapMode(stands[1])
+            else
+                stopStandSwapMode()
+            end
+        else
+            print("[standSwap] Стенд не найден!")
+        end
+    end
+end)
