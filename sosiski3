@@ -4783,7 +4783,7 @@ function disableFreecam()
     workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 end
 
--- Stand Range Hack: стенд следует за игроком, оригинальная freecam
+-- Stand Range Hack: только отсоединение стенда, без управления камерой
 local standFollowConn = nil
 local standSwapActive = false
 local standSwapYOffset = 30
@@ -4801,14 +4801,12 @@ local function startStandSwapMode(stand)
         if not char or not root or not stand or not stand.Root then return end
         stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
     end)
-    YBAFreeCamera.Start(stand)
-    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности, оригинальная камера")
+    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности (без камеры)")
 end
 
 local function stopStandSwapMode()
     standSwapActive = false
     if standFollowConn then standFollowConn:Disconnect() end
-    YBAFreeCamera.Stop()
     print("[standSwap] Режим отключён")
 end
 
