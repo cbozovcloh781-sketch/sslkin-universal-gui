@@ -512,8 +512,9 @@ local YBAFreeCamera = {} do
         table.insert(inputConnections, UserInputService.InputChanged:Connect(function(inputObj, gameProcessed)
             -- НЕ игнорируем gameProcessed для мыши
             if inputObj.UserInputType == Enum.UserInputType.MouseMovement then
-                -- Исправляем инверсию осей: X для поворота, Y для наклона
-                input.MouseDelta = Vector2.new(-inputObj.Delta.y, inputObj.Delta.x) * 0.005
+                -- Правильная настройка осей: Y для наклона (вверх/вниз), X для поворота (лево/право)
+                local sensitivity = 0.003
+                input.MouseDelta = Vector2.new(-inputObj.Delta.y * sensitivity, inputObj.Delta.x * sensitivity)
                 -- print("YBA Input: Движение мыши", input.MouseDelta) -- Слишком много сообщений
             elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
                 input.MouseWheel = -inputObj.Position.Z
@@ -641,25 +642,23 @@ local YBAFreeCamera = {} do
             bv.Velocity = Vector3.new(0, 0, 0)
         end
 
-        -- Обработка вращения мыши (с поддержкой шифтлока)
+        -- Обработка вращения мыши
         if input.MouseDelta.Magnitude > 0 then
             cameraRot = cameraRot + input.MouseDelta
             cameraRot = Vector2.new(
                 math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), 
                 cameraRot.Y % (2 * math.pi)
             )
-            
-            -- Поворачиваем стенд только если зажат Shift (шифтлок режим)
-            if input.LeftShift then
-                local currentPos = standRoot.Position
-                local currentCFrame = standRoot.CFrame
-                local targetCFrame = CFrame.new(currentPos) * CFrame.Angles(0, cameraRot.Y, 0)
-                -- Плавный поворот через lerp
-                standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.15)
-                print("YBA: Шифтлок - поворачиваем стенд")
-            end
-            
             input.MouseDelta = Vector2.new()
+        end
+        
+        -- Поворот стенда КАЖДЫЙ КАДР если зажат Shift (шифтлок режим)
+        if input.LeftShift then
+            local currentPos = standRoot.Position
+            local currentCFrame = standRoot.CFrame
+            local targetCFrame = CFrame.new(currentPos) * CFrame.Angles(0, cameraRot.Y, 0)
+            -- Более быстрый поворот для отзывчивости
+            standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.3)
         end
 
         -- Обработка колеса мыши для зума
@@ -668,11 +667,14 @@ local YBAFreeCamera = {} do
             input.MouseWheel = 0
         end
 
-        -- Позиционирование камеры
+        -- Исправленное позиционирование камеры
+        local horizontalDistance = math.cos(cameraRot.X) * cameraDistance
+        local verticalOffset = math.sin(cameraRot.X) * cameraDistance
+        
         local cameraOffset = Vector3.new(
-            math.sin(cameraRot.Y) * math.cos(cameraRot.X) * cameraDistance,
-            math.sin(cameraRot.X) * cameraDistance + cameraHeight,
-            math.cos(cameraRot.Y) * math.cos(cameraRot.X) * cameraDistance
+            math.sin(cameraRot.Y) * horizontalDistance,
+            verticalOffset + cameraHeight,
+            math.cos(cameraRot.Y) * horizontalDistance
         )
         
         local cameraPosition = standPosition + cameraOffset
