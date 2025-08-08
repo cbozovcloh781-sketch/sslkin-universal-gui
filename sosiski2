@@ -255,7 +255,17 @@ local playerESPElements = {}
 local userStandESPEnabled = false
 local userStyleESPEnabled = false
 
-
+-- Глобальные переменные для freecam (объявить один раз в файле, вне функции)
+freecamConn = nil
+beganConn = nil
+endedConn = nil
+changedConn = nil
+wheelConn = nil
+camRot = camRot or Vector2.new(0, 0)
+camDistance = camDistance or -10
+camHeight = camHeight or 4
+originalCameraSubject = nil
+originalCameraType = nil
 
 -- Player ESP Functions
 local function getPlayerStand(player)
@@ -1996,15 +2006,71 @@ local freecamActive = false
 
 local function setFreecamToStandHead(stand)
     if not stand or not stand.Root then return end
-    local head = stand.Model:FindFirstChild("Head") or stand.Model:FindFirstChild("HeadPart") or stand.Model:FindFirstChild("HumanoidRootPart")
-    if not head then return end
+    local root = stand.Root
     local Camera = workspace.CurrentCamera
-    freecamActive = true
     if freecamConn then freecamConn:Disconnect() end
+    if beganConn then beganConn:Disconnect() end
+    if endedConn then endedConn:Disconnect() end
+    if changedConn then changedConn:Disconnect() end
+    if wheelConn then wheelConn:Disconnect() end
+    local rotating = false
+    local mouseSensitivity = 0.08
+    local minDistance, maxDistance = -3, -30
+    local UserInputService = game:GetService("UserInputService")
+    -- Сохраняем оригинальные параметры камеры
+    originalCameraSubject = Camera.CameraSubject
+    originalCameraType = Camera.CameraType
+    -- Мгновенно перемещаем камеру к стенду
+    local focusPos = root.Position + Vector3.new(0, camHeight, 0)
+    local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
+    local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
+    Camera.CameraType = Enum.CameraType.Scriptable
+    Camera.CFrame = CFrame.new(camPos, focusPos)
+    local function onInputBegan(input, _)
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            rotating = true
+            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+        end
+    end
+    local function onInputEnded(input, _)
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            rotating = false
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        end
+    end
+    local function onInputChanged(input, _)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
+            camRot = camRot + Vector2.new(-input.Delta.y, -input.Delta.x) * mouseSensitivity
+            camRot = Vector2.new(math.clamp(camRot.X, -math.rad(80), math.rad(80)), camRot.Y % (2 * math.pi))
+        end
+    end
+    local function onWheelMoved(input, _)
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            camDistance = math.clamp(camDistance + input.Position.Z, maxDistance, minDistance)
+        end
+    end
+    beganConn = UserInputService.InputBegan:Connect(onInputBegan)
+    endedConn = UserInputService.InputEnded:Connect(onInputEnded)
+    changedConn = UserInputService.InputChanged:Connect(onInputChanged)
+    wheelConn = UserInputService.InputChanged:Connect(onWheelMoved)
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
+        local focusPos = root.Position + Vector3.new(0, camHeight, 0)
+        local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
+        local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
         Camera.CameraType = Enum.CameraType.Scriptable
-        Camera.CFrame = head.CFrame * CFrame.new(0, 0, 0)
+        Camera.CFrame = CFrame.new(camPos, focusPos)
     end)
+    disableFreecam = function()
+        if freecamConn then freecamConn:Disconnect() end
+        if beganConn then beganConn:Disconnect() end
+        if endedConn then endedConn:Disconnect() end
+        if changedConn then changedConn:Disconnect() end
+        if wheelConn then wheelConn:Disconnect() end
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        -- Возвращаем камеру к персонажу
+        Camera.CameraType = originalCameraType or Enum.CameraType.Custom
+        Camera.CameraSubject = originalCameraSubject or game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
+    end
 end
 
 local function disableFreecam()
