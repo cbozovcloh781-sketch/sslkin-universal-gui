@@ -1993,22 +1993,48 @@ local function activateFreeCamera(stand)
     local originalCameraType = cam.CameraType
     local originalCameraSubject = cam.CameraSubject
     cam.CameraType = Enum.CameraType.Scriptable
-    -- Следуем за "головой" стенда
+    -- Свободная камера: вращение мышью (ПКМ), отдаление колесом
+    local yaw, pitch = 0, 0
+    local distance = 10
+    local minDist, maxDist = 3, 30
+    local dragging = false
     local function getStandHead()
         return stand.Root.Parent:FindFirstChild("Head") or stand.Root
     end
+    local inputBeganConn = UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            dragging = true
+        end
+    end)
+    local inputEndedConn = UserInputService.InputEnded:Connect(function(input, gp)
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            dragging = false
+        end
+    end)
+    local inputChangedConn = UserInputService.InputChanged:Connect(function(input, gp)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            yaw = yaw - input.Delta.x * 0.005
+            pitch = math.clamp(pitch - input.Delta.y * 0.005, -math.pi/2+0.1, math.pi/2-0.1)
+        elseif input.UserInputType == Enum.UserInputType.MouseWheel then
+            distance = math.clamp(distance - input.Position.Z, minDist, maxDist)
+        end
+    end)
     local function updateCamera()
         if not freeCameraActive or not stand or not stand.Root then return end
         local head = getStandHead()
         if head then
-            cam.CFrame = head.CFrame * CFrame.new(0, 2, -10)
+            local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(0, 2, distance)
+            cam.CFrame = head.CFrame * offset
         else
-            cam.CFrame = stand.Root.CFrame * CFrame.new(0, 2, -10)
+            cam.CFrame = stand.Root.CFrame * CFrame.new(0, 2, -distance)
         end
     end
     local camConn = RunService.RenderStepped:Connect(updateCamera)
     table.insert(freeCameraConnections, camConn)
-    -- Сохраняем возврат камеры
+    table.insert(freeCameraConnections, inputBeganConn)
+    table.insert(freeCameraConnections, inputEndedConn)
+    table.insert(freeCameraConnections, inputChangedConn)
     freeCameraConnections._restore = function()
         cam.CameraType = originalCameraType
         cam.CameraSubject = originalCameraSubject
