@@ -2118,6 +2118,69 @@ local undergroundPlayerY = 0
 local undergroundFlyConnection = nil
 local returnToSurfaceActive = false
 
+-- Функция создания уведомлений на экране
+local function createNotification(message, duration)
+    duration = duration or 3
+    
+    local notification = Instance.new("Frame")
+    notification.Size = UDim2.new(0, 300, 0, 60)
+    notification.Position = UDim2.new(0.5, -150, 0, 50)
+    notification.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    notification.BorderSizePixel = 0
+    notification.Parent = screenGui
+    
+    local corner = Instance.new("UICorner", notification)
+    corner.CornerRadius = UDim.new(0, 8)
+    
+    local stroke = Instance.new("UIStroke", notification)
+    stroke.Color = Color3.fromRGB(255, 100, 100)
+    stroke.Thickness = 2
+    
+    local text = Instance.new("TextLabel", notification)
+    text.Size = UDim2.new(1, -10, 1, 0)
+    text.Position = UDim2.new(0, 5, 0, 0)
+    text.Text = message
+    text.Font = Enum.Font.GothamBold
+    text.TextSize = 14
+    text.TextColor3 = Color3.new(1, 1, 1)
+    text.BackgroundTransparency = 1
+    text.TextWrapped = true
+    
+    -- Анимация появления
+    notification:TweenPosition(UDim2.new(0.5, -150, 0, 50), "Out", "Quad", 0.3, true)
+    
+    -- Автоудаление
+    task.spawn(function()
+        task.wait(duration)
+        notification:TweenPosition(UDim2.new(0.5, -150, 0, -70), "In", "Quad", 0.3, true, function()
+            notification:Destroy()
+        end)
+    end)
+end
+
+-- Проверка стенда в радиусе 4 метров
+local function checkStandNearby()
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then return false, nil end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return false, nil end
+    
+    local stands = findStands()
+    if #stands == 0 then 
+        return false, nil 
+    end
+    
+    local closestStand = stands[1]
+    local distance = closestStand.Distance
+    
+    if distance <= 4 then
+        return true, closestStand
+    else
+        return false, nil
+    end
+end
+
 -- ПОДЗЕМНЫЙ РЕЖИМ С ТВОИМ ФЛАЕМ!
 local function startUndergroundMode()
     if undergroundMode then return end
@@ -2212,8 +2275,11 @@ local function startUndergroundMode()
     -- Сохраняем соединения
     undergroundFlyConnection = {inputDown, inputUp, renderConnection}
     
-    -- Плавно опускаемся под землю
-    local targetPos = Vector3.new(root.Position.X, undergroundPlayerY, root.Position.Z)
+    -- Плавно опускаемся под землю НА 30 МЕТРОВ ОТ ТЕКУЩЕЙ ПОЗИЦИИ
+    local currentPos = root.Position
+    local targetPos = Vector3.new(currentPos.X, currentPos.Y - 30, currentPos.Z) -- ИМЕННО 30м вниз от текущей позиции!
+    undergroundPlayerY = targetPos.Y
+    
     local descentTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
         Position = targetPos
     })
@@ -2343,7 +2409,7 @@ local function setFreecamToStandHead(stand)
                 
                 camRot = camRot + Vector2.new(deltaY, deltaX)
                 camRot = Vector2.new(
-                    math.clamp(camRot.X, -math.rad(80), math.rad(25)), -- РЕАЛИСТИЧНЫЕ углы как у настоящей камеры!
+                    math.clamp(camRot.X, -math.rad(70), math.rad(45)), -- Можешь смотреть под себя сверху!
                     camRot.Y % (2 * math.pi)
                 )
             end
@@ -2415,6 +2481,17 @@ end
 
 local function startStandSwapMode(stand)
     if standSwapActive then return end
+    
+    -- ПРОВЕРКА СТЕНДА В РАДИУСЕ 4 МЕТРОВ!
+    local standFound, nearbyStand = checkStandNearby()
+    if not standFound then
+        createNotification("⚠️ Стенды поблизости не обнаружены", 4)
+        print("❌ STAND RANGE HACKS: Стенды в радиусе 4м не найдены!")
+        return
+    end
+    
+    stand = nearbyStand -- Используем найденный стенд
+    
     local player = game.Players.LocalPlayer
     local char = player.Character
     if not char or not stand or not stand.Root then return end
@@ -2423,6 +2500,7 @@ local function startStandSwapMode(stand)
     standSwapActive = true
     
     print("🔥 STAND RANGE HACKS: Последовательность активации...")
+    createNotification("🔥 Stand Range Hacks активирован!", 3)
     
     -- ЭТАП 1: Игрок уходит под землю
     startUndergroundMode()
@@ -2451,6 +2529,7 @@ local function stopStandSwapMode()
     standSwapActive = false
     
     print("🔥 STAND RANGE HACKS: Последовательность отключения...")
+    createNotification("🔥 Stand Range Hacks отключен", 3)
     
     -- ЭТАП 1: Отключаем камеру от стенда
     disableFreecam()
@@ -2471,10 +2550,8 @@ end
 if _G._standRangeMenuConn then _G._standRangeMenuConn:Disconnect() end
 _G._standRangeMenuConn = game:GetService("RunService").RenderStepped:Connect(function()
     if YBAConfig.Enabled and not standSwapActive then
-        local stands = findStands()
-        if #stands > 0 then
-            startStandSwapMode(stands[1])
-        end
+        -- Проверка и активация происходит внутри startStandSwapMode
+        startStandSwapMode()
     elseif not YBAConfig.Enabled and standSwapActive then
         stopStandSwapMode()
     end
@@ -4738,10 +4815,7 @@ function showContent(tabName)
             end
         end)
         
-        local standSpeedToggleBtn = createToggleSlider(getText("StandSpeed"), false, function(v)
-            -- Это просто показ состояния, настройка скорости ниже
-            print("Stand Speed settings changed")
-        end)
+        -- Убрали кнопку Stand Speed - скорость меняется по слайдеру ниже!
         
         local ybaNoClipStatusLabel = Instance.new("TextLabel", functionsContainer)
         ybaNoClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -4766,9 +4840,9 @@ function showContent(tabName)
             end
         end)
         
-        createSlider("Stand Speed", 1, 200, YBAConfig.UndergroundControl.FlightSpeed or 50, function(v)
+        createSlider("Stand Speed (Player Flight)", 5, 100, YBAConfig.UndergroundControl.FlightSpeed or 50, function(v)
             YBAConfig.UndergroundControl.FlightSpeed = v
-            print("🔥 Stand Speed изменена на:", v)
+            print("🔥 Скорость полета игрока изменена на:", v)
         end)
         
 
