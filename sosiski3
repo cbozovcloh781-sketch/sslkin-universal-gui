@@ -489,27 +489,31 @@ local YBAFreeCamera = {} do
 
         -- Простое отслеживание ввода через UserInputService
         table.insert(inputConnections, UserInputService.InputBegan:Connect(function(inputObj, gameProcessed)
-            if gameProcessed then return end
+            -- НЕ игнорируем gameProcessed для лучшей совместимости
             local keyName = inputObj.KeyCode.Name
             if input[keyName] ~= nil then
                 input[keyName] = true
+                print("YBA Input: Нажата клавиша", keyName)
             end
         end))
 
         table.insert(inputConnections, UserInputService.InputEnded:Connect(function(inputObj, gameProcessed)
-            if gameProcessed then return end
+            -- НЕ игнорируем gameProcessed для лучшей совместимости
             local keyName = inputObj.KeyCode.Name
             if input[keyName] ~= nil then
                 input[keyName] = false
+                print("YBA Input: Отпущена клавиша", keyName)
             end
         end))
 
         table.insert(inputConnections, UserInputService.InputChanged:Connect(function(inputObj, gameProcessed)
-            if gameProcessed then return end
+            -- НЕ игнорируем gameProcessed для мыши
             if inputObj.UserInputType == Enum.UserInputType.MouseMovement then
                 input.MouseDelta = Vector2.new(-inputObj.Delta.y, -inputObj.Delta.x) * 0.005
+                -- print("YBA Input: Движение мыши", input.MouseDelta) -- Слишком много сообщений
             elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
                 input.MouseWheel = -inputObj.Position.Z
+                print("YBA Input: Колесо мыши", input.MouseWheel)
             end
         end))
     end
@@ -597,7 +601,11 @@ local YBAFreeCamera = {} do
         )
         
         local cameraPosition = standPosition + cameraOffset
-        Camera.CFrame = CFrame.lookAt(cameraPosition, standPosition)
+        local newCameraCFrame = CFrame.lookAt(cameraPosition, standPosition)
+        
+        -- Принудительно устанавливаем камеру
+        Camera.CFrame = newCameraCFrame
+        Camera.CameraType = Enum.CameraType.Scriptable -- Убеждаемся что камера в скриптовом режиме
     end
 
     function YBAFreeCamera.Start(stand)
@@ -632,6 +640,13 @@ local YBAFreeCamera = {} do
         print("YBA: Переключаем камеру в скриптовый режим...")
         Camera.CameraType = Enum.CameraType.Scriptable
         print("YBA: Камера переключена, тип:", Camera.CameraType)
+        
+        -- Устанавливаем начальную позицию камеры за стендом
+        local standPosition = stand.Root.Position
+        local initialOffset = Vector3.new(0, cameraHeight, cameraDistance)
+        local initialCameraPosition = standPosition + initialOffset
+        Camera.CFrame = CFrame.lookAt(initialCameraPosition, standPosition)
+        print("YBA: Установлена начальная позиция камеры:", initialCameraPosition)
         
         -- Запускаем ввод и рендер
         print("YBA: Запускаем систему ввода...")
@@ -2214,18 +2229,39 @@ local function startYBA()
         end
         
         -- Убираем привязку к игроку через Weld/Motor6D
+        local connectionsRemoved = 0
         for _, child in pairs(targetStand.Root:GetChildren()) do
-            if child:IsA("Weld") or child:IsA("Motor6D") or child:IsA("ManualWeld") then
+            if child:IsA("Weld") or child:IsA("Motor6D") or child:IsA("ManualWeld") or child:IsA("Attachment") then
+                print("YBA: Найдена связь:", child.Name, child.ClassName)
                 if child.Part0 and child.Part0.Parent == player.Character then
-                    print("YBA: Удаляем связь с игроком:", child.Name)
+                    print("YBA: Удаляем связь с игроком (Part0):", child.Name)
                     child:Destroy()
-                end
-                if child.Part1 and child.Part1.Parent == player.Character then
-                    print("YBA: Удаляем связь с игроком:", child.Name)
+                    connectionsRemoved = connectionsRemoved + 1
+                elseif child.Part1 and child.Part1.Parent == player.Character then
+                    print("YBA: Удаляем связь с игроком (Part1):", child.Name)
                     child:Destroy()
+                    connectionsRemoved = connectionsRemoved + 1
                 end
             end
         end
+        
+        -- Также проверяем все части стенда на связи
+        for _, part in pairs(targetStand.Model:GetDescendants()) do
+            if part:IsA("BasePart") then
+                for _, child in pairs(part:GetChildren()) do
+                    if child:IsA("Weld") or child:IsA("Motor6D") or child:IsA("ManualWeld") then
+                        if (child.Part0 and child.Part0.Parent == player.Character) or 
+                           (child.Part1 and child.Part1.Parent == player.Character) then
+                            print("YBA: Удаляем связь из части", part.Name, ":", child.Name)
+                            child:Destroy()
+                            connectionsRemoved = connectionsRemoved + 1
+                        end
+                    end
+                end
+            end
+        end
+        
+        print("YBA: Удалено связей с игроком:", connectionsRemoved)
         
         -- Позиционируем стенд рядом с игроком после отсоединения
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
