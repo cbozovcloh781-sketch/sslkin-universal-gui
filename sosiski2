@@ -468,6 +468,7 @@ local YBAFreeCamera = {} do
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
     local Camera = workspace.CurrentCamera
+    local Players = game:GetService("Players")
 
     local fcRunning = false
     local targetStand = nil
@@ -475,7 +476,7 @@ local YBAFreeCamera = {} do
     local originalCameraSubject = nil
     local originalCameraType = nil
     local cameraDistance = 10
-    local cameraHeight = 5
+    local cameraHeight = 3
     local cameraRotX = 0
     local cameraRotY = 0
     local NAV_SPEED = 1
@@ -485,6 +486,7 @@ local YBAFreeCamera = {} do
         Space = 0, LeftControl = 0
     }
     local connections = {}
+    local lastMousePosition = Vector2.new()
 
     -- Функция для получения головы стенда
     local function getStandHead(stand)
@@ -518,12 +520,25 @@ local YBAFreeCamera = {} do
     local function onInputChanged(inputObj, gp)
         if gp then return end
         if inputObj.UserInputType == Enum.UserInputType.MouseMovement then
-            -- Обычная чувствительность мыши как у игрока
-            local mouseSensitivity = YBAConfig.MouseLookSensitivity or 0.003
-            cameraRotY = cameraRotY - inputObj.Delta.X * mouseSensitivity
-            cameraRotX = cameraRotX - inputObj.Delta.Y * mouseSensitivity
-            -- Ограничиваем вертикальное вращение
-            cameraRotX = math.clamp(cameraRotX, -math.rad(80), math.rad(80))
+            -- Проверяем, не блокирует ли шифтлок поворот
+            local currentMousePosition = UserInputService:GetMouseLocation()
+            
+            -- Если мышь не заблокирована (шифтлок не активен) или если мышь двигается
+            if UserInputService.MouseBehavior == Enum.MouseBehavior.Default or 
+               (currentMousePosition - lastMousePosition).Magnitude > 0 then
+                
+                local mouseSensitivity = YBAConfig.MouseLookSensitivity or 0.003
+                local deltaX = inputObj.Delta.X * mouseSensitivity
+                local deltaY = inputObj.Delta.Y * mouseSensitivity
+                
+                cameraRotY = cameraRotY - deltaX
+                cameraRotX = cameraRotX - deltaY
+                
+                -- Ограничиваем вертикальное вращение
+                cameraRotX = math.clamp(cameraRotX, -math.rad(89), math.rad(89))
+            end
+            
+            lastMousePosition = currentMousePosition
         elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
             cameraDistance = math.clamp(cameraDistance - inputObj.Position.Z * 2, 3, 25)
         end
@@ -536,9 +551,9 @@ local YBAFreeCamera = {} do
         local standHead = getStandHead(targetStand)
         local standPosition = standHead and standHead.Position or standRoot.Position
         
-        -- Если есть голова, используем её позицию + небольшое смещение вверх
+        -- Определяем позицию "головы" стенда
         if standHead and standHead ~= standRoot then
-            standPosition = standPosition + Vector3.new(0, 1, 0)
+            standPosition = standPosition + Vector3.new(0, 0.5, 0)
         else
             -- Если используем корень, добавляем смещение как для головы
             standPosition = standPosition + Vector3.new(0, cameraHeight, 0)
@@ -557,7 +572,7 @@ local YBAFreeCamera = {} do
         end
         
         if move.Magnitude > 0 then
-            -- Движение относительно направления камеры
+            -- Движение относительно направления камеры (только горизонтальное вращение)
             local cameraCFrame = CFrame.new(standPosition) * CFrame.Angles(0, cameraRotY, 0)
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
             local standSpeed = math.floor(YBAConfig.UndergroundControl and YBAConfig.UndergroundControl.FlightSpeed or 100)
@@ -567,13 +582,24 @@ local YBAFreeCamera = {} do
             bv.Velocity = Vector3.new(0, 0, 0)
         end
 
-        -- Позиционирование камеры как обычной игровой камеры
-        local rotationCFrame = CFrame.Angles(cameraRotX, cameraRotY, 0)
-        local cameraOffset = rotationCFrame:VectorToWorldSpace(Vector3.new(0, 0, cameraDistance))
-        local cameraPosition = standPosition + cameraOffset
+        -- Позиционирование камеры как у игрока в третьем лице
+        local cosX = math.cos(cameraRotX)
+        local sinX = math.sin(cameraRotX)
+        local cosY = math.cos(cameraRotY)
+        local sinY = math.sin(cameraRotY)
+        
+        -- Вычисляем направление камеры
+        local cameraDirection = Vector3.new(
+            cosX * sinY,
+            sinX,
+            cosX * cosY
+        )
+        
+        -- Позиция камеры сзади стенда
+        local cameraPosition = standPosition - cameraDirection * cameraDistance
         
         -- Устанавливаем камеру
-        Camera.CFrame = CFrame.new(cameraPosition, standPosition)
+        Camera.CFrame = CFrame.lookAt(cameraPosition, standPosition)
     end
 
     function YBAFreeCamera.Start(stand)
@@ -590,9 +616,14 @@ local YBAFreeCamera = {} do
         originalCameraSubject = Camera.CameraSubject
         originalCameraType = Camera.CameraType
         
-        -- Сбрасываем углы поворота камеры
+        -- Инициализируем углы поворота камеры от текущего направления камеры
+        local currentCF = Camera.CFrame
+        local _, y, _ = currentCF:ToEulerAnglesYXZ()
         cameraRotX = 0
-        cameraRotY = 0
+        cameraRotY = y
+        
+        -- Инициализируем позицию мыши
+        lastMousePosition = UserInputService:GetMouseLocation()
         
         -- Отключаем автоповорот игрока
         local player = Players.LocalPlayer
@@ -613,7 +644,7 @@ local YBAFreeCamera = {} do
         RunService:BindToRenderStep("YBAPlayerCamera", Enum.RenderPriority.Camera.Value, stepCamera)
         
         fcRunning = true
-        print("YBA: Управление стендом активировано (игровая камера): " .. stand.Name)
+        print("YBA: Управление стендом активировано (совместимо с шифтлок): " .. stand.Name)
         return true
     end
 
@@ -645,9 +676,6 @@ local YBAFreeCamera = {} do
         -- Восстанавливаем камеру
         Camera.CameraType = originalCameraType or Enum.CameraType.Custom
         Camera.CameraSubject = originalCameraSubject or (player.Character and player.Character:FindFirstChild("Humanoid"))
-        if originalCameraCFrame then 
-            Camera.CFrame = originalCameraCFrame 
-        end
         
         -- Очищаем переменные
         targetStand = nil
@@ -2046,8 +2074,18 @@ local function controlStand(stand)
 end
 
 -- Удаляем старую реализацию Stand Range Hack и горячие клавиши
-startYBA = nil
-stopYBA = nil
+local function startYBA()
+    YBAConfig.Enabled = true
+    print("YBA Stand Range: Включено")
+end
+
+local function stopYBA()
+    YBAConfig.Enabled = false
+    if standSwapActive then
+        stopStandSwapMode()
+    end
+    print("YBA Stand Range: Отключено")
+end
 activateFreeCamera = nil
 detachStandControl = nil
 enableDetachedStandControl = nil
