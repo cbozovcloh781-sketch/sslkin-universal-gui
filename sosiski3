@@ -2274,7 +2274,7 @@ local function startYBA()
             humanoid.AutoRotate = false
         end
         
-        -- Убираем привязку к игроку через Weld/Motor6D
+        -- Убираем привязку к игроку через Weld/Motor6D и Attachment
         local connectionsRemoved = 0
         for _, child in pairs(targetStand.Root:GetChildren()) do
             if child:IsA("Weld") or child:IsA("Motor6D") or child:IsA("ManualWeld") then
@@ -2286,13 +2286,17 @@ local function startYBA()
                     connectionsRemoved = connectionsRemoved + 1
                 end
             elseif child:IsA("Attachment") then
-                -- Attachment не имеет Part0/Part1, но может связывать через Constraint
+                -- Удаляем все Attachment'ы которые могут связывать с игроком
                 print("YBA: Найдена привязка:", child.Name, child.ClassName)
-                -- Не удаляем Attachment, только соединения
+                if child.Name == "StandAttach" or child.Name == "RootRigAttachment" then
+                    print("YBA: Удаляем подозрительную привязку:", child.Name)
+                    child:Destroy()
+                    connectionsRemoved = connectionsRemoved + 1
+                end
             end
         end
         
-        -- Также проверяем все части стенда на связи
+        -- Также проверяем все части стенда на связи и ограничения
         for _, part in pairs(targetStand.Model:GetDescendants()) do
             if part:IsA("BasePart") then
                 for _, child in pairs(part:GetChildren()) do
@@ -2303,6 +2307,11 @@ local function startYBA()
                             child:Destroy()
                             connectionsRemoved = connectionsRemoved + 1
                         end
+                    elseif child:IsA("AlignPosition") or child:IsA("AlignOrientation") or child:IsA("BodyPosition") or child:IsA("BodyAngularVelocity") then
+                        -- Удаляем все ограничения позиции/ориентации
+                        print("YBA: Удаляем ограничение из части", part.Name, ":", child.Name, child.ClassName)
+                        child:Destroy()
+                        connectionsRemoved = connectionsRemoved + 1
                     end
                 end
             end
@@ -2310,10 +2319,23 @@ local function startYBA()
         
         print("YBA: Удалено связей с игроком:", connectionsRemoved)
         
-        -- Альтернативный способ: переместить стенд в workspace
+        -- Альтернативный способ: переместить стенд в workspace и сделать независимым
         if targetStand.Model.Parent ~= workspace then
-            print("YBA: Перемещаем стенд в workspace")
+            print("YBA: Перемещаем стенд в workspace из", targetStand.Model.Parent.Name)
             targetStand.Model.Parent = workspace
+        end
+        
+        -- Делаем стенд полностью независимым
+        targetStand.Root.CanCollide = false
+        targetStand.Root.Anchored = false
+        
+        -- Убираем все существующие Body объекты
+        for _, child in pairs(targetStand.Root:GetChildren()) do
+            if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") then
+                print("YBA: Удаляем Body объект:", child.Name, child.ClassName)
+                child:Destroy()
+                connectionsRemoved = connectionsRemoved + 1
+            end
         end
         
         -- Позиционируем стенд рядом с игроком после отсоединения
