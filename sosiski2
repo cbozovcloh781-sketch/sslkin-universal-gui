@@ -306,7 +306,7 @@ local MenuSettings = {
 local Languages = {
     English = {
         MainFunctions = "MAIN FUNCTIONS",
-        YBAHacks = "YBA HACKS",
+        YBAHacks = "STAND RANGE HACKS",
         MenuSettings = "MENU SETTINGS",
         
         BlurEffect = "Blur Effect",
@@ -331,7 +331,7 @@ local Languages = {
         SelectedPlayer = "Selected Player",
         SelectPlayerForTeleport = "Select Player for Teleport",
         YBAStandRange = "YBA Stand Range",
-        UndergroundFlight = "Underground Flight",
+        StandSpeed = "Stand Speed",
         ItemESP = "Item ESP",
         AntiTimeStop = "ANTI TIME STOP",
         StartTeleport = "START TELEPORT",
@@ -357,7 +357,7 @@ local Languages = {
     },
     Russian = {
         MainFunctions = "ОСНОВНЫЕ ФУНКЦИИ",
-        YBAHacks = "YBA ХАКИ",
+        YBAHacks = "ХАКИ СТЕНДОВ",
         MenuSettings = "НАСТРОЙКИ МЕНЮ",
         
         BlurEffect = "Эффект размытия",
@@ -382,7 +382,7 @@ local Languages = {
         SelectedPlayer = "Выбранный игрок",
         SelectPlayerForTeleport = "Выбрать игрока для телепорта",
         YBAStandRange = "YBA Дальность стенда",
-        UndergroundFlight = "Подземный полет",
+        StandSpeed = "Скорость стенда",
         ItemESP = "ESP предметов",
         AntiTimeStop = "АНТИ ОСТАНОВКА ВРЕМЕНИ",
         StartTeleport = "НАЧАТЬ ТЕЛЕПОРТ",
@@ -469,54 +469,22 @@ local YBAFreeCamera = {} do
     local UserInputService = game:GetService("UserInputService")
     local Camera = workspace.CurrentCamera
     local Players = game:GetService("Players")
+    local TweenService = game:GetService("TweenService")
 
     local fcRunning = false
     local targetStand = nil
-    local cameraAnchor = nil  -- НОВЫЙ ПОДХОД!
+    local cameraConnection = nil
+    local standControlConnection = nil
     local originalCameraSubject = nil
     local originalCameraType = nil
+    
+    -- Камера переменные для плавности
+    local cameraRotation = Vector2.new(0, 0)
+    local cameraDistance = 15
+    local targetCameraPosition = Vector3.new(0, 0, 0)
+    local currentCameraPosition = Vector3.new(0, 0, 0)
 
-    -- Создаем НЕВИДИМУЮ часть для камеры
-    local function createCameraAnchor(stand)
-        local standRoot = stand.Root
-        
-        -- Создаем невидимую часть для камеры
-        local anchor = Instance.new("Part")
-        anchor.Name = "YBACameraAnchor"
-        anchor.Size = Vector3.new(1, 1, 1)
-        anchor.Transparency = 1  -- НЕВИДИМАЯ!
-        anchor.CanCollide = false
-        anchor.Anchored = false
-        
-        -- Ищем голову стенда
-        local headPart = nil
-        for _, child in pairs(stand:GetChildren()) do
-            if child:IsA("BasePart") and (string.find(child.Name:lower(), "head") or child.Name == "Head") then
-                headPart = child
-                break
-            end
-        end
-        
-        local targetPosition
-        if headPart then
-            targetPosition = headPart.Position + Vector3.new(0, 2, 0)  -- чуть выше головы
-        else
-            targetPosition = standRoot.Position + Vector3.new(0, 5, 0)  -- выше корня
-        end
-        
-        anchor.Position = targetPosition
-        anchor.Parent = stand
-        
-        -- Приваривываем к корню стенда
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = standRoot
-        weld.Part1 = anchor
-        weld.Parent = anchor
-        
-        return anchor
-    end
-
-    -- ПРОСТОЕ управление стендом
+    -- ПЛАВНОЕ управление стендом
     local function updateStand()
         if not targetStand or not targetStand.Root then return end
         
@@ -534,27 +502,53 @@ local YBAFreeCamera = {} do
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveY = 1 end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveY = -1 end
         
-        -- Двигаем стенд
+        -- Двигаем стенд ПЛАВНО
         local bodyVelocity = standRoot:FindFirstChild("BodyVelocity")
         if not bodyVelocity then
             bodyVelocity = Instance.new("BodyVelocity")
-            bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+            bodyVelocity.MaxForce = Vector3.new(2000, 2000, 2000) -- Уменьшили силу
             bodyVelocity.Parent = standRoot
         end
         
         if moveX ~= 0 or moveZ ~= 0 or moveY ~= 0 then
-            -- Движение относительно камеры
-            local cameraCFrame = Camera.CFrame
-            local cameraLookVector = cameraCFrame.LookVector
-            local cameraRightVector = cameraCFrame.RightVector
+            -- Движение относительно камеры БЕЗ рывков
+            local moveVector = Vector3.new(moveX, moveY, moveZ).Unit
+            local speed = (YBAConfig.UndergroundControl and YBAConfig.UndergroundControl.FlightSpeed or 35)
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 1.5 end
             
-            local moveVector = (cameraRightVector * moveX) + (Vector3.new(0, 1, 0) * moveY) + (cameraLookVector * -moveZ)
-            local speed = YBAConfig.UndergroundControl and YBAConfig.UndergroundControl.FlightSpeed or 50
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2 end
-            bodyVelocity.Velocity = moveVector * speed
+            -- ПЛАВНОЕ ускорение
+            local currentVel = bodyVelocity.Velocity
+            local targetVel = moveVector * speed
+            local lerpedVel = currentVel:Lerp(targetVel, 0.15)
+            
+            bodyVelocity.Velocity = lerpedVel
         else
-            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            -- ПЛАВНОЕ торможение
+            local currentVel = bodyVelocity.Velocity
+            bodyVelocity.Velocity = currentVel:Lerp(Vector3.new(0, 0, 0), 0.25)
         end
+    end
+
+    -- НОВАЯ система камеры без anchor
+    local function updateCamera()
+        if not targetStand or not targetStand.Root then return end
+        
+        local standRoot = targetStand.Root
+        local standPosition = standRoot.Position
+        
+        -- Вычисляем целевую позицию камеры
+        local heightOffset = Vector3.new(0, 5, 0)
+        local focusPoint = standPosition + heightOffset
+        
+        -- Камера вращается вокруг стенда
+        local rotationCFrame = CFrame.Angles(0, cameraRotation.Y, 0) * CFrame.Angles(cameraRotation.X, 0, 0)
+        targetCameraPosition = focusPoint + rotationCFrame:VectorToWorldSpace(Vector3.new(0, 0, cameraDistance))
+        
+        -- ПЛАВНАЯ интерполяция позиции камеры
+        currentCameraPosition = currentCameraPosition:Lerp(targetCameraPosition, 0.08) -- МЕНЬШЕ рывков!
+        
+        -- Устанавливаем камеру БЕЗ агрессивной коррекции
+        Camera.CFrame = CFrame.new(currentCameraPosition, focusPoint)
     end
 
     function YBAFreeCamera.Start(stand)
@@ -565,17 +559,28 @@ local YBAFreeCamera = {} do
         end
 
         targetStand = stand
+        print("YBA: Запускаем плавную камеру для стенда:", stand.Name)
 
-        -- Сохраняем настройки
-        originalCameraSubject = Camera.CameraSubject
-        originalCameraType = Camera.CameraType
-
-        -- СОЗДАЕМ НЕВИДИМЫЙ АНКЕР ДЛЯ КАМЕРЫ!
-        cameraAnchor = createCameraAnchor(stand)
+        -- Сохраняем настройки ОДИН РАЗ
+        if not originalCameraSubject then
+            originalCameraSubject = Camera.CameraSubject
+            originalCameraType = Camera.CameraType
+        end
         
-        -- ПРИВЯЗЫВАЕМ КАМЕРУ К АНКЕРУ!
-        Camera.CameraSubject = cameraAnchor
-        Camera.CameraType = Enum.CameraType.Custom  -- ОБЫЧНАЯ КАМЕРА!
+        -- Инициализация позиции камеры
+        local standPos = stand.Root.Position
+        currentCameraPosition = Camera.CFrame.Position
+        targetCameraPosition = standPos + Vector3.new(0, 8, 15)
+        
+        -- ПЛАВНЫЙ переход к Scriptable камере
+        Camera.CameraType = Enum.CameraType.Scriptable
+        
+        -- Плавная анимация к стенду
+        local tweenInfo = TweenInfo.new(0.8, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(Camera, tweenInfo, {
+            CFrame = CFrame.new(targetCameraPosition, standPos + Vector3.new(0, 3, 0))
+        })
+        tween:Play()
 
         -- Отключаем автоповорот игрока
         local player = Players.LocalPlayer
@@ -584,48 +589,109 @@ local YBAFreeCamera = {} do
             if humanoid then humanoid.AutoRotate = false end
         end
 
-        -- Управление стендом
-        RunService:BindToRenderStep("YBAStandControl", Enum.RenderPriority.Camera.Value, updateStand)
+        -- Управление мышью для камеры
+        local rotating = false
+        local mouseSensitivity = 0.003
+        
+        local mouseBeganConnection = UserInputService.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton2 then
+                rotating = true
+                UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+            end
+        end)
+        
+        local mouseEndedConnection = UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton2 then
+                rotating = false
+                UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            end
+        end)
+        
+        local mouseMovedConnection = UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
+                local deltaX = -input.Delta.x * mouseSensitivity
+                local deltaY = -input.Delta.y * mouseSensitivity
+                
+                cameraRotation = cameraRotation + Vector2.new(deltaY, deltaX)
+                cameraRotation = Vector2.new(
+                    math.clamp(cameraRotation.X, -math.rad(85), math.rad(85)),
+                    cameraRotation.Y % (2 * math.pi)
+                )
+            elseif input.UserInputType == Enum.UserInputType.MouseWheel then
+                cameraDistance = math.clamp(cameraDistance - input.Position.Z * 2, 5, 50)
+            end
+        end)
+
+        -- ПЛАВНЫЕ соединения
+        standControlConnection = RunService.Heartbeat:Connect(updateStand)
+        cameraConnection = RunService.RenderStepped:Connect(updateCamera)
+        
+        -- Сохраняем соединения для отключения
+        YBAFreeCamera.mouseConnections = {mouseBeganConnection, mouseEndedConnection, mouseMovedConnection}
 
         fcRunning = true
-        print("YBA: Камера с АНКЕРОМ активирована - " .. stand.Name)
+        print("YBA: Плавная камера активирована - ПКМ для вращения, колесико для зума")
         return true
     end
 
     function YBAFreeCamera.Stop()
         if not fcRunning then return end
+        print("YBA: Отключаем плавную камеру")
 
-        -- Останавливаем стенд
+        -- Останавливаем стенд ПЛАВНО
         if targetStand and targetStand.Root then
             local bodyVelocity = targetStand.Root:FindFirstChild("BodyVelocity")
-            if bodyVelocity then bodyVelocity:Destroy() end
+            if bodyVelocity then 
+                -- Плавная остановка
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                game:GetService("Debris"):AddItem(bodyVelocity, 1)
+            end
         end
 
-        -- УДАЛЯЕМ АНКЕР КАМЕРЫ!
-        if cameraAnchor then
-            cameraAnchor:Destroy()
-            cameraAnchor = nil
+        -- Отключаем соединения
+        if standControlConnection then standControlConnection:Disconnect() standControlConnection = nil end
+        if cameraConnection then cameraConnection:Disconnect() cameraConnection = nil end
+        
+        -- Отключаем мышиные соединения
+        if YBAFreeCamera.mouseConnections then
+            for _, connection in pairs(YBAFreeCamera.mouseConnections) do
+                if connection then connection:Disconnect() end
+            end
+            YBAFreeCamera.mouseConnections = nil
         end
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 
-        -- Отключаем управление стендом
-        RunService:UnbindFromRenderStep("YBAStandControl")
-
-        -- Восстанавливаем камеру
-        Camera.CameraType = originalCameraType or Enum.CameraType.Custom
-        Camera.CameraSubject = originalCameraSubject or (Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("Humanoid"))
-
-        -- Восстанавливаем игрока
+        -- ПЛАВНОЕ возвращение камеры
         local player = Players.LocalPlayer
         if player and player.Character then
             local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid then humanoid.AutoRotate = true end
+            if humanoid then
+                -- Плавная анимация возврата к игроку
+                local playerPos = player.Character.HumanoidRootPart.Position
+                local returnPos = playerPos + Vector3.new(0, 5, 10)
+                
+                local tweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+                local returnTween = TweenService:Create(Camera, tweenInfo, {
+                    CFrame = CFrame.new(returnPos, playerPos)
+                })
+                
+                returnTween:Play()
+                returnTween.Completed:Connect(function()
+                    Camera.CameraType = Enum.CameraType.Custom
+                    Camera.CameraSubject = humanoid
+                end)
+                
+                humanoid.AutoRotate = true
+            end
         end
 
         -- Сброс
         targetStand = nil
         fcRunning = false
+        originalCameraSubject = nil
+        originalCameraType = nil
 
-        print("YBA: Камера отключена")
+        print("YBA: Плавная камера отключена")
     end
 
     function YBAFreeCamera.Toggle(stand)
@@ -635,6 +701,10 @@ local YBAFreeCamera = {} do
         else
             return YBAFreeCamera.Start(stand)
         end
+    end
+    
+    function YBAFreeCamera.IsRunning()
+        return fcRunning
     end
 end
 
@@ -2041,72 +2111,337 @@ local standSwapYOffset = 30
 local freecamConn = nil
 local freecamActive = false
 
+-- Оптимизированные переменные для подземного режима 
+local underground = {
+    mode = false,
+    originalY = 0,
+    currentY = 0,
+    connections = nil,
+    returning = false
+}
+
+-- Оптимизированная функция уведомлений
+local function createNotification(message, duration)
+    local n = Instance.new("Frame", screenGui)
+    n.Size, n.Position = UDim2.new(0,300,0,60), UDim2.new(0.5,-150,0,50)
+    n.BackgroundColor3, n.BorderSizePixel = Color3.fromRGB(40,40,45), 0
+    
+    local c = Instance.new("UICorner", n)
+    c.CornerRadius = UDim.new(0,8)
+    
+    local s = Instance.new("UIStroke", n)
+    s.Color, s.Thickness = Color3.fromRGB(255,100,100), 2
+    
+    local t = Instance.new("TextLabel", n)
+    t.Size, t.Position = UDim2.new(1,-10,1,0), UDim2.new(0,5,0,0)
+    t.Text, t.Font, t.TextSize = message, Enum.Font.GothamBold, 14
+    t.TextColor3, t.BackgroundTransparency, t.TextWrapped = Color3.new(1,1,1), 1, true
+    
+    n:TweenPosition(UDim2.new(0.5,-150,0,50), "Out", "Quad", 0.3, true)
+    task.delay(duration or 3, function()
+        if n.Parent then n:TweenPosition(UDim2.new(0.5,-150,0,-70), "In", "Quad", 0.3, true, function() n:Destroy() end) end
+    end)
+end
+
+-- Оптимизированная проверка стенда
+local function checkStandNearby()
+    local char = Players.LocalPlayer.Character
+    if not char then return false end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+    
+    local stands = findStands()
+    return #stands > 0 and stands[1].Distance <= 4, stands[1]
+end
+
+-- ПОДЗЕМНЫЙ РЕЖИМ С ТВОИМ ФЛАЕМ!
+local function startUndergroundMode()
+    if underground.mode then return end
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return end
+    
+    print("🔥 ПОДЗЕМНЫЙ РЕЖИМ: Уходим под землю!")
+    underground.mode = true
+    
+    -- Сохраняем оригинальную Y позицию
+    underground.originalY = root.Position.Y
+    
+    -- ВКЛЮЧАЕМ НОУКЛИП АВТОМАТИЧЕСКИ!
+    if not isNoClipping then
+        startNoClip()
+        print("🔥 NoClip автоматически включен!")
+    end
+    
+    -- Активируем твой флай для подземки
+    local flyOriginalJumpPower = hum.JumpPower
+    local flyOriginalJumpHeight = hum.JumpHeight
+    local flyOriginalGravity = workspace.Gravity
+    local flyOriginalHipHeight = hum.HipHeight
+    
+    hum.JumpPower = 0
+    hum.JumpHeight = 0
+    workspace.Gravity = 0
+    hum.HipHeight = 0
+    
+    local ctrl = {f = 0, b = 0, l = 0, r = 0, u = 0, d = 0}
+    
+    local inputDown = UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1
+        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
+        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
+        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 1
+        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 1
+        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = -1 end
+    end)
+    
+    local inputUp = UserInputService.InputEnded:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
+        elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
+        elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
+        elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0
+        elseif input.KeyCode == Enum.KeyCode.Space then ctrl.u = 0
+        elseif input.KeyCode == Enum.KeyCode.LeftControl then ctrl.d = 0 end
+    end)
+    
+    local renderConnection = RunService.RenderStepped:Connect(function()
+        if not underground.mode or not char or not char:FindFirstChild("Humanoid") or not root then
+            return
+        end
+        
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        
+        local forward = cam.CFrame.lookVector
+        local right = cam.CFrame.rightVector
+        local up = Vector3.new(0, 1, 0)
+        
+        local moveVector = Vector3.new(0, 0, 0)
+        moveVector = moveVector + (forward * (ctrl.f + ctrl.b))
+        moveVector = moveVector + (right * (ctrl.r + ctrl.l))
+        moveVector = moveVector + (up * (ctrl.u + ctrl.d))
+        
+        if moveVector.Magnitude > 0 then
+            -- Используем Stand Speed для скорости!
+            local speed = (YBAConfig.UndergroundControl.FlightSpeed or 50) / 5 -- делим на 5 для нормальной скорости
+            moveVector = moveVector.Unit * speed
+            local bv = root:FindFirstChild("BodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity", root)
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            end
+            bv.Velocity = moveVector
+        else
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+    end)
+    
+    -- Сохраняем соединения
+    underground.connections = {inputDown, inputUp, renderConnection}
+    
+    -- Плавно опускаемся под землю НА 30 МЕТРОВ ОТ ТЕКУЩЕЙ ПОЗИЦИИ
+    local currentPos = root.Position
+    local targetPos = Vector3.new(currentPos.X, currentPos.Y - 30, currentPos.Z) -- ИМЕННО 30м вниз от текущей позиции!
+    underground.currentY = targetPos.Y
+    
+    local descentTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
+        Position = targetPos
+    })
+    descentTween:Play()
+    
+    print("🔥 УШЛИ ПОД ЗЕМЛЮ НА 30 МЕТРОВ! Управление: WASD + Space/Ctrl")
+end
+
+local function stopUndergroundMode()
+    if not underground.mode then return end
+    print("🔥 ПОДЗЕМНЫЙ РЕЖИМ: Возвращаемся на поверхность!")
+    
+    underground.mode = false
+    underground.returning = true
+    
+    local player = Players.LocalPlayer
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    
+    -- Отключаем подземные соединения
+    if underground.connections then
+        for _, conn in pairs(underground.connections) do
+            if conn then conn:Disconnect() end
+        end
+        underground.connections = nil
+    end
+    
+    if root and hum then
+        -- Плавно возвращаемся на поверхность используя ТВОЙ ФЛАЙ
+        local returnPos = Vector3.new(root.Position.X, underground.originalY, root.Position.Z)
+        local returnTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
+            Position = returnPos
+        })
+        
+        returnTween:Play()
+        returnTween.Completed:Connect(function()
+            -- Восстанавливаем нормальные настройки
+            if hum then
+                hum.JumpPower = 50
+                hum.JumpHeight = 7.2
+                hum.HipHeight = 2
+            end
+            workspace.Gravity = 196.2
+            
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then bv:Destroy() end
+            
+            underground.returning = false
+            print("🔥 ВЕРНУЛИСЬ НА ПОВЕРХНОСТЬ!")
+        end)
+    end
+end
+
 local function setFreecamToStandHead(stand)
     if not stand or not stand.Root then return end
     local root = stand.Root
     local Camera = workspace.CurrentCamera
-    if freecamConn then freecamConn:Disconnect() end
-    if beganConn then beganConn:Disconnect() end
-    if endedConn then endedConn:Disconnect() end
-    if changedConn then changedConn:Disconnect() end
-    if wheelConn then wheelConn:Disconnect() end
+    -- ПЛАВНО отключаем все старые соединения
+    if freecamConn then freecamConn:Disconnect() freecamConn = nil end
+    if beganConn then beganConn:Disconnect() beganConn = nil end
+    if endedConn then endedConn:Disconnect() endedConn = nil end
+    if changedConn then changedConn:Disconnect() changedConn = nil end
+    if wheelConn then wheelConn:Disconnect() wheelConn = nil end
+    
     local rotating = false
-    local mouseSensitivity = 0.08
-    local minDistance, maxDistance = -3, -30
+    local mouseSensitivity = 0.035 -- Чуть повысили для естественности
+    local minDistance, maxDistance = -5, -25
     local UserInputService = game:GetService("UserInputService")
-    -- Сохраняем оригинальные параметры камеры
-    originalCameraSubject = Camera.CameraSubject
-    originalCameraType = Camera.CameraType
-    -- Мгновенно перемещаем камеру к стенду
+    local isShiftLocked = false
+    
+    -- Сохраняем оригинальные параметры камеры только ОДИН РАЗ
+    if not originalCameraSubject then
+        originalCameraSubject = Camera.CameraSubject
+        originalCameraType = Camera.CameraType
+    end
+    
+    -- ПРОСТАЯ установка камеры БЕЗ анимаций
     local focusPos = root.Position + Vector3.new(0, camHeight, 0)
     local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
     local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
+    
     Camera.CameraType = Enum.CameraType.Scriptable
     Camera.CFrame = CFrame.new(camPos, focusPos)
+    
+    -- Проверяем шифтлок ПРАВИЛЬНО
+    local function checkShiftLock()
+        return UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
+    end
+    
     local function onInputBegan(input, _)
-        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        if input.UserInputType == Enum.UserInputType.MouseButton2 or checkShiftLock() then
             rotating = true
-            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+            isShiftLocked = checkShiftLock()
+            if not isShiftLocked then
+                UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+            end
         end
     end
+    
     local function onInputEnded(input, _)
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
             rotating = false
-            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            if not isShiftLocked then
+                UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            end
         end
     end
+    
     local function onInputChanged(input, _)
-        if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
-            camRot = camRot + Vector2.new(-input.Delta.y, -input.Delta.x) * mouseSensitivity
-            camRot = Vector2.new(math.clamp(camRot.X, -math.rad(80), math.rad(80)), camRot.Y % (2 * math.pi))
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            -- Проверяем активен ли поворот камеры (ПКМ или шифтлок)
+            local canRotate = rotating or checkShiftLock()
+            
+            if canRotate then
+                -- ПЛАВНАЯ обработка вращения с поддержкой шифтлока
+                local deltaX = -input.Delta.x * mouseSensitivity
+                local deltaY = input.Delta.y * mouseSensitivity -- УБРАЛ МИНУС! Теперь как в нормальных играх
+                
+                -- Для шифтлока увеличиваем чувствительность
+                local currentShiftLock = checkShiftLock()
+                if currentShiftLock then
+                    deltaX = deltaX * 1.5
+                    deltaY = deltaY * 1.5
+                end
+                
+                camRot = camRot + Vector2.new(deltaY, deltaX)
+                camRot = Vector2.new(
+                    math.clamp(camRot.X, -math.rad(70), math.rad(45)), -- Можешь смотреть под себя сверху!
+                    camRot.Y % (2 * math.pi)
+                )
+            end
         end
     end
+    
     local function onWheelMoved(input, _)
         if input.UserInputType == Enum.UserInputType.MouseWheel then
-            camDistance = math.clamp(camDistance + input.Position.Z, maxDistance, minDistance)
+            camDistance = math.clamp(camDistance + input.Position.Z * 0.5, maxDistance, minDistance)
         end
     end
+    
     beganConn = UserInputService.InputBegan:Connect(onInputBegan)
     endedConn = UserInputService.InputEnded:Connect(onInputEnded)
     changedConn = UserInputService.InputChanged:Connect(onInputChanged)
     wheelConn = UserInputService.InputChanged:Connect(onWheelMoved)
+    
+    -- Переменные для легкой плавности
+    local lastCamPos = Camera.CFrame.Position
+    local lastFocusPos = Camera.CFrame.LookVector
+    
     freecamConn = game:GetService("RunService").RenderStepped:Connect(function()
+        if not stand or not stand.Root then return end
+        
+        -- ПРОСТОЕ следование за стендом с ЛЕГКОЙ плавностью
         local focusPos = root.Position + Vector3.new(0, camHeight, 0)
         local rot = CFrame.Angles(0, camRot.Y, 0) * CFrame.Angles(camRot.X, 0, 0)
-        local camPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
-        Camera.CameraType = Enum.CameraType.Scriptable
-        Camera.CFrame = CFrame.new(camPos, focusPos)
+        local targetCamPos = focusPos + rot:VectorToWorldSpace(Vector3.new(0, 0, camDistance))
+        
+        -- ЛЕГКАЯ плавность (не лагающая!)
+        local smoothedCamPos = lastCamPos:Lerp(targetCamPos, 0.25) -- быстрая плавность
+        local smoothedFocusPos = lastFocusPos:Lerp(focusPos, 0.3)
+        
+        Camera.CFrame = CFrame.new(smoothedCamPos, smoothedFocusPos)
+        
+        -- Обновляем позиции
+        lastCamPos = smoothedCamPos
+        lastFocusPos = smoothedFocusPos
     end)
+    
     disableFreecam = function()
-        if freecamConn then freecamConn:Disconnect() end
-        if beganConn then beganConn:Disconnect() end
-        if endedConn then endedConn:Disconnect() end
-        if changedConn then changedConn:Disconnect() end
-        if wheelConn then wheelConn:Disconnect() end
-        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        -- Возвращаем камеру к персонажу
+        if freecamConn then freecamConn:Disconnect() freecamConn = nil end
+        if beganConn then beganConn:Disconnect() beganConn = nil end
+        if endedConn then endedConn:Disconnect() endedConn = nil end
+        if changedConn then changedConn:Disconnect() changedConn = nil end
+        if wheelConn then wheelConn:Disconnect() wheelConn = nil end
+        
+        -- Восстанавливаем MouseBehavior только если не шифтлок
+        local currentShiftLock = UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
+        if not currentShiftLock then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        end
+        
+        -- ПРОСТОЕ возвращение к персонажу БЕЗ анимаций
         Camera.CameraType = originalCameraType or Enum.CameraType.Custom
-        Camera.CameraSubject = originalCameraSubject or game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
+        Camera.CameraSubject = originalCameraSubject or (game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid"))
+        
+        -- Сброс переменных
+        originalCameraSubject = nil
+        originalCameraType = nil
     end
 end
 
@@ -2118,36 +2453,77 @@ end
 
 local function startStandSwapMode(stand)
     if standSwapActive then return end
+    
+    -- ПРОВЕРКА СТЕНДА В РАДИУСЕ 4 МЕТРОВ!
+    local standFound, nearbyStand = checkStandNearby()
+    if not standFound then
+        createNotification("⚠️ Стенды поблизости не обнаружены", 4)
+        print("❌ STAND RANGE HACKS: Стенды в радиусе 4м не найдены!")
+        return
+    end
+    
+    stand = nearbyStand -- Используем найденный стенд
+    
     local player = game.Players.LocalPlayer
     local char = player.Character
     if not char or not stand or not stand.Root then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     standSwapActive = true
+    
+    print("🔥 STAND RANGE HACKS: Последовательность активации...")
+    createNotification("🔥 Stand Range Hacks активирован!", 3)
+    
+    -- ЭТАП 1: Игрок уходит под землю
+    startUndergroundMode()
+    
+    -- ЭТАП 2: Через 2.5 сек после ухода под землю - стенд отклеивается и улетает вверх
+    task.wait(2.5)
+    
+    -- ФИКСИРОВАННЫЙ Y для стенда относительно игрока (30м выше подземного игрока)
     if standFollowConn then standFollowConn:Disconnect() end
     standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
         if not char or not root or not stand or not stand.Root then return end
-        stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
+        if not underground.mode then return end
+        
+        -- Y стенда ФИКСИРОВАН относительно подземного игрока + 30м вверх
+        local standY = root.Position.Y + standSwapYOffset
+        stand.Root.CFrame = CFrame.new(root.Position.X, standY, root.Position.Z)
     end)
+    
+    -- ЭТАП 3: Присоединяем камеру к стенду
     setFreecamToStandHead(stand)
-    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности, камера на голове стенда")
+    print("🔥 АКТИВИРОВАН: Игрок под землей, стенд на поверхности, камера на стенде!")
 end
 
 local function stopStandSwapMode()
+    if not standSwapActive then return end
     standSwapActive = false
-    if standFollowConn then standFollowConn:Disconnect() end
+    
+    print("🔥 STAND RANGE HACKS: Последовательность отключения...")
+    createNotification("🔥 Stand Range Hacks отключен", 3)
+    
+    -- ЭТАП 1: Отключаем камеру от стенда
     disableFreecam()
-    print("[standSwap] Режим отключён")
+    
+    -- ЭТАП 2: Отключаем следование стенда за игроком
+    if standFollowConn then 
+        standFollowConn:Disconnect() 
+        standFollowConn = nil
+    end
+    
+    -- ЭТАП 3: Возвращаем игрока на поверхность (это соединит его со стендом)
+    stopUndergroundMode()
+    
+    print("🔥 ОТКЛЮЧЕН: Возвращение в исходное состояние...")
 end
 
 -- Подключаем к тумблеру меню
 if _G._standRangeMenuConn then _G._standRangeMenuConn:Disconnect() end
 _G._standRangeMenuConn = game:GetService("RunService").RenderStepped:Connect(function()
     if YBAConfig.Enabled and not standSwapActive then
-        local stands = findStands()
-        if #stands > 0 then
-            startStandSwapMode(stands[1])
-        end
+        -- Проверка и активация происходит внутри startStandSwapMode
+        startStandSwapMode()
     elseif not YBAConfig.Enabled and standSwapActive then
         stopStandSwapMode()
     end
@@ -4411,17 +4787,7 @@ function showContent(tabName)
             end
         end)
         
-        local undergroundFlightToggleBtn = createToggleSlider(getText("UndergroundFlight"), isUndergroundControlEnabled, function(v)
-            if v then
-                if startUndergroundControl then
-                    startUndergroundControl()
-                end
-            else
-                if stopUndergroundControl then
-                    stopUndergroundControl()
-                end
-            end
-        end)
+        -- Убрали кнопку Stand Speed - скорость меняется по слайдеру ниже!
         
         local ybaNoClipStatusLabel = Instance.new("TextLabel", functionsContainer)
         ybaNoClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -4446,11 +4812,9 @@ function showContent(tabName)
             end
         end)
         
-        createSlider("YBA Underground Speed", 1, 200, YBAConfig.UndergroundControl.FlightSpeed or 50, function(v)
+        createSlider("Stand Speed (Player Flight)", 5, 100, YBAConfig.UndergroundControl.FlightSpeed or 50, function(v)
             YBAConfig.UndergroundControl.FlightSpeed = v
-            if isUndergroundControlEnabled and controlledStandForUnderground then
-                print("YBA: Скорость подземного полета изменена на:", v)
-            end
+            print("🔥 Скорость полета игрока изменена на:", v)
         end)
         
 
@@ -4767,46 +5131,9 @@ local function enableDetachedStandControl(stand)
     end)
 end
 
-local function detachStandControl(stand)
-    if not stand or not stand.Root then
-        print("[detachStandControl] Нет валидного стенда!")
-        return
-    end
-    print("[detachStandControl] Открепляю стенд:", stand.Name)
-    local bv = stand.Root:FindFirstChild("BodyVelocity")
-    if not bv then
-        bv = Instance.new("BodyVelocity", stand.Root)
-        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-    end
-    bv.Velocity = Vector3.new(0,0,0)
-    enableDetachedStandControl(stand)
-end
+-- Дублированная функция detachStandControl удалена - используется версия выше
 
-local standFollowConn = nil
-local standSwapActive = false
-local standSwapYOffset = 30
-
-local function startStandSwapMode(stand)
-    if standSwapActive then return end
-    local player = game.Players.LocalPlayer
-    local char = player.Character
-    if not char or not stand or not stand.Root then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    standSwapActive = true
-    if standFollowConn then standFollowConn:Disconnect() end
-    standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
-        if not char or not root or not stand or not stand.Root then return end
-        stand.Root.CFrame = root.CFrame + Vector3.new(0, standSwapYOffset, 0)
-    end)
-    print("[standSwap] Режим активирован: стенд следует за игроком на поверхности")
-end
-
-local function stopStandSwapMode()
-    standSwapActive = false
-    if standFollowConn then standFollowConn:Disconnect() end
-    print("[standSwap] Режим отключён")
-end
+-- Дублированный код удален - используется версия выше
 
 -- Горячая клавиша H удалена по просьбе пользователя
 -- Отключаем существующие соединения если они есть
