@@ -2111,79 +2111,52 @@ local standSwapYOffset = 30
 local freecamConn = nil
 local freecamActive = false
 
--- Переменные для подземного режима 
-local undergroundMode = false
-local originalPlayerY = 0
-local undergroundPlayerY = 0
-local undergroundFlyConnection = nil
-local returnToSurfaceActive = false
+-- Оптимизированные переменные для подземного режима 
+local underground = {
+    mode = false,
+    originalY = 0,
+    currentY = 0,
+    connections = nil,
+    returning = false
+}
 
--- Функция создания уведомлений на экране
+-- Оптимизированная функция уведомлений
 local function createNotification(message, duration)
-    duration = duration or 3
+    local n = Instance.new("Frame", screenGui)
+    n.Size, n.Position = UDim2.new(0,300,0,60), UDim2.new(0.5,-150,0,50)
+    n.BackgroundColor3, n.BorderSizePixel = Color3.fromRGB(40,40,45), 0
     
-    local notification = Instance.new("Frame")
-    notification.Size = UDim2.new(0, 300, 0, 60)
-    notification.Position = UDim2.new(0.5, -150, 0, 50)
-    notification.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    notification.BorderSizePixel = 0
-    notification.Parent = screenGui
+    local c = Instance.new("UICorner", n)
+    c.CornerRadius = UDim.new(0,8)
     
-    local corner = Instance.new("UICorner", notification)
-    corner.CornerRadius = UDim.new(0, 8)
+    local s = Instance.new("UIStroke", n)
+    s.Color, s.Thickness = Color3.fromRGB(255,100,100), 2
     
-    local stroke = Instance.new("UIStroke", notification)
-    stroke.Color = Color3.fromRGB(255, 100, 100)
-    stroke.Thickness = 2
+    local t = Instance.new("TextLabel", n)
+    t.Size, t.Position = UDim2.new(1,-10,1,0), UDim2.new(0,5,0,0)
+    t.Text, t.Font, t.TextSize = message, Enum.Font.GothamBold, 14
+    t.TextColor3, t.BackgroundTransparency, t.TextWrapped = Color3.new(1,1,1), 1, true
     
-    local text = Instance.new("TextLabel", notification)
-    text.Size = UDim2.new(1, -10, 1, 0)
-    text.Position = UDim2.new(0, 5, 0, 0)
-    text.Text = message
-    text.Font = Enum.Font.GothamBold
-    text.TextSize = 14
-    text.TextColor3 = Color3.new(1, 1, 1)
-    text.BackgroundTransparency = 1
-    text.TextWrapped = true
-    
-    -- Анимация появления
-    notification:TweenPosition(UDim2.new(0.5, -150, 0, 50), "Out", "Quad", 0.3, true)
-    
-    -- Автоудаление
-    task.spawn(function()
-        task.wait(duration)
-        notification:TweenPosition(UDim2.new(0.5, -150, 0, -70), "In", "Quad", 0.3, true, function()
-            notification:Destroy()
-        end)
+    n:TweenPosition(UDim2.new(0.5,-150,0,50), "Out", "Quad", 0.3, true)
+    task.delay(duration or 3, function()
+        if n.Parent then n:TweenPosition(UDim2.new(0.5,-150,0,-70), "In", "Quad", 0.3, true, function() n:Destroy() end) end
     end)
 end
 
--- Проверка стенда в радиусе 4 метров
+-- Оптимизированная проверка стенда
 local function checkStandNearby()
-    local player = Players.LocalPlayer
-    local char = player.Character
-    if not char then return false, nil end
+    local char = Players.LocalPlayer.Character
+    if not char then return false end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return false, nil end
+    if not root then return false end
     
     local stands = findStands()
-    if #stands == 0 then 
-        return false, nil 
-    end
-    
-    local closestStand = stands[1]
-    local distance = closestStand.Distance
-    
-    if distance <= 4 then
-        return true, closestStand
-    else
-        return false, nil
-    end
+    return #stands > 0 and stands[1].Distance <= 4, stands[1]
 end
 
 -- ПОДЗЕМНЫЙ РЕЖИМ С ТВОИМ ФЛАЕМ!
 local function startUndergroundMode()
-    if undergroundMode then return end
+    if underground.mode then return end
     local player = Players.LocalPlayer
     local char = player.Character
     if not char then return end
@@ -2192,11 +2165,10 @@ local function startUndergroundMode()
     if not root or not hum then return end
     
     print("🔥 ПОДЗЕМНЫЙ РЕЖИМ: Уходим под землю!")
-    undergroundMode = true
+    underground.mode = true
     
     -- Сохраняем оригинальную Y позицию
-    originalPlayerY = root.Position.Y
-    undergroundPlayerY = originalPlayerY - 30 -- 30 метров вниз!
+    underground.originalY = root.Position.Y
     
     -- ВКЛЮЧАЕМ НОУКЛИП АВТОМАТИЧЕСКИ!
     if not isNoClipping then
@@ -2238,7 +2210,7 @@ local function startUndergroundMode()
     end)
     
     local renderConnection = RunService.RenderStepped:Connect(function()
-        if not undergroundMode or not char or not char:FindFirstChild("Humanoid") or not root then
+        if not underground.mode or not char or not char:FindFirstChild("Humanoid") or not root then
             return
         end
         
@@ -2273,12 +2245,12 @@ local function startUndergroundMode()
     end)
     
     -- Сохраняем соединения
-    undergroundFlyConnection = {inputDown, inputUp, renderConnection}
+    underground.connections = {inputDown, inputUp, renderConnection}
     
     -- Плавно опускаемся под землю НА 30 МЕТРОВ ОТ ТЕКУЩЕЙ ПОЗИЦИИ
     local currentPos = root.Position
     local targetPos = Vector3.new(currentPos.X, currentPos.Y - 30, currentPos.Z) -- ИМЕННО 30м вниз от текущей позиции!
-    undergroundPlayerY = targetPos.Y
+    underground.currentY = targetPos.Y
     
     local descentTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
         Position = targetPos
@@ -2289,11 +2261,11 @@ local function startUndergroundMode()
 end
 
 local function stopUndergroundMode()
-    if not undergroundMode then return end
+    if not underground.mode then return end
     print("🔥 ПОДЗЕМНЫЙ РЕЖИМ: Возвращаемся на поверхность!")
     
-    undergroundMode = false
-    returnToSurfaceActive = true
+    underground.mode = false
+    underground.returning = true
     
     local player = Players.LocalPlayer
     local char = player.Character
@@ -2302,16 +2274,16 @@ local function stopUndergroundMode()
     local hum = char:FindFirstChildOfClass("Humanoid")
     
     -- Отключаем подземные соединения
-    if undergroundFlyConnection then
-        for _, conn in pairs(undergroundFlyConnection) do
+    if underground.connections then
+        for _, conn in pairs(underground.connections) do
             if conn then conn:Disconnect() end
         end
-        undergroundFlyConnection = nil
+        underground.connections = nil
     end
     
     if root and hum then
         -- Плавно возвращаемся на поверхность используя ТВОЙ ФЛАЙ
-        local returnPos = Vector3.new(root.Position.X, originalPlayerY, root.Position.Z)
+        local returnPos = Vector3.new(root.Position.X, underground.originalY, root.Position.Z)
         local returnTween = TweenService:Create(root, TweenInfo.new(2, Enum.EasingStyle.Quad), {
             Position = returnPos
         })
@@ -2329,7 +2301,7 @@ local function stopUndergroundMode()
             local bv = root:FindFirstChild("BodyVelocity")
             if bv then bv:Destroy() end
             
-            returnToSurfaceActive = false
+            underground.returning = false
             print("🔥 ВЕРНУЛИСЬ НА ПОВЕРХНОСТЬ!")
         end)
     end
@@ -2512,7 +2484,7 @@ local function startStandSwapMode(stand)
     if standFollowConn then standFollowConn:Disconnect() end
     standFollowConn = game:GetService("RunService").Heartbeat:Connect(function()
         if not char or not root or not stand or not stand.Root then return end
-        if not undergroundMode then return end
+        if not underground.mode then return end
         
         -- Y стенда ФИКСИРОВАН относительно подземного игрока + 30м вверх
         local standY = root.Position.Y + standSwapYOffset
@@ -5159,20 +5131,7 @@ local function enableDetachedStandControl(stand)
     end)
 end
 
-local function detachStandControl(stand)
-    if not stand or not stand.Root then
-        print("[detachStandControl] Нет валидного стенда!")
-        return
-    end
-    print("[detachStandControl] Открепляю стенд:", stand.Name)
-    local bv = stand.Root:FindFirstChild("BodyVelocity")
-    if not bv then
-        bv = Instance.new("BodyVelocity", stand.Root)
-        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-    end
-    bv.Velocity = Vector3.new(0,0,0)
-    enableDetachedStandControl(stand)
-end
+-- Дублированная функция detachStandControl удалена - используется версия выше
 
 -- Дублированный код удален - используется версия выше
 
