@@ -4921,3 +4921,57 @@ _G._detachStandConnection = game:GetService("UserInputService").InputBegan:Conne
         end
     end
 end)
+
+local detachedStand = nil
+local detachedControlConn = nil
+local detachedInput = {W=0,A=0,S=0,D=0,Space=0,LeftControl=0}
+
+local function updateDetachedStandVelocity()
+    if not detachedStand or not detachedStand.Root then return end
+    local moveX = detachedInput.D - detachedInput.A
+    local moveZ = detachedInput.S - detachedInput.W
+    local moveY = detachedInput.Space - detachedInput.LeftControl
+    local move = Vector3.new(moveX, moveY, moveZ)
+    local speed = 50
+    local bv = detachedStand.Root:FindFirstChild("BodyVelocity")
+    if not bv then
+        bv = Instance.new("BodyVelocity", detachedStand.Root)
+        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    end
+    if move.Magnitude > 0 then
+        bv.Velocity = move.Unit * speed
+    else
+        bv.Velocity = Vector3.new(0,0,0)
+    end
+end
+
+local function enableDetachedStandControl(stand)
+    detachedStand = stand
+    for k in pairs(detachedInput) do detachedInput[k] = 0 end
+    if detachedControlConn then detachedControlConn:Disconnect() end
+    detachedControlConn = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+        if gp then return end
+        local name = input.KeyCode.Name
+        if detachedInput[name] ~= nil then detachedInput[name] = 1; updateDetachedStandVelocity() end
+    end)
+    game:GetService("UserInputService").InputEnded:Connect(function(input, gp)
+        if gp then return end
+        local name = input.KeyCode.Name
+        if detachedInput[name] ~= nil then detachedInput[name] = 0; updateDetachedStandVelocity() end
+    end)
+end
+
+local function detachStandControl(stand)
+    if not stand or not stand.Root then
+        print("[detachStandControl] Нет валидного стенда!")
+        return
+    end
+    print("[detachStandControl] Открепляю стенд:", stand.Name)
+    local bv = stand.Root:FindFirstChild("BodyVelocity")
+    if not bv then
+        bv = Instance.new("BodyVelocity", stand.Root)
+        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    end
+    bv.Velocity = Vector3.new(0,0,0)
+    enableDetachedStandControl(stand)
+end
