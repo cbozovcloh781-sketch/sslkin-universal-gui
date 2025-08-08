@@ -2125,7 +2125,10 @@ local function startYBA()
     if #stands == 0 then return end
     local targetStand = stands[1]
     if YBAConfig.FreezePlayer and freezePlayer then freezePlayer() end
-    if YBAConfig.SwitchCamera then end
+    if YBAConfig.SwitchCamera and activateFreeCamera then
+        print("YBA: SwitchCamera активирован, пробую включить свободную камеру для стенда: " .. targetStand.Name)
+        activateFreeCamera(targetStand)
+    end
     if YBAConfig.TransferControl and activateFreeCamera then activateFreeCamera(targetStand) end
     local humanoid = char and char:FindFirstChild("Humanoid")
     if humanoid then
