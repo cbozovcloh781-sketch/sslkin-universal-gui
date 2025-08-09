@@ -52,8 +52,34 @@ local isAutosellEnabled = false
 local autosellConnections = {}
 local isSellingToNPC = false
 local autosellCheckTimer = nil
+local deathCheckConnection = nil
 
 -- Autosell Functions
+
+-- Функция проверки смерти игрока
+local function checkPlayerDeath()
+    local player = Players.LocalPlayer
+    if not player or not player.Character then return true end
+    
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if not humanoid then return true end
+    
+    -- Проверяем здоровье персонажа
+    if humanoid.Health <= 0 then
+        print("🤖 AUTOSELL: Игрок умер! Останавливаем автосел...")
+        stopAutosell()
+        
+        -- Останавливаем автофарм если он запущен
+        if _G.stopAutofarm and type(_G.stopAutofarm) == "function" then
+            print("🤖 AUTOSELL: Останавливаем автофарм из-за смерти игрока...")
+            _G.stopAutofarm()
+        end
+        
+        return true
+    end
+    
+    return false
+end
 
 -- Проверка количества предметов в рюкзаке
 local function checkInventoryForMaxItems()
@@ -329,10 +355,44 @@ local function startAutosell()
         print("🤖 AUTOSELL: Предупреждение - функция startNoClip недоступна")
     end
     
+    -- Настраиваем отслеживание смерти игрока
+    local function setupDeathTracking()
+        local player = Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid and not deathCheckConnection then
+                deathCheckConnection = humanoid.Died:Connect(function()
+                    print("🤖 AUTOSELL: Игрок умер! Экстренная остановка автосела...")
+                    stopAutosell()
+                    
+                    -- Останавливаем автофарм
+                    if _G.stopAutofarm and type(_G.stopAutofarm) == "function" then
+                        print("🤖 AUTOSELL: Останавливаем автофарм из-за смерти игрока...")
+                        _G.stopAutofarm()
+                    end
+                end)
+            end
+        end
+    end
+    
+    -- Устанавливаем отслеживание смерти
+    setupDeathTracking()
+    
+    -- Переустанавливаем отслеживание при респавне
+    Players.LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(1) -- Ждем загрузки персонажа
+        setupDeathTracking()
+    end)
+    
     -- Создаем таймер проверки каждые 5 секунд
     autosellCheckTimer = task.spawn(function()
         while isAutosellEnabled do
             task.wait(5) -- Проверяем каждые 5 секунд
+            
+            -- Проверяем не умер ли игрок
+            if checkPlayerDeath() then
+                break -- Выходим из цикла если игрок умер
+            end
             
             if not isSellingToNPC then
                 local itemsAtMax = checkInventoryForMaxItems()
@@ -355,6 +415,12 @@ local function stopAutosell()
     if autosellCheckTimer then
         task.cancel(autosellCheckTimer)
         autosellCheckTimer = nil
+    end
+    
+    -- Отключаем отслеживание смерти
+    if deathCheckConnection then
+        deathCheckConnection:Disconnect()
+        deathCheckConnection = nil
     end
     
     isSellingToNPC = false
