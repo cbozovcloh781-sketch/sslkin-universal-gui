@@ -5109,6 +5109,21 @@ function showContent(tabName)
     elseif tabName == "YBA Hacks" then
         contentTitle.Text = getText("YBAHacks")
         
+        -- 🎯 STAND RANGE HACK заголовок
+        local standRangeHeader = Instance.new("TextLabel", functionsContainer)
+        standRangeHeader.Size = UDim2.new(1, -10, 0, 25)
+        standRangeHeader.Position = UDim2.new(0, 5, 0, currentY)
+        standRangeHeader.Text = "🎯 STAND RANGE HACK"
+        standRangeHeader.Font = Enum.Font.GothamBold
+        standRangeHeader.TextSize = 14
+        standRangeHeader.TextColor3 = Color3.fromRGB(255, 0, 255)
+        standRangeHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        standRangeHeader.BorderSizePixel = 1
+        standRangeHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        standRangeHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", standRangeHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
         local standRangeLabel = Instance.new("TextLabel", functionsContainer)
         standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
         standRangeLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -5172,6 +5187,21 @@ function showContent(tabName)
         end)
         
 
+        
+        -- ⏰ ANTI TIME STOP заголовок
+        local antiTSHeader = Instance.new("TextLabel", functionsContainer)
+        antiTSHeader.Size = UDim2.new(1, -10, 0, 25)
+        antiTSHeader.Position = UDim2.new(0, 5, 0, currentY)
+        antiTSHeader.Text = "⏰ ANTI TIME STOP"
+        antiTSHeader.Font = Enum.Font.GothamBold
+        antiTSHeader.TextSize = 14
+        antiTSHeader.TextColor3 = Color3.fromRGB(255, 100, 100)
+        antiTSHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        antiTSHeader.BorderSizePixel = 1
+        antiTSHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        antiTSHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", antiTSHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
         
         local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
         antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -5249,6 +5279,21 @@ function showContent(tabName)
             end
         end)
         
+        -- 📦 ITEM ESP заголовок
+        local itemESPHeader = Instance.new("TextLabel", functionsContainer)
+        itemESPHeader.Size = UDim2.new(1, -10, 0, 25)
+        itemESPHeader.Position = UDim2.new(0, 5, 0, currentY)
+        itemESPHeader.Text = "📦 ITEM ESP"
+        itemESPHeader.Font = Enum.Font.GothamBold
+        itemESPHeader.TextSize = 14
+        itemESPHeader.TextColor3 = Color3.fromRGB(255, 255, 0)
+        itemESPHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        itemESPHeader.BorderSizePixel = 1
+        itemESPHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        itemESPHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", itemESPHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
         local itemESPLabel = Instance.new("TextLabel", functionsContainer)
         itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
         itemESPLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -5319,7 +5364,95 @@ function showContent(tabName)
         createItemToggle(getText("LuckyStoneMask"), YBAConfig.ItemESP.Items["Lucky Stone Mask"])
         createItemToggle(getText("LuckyArrow"), YBAConfig.ItemESP.Items["Lucky Arrow"])
         
-    
+        -- 🤖 AUTOFARM заголовок
+        local autofarmHeader = Instance.new("TextLabel", functionsContainer)
+        autofarmHeader.Size = UDim2.new(1, -10, 0, 25)
+        autofarmHeader.Position = UDim2.new(0, 5, 0, currentY)
+        autofarmHeader.Text = "🤖 AUTOFARM"
+        autofarmHeader.Font = Enum.Font.GothamBold
+        autofarmHeader.TextSize = 14
+        autofarmHeader.TextColor3 = Color3.fromRGB(0, 255, 0)
+        autofarmHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        autofarmHeader.BorderSizePixel = 1
+        autofarmHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        autofarmHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", autofarmHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
+        -- START AUTOFARM кнопка
+        local autofarmBtn = Instance.new("TextButton", functionsContainer)
+        autofarmBtn.Size = UDim2.new(1, -10, 0, 35)
+        autofarmBtn.Position = UDim2.new(0, 5, 0, currentY)
+        autofarmBtn.Text = "START AUTOFARM"
+        autofarmBtn.Font = Enum.Font.GothamBold
+        autofarmBtn.TextSize = 16
+        autofarmBtn.TextColor3 = Color3.new(1,1,1)
+        autofarmBtn.BackgroundColor3 = Color3.fromRGB(0,200,0)
+        autofarmBtn.AutoButtonColor = false
+        Instance.new("UICorner", autofarmBtn).CornerRadius = UDim.new(0,8)
+        currentY = currentY + 35 + padding
+        
+        -- Переменная для состояния автофарма
+        local isAutofarmActive = false
+        
+        autofarmBtn.MouseButton1Click:Connect(function()
+            if not isAutofarmActive then
+                isAutofarmActive = true
+                autofarmBtn.Text = "STOP AUTOFARM"
+                autofarmBtn.BackgroundColor3 = Color3.fromRGB(200,0,0)
+                print("🤖 AUTOFARM: ЗАПУЩЕН!")
+                -- TODO: запустить автофарм
+            else
+                isAutofarmActive = false
+                autofarmBtn.Text = "START AUTOFARM"
+                autofarmBtn.BackgroundColor3 = Color3.fromRGB(0,200,0)
+                print("🤖 AUTOFARM: ОСТАНОВЛЕН!")
+                -- TODO: остановить автофарм
+            end
+        end)
+        
+        -- Заголовок для выбора предметов
+        local itemFarmHeader = Instance.new("TextLabel", functionsContainer)
+        itemFarmHeader.Size = UDim2.new(1, -10, 0, 25)
+        itemFarmHeader.Position = UDim2.new(0, 5, 0, currentY)
+        itemFarmHeader.Text = "📦 ITEMS FARM"
+        itemFarmHeader.Font = Enum.Font.GothamBold
+        itemFarmHeader.TextSize = 12
+        itemFarmHeader.TextColor3 = Color3.fromRGB(0, 255, 255)
+        itemFarmHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        itemFarmHeader.BorderSizePixel = 1
+        itemFarmHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        itemFarmHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", itemFarmHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
+        -- Функция для создания переключателей предметов автофарма
+        local function createAutofarmItemToggle(itemName, defaultState)
+            local btn = createToggleSlider(itemName, defaultState, function(v)
+                -- TODO: настроить что фармить
+                print("🤖 AUTOFARM: Предмет", itemName, "установлен в", v and "ON" or "OFF")
+            end)
+            return btn
+        end
+        
+        -- Создаем переключатели для всех предметов (копируем из Item ESP)
+        createAutofarmItemToggle(getText("MysteriousArrow"), true)
+        createAutofarmItemToggle(getText("Rokakaka"), true)
+        createAutofarmItemToggle(getText("PureRokakaka"), true)
+        createAutofarmItemToggle(getText("Diamond"), true)
+        createAutofarmItemToggle(getText("GoldCoin"), true)
+        createAutofarmItemToggle(getText("SteelBall"), false)
+        createAutofarmItemToggle(getText("Clackers"), false)
+        createAutofarmItemToggle(getText("CaesarsHeadband"), false)
+        createAutofarmItemToggle(getText("ZeppeliHat"), false)
+        createAutofarmItemToggle(getText("ZeppeliScarf"), false)
+        createAutofarmItemToggle(getText("QuintonsGlove"), false)
+        createAutofarmItemToggle(getText("StoneMask"), true)
+        createAutofarmItemToggle(getText("RibCage"), true)
+        createAutofarmItemToggle(getText("AncientScroll"), false)
+        createAutofarmItemToggle(getText("DiosDiary"), true)
+        createAutofarmItemToggle(getText("LuckyStoneMask"), true)
+        createAutofarmItemToggle(getText("LuckyArrow"), true)
         
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
