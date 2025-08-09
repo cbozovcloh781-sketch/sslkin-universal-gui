@@ -115,12 +115,8 @@ end
 local function moveToShiftplox(callback)
     print("🤖 AUTOSELL: Летим к NPC Shiftplox...")
     
-    -- Проверяем доступность функции moveToPosition
-    if _G.moveToPosition and type(_G.moveToPosition) == "function" then
-        _G.moveToPosition(AutosellConfig.ShiftploxPosition, callback)
-    else
-        print("🤖 AUTOSELL: Ошибка - функция moveToPosition не найдена или недоступна!")
-        print("🤖 AUTOSELL: Включаем fly для перемещения...")
+    -- ПРИНУДИТЕЛЬНО используем собственный автопилот (не _G.moveToPosition!)
+    print("🤖 AUTOSELL: Используем собственный автопилот с NoClip...")
         
         local player = Players.LocalPlayer
         if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
@@ -228,7 +224,6 @@ local function moveToShiftplox(callback)
                 end)
             end
         end)
-    end
 end
 
 -- Функции для эмуляции нажатий клавиш
