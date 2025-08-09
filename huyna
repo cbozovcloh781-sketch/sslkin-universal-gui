@@ -4915,13 +4915,39 @@ local function forceLoadEntireMap()
         Vector3.new(500, -75, -500), Vector3.new(-500, -75, -500),
     }
     
-    print("🤖 AUTOFARM: Телепортируемся по", #loadPoints, "точкам для прогрузки...")
+    print("🤖 AUTOFARM: Летим по", #loadPoints, "точкам для прогрузки карты...")
+    
+    -- Создаем BodyVelocity для полета (как в автофарме)
+    local bodyVelocity = Instance.new("BodyVelocity", humanoidRootPart)
+    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
     
     for i, point in ipairs(loadPoints) do
         if not isAutofarmEnabled then break end -- Прерываем если автофарм отключили
         
-        -- Телепортируем персонажа
-        humanoidRootPart.CFrame = CFrame.new(point)
+        -- Летим к точке прогрузки (используем полет как в автофарме)
+        print("🤖 AUTOFARM: Летим к точке прогрузки", i, "/", #loadPoints, "- позиция:", point)
+        
+        local startTime = tick()
+        local maxFlightTime = 10 -- Максимум 10 секунд на одну точку
+        
+        while isAutofarmEnabled and tick() - startTime < maxFlightTime do
+            local currentPos = humanoidRootPart.Position
+            local distance = (point - currentPos).Magnitude
+            
+            if distance > 5 then
+                local direction = (point - currentPos).Unit
+                -- Используем ту же скорость что и в автофарме
+                local moveVector = direction * (AutofarmConfig.FlightSpeed * 10)
+                bodyVelocity.Velocity = moveVector
+            else
+                -- Достигли точки прогрузки
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                break
+            end
+            
+            task.wait(0.03) -- Плавное обновление полета
+        end
         
         -- Поворачиваем камеру для лучшей прогрузки
         camera.CFrame = CFrame.new(point + Vector3.new(0, 50, 0), point)
@@ -4930,11 +4956,46 @@ local function forceLoadEntireMap()
         task.wait(0.1)
         
         -- Показываем прогресс каждой точки
-        print("🤖 AUTOFARM: Прогрузка точки", i, "/", #loadPoints, "- позиция:", point)
+        print("🤖 AUTOFARM: Прогрузка точки", i, "/", #loadPoints, "- позиция:", point, "завершена")
     end
     
-    -- Возвращаемся в исходную позицию
-    humanoidRootPart.CFrame = CFrame.new(originalPosition)
+    -- Очищаем BodyVelocity после прогрузки
+    if bodyVelocity and bodyVelocity.Parent then
+        bodyVelocity:Destroy()
+    end
+    
+    -- Возвращаемся в исходную позицию через полет
+    print("🤖 AUTOFARM: Возвращаемся в исходную позицию через полет")
+    
+    local returnBodyVelocity = Instance.new("BodyVelocity", humanoidRootPart)
+    returnBodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    returnBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    
+    local returnStartTime = tick()
+    local maxReturnTime = 15 -- Максимум 15 секунд на возврат
+    
+    while isAutofarmEnabled and tick() - returnStartTime < maxReturnTime do
+        local currentPos = humanoidRootPart.Position
+        local distance = (originalPosition - currentPos).Magnitude
+        
+        if distance > 5 then
+            local direction = (originalPosition - currentPos).Unit
+            local moveVector = direction * (AutofarmConfig.FlightSpeed * 10)
+            returnBodyVelocity.Velocity = moveVector
+        else
+            -- Достигли исходной позиции
+            returnBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            break
+        end
+        
+        task.wait(0.03)
+    end
+    
+    -- Очищаем BodyVelocity возврата
+    if returnBodyVelocity and returnBodyVelocity.Parent then
+        returnBodyVelocity:Destroy()
+    end
+    
     camera.CFrame = originalCameraCFrame
     
     -- Быстрая финальная стабилизация
