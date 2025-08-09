@@ -263,7 +263,7 @@ local isHealingCombatEnabled = false
 local healingCombatConnections = {}
 local isInHealingPose = false
 local healingPoseStartTime = 0
-local lastPKeyState = false
+local healingPoseConnection = nil
 
 local itemESPConnections = {}
 local itemESPElements = {}
