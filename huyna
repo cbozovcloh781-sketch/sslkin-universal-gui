@@ -6186,11 +6186,11 @@ function showContent(tabName)
                 print("🤖 AUTOFARM SYNC DEBUG: itemName =", '"' .. itemName .. '"', "value =", v)
                 
                 -- Для стрелы синхронизируем оба варианта
-                if itemName == "Mysterious Arrow" or itemName == "Таинственная стрела" then
+                if itemName == "MysteriousArrow" or itemName == "Mysterious Arrow" or itemName == "Таинственная стрела" then
                     print("🤖 AUTOFARM SYNC: Синхронизируем ОБА варианта стрелы =", v)
-                    AutofarmConfig.Items["Mysterious Arrow"] = v -- с пробелом
+                    AutofarmConfig.Items["Mysterious Arrow"] = v -- с пробелом (ОСНОВНОЙ ключ для поиска)
                     AutofarmConfig.Items["MysteriousArrow"] = v -- без пробела
-                elseif itemName == "Gold Coin" or itemName == "Золотая монета" then
+                elseif itemName == "GoldCoin" or itemName == "Gold Coin" or itemName == "Золотая монета" then
                     print("🤖 AUTOFARM SYNC: Синхронизируем ОБА варианта монеты =", v)
                     AutofarmConfig.Items["Gold Coin"] = v -- с пробелом
                     AutofarmConfig.Items["GoldCoin"] = v -- без пробела
