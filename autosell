@@ -1,0 +1,301 @@
+-- Autosell Module для YBA
+-- Отдельный модуль для автоматической продажи предметов
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- Конфигурация автоселла
+local AutosellConfig = {
+    Enabled = false,
+    MaxItemCount = 10, -- максимальное количество предметов каждого типа
+    ShiftploxPosition = Vector3.new(-709, -25, -332), -- позиция NPC Shiftplox
+    Items = {
+        ["Mysterious Arrow"] = false,
+        ["Rokakaka"] = false,
+        ["Pure Rokakaka"] = false,
+        ["Diamond"] = false,
+        ["Gold Coin"] = false,
+        ["Steel Ball"] = false,
+        ["Clackers"] = false,
+        ["Caesar's Headband"] = false,
+        ["Zeppeli's Hat"] = false,
+        ["Zeppeli's Scarf"] = false,
+        ["Ancient Scroll"] = false,
+        ["Quinton's Glove"] = false,
+        ["Stone Mask"] = false,
+        ["Lucky Arrow"] = false,
+        ["Lucky Stone Mask"] = false,
+        ["Rib Cage of The Saint's Corpse"] = false,
+        ["DIO's Diary"] = false,
+        ["Dio's Diary"] = false,
+    }
+}
+
+-- Autosell variables
+local isAutosellEnabled = false
+local autosellConnections = {}
+local isSellingToNPC = false
+local autosellCheckTimer = nil
+
+-- Autosell Functions
+
+-- Проверка количества предметов в рюкзаке
+local function checkInventoryForMaxItems()
+    local player = Players.LocalPlayer
+    if not player or not player.Backpack then return {} end
+    
+    local itemCounts = {}
+    local itemsAtMax = {}
+    
+    -- Подсчитываем количество каждого предмета в рюкзаке
+    for _, item in pairs(player.Backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            local itemName = item.Name
+            itemCounts[itemName] = (itemCounts[itemName] or 0) + 1
+        end
+    end
+    
+    -- Проверяем какие предметы достигли максимума
+    for itemName, isEnabled in pairs(AutosellConfig.Items) do
+        if isEnabled and itemCounts[itemName] and itemCounts[itemName] >= AutosellConfig.MaxItemCount then
+            table.insert(itemsAtMax, itemName)
+            print("🤖 AUTOSELL: Предмет", itemName, "достиг максимума:", itemCounts[itemName], "/", AutosellConfig.MaxItemCount)
+        end
+    end
+    
+    return itemsAtMax
+end
+
+-- Перемещение к NPC Shiftplox
+local function moveToShiftplox(callback)
+    print("🤖 AUTOSELL: Летим к NPC Shiftplox...")
+    -- Используем глобальную функцию moveToPosition из основного скрипта
+    if _G.moveToPosition then
+        _G.moveToPosition(AutosellConfig.ShiftploxPosition, callback)
+    else
+        print("🤖 AUTOSELL: Ошибка - функция moveToPosition не найдена!")
+        callback()
+    end
+end
+
+-- Взять предмет в руки
+local function equipItem(itemName)
+    local player = Players.LocalPlayer
+    if not player or not player.Backpack then return false end
+    
+    local item = player.Backpack:FindFirstChild(itemName)
+    if item and item:IsA("Tool") then
+        item.Parent = player.Character
+        print("🤖 AUTOSELL: Взяли в руки предмет:", itemName)
+        return true
+    end
+    return false
+end
+
+-- Нажать клавишу E для диалога с NPC
+local function interactWithNPC()
+    print("🤖 AUTOSELL: Нажимаем E для диалога с NPC...")
+    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    task.wait(0.1)
+    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.E, false, game)
+end
+
+-- Симуляция нажатий кнопок в диалоге (левая кнопка два раза, затем левая один раз)
+local function handleNPCDialog()
+    print("🤖 AUTOSELL: Обрабатываем диалог с NPC...")
+    
+    task.wait(1) -- Ждем появления диалога
+    
+    -- Первая левая кнопка
+    print("🤖 AUTOSELL: Нажимаем первую левую кнопку...")
+    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.One, false, game)
+    task.wait(0.1)
+    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.One, false, game)
+    
+    task.wait(0.5)
+    
+    -- Вторая левая кнопка
+    print("🤖 AUTOSELL: Нажимаем вторую левую кнопку...")
+    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.One, false, game)
+    task.wait(0.1)
+    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.One, false, game)
+    
+    task.wait(0.5)
+    
+    -- Третья левая кнопка
+    print("🤖 AUTOSELL: Нажимаем третью левую кнопку...")
+    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.One, false, game)
+    task.wait(0.1)
+    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.One, false, game)
+    
+    task.wait(1) -- Ждем завершения продажи
+end
+
+-- Основная функция продажи предметов
+local function sellItemsToNPC(itemsToSell)
+    if isSellingToNPC then return end
+    isSellingToNPC = true
+    
+    print("🤖 AUTOSELL: Начинаем продажу предметов:", table.concat(itemsToSell, ", "))
+    
+    -- Останавливаем автофарм
+    if _G.isAutofarmEnabled and _G.stopAutofarm then
+        print("🤖 AUTOSELL: Останавливаем автофарм для продажи...")
+        _G.stopAutofarm()
+    end
+    
+    -- Летим к NPC
+    moveToShiftplox(function()
+        print("🤖 AUTOSELL: Прилетели к NPC, начинаем продажу...")
+        
+        for _, itemName in ipairs(itemsToSell) do
+            print("🤖 AUTOSELL: Продаем предмет:", itemName)
+            
+            -- Берем предмет в руки
+            if equipItem(itemName) then
+                task.wait(0.5)
+                
+                -- Взаимодействуем с NPC
+                interactWithNPC()
+                
+                -- Обрабатываем диалог
+                handleNPCDialog()
+                
+                task.wait(1) -- Пауза между продажами
+            else
+                print("🤖 AUTOSELL: Не удалось взять предмет:", itemName)
+            end
+        end
+        
+        print("🤖 AUTOSELL: Продажа завершена, проверяем результат...")
+        
+        -- Проверяем остались ли предметы
+        task.wait(2) -- Даем время на обновление инвентаря
+        local remainingItems = checkInventoryForMaxItems()
+        
+        if #remainingItems > 0 then
+            print("🤖 AUTOSELL: Остались предметы для продажи, повторяем цикл...")
+            sellItemsToNPC(remainingItems)
+        else
+            print("🤖 AUTOSELL: Все предметы проданы, возобновляем автофарм...")
+            isSellingToNPC = false
+            
+            -- Возобновляем автофарм
+            if _G.AutofarmConfig and _G.AutofarmConfig.Enabled and _G.startAutofarm then
+                _G.startAutofarm()
+            end
+        end
+    end)
+end
+
+-- Запуск автоселла
+local function startAutosell()
+    if isAutosellEnabled then return end
+    isAutosellEnabled = true
+    
+    print("🤖 AUTOSELL: Запуск автоселла...")
+    
+    -- Создаем таймер проверки каждые 5 секунд
+    autosellCheckTimer = task.spawn(function()
+        while isAutosellEnabled do
+            task.wait(5) -- Проверяем каждые 5 секунд
+            
+            if not isSellingToNPC then
+                local itemsAtMax = checkInventoryForMaxItems()
+                if #itemsAtMax > 0 then
+                    print("🤖 AUTOSELL: Обнаружены предметы на максимуме, запускаем продажу...")
+                    sellItemsToNPC(itemsAtMax)
+                end
+            end
+        end
+    end)
+end
+
+-- Остановка автоселла
+local function stopAutosell()
+    if not isAutosellEnabled then return end
+    isAutosellEnabled = false
+    
+    print("🤖 AUTOSELL: Остановка автоселла...")
+    
+    if autosellCheckTimer then
+        task.cancel(autosellCheckTimer)
+        autosellCheckTimer = nil
+    end
+    
+    isSellingToNPC = false
+end
+
+-- Создание GUI для автоселла
+local function createAutosellGUI(functionsContainer, currentY, createToggleSlider, createSlider, createDivider, createSectionHeader)
+    -- AUTOSELL секция
+    createDivider()
+    createSectionHeader("🤖 AUTO SELL")
+    
+    -- Главный тумблер автоселла
+    createToggleSlider("Auto Sell Enabled", AutosellConfig.Enabled, function(v)
+        AutosellConfig.Enabled = v
+        if v then
+            startAutosell()
+        else
+            stopAutosell()
+        end
+    end)
+    
+    -- Настройка максимального количества предметов
+    createSlider("Max Items Count", 5, 20, AutosellConfig.MaxItemCount, function(v) 
+        AutosellConfig.MaxItemCount = v 
+    end)
+    
+    -- Заголовок для выбора предметов
+    createDivider()
+    local itemsLabel = Instance.new("TextLabel", functionsContainer)
+    itemsLabel.Text = "Select Items to Auto Sell:"
+    itemsLabel.TextColor3 = Color3.new(1,1,1)
+    itemsLabel.BackgroundTransparency = 1
+    itemsLabel.Size = UDim2.new(1, -10, 0, 20)
+    itemsLabel.Position = UDim2.new(0, 5, 0, currentY)
+    itemsLabel.Font = Enum.Font.GothamBold
+    itemsLabel.TextSize = 14
+    itemsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    currentY = currentY + 25
+    
+    -- Функция создания тумблеров для автоселла
+    local function createAutosellItemToggle(itemName, defaultState)
+        createToggleSlider(itemName, defaultState, function(v)
+            AutosellConfig.Items[itemName] = v
+            print("🤖 AUTOSELL: Предмет", itemName, "для продажи установлен в", v and "ON" or "OFF")
+        end)
+    end
+    
+    -- Создаем переключатели для всех предметов автоселла
+    createAutosellItemToggle("Mysterious Arrow", AutosellConfig.Items["Mysterious Arrow"])
+    createAutosellItemToggle("Rokakaka", AutosellConfig.Items["Rokakaka"])
+    createAutosellItemToggle("Pure Rokakaka", AutosellConfig.Items["Pure Rokakaka"])
+    createAutosellItemToggle("Diamond", AutosellConfig.Items["Diamond"])
+    createAutosellItemToggle("Gold Coin", AutosellConfig.Items["Gold Coin"])
+    createAutosellItemToggle("Steel Ball", AutosellConfig.Items["Steel Ball"])
+    createAutosellItemToggle("Clackers", AutosellConfig.Items["Clackers"])
+    createAutosellItemToggle("Caesar's Headband", AutosellConfig.Items["Caesar's Headband"])
+    createAutosellItemToggle("Zeppeli's Hat", AutosellConfig.Items["Zeppeli's Hat"])
+    createAutosellItemToggle("Zeppeli's Scarf", AutosellConfig.Items["Zeppeli's Scarf"])
+    createAutosellItemToggle("Quinton's Glove", AutosellConfig.Items["Quinton's Glove"])
+    createAutosellItemToggle("Stone Mask", AutosellConfig.Items["Stone Mask"])
+    createAutosellItemToggle("Rib Cage of The Saint's Corpse", AutosellConfig.Items["Rib Cage of The Saint's Corpse"])
+    createAutosellItemToggle("Ancient Scroll", AutosellConfig.Items["Ancient Scroll"])
+    createAutosellItemToggle("DIO's Diary", AutosellConfig.Items["DIO's Diary"])
+    createAutosellItemToggle("Lucky Stone Mask", AutosellConfig.Items["Lucky Stone Mask"])
+    createAutosellItemToggle("Lucky Arrow", AutosellConfig.Items["Lucky Arrow"])
+end
+
+-- Экспортируем функции в глобальное пространство
+_G.AutosellModule = {
+    Config = AutosellConfig,
+    createGUI = createAutosellGUI,
+    start = startAutosell,
+    stop = stopAutosell
+}
+
+print("🤖 AUTOSELL: Модуль загружен успешно!")
+
+return _G.AutosellModule
