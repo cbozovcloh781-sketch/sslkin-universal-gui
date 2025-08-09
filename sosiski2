@@ -94,7 +94,7 @@ local TeleportConfig = {
 
 local YBAConfig = {
     Enabled = false,
-    ToggleKey = nil,
+    ToggleKey = nil, -- Горячая клавиша отключена по умолчанию
     StandRange = 500, -- Уменьшили с 100000 до разумного значения
     FreezePlayer = true,
     SwitchCamera = true,
@@ -2838,14 +2838,40 @@ UserInputService.InputBegan:Connect(function(input, gp)
                 startNoClip()
             end
         elseif YBAConfig.ToggleKey and input.KeyCode == YBAConfig.ToggleKey then
-            if YBAConfig.Enabled then
-                stopYBA()
-            else
-                startYBA()
-            end
+            -- Дополнительная проверка: не активируем если игрок в чате
+            local chatInFocus = false
+            pcall(function()
+                local gui = game:GetService("Players").LocalPlayer.PlayerGui
+                local chatGui = gui:FindFirstChild("Chat")
+                if chatGui then
+                    local chatFrame = chatGui:FindFirstChild("Frame")
+                    if chatFrame then
+                        local chatBarParentFrame = chatFrame:FindFirstChild("ChatBarParentFrame")
+                        if chatBarParentFrame then
+                            local chatBar = chatBarParentFrame:FindFirstChild("Frame")
+                            if chatBar and chatBar:FindFirstChild("BoxFrame") then
+                                local textBox = chatBar.BoxFrame:FindFirstChild("Frame"):FindFirstChild("ChatBar")
+                                if textBox and textBox:IsA("TextBox") and textBox.Text and textBox.Text ~= "" then
+                                    chatInFocus = true
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
             
-            if guiCallbacks.yba then
-                guiCallbacks.yba.Text = "Stand Range Hack: " .. (YBAConfig.Enabled and "ON" or "OFF")
+            if not chatInFocus then
+                if YBAConfig.Enabled then
+                    stopYBA()
+                else
+                    startYBA()
+                end
+                
+                if guiCallbacks.yba then
+                    guiCallbacks.yba.Text = "Stand Range Hack: " .. (YBAConfig.Enabled and "ON" or "OFF")
+                end
+            else
+                print("YBA: Активация заблокирована - игрок печатает в чате")
             end
 
         elseif AntiTimeStopConfig.ToggleKey and input.KeyCode == AntiTimeStopConfig.ToggleKey then
@@ -4690,6 +4716,10 @@ function showContent(tabName)
             TeleportConfig.ToggleKey = newKey
         end)
         
+        createKeyBindButton("YBA Stand Range", YBAConfig.ToggleKey, function(newKey)
+            YBAConfig.ToggleKey = newKey
+        end)
+        
         createDivider()
         
         createSectionHeader("🔷ESP Settings")
@@ -5265,6 +5295,9 @@ function showContent(tabName)
         scrollFrame.CanvasPosition = Vector2.new(0, tabScrollPositions[tabName])
     end
 end
+
+-- Принудительно очищаем ToggleKey для YBA (исправление проблемы с пробелом)
+YBAConfig.ToggleKey = nil
 
 showContent("Main")
 
