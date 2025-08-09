@@ -212,15 +212,16 @@ local function moveToShiftplox(callback)
                 
                 moveConnection:Disconnect()
                 
-                print("🤖 AUTOSELL: Ожидаем 2 секунды для полной остановки...")
-                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость
-                task.wait(2)
-                
-                print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
-                
-                if callback then
-                    callback()
-                end
+                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость (В ОТДЕЛЬНОМ ПОТОКЕ!)
+                task.spawn(function()
+                    print("🤖 AUTOSELL: Ожидаем 2 секунды для полной остановки...")
+                    task.wait(2)
+                    print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
+                    
+                    if callback then
+                        callback()
+                    end
+                end)
             end
         end)
     end
@@ -348,11 +349,13 @@ local function startAutosell()
     print("🤖 AUTOSELL: Запуск автоселла...")
     
     -- Включаем NoClip при запуске автосела
-    if _G.startNoClip and type(_G.startNoClip) == "function" then
+    if _G.MovementConfig and _G.startNoClip and type(_G.startNoClip) == "function" then
         print("🤖 AUTOSELL: Включаем NoClip...")
+        _G.MovementConfig.NoClip.Enabled = true
         _G.startNoClip()
+        print("🤖 AUTOSELL: NoClip включен успешно")
     else
-        print("🤖 AUTOSELL: Предупреждение - функция startNoClip недоступна")
+        print("🤖 AUTOSELL: Предупреждение - функция startNoClip или MovementConfig недоступны")
     end
     
     -- Настраиваем отслеживание смерти игрока
