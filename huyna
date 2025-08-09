@@ -275,7 +275,10 @@ local autofarmOriginalPosition = nil
 local autofarmPickingUp = false
 local autofarmSkippedItems = {} -- Пропущенные предметы для повторной попытки
 local autofarmItemAttempts = {} -- Счетчик попыток для каждого предмета
+local autofarmSkippedReturns = {} -- Счетчик возвратов к пропущенным предметам
 local autofarmLastPickupTime = 0 -- Время последнего подбора для проверки неактивности
+local autofarmRestartTimer = nil -- Таймер для автоматического перезапуска через 60 секунд
+local autofarmAutoRestarting = false -- Флаг автоматического перезапуска
 
 
 
@@ -4142,8 +4145,17 @@ local function findAutofarmItems()
                 itemName = "DIO's Diary" -- стандартизируем название
             end
             
-            -- Проверяем выбран ли предмет в Items Farm списке СРАЗУ
-            if AutofarmConfig.Items[itemName] then
+            -- Дополнительная проверка для стрел (разные варианты названий)
+            local shouldSkipItem = false
+            if string.find(string.lower(itemName), "arrow") and not AutofarmConfig.Items["Mysterious Arrow"] then
+                shouldSkipItem = true
+            end
+            
+            -- Стандартизируем название стрел
+            if not shouldSkipItem and string.find(string.lower(itemName), "arrow") and itemName ~= "Mysterious Arrow" then
+                itemName = "Mysterious Arrow"
+            end
+            if not shouldSkipItem and AutofarmConfig.Items[itemName] then
                 -- Ищем WorldPivot позицию
                 local worldPivot = nil
                 if model.WorldPivot then
@@ -4303,6 +4315,18 @@ end
 
 local function pickupItem(item)
     print("AUTOFARM: Пытаемся подобрать предмет", item.Name)
+    
+    -- ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: предмет все еще включен в настройках автофарма
+    if not AutofarmConfig.Items[item.Name] then
+        print("AUTOFARM: Предмет", item.Name, "был отключен в настройках во время подбора - пропускаем")
+        task.spawn(function()
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
     autofarmPickingUp = true
     
     local player = Players.LocalPlayer
@@ -4394,11 +4418,12 @@ local function pickupItem(item)
             local itemKey = getItemKey(item)
             local actualPickupTime = tick() - pickupStartTime
             
-            if hasStartedPickup and actualPickupTime >= (AutofarmConfig.PickupDuration * 0.5) then
-                -- Предмет исчез ПОСЛЕ того как мы достаточно долго жали E - это успешный подбор
+            if hasStartedPickup and actualPickupTime >= (AutofarmConfig.PickupDuration * 0.2) then
+                -- Предмет исчез ПОСЛЕ того как мы начали жать E - это успешный подбор
+                local attempts = (autofarmItemAttempts[itemKey] or 0) + 1
                 resetItemAttempts(itemKey)
-                autofarmLastPickupTime = tick() -- Обновляем таймер только при успешном подборе
-                print("AUTOFARM: ✅ Предмет", item.Name, "УСПЕШНО подобран (исчез после", math.floor(actualPickupTime * 100) / 100, "сек)")
+                autofarmLastPickupTime = tick() -- Всегда обновляем таймер при исчезновении предмета
+                print("AUTOFARM: ✅ Предмет", item.Name, "УСПЕШНО подобран за", attempts, "попытки (исчез после", math.floor(actualPickupTime * 100) / 100, "сек)")
             else
                 -- Предмет исчез слишком быстро - возможно баг, не считаем успешным подбором
                 incrementItemAttempts(itemKey)
@@ -4475,7 +4500,13 @@ local function pickupItem(item)
             local attempts = incrementItemAttempts(itemKey)
             print("AUTOFARM: Попытка", attempts, "/3 для предмета", item.Name)
             
-            -- НЕ обновляем время последнего подбора - это была неудачная попытка
+            -- ФИКС: Обновляем таймер только если подбор был успешным за 1-2 попытки
+            if attempts <= 2 then
+                autofarmLastPickupTime = tick()
+                print("AUTOFARM: ✅ Успешный подбор за", attempts, "попытки - таймер обновлен")
+            else
+                print("AUTOFARM: ⚠️ Подбор неуспешен -", attempts, "попытки, таймер НЕ обновлен")
+            end
             
             pickupConnection:Disconnect()
             autofarmPickingUp = false
@@ -4511,7 +4542,13 @@ local function pickupItem(item)
             local attempts = incrementItemAttempts(itemKey)
             print("AUTOFARM: Таймаут - попытка", attempts, "/3 для предмета", item.Name)
             
-            -- НЕ обновляем время последнего подбора - это был таймаут (неудача)
+            -- ФИКС: Обновляем таймер только если это была 1-2 попытка
+            if attempts <= 2 then
+                autofarmLastPickupTime = tick()
+                print("AUTOFARM: ✅ Таймаут на", attempts, "попытке - таймер обновлен")
+            else
+                print("AUTOFARM: ⚠️ Таймаут на", attempts, "попытке, таймер НЕ обновлен")
+            end
             
             pickupConnection:Disconnect()
             autofarmPickingUp = false
@@ -4537,10 +4574,13 @@ function processNextItem()
         return
     end
     
-    -- Проверяем неактивность (10 секунд без подбора)
-    -- Таймер должен быть инициализирован (> 0) и прошло больше 10 секунд
-    if autofarmLastPickupTime and autofarmLastPickupTime > 0 and tick() - autofarmLastPickupTime > 10 then
-        print("AUTOFARM: Неактивность 10 секунд - ПОЛНЫЙ ПЕРЕЗАПУСК автофарма")
+    -- Проверяем неактивность (15 секунд без подбора)
+    -- Таймер должен быть инициализирован (> 0) и прошло больше 15 секунд
+    local currentTime = tick()
+    local timeSinceLastPickup = autofarmLastPickupTime and autofarmLastPickupTime > 0 and (currentTime - autofarmLastPickupTime) or -1
+    
+    if timeSinceLastPickup > 15 then
+        print("AUTOFARM: Неактивность", math.floor(timeSinceLastPickup), "секунд - ПОЛНЫЙ ПЕРЕЗАПУСК автофарма")
         
         task.spawn(function()
             -- Полностью останавливаем автофарм
@@ -4556,25 +4596,87 @@ function processNextItem()
         return
     end
     
+    -- ОТЛАДКА: Показываем состояние таймера каждый раз
+    local currentTime = tick()
+    local timeSinceLastPickup = autofarmLastPickupTime and autofarmLastPickupTime > 0 and (currentTime - autofarmLastPickupTime) or -1
+    if timeSinceLastPickup > 0 then
+        print("AUTOFARM DEBUG: Прошло", math.floor(timeSinceLastPickup), "секунд с последнего успешного подбора")
+    else
+        print("AUTOFARM DEBUG: Таймер не инициализирован")
+    end
+    
     -- Сканируем новые предметы
     local items = findAutofarmItems()
     if #items == 0 then
         -- Если нет доступных предметов, проверяем пропущенные
         if next(autofarmSkippedItems) then
-            print("AUTOFARM: Обычные предметы закончились, возвращаемся к пропущенным предметам")
-            -- Сбрасываем попытки для всех пропущенных предметов
+            print("AUTOFARM: Обычные предметы закончились, проверяем пропущенные предметы")
+            
+            -- Фильтруем пропущенные предметы - удаляем те, что возвращались более 5 раз
+            local validSkippedItems = {}
             for itemKey, skippedItem in pairs(autofarmSkippedItems) do
-                resetItemAttempts(itemKey)
-            end
-            autofarmSkippedItems = {}
-            -- Перезапускаем поиск
-            task.spawn(function()
-                task.wait(0.5)
-                if isAutofarmEnabled then
-                    processNextItem()
+                local returnCount = (autofarmSkippedReturns[itemKey] or 0) + 1
+                autofarmSkippedReturns[itemKey] = returnCount
+                
+                if returnCount <= 5 then
+                    validSkippedItems[itemKey] = skippedItem
+                    print("AUTOFARM: Возврат к предмету", skippedItem.Name, "- попытка", returnCount, "/5")
+                else
+                    print("AUTOFARM: Предмет", skippedItem.Name, "забыт навсегда - превышено количество возвратов (5/5)")
+                    autofarmSkippedReturns[itemKey] = nil -- Очищаем счетчик
                 end
-            end)
-            return
+            end
+            
+            if next(validSkippedItems) then
+                print("AUTOFARM: Возвращаемся к", table.getn and table.getn(validSkippedItems) or "нескольким", "пропущенным предметам")
+                -- Сбрасываем попытки только для валидных пропущенных предметов
+                for itemKey, skippedItem in pairs(validSkippedItems) do
+                    resetItemAttempts(itemKey)
+                end
+                autofarmSkippedItems = {}
+                -- Перезапускаем поиск
+                task.spawn(function()
+                    task.wait(0.5)
+                    if isAutofarmEnabled then
+                        processNextItem()
+                    end
+                end)
+                return
+                         else
+                 print("AUTOFARM: Все пропущенные предметы забыты - сканируем карту еще раз")
+                 autofarmSkippedItems = {}
+                 
+                 -- Делаем еще одно сканирование карты
+                 task.spawn(function()
+                     task.wait(1) -- Небольшая пауза
+                     if not isAutofarmEnabled then return end
+                     
+                     local finalScanItems = findAutofarmItems()
+                     if #finalScanItems > 0 then
+                         print("AUTOFARM: При повторном сканировании найдено", #finalScanItems, "новых предметов!")
+                         processNextItem()
+                     else
+                         print("AUTOFARM: При повторном сканировании новых предметов не найдено - выключаемся на 60 секунд")
+                         
+                         -- Останавливаем автофарм
+                         stopAutofarm()
+                         autofarmAutoRestarting = true
+                         
+                         -- Запускаем таймер на 60 секунд
+                         autofarmRestartTimer = task.spawn(function()
+                             task.wait(60)
+                             if autofarmAutoRestarting then
+                                 print("🤖 AUTOFARM: Автоматический перезапуск через 60 секунд")
+                                 autofarmAutoRestarting = false
+                                 startAutofarm()
+                             end
+                         end)
+                         
+                         print("🤖 AUTOFARM: Выключен на 60 секунд - ждем появления новых предметов")
+                     end
+                 end)
+                 return
+             end
         else
             -- Убираем спам про отсутствие предметов
             -- Используем spawn чтобы избежать блокировки
@@ -4591,6 +4693,18 @@ function processNextItem()
     -- Берем ближайший предмет
     local nextItem = items[1]
     autofarmCurrentTarget = nextItem
+    
+    -- ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: предмет все еще включен в настройках автофарма
+    if not AutofarmConfig.Items[nextItem.Name] then
+        print("AUTOFARM: Предмет", nextItem.Name, "был отключен в настройках - пропускаем")
+        task.spawn(function()
+            task.wait(0.1)
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
     
     -- ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: предмет еще существует перед полетом
     local itemExists = false
@@ -4751,28 +4865,137 @@ local function forceLoadEntireMap()
         Vector3.new(100, 70, -100),  Vector3.new(-100, 70, -100),
         Vector3.new(100, 70, 0),     Vector3.new(-100, 70, 0),
         Vector3.new(0, 70, 100),     Vector3.new(0, 70, -100),
+        
+        -- НОВЫЕ точки для еще более плотного покрытия - понижены на 30 единиц
+        -- Точки на 150м от центра
+        Vector3.new(150, 70, 150),   Vector3.new(-150, 70, 150),
+        Vector3.new(150, 70, -150),  Vector3.new(-150, 70, -150),
+        Vector3.new(150, 70, 0),     Vector3.new(-150, 70, 0),
+        Vector3.new(0, 70, 150),     Vector3.new(0, 70, -150),
+        
+        -- Точки на 350м для промежуточного покрытия
+        Vector3.new(350, 70, 350),   Vector3.new(-350, 70, 350),
+        Vector3.new(350, 70, -350),  Vector3.new(-350, 70, -350),
+        Vector3.new(350, 70, 0),     Vector3.new(-350, 70, 0),
+        Vector3.new(0, 70, 350),     Vector3.new(0, 70, -350),
+        
+        -- Точки на 550м для дополнительного покрытия
+        Vector3.new(550, 70, 550),   Vector3.new(-550, 70, 550),
+        Vector3.new(550, 70, -550),  Vector3.new(-550, 70, -550),
+        Vector3.new(550, 70, 0),     Vector3.new(-550, 70, 0),
+        Vector3.new(0, 70, 550),     Vector3.new(0, 70, -550),
+        
+        -- Точки на 750м для максимального покрытия
+        Vector3.new(750, 70, 750),   Vector3.new(-750, 70, 750),
+        Vector3.new(750, 70, -750),  Vector3.new(-750, 70, -750),
+        Vector3.new(750, 70, 0),     Vector3.new(-750, 70, 0),
+        Vector3.new(0, 70, 750),     Vector3.new(0, 70, -750),
+        
+        -- Дополнительные высотные точки на разных уровнях
+        Vector3.new(300, 170, 300),  Vector3.new(-300, 170, 300),
+        Vector3.new(300, 170, -300), Vector3.new(-300, 170, -300),
+        Vector3.new(500, 170, 500),  Vector3.new(-500, 170, 500),
+        Vector3.new(500, 170, -500), Vector3.new(-500, 170, -500),
+        
+        -- Точки на промежуточных диагоналях
+        Vector3.new(450, 70, 450),   Vector3.new(-450, 70, 450),
+        Vector3.new(450, 70, -450),  Vector3.new(-450, 70, -450),
+        Vector3.new(250, 70, 250),   Vector3.new(-250, 70, 250),
+        Vector3.new(250, 70, -250),  Vector3.new(-250, 70, -250),
+        
+        -- ПОДЗЕМНЫЕ точки для прогрузки (под картой)
+        Vector3.new(0, -50, 0),      Vector3.new(0, -100, 0),     -- Центр под картой
+        Vector3.new(400, -50, 400),  Vector3.new(-400, -50, 400), -- Подземные углы
+        Vector3.new(400, -50, -400), Vector3.new(-400, -50, -400),
+        Vector3.new(600, -50, 0),    Vector3.new(-600, -50, 0),   -- Подземные стороны
+        Vector3.new(0, -50, 600),    Vector3.new(0, -50, -600),
+        Vector3.new(300, -100, 300), Vector3.new(-300, -100, 300), -- Глубокие подземные точки
+        Vector3.new(300, -100, -300),Vector3.new(-300, -100, -300),
+        Vector3.new(500, -75, 500),  Vector3.new(-500, -75, 500),  -- Средние подземные точки
+        Vector3.new(500, -75, -500), Vector3.new(-500, -75, -500),
     }
     
-    print("🤖 AUTOFARM: Телепортируемся по", #loadPoints, "точкам для прогрузки...")
+    print("🤖 AUTOFARM: Летим по", #loadPoints, "точкам для прогрузки карты...")
+    
+    -- Создаем BodyVelocity для полета (как в автофарме)
+    local bodyVelocity = Instance.new("BodyVelocity", humanoidRootPart)
+    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
     
     for i, point in ipairs(loadPoints) do
         if not isAutofarmEnabled then break end -- Прерываем если автофарм отключили
         
-        -- Телепортируем персонажа
-        humanoidRootPart.CFrame = CFrame.new(point)
+        -- Летим к точке прогрузки (используем полет как в автофарме)
+        print("🤖 AUTOFARM: Летим к точке прогрузки", i, "/", #loadPoints, "- позиция:", point)
+        
+        local startTime = tick()
+        local maxFlightTime = 10 -- Максимум 10 секунд на одну точку
+        
+        while isAutofarmEnabled and tick() - startTime < maxFlightTime do
+            local currentPos = humanoidRootPart.Position
+            local distance = (point - currentPos).Magnitude
+            
+            if distance > 5 then
+                local direction = (point - currentPos).Unit
+                -- Используем ту же скорость что и в автофарме
+                local moveVector = direction * (AutofarmConfig.FlightSpeed * 10)
+                bodyVelocity.Velocity = moveVector
+            else
+                -- Достигли точки прогрузки
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                break
+            end
+            
+            task.wait(0.03) -- Плавное обновление полета
+        end
         
         -- Поворачиваем камеру для лучшей прогрузки
         camera.CFrame = CFrame.new(point + Vector3.new(0, 50, 0), point)
         
         -- МАКСИМАЛЬНО БЫСТРАЯ прогрузка но с гарантией
-        task.wait(0.2)
+        task.wait(0.1)
         
         -- Показываем прогресс каждой точки
-        print("🤖 AUTOFARM: Прогрузка точки", i, "/", #loadPoints, "- позиция:", point)
+        print("🤖 AUTOFARM: Прогрузка точки", i, "/", #loadPoints, "- позиция:", point, "завершена")
     end
     
-    -- Возвращаемся в исходную позицию
-    humanoidRootPart.CFrame = CFrame.new(originalPosition)
+    -- Очищаем BodyVelocity после прогрузки
+    if bodyVelocity and bodyVelocity.Parent then
+        bodyVelocity:Destroy()
+    end
+    
+    -- Возвращаемся в исходную позицию через полет
+    print("🤖 AUTOFARM: Возвращаемся в исходную позицию через полет")
+    
+    local returnBodyVelocity = Instance.new("BodyVelocity", humanoidRootPart)
+    returnBodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    returnBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    
+    local returnStartTime = tick()
+    local maxReturnTime = 15 -- Максимум 15 секунд на возврат
+    
+    while isAutofarmEnabled and tick() - returnStartTime < maxReturnTime do
+        local currentPos = humanoidRootPart.Position
+        local distance = (originalPosition - currentPos).Magnitude
+        
+        if distance > 5 then
+            local direction = (originalPosition - currentPos).Unit
+            local moveVector = direction * (AutofarmConfig.FlightSpeed * 10)
+            returnBodyVelocity.Velocity = moveVector
+        else
+            -- Достигли исходной позиции
+            returnBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            break
+        end
+        
+        task.wait(0.03)
+    end
+    
+    -- Очищаем BodyVelocity возврата
+    if returnBodyVelocity and returnBodyVelocity.Parent then
+        returnBodyVelocity:Destroy()
+    end
+    
     camera.CFrame = originalCameraCFrame
     
     -- Быстрая финальная стабилизация
@@ -4785,6 +5008,16 @@ function startAutofarm()
     if isAutofarmEnabled then
         print("AUTOFARM: Уже активен!")
         return
+    end
+    
+    -- Отменяем автоматический перезапуск если он был запланирован
+    if autofarmAutoRestarting then
+        autofarmAutoRestarting = false
+        if autofarmRestartTimer then
+            task.cancel(autofarmRestartTimer)
+            autofarmRestartTimer = nil
+        end
+        print("🤖 AUTOFARM: Отменен автоматический перезапуск - запуск вручную")
     end
     
     local player = Players.LocalPlayer
@@ -4807,6 +5040,7 @@ function startAutofarm()
     -- Очищаем предыдущие данные о попытках и пропущенных предметах
     autofarmItemAttempts = {}
     autofarmSkippedItems = {}
+    autofarmSkippedReturns = {}
     
     -- Не сохраняем исходную позицию - остаемся где остановились (как телепорт)
     
@@ -4839,6 +5073,16 @@ function stopAutofarm()
     AutofarmConfig.Enabled = false
     autofarmPickingUp = false
     autofarmCurrentTarget = nil
+    
+    -- Отменяем автоматический перезапуск если он был запланирован
+    if autofarmAutoRestarting then
+        autofarmAutoRestarting = false
+        if autofarmRestartTimer then
+            task.cancel(autofarmRestartTimer)
+            autofarmRestartTimer = nil
+        end
+        print("🤖 AUTOFARM: Отменен автоматический перезапуск - остановка вручную")
+    end
     
     -- ПРИНУДИТЕЛЬНО отпускаем клавишу E (фикс бага с зажатой кнопкой)
     pcall(function()
@@ -6082,6 +6326,16 @@ function showContent(tabName)
         local function createAutofarmItemToggle(itemName, defaultState)
             local btn = createToggleSlider(itemName, defaultState, function(v)
                 AutofarmConfig.Items[itemName] = v
+                
+                -- ФИКС: Синхронизируем ОБА варианта ключей для предметов
+                if itemName == "MysteriousArrow" or itemName == "Mysterious Arrow" or itemName == "Таинственная стрела" then
+                    AutofarmConfig.Items["Mysterious Arrow"] = v -- с пробелом (ОСНОВНОЙ ключ для поиска)
+                    AutofarmConfig.Items["MysteriousArrow"] = v -- без пробела
+                elseif itemName == "GoldCoin" or itemName == "Gold Coin" or itemName == "Золотая монета" then
+                    AutofarmConfig.Items["Gold Coin"] = v -- с пробелом
+                    AutofarmConfig.Items["GoldCoin"] = v -- без пробела
+                end
+                
                 print("🤖 AUTOFARM: Предмет", itemName, "установлен в", v and "ON" or "OFF")
                 
                 -- Если автофарм активен, сбрасываем попытки для всех предметов этого типа
@@ -6101,7 +6355,41 @@ function showContent(tabName)
                         end
                     end
                     
-                    print("🤖 AUTOFARM: Сброшены попытки для предмета", itemName, "- изменения применены немедленно")
+                    -- КРИТИЧНО: Если текущий целевой предмет был отключен, прерываем движение к нему
+                    if autofarmCurrentTarget and autofarmCurrentTarget.Name == itemName and not v then
+                        print("🤖 AUTOFARM: Прерываем движение к предмету", itemName, "- он был отключен в настройках")
+                        autofarmCurrentTarget = nil
+                        autofarmPickingUp = false
+                        
+                        -- ПРИНУДИТЕЛЬНО отпускаем клавишу E если она зажата
+                        pcall(function()
+                            if game:GetService("VirtualInputManager") then
+                                game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                            end
+                            game:GetService("UserInputService").InputEnded:Fire(
+                                {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                                false
+                            )
+                        end)
+                        
+                        -- Отключаем все соединения движения и подбора
+                        for _, connection in ipairs(autofarmConnections) do
+                            if connection then
+                                pcall(function() connection:Disconnect() end)
+                            end
+                        end
+                        autofarmConnections = {}
+                        
+                        -- Немедленно ищем следующий предмет
+                        task.spawn(function()
+                            task.wait(0.1)
+                            if isAutofarmEnabled then
+                                processNextItem()
+                            end
+                        end)
+                    end
+                    
+                    -- Убираем лишний спам
                 end
             end)
             return btn
