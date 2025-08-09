@@ -1129,47 +1129,77 @@ local function startAntiTimeStop()
     
     createAntiTimeStopEffect()
     
-        -- МГНОВЕННОЕ освобождение без циклов
-    print("Anti TS: АКТИВАЦИЯ!")
+        print("Anti TS: АКТИВАЦИЯ!")
     
-    -- Быстрое освобождение персонажа
-    for _, part in pairs(char:GetChildren()) do
-        if part:IsA("BasePart") then
-            part.Anchored = false
-        end
-    end
-    
-    if hum then
-        hum.PlatformStand = false
-        hum.Sit = false
-        hum.AutoRotate = true
-        print("Anti TS: Персонаж освобожден!")
-    end
-    
-    if root then
-        -- Убираем только из Root'а - быстро
-        for _, child in pairs(root:GetChildren()) do
-            if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
-                child:Destroy()
-            end
-        end
-        root.Anchored = false
-        print("Anti TS: Root освобожден!")
-    end
-    
-    -- Легкий цикл только для поддержания освобождения
+    -- Основной цикл освобождения
     local antiFreezeLoop = RunService.Heartbeat:Connect(function()
         if not isAntiTimeStopEnabled or not char or not char.Parent then
             return
         end
         
-        -- Простое поддержание освобождения
-        if root then
-            root.Anchored = false
+        -- Агрессивно освобождаем ВСЕ части персонажа
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = false
+                part.CanCollide = true
+            end
         end
+        
+        -- Освобождаем humanoid
         if hum then
             hum.PlatformStand = false
+            hum.Sit = false
+            hum.AutoRotate = true
+            hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed
+            hum.JumpPower = AntiTimeStopConfig.JumpPower
         end
+        
+        -- Агрессивно убираем все ограничения
+        if root then
+            for _, child in pairs(root:GetChildren()) do
+                if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or 
+                   child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") or
+                   child:IsA("AlignPosition") or child:IsA("AlignOrientation") then
+                    child:Destroy()
+                    print("Anti TS: Удален", child.ClassName)
+                end
+            end
+        end
+        
+        -- Также проверяем торс
+        local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+        if torso then
+            for _, child in pairs(torso:GetChildren()) do
+                if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or 
+                   child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") then
+                    child:Destroy()
+                    print("Anti TS: Удален из торса", child.ClassName)
+                end
+            end
+        end
+        
+        -- Быстрый поиск стенда рядом
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj:IsA("Model") and obj.Name:find("Stand") or obj.Name:find("stand") or
+               obj.Name:find("SP") or obj.Name:find("TW") or obj.Name:find("KC") or
+               obj.Name:find("CD") or obj.Name:find("GE") then
+                local standRoot = obj:FindFirstChild("HumanoidRootPart")
+                if standRoot and root then
+                    local distance = (standRoot.Position - root.Position).Magnitude
+                    if distance <= 20 then
+                        for _, part in pairs(obj:GetChildren()) do
+                            if part:IsA("BasePart") then
+                                part.Anchored = false
+                            end
+                        end
+                        print("Anti TS: Стенд", obj.Name, "освобожден!")
+                        break
+                    end
+                end
+            end
+        end
+        
+        print("Anti TS: Цикл работает...")
     end)
     
     local attackDetection = RunService.Heartbeat:Connect(function()
