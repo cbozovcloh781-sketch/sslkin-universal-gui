@@ -174,6 +174,16 @@ local AntiTimeStopConfig = {
     ServerSync = true,
 }
 
+-- Конфигурация для обхода блокировки атак во время лечения
+local HealingCombatConfig = {
+    Enabled = false,
+    ToggleKey = nil,
+    AllowAttacksDuringHeal = true,
+    OverrideHealingPose = true,
+    AutoDetectHealing = true,
+    DebugMode = false,
+}
+
 local isFlying = false
 local flyConnections = {}
 local originalGravity = workspace.Gravity
@@ -247,6 +257,12 @@ local lastCameraUpdate = nil
 
 -- Глобальная переменная для отслеживания ввода в чате/GUI
 local isInputBeingProcessedByGame = false
+
+-- Переменные для системы Healing Combat
+local isHealingCombatEnabled = false
+local healingCombatConnections = {}
+local isInHealingPose = false
+local healingPoseStartTime = 0
 
 local itemESPConnections = {}
 local itemESPElements = {}
@@ -327,6 +343,7 @@ local Languages = {
         UndergroundFlight = "Underground Flight",
         ItemESP = "Item ESP",
         AntiTimeStop = "ANTI TIME STOP",
+        HealingCombat = "HEALING COMBAT BYPASS",
         StartTeleport = "START TELEPORT",
         StopTeleport = "STOP TELEPORT",
         -- YBA Items
@@ -378,6 +395,7 @@ local Languages = {
         UndergroundFlight = "Подземный полет",
         ItemESP = "ESP предметов",
         AntiTimeStop = "АНТИ ОСТАНОВКА ВРЕМЕНИ",
+        HealingCombat = "ОБХОД БЛОКИРОВКИ АТАК ПРИ ЛЕЧЕНИИ",
         StartTeleport = "НАЧАТЬ ТЕЛЕПОРТ",
         StopTeleport = "ОСТАНОВИТЬ ТЕЛЕПОРТ",
         -- YBA Items
@@ -1379,6 +1397,127 @@ local function stopAntiTimeStop()
     print("Anti Time Stop disabled")
 end
 
+-- ===== HEALING COMBAT BYPASS FUNCTIONS =====
+local function startHealingCombat()
+    if isHealingCombatEnabled then 
+        print("Healing Combat Bypass уже активен!")
+        return 
+    end
+    
+    isHealingCombatEnabled = true
+    print("=== ЗАПУСК HEALING COMBAT BYPASS ===")
+    
+    local char = Players.LocalPlayer.Character
+    if not char then 
+        print("Healing Combat: Персонаж не найден!")
+        return 
+    end
+    
+    -- Основной цикл для отслеживания позы лечения и разрешения атак
+    local healingDetection = RunService.Heartbeat:Connect(function()
+        if not isHealingCombatEnabled or not char or not char.Parent then
+            return
+        end
+        
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        
+        -- Определяем позу лечения по нажатию Ctrl
+        local isCurrentlyHealing = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+        
+        -- Обновляем состояние позы лечения
+        if isCurrentlyHealing and not isInHealingPose then
+            isInHealingPose = true
+            healingPoseStartTime = tick()
+            if HealingCombatConfig.DebugMode then
+                print("Healing Combat: Поза лечения НАЧАЛАСЬ")
+            end
+        elseif not isCurrentlyHealing and isInHealingPose then
+            isInHealingPose = false
+            if HealingCombatConfig.DebugMode then
+                print("Healing Combat: Поза лечения ЗАКОНЧИЛАСЬ")
+            end
+        end
+        
+        -- Если в позе лечения и включен обход - разрешаем атаки
+        if isInHealingPose and HealingCombatConfig.AllowAttacksDuringHeal then
+            -- Проверяем нажатие атакующих клавиш
+            local isAttacking = UserInputService:IsKeyDown(Enum.KeyCode.F) or 
+                               UserInputService:IsKeyDown(Enum.KeyCode.E) or
+                               UserInputService:IsKeyDown(Enum.KeyCode.R) or
+                               UserInputService:IsKeyDown(Enum.KeyCode.T) or
+                               UserInputService:IsKeyDown(Enum.KeyCode.Y) or
+                               UserInputService:IsKeyDown(Enum.KeyCode.Q)
+            
+            if isAttacking then
+                if HealingCombatConfig.DebugMode then
+                    print("Healing Combat: Атака во время лечения разрешена!")
+                end
+                
+                -- Временно отключаем позу лечения для выполнения атаки
+                if HealingCombatConfig.OverrideHealingPose then
+                    -- Освобождаем персонажа от ограничений позы лечения
+                    humanoid.PlatformStand = false
+                    humanoid.AutoRotate = true
+                    
+                    -- Убираем любые BodyPosition/BodyVelocity объекты, которые могут блокировать движение
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        for _, child in pairs(root:GetChildren()) do
+                            if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
+                                if child.Name:find("Heal") or child.Name:find("Pose") then
+                                    child:Destroy()
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    
+    table.insert(healingCombatConnections, healingDetection)
+    
+    -- Обработчик смерти игрока
+    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        local deathConnection = humanoid.Died:Connect(function()
+            print("Игрок умер, отключаем Healing Combat Bypass...")
+            stopHealingCombat()
+        end)
+        table.insert(healingCombatConnections, deathConnection)
+    end
+    
+    print("Healing Combat Bypass активирован!")
+    print("Теперь вы можете атаковать во время позы лечения!")
+end
+
+local function stopHealingCombat()
+    if not isHealingCombatEnabled then return end
+    
+    isHealingCombatEnabled = false
+    isInHealingPose = false
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(healingCombatConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    healingCombatConnections = {}
+    
+    -- Восстанавливаем нормальное поведение персонажа
+    local char = Players.LocalPlayer.Character
+    if char then
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.PlatformStand = false
+            humanoid.AutoRotate = true
+        end
+    end
+    
+    print("Healing Combat Bypass отключен!")
+end
 
 local function startNoClip()
     local char = Players.LocalPlayer.Character
@@ -5110,6 +5249,30 @@ function showContent(tabName)
                     antiTimeStopBtn.Text = "ANTI TIME STOP"
                     antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
                 end)
+            end
+        end)
+        
+        -- HEALING COMBAT BYPASS кнопка
+        local healingCombatLabel = Instance.new("TextLabel", functionsContainer)
+        healingCombatLabel.Size = UDim2.new(1, -10, 0, 20)
+        healingCombatLabel.Position = UDim2.new(0, 5, 0, currentY)
+        healingCombatLabel.Text = getText("HealingCombat")
+        healingCombatLabel.Font = Enum.Font.Gotham
+        healingCombatLabel.TextSize = 12
+        healingCombatLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        healingCombatLabel.BackgroundTransparency = 1
+        healingCombatLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
+        
+        local healingCombatToggleBtn = createToggleSlider(getText("HealingCombat"), isHealingCombatEnabled, function(v)
+            if v then
+                if startHealingCombat then
+                    startHealingCombat()
+                end
+            else
+                if stopHealingCombat then
+                    stopHealingCombat()
+                end
             end
         end)
         
