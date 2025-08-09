@@ -4281,12 +4281,20 @@ local function moveToPosition(targetPosition, callback)
         print("AUTOFARM: NoClip включен")
     end
     
-    -- Создаем BodyVelocity для движения
+    -- Настраиваем персонажа для полета (как в обычном флае)
+    local humanoid = character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.JumpPower = 0
+        humanoid.JumpHeight = 0
+        humanoid.HipHeight = 0
+    end
+    
+    -- Создаем BodyVelocity для движения (как в обычном флае)
     local bodyVelocity = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
     if not bodyVelocity then
         bodyVelocity = Instance.new("BodyVelocity")
         bodyVelocity.Name = "AutofarmBodyVelocity"
-        bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+        bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9) -- как в обычном флае
         bodyVelocity.Parent = humanoidRootPart
     end
     
@@ -4311,9 +4319,9 @@ local function moveToPosition(targetPosition, callback)
         
         if distance > 3 then
             local direction = (adjustedTarget - currentPos).Unit
-            -- Мгновенная скорость без плавности для быстрого автофарма
-            bodyVelocity.Velocity = direction * AutofarmConfig.FlightSpeed
-            bodyVelocity.MaxForce = Vector3.new(8000, 8000, 8000) -- увеличена сила
+            -- Используем систему как в обычном флае для плавного движения
+            local moveVector = direction * (AutofarmConfig.FlightSpeed * 10) -- как в обычном флае
+            bodyVelocity.Velocity = moveVector
         else
             -- Достигли цели
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
@@ -4369,7 +4377,15 @@ local function pickupItem(item)
         if not isAutofarmEnabled then
             -- При отключении автофарма ОБЯЗАТЕЛЬНО отпускаем клавишу
             if isKeyPressed then
-                game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                pcall(function()
+                    if game:GetService("VirtualInputManager") then
+                        game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                    end
+                    game:GetService("UserInputService").InputEnded:Fire(
+                        {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                        false
+                    )
+                end)
                 isKeyPressed = false
                 print("AUTOFARM: Клавиша E отпущена при отключении автофарма")
             end
@@ -4382,7 +4398,15 @@ local function pickupItem(item)
         if not item.Model or not item.Model.Parent then
             print("AUTOFARM: Предмет", item.Name, "исчез - возможно подобран")
             if isKeyPressed then
-                game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                pcall(function()
+                    if game:GetService("VirtualInputManager") then
+                        game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                    end
+                    game:GetService("UserInputService").InputEnded:Fire(
+                        {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                        false
+                    )
+                end)
                 isKeyPressed = false
             end
             pickupConnection:Disconnect()
@@ -4407,8 +4431,18 @@ local function pickupItem(item)
             hasStartedPickup = true
             pickupStartTime = tick()
             
-            -- Зажимаем клавишу E
-            game:GetService("VirtualInputManager"):SendKeyEvent(true, AutofarmConfig.PickupKey, false, game)
+            -- Зажимаем клавишу E (эмулируем нажатие как в реальном времени)
+            pcall(function()
+                -- Пробуем несколько способов для максимальной совместимости
+                if game:GetService("VirtualInputManager") then
+                    game:GetService("VirtualInputManager"):SendKeyEvent(true, AutofarmConfig.PickupKey, false, game)
+                end
+                -- Дополнительно эмулируем через UserInputService для некоторых игр
+                game:GetService("UserInputService").InputBegan:Fire(
+                    {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                    false
+                )
+            end)
             isKeyPressed = true
             
         elseif distance > AutofarmConfig.PickupRadius and not hasStartedPickup then
@@ -4426,7 +4460,16 @@ local function pickupItem(item)
         if hasStartedPickup and tick() - pickupStartTime >= AutofarmConfig.PickupDuration then
             -- Отпускаем клавишу E
             if isKeyPressed then
-                game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                pcall(function()
+                    if game:GetService("VirtualInputManager") then
+                        game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                    end
+                    -- Дополнительно эмулируем отпускание через UserInputService
+                    game:GetService("UserInputService").InputEnded:Fire(
+                        {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                        false
+                    )
+                end)
                 isKeyPressed = false
             end
             print("AUTOFARM: Завершили попытку подбора", item.Name)
@@ -4448,7 +4491,15 @@ local function pickupItem(item)
         if tick() - pickupStartTime > 10 then
             print("AUTOFARM: Общий таймаут для", item.Name)
             if isKeyPressed then
-                game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                pcall(function()
+                    if game:GetService("VirtualInputManager") then
+                        game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                    end
+                    game:GetService("UserInputService").InputEnded:Fire(
+                        {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                        false
+                    )
+                end)
                 isKeyPressed = false
             end
             pickupConnection:Disconnect()
@@ -4493,12 +4544,35 @@ function processNextItem()
     local nextItem = items[1]
     autofarmCurrentTarget = nextItem
     
+    -- ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: предмет еще существует перед полетом
+    if not nextItem.Model or not nextItem.Model.Parent then
+        print("AUTOFARM: Предмет", nextItem.Name, "исчез ДО начала полета - ищем следующий")
+        task.spawn(function()
+            task.wait(0.5)
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
     print("AUTOFARM: Летим к предмету", nextItem.Name, "на расстоянии", math.floor(nextItem.Distance), "м")
     
     -- Летим к предмету
     moveToPosition(nextItem.Position, function()
         if isAutofarmEnabled then
-            pickupItem(nextItem)
+            -- ПОВТОРНАЯ ПРОВЕРКА: предмет еще существует после полета
+            if nextItem.Model and nextItem.Model.Parent then
+                pickupItem(nextItem)
+            else
+                print("AUTOFARM: Предмет", nextItem.Name, "исчез ПОСЛЕ полета - ищем следующий")
+                task.spawn(function()
+                    task.wait(0.5)
+                    if isAutofarmEnabled then
+                        processNextItem()
+                    end
+                end)
+            end
         end
     end)
 end
@@ -4526,8 +4600,7 @@ local function startAutofarm()
     isAutofarmEnabled = true
     AutofarmConfig.Enabled = true
     
-    -- Сохраняем исходную позицию
-    autofarmOriginalPosition = humanoidRootPart.Position
+    -- Не сохраняем исходную позицию - остаемся где остановились (как телепорт)
     
     -- Запускаем процесс
     processNextItem()
@@ -4546,7 +4619,13 @@ local function stopAutofarm()
     
     -- ПРИНУДИТЕЛЬНО отпускаем клавишу E (фикс бага с зажатой кнопкой)
     pcall(function()
-        game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+        if game:GetService("VirtualInputManager") then
+            game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+        end
+        game:GetService("UserInputService").InputEnded:Fire(
+            {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+            false
+        )
         print("🤖 AUTOFARM: Клавиша E принудительно отпущена")
     end)
     
@@ -4569,17 +4648,20 @@ local function stopAutofarm()
                 bv:Destroy()
             end
             
-            -- Возвращаем гравитацию
-            if AutofarmConfig.UseFlightMovement then
+            -- Восстанавливаем настройки персонажа (как в обычном флае)
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.JumpPower = 50 -- возвращаем обычную силу прыжка
+                humanoid.JumpHeight = 7.2 -- возвращаем обычную высоту прыжка  
+                humanoid.HipHeight = 0 -- возвращаем обычную высоту бедер
+            end
+            
+            -- Возвращаем гравитацию только если не используется NoClip
+            if AutofarmConfig.UseFlightMovement and not isNoClipping then
                 workspace.Gravity = 196.2
             end
             
-            -- Возвращаемся к исходной позиции если она сохранена
-            if autofarmOriginalPosition then
-                print("AUTOFARM: Возвращаемся к исходной позиции...")
-                humanoidRootPart.CFrame = CFrame.new(autofarmOriginalPosition)
-                autofarmOriginalPosition = nil
-            end
+            -- НЕ возвращаемся к исходной позиции - остаемся где остановились (как в телепорте)
         end
         
         -- Отключаем NoClip если включали
