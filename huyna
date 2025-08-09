@@ -4415,10 +4415,10 @@ local function pickupItem(item)
             local itemKey = getItemKey(item)
             local actualPickupTime = tick() - pickupStartTime
             
-            if hasStartedPickup and actualPickupTime >= (AutofarmConfig.PickupDuration * 0.5) then
-                -- Предмет исчез ПОСЛЕ того как мы достаточно долго жали E - это успешный подбор
+            if hasStartedPickup and actualPickupTime >= (AutofarmConfig.PickupDuration * 0.2) then
+                -- Предмет исчез ПОСЛЕ того как мы начали жать E - это успешный подбор
                 resetItemAttempts(itemKey)
-                autofarmLastPickupTime = tick() -- Обновляем таймер только при успешном подборе
+                autofarmLastPickupTime = tick() -- Обновляем таймер при успешном подборе
                 print("AUTOFARM: ✅ Предмет", item.Name, "УСПЕШНО подобран (исчез после", math.floor(actualPickupTime * 100) / 100, "сек)")
             else
                 -- Предмет исчез слишком быстро - возможно баг, не считаем успешным подбором
