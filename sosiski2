@@ -5136,7 +5136,7 @@ for i, buttonData in ipairs(navButtons) do
         highlightCorner.CornerRadius = UDim.new(0, 2)
     end
     
-    navButton.MouseButton1Click:Connect(function()
+    local navConnection = navButton.MouseButton1Click:Connect(function()
         -- Обновляем выбранную вкладку
         for _, btn in pairs(leftPanel:GetChildren()) do
             if btn:IsA("TextButton") then
@@ -5163,6 +5163,7 @@ for i, buttonData in ipairs(navButtons) do
         
         showContent(buttonData.name)
     end)
+    table.insert(globalUIConnections, navConnection)
 end
 
 local rightPanel = Instance.new("Frame", mainFrame)
@@ -5349,6 +5350,8 @@ functionsContainer.AutomaticSize = Enum.AutomaticSize.Y
 local currentY = 0
 local padding = 8
 local globalPlayerConnections = {} -- Глобальное отслеживание connections для предотвращения утечек памяти
+local globalHotkeyConnections = {} -- Глобальное отслеживание connections хоткеев
+local globalUIConnections = {} -- ОБЩИЙ массив для ВСЕХ UI connections - КРИТИЧЕСКИ ВАЖНО!
 
 local function createSectionHeader(text)
     currentY = currentY + padding
@@ -5382,11 +5385,12 @@ local function createToggle(label, default, callback)
     btn.AutoButtonColor = false
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
 
-    btn.MouseButton1Click:Connect(function()
+    local toggleBtnConnection = btn.MouseButton1Click:Connect(function()
         default = not default
         btn.Text = label .. ": " .. (default and "ON" or "OFF")
         callback(default)
     end)
+    table.insert(globalUIConnections, toggleBtnConnection)
     
     currentY = currentY + 28 + padding
     return btn
@@ -5427,7 +5431,7 @@ local function createToggleSlider(label, default, callback)
 
     -- Анимация и клик
     local isEnabled = default
-    sliderBack.InputBegan:Connect(function(input)
+    local toggleConnection = sliderBack.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             isEnabled = not isEnabled
             
@@ -5444,6 +5448,7 @@ local function createToggleSlider(label, default, callback)
             callback(isEnabled)
         end
     end)
+    table.insert(globalUIConnections, toggleConnection)
     
     currentY = currentY + 40 + padding
     return container
@@ -5475,17 +5480,17 @@ local function createSlider(label, min, max, value, callback)
     Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1,0)
 
     local dragging = false
-    sliderBack.InputBegan:Connect(function(input)
+    local sliderBeginConnection = sliderBack.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
         end
     end)
-    UserInputService.InputEnded:Connect(function(input)
+    local sliderEndConnection = UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
         end
     end)
-    RunService.RenderStepped:Connect(function()
+    local sliderStepConnection = RunService.RenderStepped:Connect(function()
         if dragging then
             local pos = UserInputService:GetMouseLocation().X
             local abs = sliderBack.AbsolutePosition.X
@@ -5497,6 +5502,9 @@ local function createSlider(label, min, max, value, callback)
             callback(newVal)
         end
     end)
+    table.insert(globalUIConnections, sliderBeginConnection)
+    table.insert(globalUIConnections, sliderEndConnection)
+    table.insert(globalUIConnections, sliderStepConnection)
     
     currentY = currentY + 36 + padding
 end
@@ -5540,9 +5548,10 @@ local function createColorPicker(labelText, currentColor, callback)
         btn.BackgroundColor3 = clr
         btn.Text = ""
         btn.AutoButtonColor = false
-        btn.MouseButton1Click:Connect(function()
+        local colorConnection = btn.MouseButton1Click:Connect(function()
             callback(clr)
         end)
+        table.insert(globalUIConnections, colorConnection)
     end
     
     currentY = currentY + 28 + padding
@@ -5573,7 +5582,7 @@ local function createSpeedInput(label, currentSpeed, callback)
     inputBox.PlaceholderText = "Speed"
     Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0,4)
 
-    inputBox.FocusLost:Connect(function()
+    local speedInputConnection = inputBox.FocusLost:Connect(function()
         local newSpeed = tonumber(inputBox.Text)
         if newSpeed and newSpeed > 0 then
             callback(newSpeed)
@@ -5582,6 +5591,7 @@ local function createSpeedInput(label, currentSpeed, callback)
             inputBox.Text = tostring(currentSpeed)
         end
     end)
+    table.insert(globalUIConnections, speedInputConnection)
 
     currentY = currentY + 36 + padding
     return lbl, inputBox
@@ -5599,7 +5609,8 @@ local function createKeyBindButton(name, currentKey, callback)
     btn.AutoButtonColor = false
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
 
-    btn.MouseButton1Click:Connect(function()
+    -- ВАЖНО: сохраняем connection для последующего отключения при очистке
+    local hotkeyConnection = btn.MouseButton1Click:Connect(function()
         btn.Text = name .. " Hotkey: [Press any key]"
         local conn
         conn = UserInputService.InputBegan:Connect(function(input, gp)
@@ -5610,6 +5621,9 @@ local function createKeyBindButton(name, currentKey, callback)
             end
         end)
     end)
+    
+    -- Добавляем connection в глобальный массив для отслеживания
+    table.insert(globalHotkeyConnections, hotkeyConnection)
     
     currentY = currentY + 24 + padding
 end
@@ -5673,27 +5687,32 @@ local function createDropdown(label, options, currentValue, callback)
         optionBtn.BorderSizePixel = 0
         optionBtn.ZIndex = 21
 
-        optionBtn.MouseButton1Click:Connect(function()
+        local optionClickConnection = optionBtn.MouseButton1Click:Connect(function()
             dropdown.Text = option .. " ▼"
             optionsFrame.Visible = false
             isOpen = false
             callback(option)
         end)
 
-        optionBtn.MouseEnter:Connect(function()
+        local optionEnterConnection = optionBtn.MouseEnter:Connect(function()
             optionBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
         end)
 
-        optionBtn.MouseLeave:Connect(function()
+        local optionLeaveConnection = optionBtn.MouseLeave:Connect(function()
             optionBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
         end)
+        
+        table.insert(globalUIConnections, optionClickConnection)
+        table.insert(globalUIConnections, optionEnterConnection)
+        table.insert(globalUIConnections, optionLeaveConnection)
     end
 
-    dropdown.MouseButton1Click:Connect(function()
+    local dropdownClickConnection = dropdown.MouseButton1Click:Connect(function()
         isOpen = not isOpen
         optionsFrame.Visible = isOpen
         dropdown.Text = currentValue .. (isOpen and " ▲" or " ▼")
     end)
+    table.insert(globalUIConnections, dropdownClickConnection)
 
     currentY = currentY + 50 + padding + (isOpen and (#options * 25) or 0)
     return container
@@ -5713,6 +5732,22 @@ function showContent(tabName)
         end
     end
     globalPlayerConnections = {}
+    
+    -- Очищаем connections хоткеев 
+    for _, connection in pairs(globalHotkeyConnections) do
+        if connection and typeof(connection) == "RBXScriptConnection" then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    globalHotkeyConnections = {}
+    
+    -- КРИТИЧЕСКИ ВАЖНО: Очищаем ВСЕ UI connections 
+    for _, connection in pairs(globalUIConnections) do
+        if connection and typeof(connection) == "RBXScriptConnection" then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    globalUIConnections = {}
     
     -- Очищаем контейнер и сбрасываем позицию
     for _, child in pairs(functionsContainer:GetChildren()) do
@@ -5916,7 +5951,7 @@ function showContent(tabName)
         Instance.new("UICorner", teleportBtn).CornerRadius = UDim.new(0,6)
         currentY = currentY + 28 + padding
         
-        teleportBtn.MouseButton1Click:Connect(function()
+        local teleportConnection = teleportBtn.MouseButton1Click:Connect(function()
             if not TeleportConfig.TargetPlayer then
                 teleportBtn.Text = "Select player first!"
                 task.wait(2)
@@ -5936,6 +5971,7 @@ function showContent(tabName)
                 teleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
             end
         end)
+        table.insert(globalUIConnections, teleportConnection)
         
         local playerListLabel = Instance.new("TextLabel", functionsContainer)
         playerListLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -6109,7 +6145,7 @@ function showContent(tabName)
         Instance.new("UICorner", antiTimeStopBtn).CornerRadius = UDim.new(0,6)
         currentY = currentY + 28 + padding
         
-        antiTimeStopBtn.MouseButton1Click:Connect(function()
+        local antiTimeStopConnection = antiTimeStopBtn.MouseButton1Click:Connect(function()
             if not isAntiTimeStopEnabled then
                 AntiTimeStopConfig.Enabled = true
                 startAntiTimeStop()
@@ -6128,6 +6164,7 @@ function showContent(tabName)
                 end)
             end
         end)
+        table.insert(globalUIConnections, antiTimeStopConnection)
         
 
         createDivider()
@@ -6312,7 +6349,7 @@ function showContent(tabName)
                 highlight.Thickness = 2
             end
             
-            colorBtn.MouseButton1Click:Connect(function()
+            local colorSettingConnection = colorBtn.MouseButton1Click:Connect(function()
                 MenuSettings.AccentColor = color
                 updateAccentColor()
                 
@@ -6331,6 +6368,7 @@ function showContent(tabName)
                 
                 showContent(selectedTab)
             end)
+            table.insert(globalUIConnections, colorSettingConnection)
         end
         
         currentY = currentY + 35 + padding
