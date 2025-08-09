@@ -174,15 +174,7 @@ local AntiTimeStopConfig = {
     ServerSync = true,
 }
 
--- Конфигурация для обхода блокировки атак во время лечения
-local HealingCombatConfig = {
-    Enabled = false,
-    ToggleKey = nil,
-    AllowAttacksDuringHeal = true,
-    OverrideHealingPose = true,
-    AutoDetectHealing = true,
-    DebugMode = false,
-}
+
 
 local isFlying = false
 local flyConnections = {}
@@ -258,9 +250,7 @@ local lastCameraUpdate = nil
 -- Глобальная переменная для отслеживания ввода в чате/GUI
 local isInputBeingProcessedByGame = false
 
--- Переменные для системы Healing Combat
-local isHealingCombatEnabled = false
-local healingCombatConnections = {}
+
 
 local itemESPConnections = {}
 local itemESPElements = {}
@@ -341,7 +331,6 @@ local Languages = {
         UndergroundFlight = "Underground Flight",
         ItemESP = "Item ESP",
         AntiTimeStop = "ANTI TIME STOP",
-        HealingCombat = "HEALING COMBAT BYPASS",
         StartTeleport = "START TELEPORT",
         StopTeleport = "STOP TELEPORT",
         -- YBA Items
@@ -393,7 +382,6 @@ local Languages = {
         UndergroundFlight = "Подземный полет",
         ItemESP = "ESP предметов",
         AntiTimeStop = "АНТИ ОСТАНОВКА ВРЕМЕНИ",
-        HealingCombat = "ОБХОД БЛОКИРОВКИ АТАК ПРИ ЛЕЧЕНИИ",
         StartTeleport = "НАЧАТЬ ТЕЛЕПОРТ",
         StopTeleport = "ОСТАНОВИТЬ ТЕЛЕПОРТ",
         -- YBA Items
@@ -1445,92 +1433,7 @@ local function stopAntiTimeStop()
     print("Anti Time Stop disabled")
 end
 
--- ===== HEALING COMBAT BYPASS FUNCTIONS =====
-local function startHealingCombat()
-    if isHealingCombatEnabled then 
-        print("Healing Combat Bypass уже активен!")
-        return 
-    end
-    
-    isHealingCombatEnabled = true
-    print("=== ЗАПУСК HEALING COMBAT BYPASS ===")
-    
-    -- Простая система: когда нажимается атакующая клавиша - принудительно разрешаем атаку
-    local attackKeysHandler = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not isHealingCombatEnabled then return end
-        
-        -- Проверяем атакующие клавиши
-        local attackKeys = {
-            Enum.KeyCode.F, Enum.KeyCode.E, Enum.KeyCode.R,
-            Enum.KeyCode.T, Enum.KeyCode.Y, Enum.KeyCode.Q
-        }
-        
-        local isAttackKey = false
-        for _, key in pairs(attackKeys) do
-            if input.KeyCode == key then
-                isAttackKey = true
-                break
-            end
-        end
-        
-        if isAttackKey then
-            print("Healing Combat: Разрешаем атаку клавишей", input.KeyCode.Name)
-            
-            local char = Players.LocalPlayer.Character
-            if char then
-                local humanoid = char:FindFirstChildOfClass("Humanoid")
-                local root = char:FindFirstChild("HumanoidRootPart")
-                
-                if humanoid and root then
-                    -- Временно снимаем все ограничения для атаки
-                    humanoid.PlatformStand = false
-                    humanoid.AutoRotate = true
-                    humanoid.Sit = false
-                    
-                    -- Убираем блокирующие Body объекты
-                    for _, child in pairs(root:GetChildren()) do
-                        if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or 
-                           child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") then
-                            child:Destroy()
-                        end
-                    end
-                    
-                    -- Также проверяем торс
-                    local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
-                    if torso then
-                        for _, child in pairs(torso:GetChildren()) do
-                            if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or 
-                               child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") then
-                                child:Destroy()
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-    
-    table.insert(healingCombatConnections, attackKeysHandler)
-    
-    print("Healing Combat Bypass активирован!")
-    print("Теперь атаки не будут блокироваться позами!")
-end
 
-local function stopHealingCombat()
-    if not isHealingCombatEnabled then return end
-    
-    isHealingCombatEnabled = false
-    
-    -- Отключаем все соединения
-    for _, connection in ipairs(healingCombatConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    healingCombatConnections = {}
-    
-    print("Healing Combat Bypass отключен!")
-end
 
 local function startNoClip()
     local char = Players.LocalPlayer.Character
@@ -5254,43 +5157,20 @@ function showContent(tabName)
                 antiTimeStopBtn.Text = "ANTI TIME STOP ACTIVE"
                 antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(0,255,0)
                 
-                -- Автоматическое отключение через короткое время для избежания конфликтов с атаками
+                -- Мгновенное отключение после освобождения от тайм стопа
                 spawn(function()
-                    task.wait(0.3)
+                    task.wait(0.05) -- Минимальная задержка для срабатывания
                     
                     AntiTimeStopConfig.Enabled = false
                     stopAntiTimeStop()
                     antiTimeStopBtn.Text = "ANTI TIME STOP"
                     antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-                    print("Anti Time Stop: Автоматически отключен для возможности атак")
+                    print("Anti Time Stop: Мгновенно отключен!")
                 end)
             end
         end)
         
-        -- HEALING COMBAT BYPASS кнопка
-        local healingCombatLabel = Instance.new("TextLabel", functionsContainer)
-        healingCombatLabel.Size = UDim2.new(1, -10, 0, 20)
-        healingCombatLabel.Position = UDim2.new(0, 5, 0, currentY)
-        healingCombatLabel.Text = getText("HealingCombat")
-        healingCombatLabel.Font = Enum.Font.Gotham
-        healingCombatLabel.TextSize = 12
-        healingCombatLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        healingCombatLabel.BackgroundTransparency = 1
-        healingCombatLabel.TextXAlignment = Enum.TextXAlignment.Left
-        currentY = currentY + 20 + padding
-        
-        local healingCombatToggleBtn = createToggleSlider(getText("HealingCombat"), isHealingCombatEnabled, function(v)
-            if v then
-                if startHealingCombat then
-                    startHealingCombat()
-                end
-            else
-                if stopHealingCombat then
-                    stopHealingCombat()
-                end
-            end
-        end)
-        
+
         createDivider()
     
     local playerESPLabel = Instance.new("TextLabel", functionsContainer)
