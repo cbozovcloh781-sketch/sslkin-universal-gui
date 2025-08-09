@@ -5348,6 +5348,7 @@ functionsContainer.AutomaticSize = Enum.AutomaticSize.Y
 
 local currentY = 0
 local padding = 8
+local globalPlayerConnections = {} -- Глобальное отслеживание connections для предотвращения утечек памяти
 
 local function createSectionHeader(text)
     currentY = currentY + padding
@@ -5705,6 +5706,14 @@ function showContent(tabName)
         tabScrollPositions[selectedTab] = scrollFrame.CanvasPosition.Y
     end
     
+    -- Очищаем все connections перед очисткой контейнера для предотвращения утечек памяти
+    for _, connection in pairs(globalPlayerConnections) do
+        if connection and typeof(connection) == "RBXScriptConnection" then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    globalPlayerConnections = {}
+    
     -- Очищаем контейнер и сбрасываем позицию
     for _, child in pairs(functionsContainer:GetChildren()) do
         child:Destroy()
@@ -5940,17 +5949,26 @@ function showContent(tabName)
         currentY = currentY + 20 + padding
         
         local playerButtons = {}
-        local playerConnections = {}
         local playerListStartY = currentY
+        local lastPlayerCount = 0 -- Для оптимизации - обновляем только при изменении
         
         local function createPlayerList()
+            local allPlayers = Players:GetPlayers()
+            local currentPlayerCount = #allPlayers - 1 -- -1 потому что исключаем LocalPlayer
+            
+            -- Оптимизация: обновляем только если количество игроков изменилось
+            if currentPlayerCount == lastPlayerCount then
+                return
+            end
+            lastPlayerCount = currentPlayerCount
+            
             -- Отключаем все старые connections перед очисткой кнопок
-            for _, connection in pairs(playerConnections) do
+            for _, connection in pairs(globalPlayerConnections) do
                 if connection and typeof(connection) == "RBXScriptConnection" then
                     pcall(function() connection:Disconnect() end)
                 end
             end
-            playerConnections = {}
+            globalPlayerConnections = {}
             
             for _, btn in pairs(playerButtons) do
                 if btn and btn.Parent then
@@ -5961,7 +5979,6 @@ function showContent(tabName)
             
             currentY = playerListStartY
             
-            local allPlayers = Players:GetPlayers()
             local playerList = {}
             
             for _, player in ipairs(allPlayers) do
@@ -6003,7 +6020,7 @@ function showContent(tabName)
                         end
                     end
                 end)
-                table.insert(playerConnections, connection)
+                table.insert(globalPlayerConnections, connection)
             end
         end
         
