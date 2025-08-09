@@ -54,7 +54,7 @@ local isSellingToNPC = false
 local autosellCheckTimer = nil
 local deathCheckConnection = nil
 
--- Функция экстренной остановки всех движений (БЕЗОПАСНАЯ ДЛЯ АНТИЧИТА)
+-- Функция экстренной остановки всех движений (БЕЗ ЗАМОРОЗКИ)
 local function emergencyStopMovement()
     print("🤖 AUTOSELL: ЭКСТРЕННАЯ ОСТАНОВКА ДВИЖЕНИЯ!")
     
@@ -64,58 +64,49 @@ local function emergencyStopMovement()
     local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
     local humanoid = player.Character:FindFirstChild("Humanoid")
     
-    -- ПЛАВНО удаляем BodyMovers (чтобы не детектилось)
+    -- Просто удаляем все BodyMovers (БЕЗ попыток плавного снижения)
     if humanoidRootPart then
-        task.spawn(function()
-            local allMovers = humanoidRootPart:GetChildren()
-            for _, child in pairs(allMovers) do
-                if child:IsA("BodyVelocity") then
-                    -- Плавно снижаем скорость перед удалением
-                    if child.Velocity.Magnitude > 0 then
-                        for i = 1, 5 do
-                            if child and child.Parent then
-                                child.Velocity = child.Velocity * 0.7
-                                task.wait(0.05)
-                            end
-                        end
-                    end
-                    if child and child.Parent then child:Destroy() end
-                elseif child:IsA("BodyPosition") or child:IsA("BodyAngularVelocity") or 
-                       child:IsA("BodyThrust") or child:IsA("BodyForce") or child:IsA("BodyGyro") then
-                    child:Destroy()
-                end
+        local allMovers = humanoidRootPart:GetChildren()
+        for _, child in pairs(allMovers) do
+            if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyAngularVelocity") or 
+               child:IsA("BodyThrust") or child:IsA("BodyForce") or child:IsA("BodyGyro") then
+                child:Destroy()
             end
-        end)
+        end
     end
     
-    -- Восстанавливаем нормальные параметры (БЕЗ PlatformStand)
+    -- Восстанавливаем нормальные параметры
     if humanoid then
         humanoid.WalkSpeed = 16
         humanoid.JumpPower = 50
         humanoid.JumpHeight = 7.2
         humanoid.Sit = false
-        -- НЕ трогаем PlatformStand - оставляем как есть
+        -- НИКАКИХ попыток остановить или заморозить персонажа!
     end
     
     -- Восстанавливаем гравитацию
     workspace.Gravity = 196.2
     
-    -- Плавно отключаем fly и noclip
-    task.spawn(function()
-        if _G.MovementConfig then
-            if _G.MovementConfig.Fly and _G.MovementConfig.Fly.Enabled then
-                _G.MovementConfig.Fly.Enabled = false
-                if _G.stopFly then _G.stopFly() end
-            end
-            task.wait(0.1)
-            if _G.MovementConfig.NoClip and _G.MovementConfig.NoClip.Enabled then
-                _G.MovementConfig.NoClip.Enabled = false
-                if _G.stopNoClip then _G.stopNoClip() end
-            end
+    -- Отключаем fly и noclip
+    if _G.MovementConfig then
+        if _G.MovementConfig.Fly and _G.MovementConfig.Fly.Enabled then
+            _G.MovementConfig.Fly.Enabled = false
+            if _G.stopFly then _G.stopFly() end
         end
-    end)
+        if _G.MovementConfig.NoClip and _G.MovementConfig.NoClip.Enabled then
+            _G.MovementConfig.NoClip.Enabled = false
+            if _G.stopNoClip then _G.stopNoClip() end
+        end
+    end
     
-    print("🤖 AUTOSELL: Экстренная остановка завершена!")
+    -- Восстанавливаем коллизию
+    for _, part in pairs(player.Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+        end
+    end
+    
+    print("🤖 AUTOSELL: Экстренная остановка завершена! Персонаж свободен.")
 end
 
 -- Autosell Functions
@@ -286,41 +277,49 @@ local function moveToShiftplox(callback)
                     print("🤖 AUTOSELL: Замедляемся, расстояние:", math.floor(distance), "скорость:", math.floor(slowSpeed))
                 end
             else
-                -- ЕСТЕСТВЕННАЯ ОСТАНОВКА: Достигли NPC - имитируем обычное поведение игрока
-                print("🤖 AUTOSELL: Достигли NPC, естественная остановка...")
+                -- ЕСТЕСТВЕННОЕ ПРИЗЕМЛЕНИЕ: Летим ближе к земле и переходим на ходьбу
+                print("🤖 AUTOSELL: Приземляемся рядом с NPC и подходим пешком...")
                 isMoving = false
                 
-                -- 1. ПЛАВНО снижаем скорость до нуля (имитируя отпускание WASD)
+                -- 1. Снижаемся на землю рядом с NPC (не точно к нему)
+                local landingPosition = AutosellConfig.ShiftploxPosition + Vector3.new(
+                    math.random(-8, 8), -- Случайное место рядом с NPC (увеличил радиус)
+                    -2, -- Чуть ниже уровня NPC для надежного приземления
+                    math.random(-8, 8)
+                )
+                
                 if bodyVelocity and bodyVelocity.Parent then
-                    local slowdownSteps = 10
-                    local currentVelocity = bodyVelocity.Velocity
-                    
                     task.spawn(function()
-                        for i = 1, slowdownSteps do
+                        print("🤖 AUTOSELL: Снижаемся для приземления...")
+                        
+                        -- Плавно снижаемся к точке приземления
+                        for i = 1, 20 do -- 20 шагов приземления
                             if bodyVelocity and bodyVelocity.Parent then
-                                local factor = (slowdownSteps - i) / slowdownSteps
-                                bodyVelocity.Velocity = currentVelocity * factor
-                                task.wait(0.05) -- 50мс между шагами = 500мс общее время
+                                local currentPos = humanoidRootPart.Position
+                                local direction = (landingPosition - currentPos).Unit
+                                local landingSpeed = math.max(10, 30 - i) -- Замедляемся при приземлении
+                                bodyVelocity.Velocity = direction * landingSpeed
+                                task.wait(0.05)
                             end
                         end
                         
-                        -- Убираем BodyVelocity только после плавного замедления
+                        -- Завершаем полет
                         if bodyVelocity and bodyVelocity.Parent then
                             bodyVelocity:Destroy()
-                            print("🤖 AUTOSELL: Автопилот плавно отключен")
+                            print("🤖 AUTOSELL: Полет завершен, приземлились")
                         end
                     end)
                 end
                 
-                -- 2. Восстанавливаем гравитацию СРАЗУ (для естественного падения)
+                -- 2. Восстанавливаем гравитацию для естественного падения
                 workspace.Gravity = originalGravity
                 
-                -- 3. Отключаем основные системы движения (но БЕЗ резкой остановки)
+                -- 3. Плавно отключаем системы полета
                 task.spawn(function()
-                    task.wait(0.3) -- Ждем немного перед отключением
+                    task.wait(0.5) -- Ждем приземления
                     
                     if _G.MovementConfig and _G.MovementConfig.Fly and _G.MovementConfig.Fly.Enabled then
-                        print("🤖 AUTOSELL: Плавно отключаем основной fly...")
+                        print("🤖 AUTOSELL: Отключаем fly после приземления...")
                         _G.MovementConfig.Fly.Enabled = false
                         if _G.stopFly and type(_G.stopFly) == "function" then
                             _G.stopFly()
@@ -328,7 +327,7 @@ local function moveToShiftplox(callback)
                     end
                     
                     if _G.MovementConfig and _G.MovementConfig.NoClip and _G.MovementConfig.NoClip.Enabled then
-                        print("🤖 AUTOSELL: Плавно отключаем основной noclip...")
+                        print("🤖 AUTOSELL: Отключаем noclip после приземления...")
                         _G.MovementConfig.NoClip.Enabled = false
                         if _G.stopNoClip and type(_G.stopNoClip) == "function" then
                             _G.stopNoClip()
@@ -336,17 +335,16 @@ local function moveToShiftplox(callback)
                     end
                 end)
                 
-                -- 4. Восстанавливаем нормальные параметры персонажа (БЕЗ PlatformStand!)
+                -- 4. Восстанавливаем нормальную ходьбу
                 if humanoid then
-                    -- НЕ используем PlatformStand - это детектится античитом!
-                    humanoid.WalkSpeed = 16 -- Сразу возвращаем нормальную скорость
+                    humanoid.WalkSpeed = 16
                     humanoid.JumpPower = 50
                     humanoid.JumpHeight = 7.2
                 end
                 
-                -- 5. Восстанавливаем коллизию (плавно)
+                -- 5. Восстанавливаем коллизию
                 task.spawn(function()
-                    task.wait(0.5) -- Ждем полсекунды перед восстановлением коллизий
+                    task.wait(0.8) -- Ждем полного приземления
                     for _, part in pairs(player.Character:GetDescendants()) do
                         if part:IsA("BasePart") then
                             part.CanCollide = true
@@ -357,16 +355,52 @@ local function moveToShiftplox(callback)
                 
                 moveConnection:Disconnect()
                 
-                -- 6. Ждем естественной остановки (БЕЗ принудительной фиксации!)
+                -- 6. Подходим к NPC пешком после приземления
                 task.spawn(function()
-                    print("🤖 AUTOSELL: Ждем естественной остановки персонажа...")
-                    task.wait(1.5) -- Сокращаем время ожидания
+                    task.wait(1.5) -- Ждем полного приземления и стабилизации
                     
-                    print("🤖 AUTOSELL: Персонаж остановился естественно, начинаем продажу!")
+                    print("🤖 AUTOSELL: Подходим к NPC пешком...")
                     
-                    if callback then
-                        callback()
-                    end
+                    -- Простой подход пешком к NPC (с проверками)
+                    local walkToNPC
+                    local walkStartTime = tick()
+                    local lastMoveTime = tick()
+                    
+                    walkToNPC = RunService.Heartbeat:Connect(function()
+                        if not humanoidRootPart or not humanoidRootPart.Parent or not humanoid then
+                            if walkToNPC then walkToNPC:Disconnect() end
+                            return
+                        end
+                        
+                        local currentTime = tick()
+                        local currentPos = humanoidRootPart.Position
+                        local distanceToNPC = (AutosellConfig.ShiftploxPosition - currentPos).Magnitude
+                        
+                        -- Таймаут: если идем слишком долго - завершаем
+                        if currentTime - walkStartTime > 10 then
+                            walkToNPC:Disconnect()
+                            print("🤖 AUTOSELL: Таймаут ходьбы, начинаем продажу с текущей позиции")
+                            if callback then callback() end
+                            return
+                        end
+                        
+                        if distanceToNPC > 6 then
+                            -- Идем к NPC обычной ходьбой
+                            if currentTime - lastMoveTime > 0.5 then -- Обновляем путь каждые 0.5 сек
+                                lastMoveTime = currentTime
+                                humanoid:MoveTo(AutosellConfig.ShiftploxPosition)
+                                print("🤖 AUTOSELL: Идем к NPC, осталось:", math.floor(distanceToNPC), "единиц")
+                            end
+                        else
+                            -- Дошли достаточно близко к NPC
+                            walkToNPC:Disconnect()
+                            print("🤖 AUTOSELL: Подошли к NPC пешком, начинаем продажу!")
+                            
+                            if callback then
+                                callback()
+                            end
+                        end
+                    end)
                 end)
             end
         end)
