@@ -4532,7 +4532,8 @@ function processNextItem()
     end
     
     -- Проверяем неактивность (10 секунд без подбора)
-    if autofarmLastPickupTime and tick() - autofarmLastPickupTime > 10 then
+    -- Таймер должен быть инициализирован (> 0) и прошло больше 10 секунд
+    if autofarmLastPickupTime and autofarmLastPickupTime > 0 and tick() - autofarmLastPickupTime > 10 then
         print("AUTOFARM: Неактивность 10 секунд - перезапускаем прогрузку карты")
         autofarmLastPickupTime = tick() -- сбрасываем таймер
         task.spawn(function()
@@ -4795,9 +4796,6 @@ local function startAutofarm()
     print("🤖 AUTOFARM: ЗАПУЩЕН!")
     isAutofarmEnabled = true
     AutofarmConfig.Enabled = true
-    
-    -- Инициализируем таймер неактивности
-    autofarmLastPickupTime = tick()
     
     -- Очищаем предыдущие данные о попытках и пропущенных предметах
     autofarmItemAttempts = {}
