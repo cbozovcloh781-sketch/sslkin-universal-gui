@@ -4137,13 +4137,30 @@ local function findAutofarmItems()
             local proximityPrompt = model:FindFirstChild("ProximityPrompt")
             local itemName = model.Name
             
+            print("AUTOFARM DEBUG: Найдена модель:", model.Name)
             if proximityPrompt then
+                print("AUTOFARM DEBUG: ProximityPrompt найден:")
+                print("  - ObjectText:", proximityPrompt.ObjectText)
+                print("  - ActionText:", proximityPrompt.ActionText)
                 itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or model.Name
             end
+            print("AUTOFARM DEBUG: Итоговое название предмета:", itemName)
             
             -- Дополнительная проверка для дневника ДИО (разные варианты названий)
             if itemName == "Dio's Diary" and AutofarmConfig.Items["DIO's Diary"] then
                 itemName = "DIO's Diary" -- стандартизируем название
+            end
+            
+            -- Дополнительная проверка для стрел (разные варианты названий)
+            if string.find(string.lower(itemName), "arrow") and not AutofarmConfig.Items["Mysterious Arrow"] then
+                print("AUTOFARM DEBUG: Найдена стрела с названием '", itemName, "' но Mysterious Arrow отключена - пропускаем")
+                goto continue
+            end
+            
+            -- Стандартизируем название стрел
+            if string.find(string.lower(itemName), "arrow") and itemName ~= "Mysterious Arrow" then
+                print("AUTOFARM DEBUG: Стандартизируем название стрелы с '", itemName, "' на 'Mysterious Arrow'")
+                itemName = "Mysterious Arrow"
             end
             
             -- Проверяем выбран ли предмет в Items Farm списке СРАЗУ
@@ -4194,6 +4211,7 @@ local function findAutofarmItems()
                 end
             end -- Закрываем if AutofarmConfig.Items[itemName] then
         end
+        ::continue:: -- Метка для пропуска предметов
     end
     
     -- Сортируем по расстоянию (ближайшие первыми)
