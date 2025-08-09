@@ -5203,11 +5203,17 @@ function showContent(tabName)
                 startAntiTimeStop()
                 antiTimeStopBtn.Text = "ANTI TIME STOP ACTIVE"
                 antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(0,255,0)
-            else
-                AntiTimeStopConfig.Enabled = false
-                stopAntiTimeStop()
-                antiTimeStopBtn.Text = "ANTI TIME STOP"
-                antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+                
+                -- Автоматическое отключение через короткое время для избежания конфликтов с атаками
+                spawn(function()
+                    task.wait(0.3)
+                    
+                    AntiTimeStopConfig.Enabled = false
+                    stopAntiTimeStop()
+                    antiTimeStopBtn.Text = "ANTI TIME STOP"
+                    antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+                    print("Anti Time Stop: Автоматически отключен для возможности атак")
+                end)
             end
         end)
         
