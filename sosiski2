@@ -1146,10 +1146,60 @@ local function startAntiTimeStop()
             return
         end
         
+        -- Освобождаем персонажа от фризы
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.Anchored = false
                 part.CanCollide = true
+            end
+        end
+        
+        -- Также освобождаем стенд игрока от фризы
+        local stands = {}
+        local playerRoot = char:FindFirstChild("HumanoidRootPart")
+        if playerRoot then
+            local standNames = {
+                "Star Platinum", "The World", "Crazy Diamond", "Gold Experience", "King Crimson",
+                "Silver Chariot", "Magician's Red", "Purple Haze", "Sticky Fingers", "Aerosmith",
+                "Moody Blues", "Sex Pistols", "The Hand", "Echoes", "Heaven's Door", "Killer Queen",
+                "Sheer Heart Attack", "Bites The Dust", "Red Hot Chili Pepper", "The Fool",
+                "Tower of Gray", "Dark Blue Moon", "Strength", "Ebony Devil", "Yellow Temperance",
+                "Hanged Man", "Emperor", "Empress", "Wheel of Fortune", "Justice", "Lovers",
+                "Sun", "Death Thirteen", "Judgement", "High Priestess", "Geb", "Khnum", "Tohth",
+                "Anubis", "Bastet", "Sethan", "Osiris", "Horus", "Atum", "Cream", "The Fool",
+                "stand", "STAND", "GER", "SPTW", "TW", "SP", "KC", "KCR", "CD", "WS", "MIH",
+                "TWOH", "SPOH", "D4C", "KQ", "BTD", "SF", "SM", "HP", "SC", "HG", "MR"
+            }
+            
+            -- Ищем стенд рядом с игроком
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("Model") then
+                    local isStand = false
+                    for _, standName in ipairs(standNames) do
+                        if obj.Name:find(standName) or obj.Name:lower():find(standName:lower()) then
+                            isStand = true
+                            break
+                        end
+                    end
+                    
+                    if isStand then
+                        local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
+                        if standRoot then
+                            local distance = (standRoot.Position - playerRoot.Position).Magnitude
+                            if distance <= 30 then -- Увеличенное расстояние для надежности
+                                -- Освобождаем стенд от фризы
+                                for _, part in pairs(obj:GetDescendants()) do
+                                    if part:IsA("BasePart") then
+                                        part.Anchored = false
+                                        part.CanCollide = true
+                                    end
+                                end
+                                print("Anti Time Stop: Освобожден стенд", obj.Name, "от фризы")
+                                break -- Берем только первый найденный стенд
+                            end
+                        end
+                    end
+                end
             end
         end
         
