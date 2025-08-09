@@ -290,7 +290,7 @@ local autofarmAutoRestarting = false -- Флаг автоматического 
 
 -- Экспорт функций для модуля автоселла
 _G.moveToPosition = moveToPosition
-_G.isAutofarmEnabled = isAutofarmEnabled
+_G.isAutofarmEnabled = function() return isAutofarmEnabled end
 _G.stopAutofarm = stopAutofarm
 _G.startAutofarm = startAutofarm
 _G.AutofarmConfig = AutofarmConfig
@@ -6379,12 +6379,18 @@ function showContent(tabName)
                 end
             end)
             
-            -- Настройка максимального количества предметов
-            createSlider("Max Items Count", 5, 20, 10, function(v) 
-                if _G.AutosellModule and _G.AutosellModule.Config then
-                    _G.AutosellModule.Config.MaxItemCount = v
-                end
-            end)
+            -- Информация о лимитах предметов
+            local infoLabel = Instance.new("TextLabel", functionsContainer)
+            infoLabel.Size = UDim2.new(1, -10, 0, 40)
+            infoLabel.Position = UDim2.new(0, 5, 0, currentY)
+            infoLabel.Text = "Лимиты: Стрелы/Рокака=25, Алмаз=30, Монеты=45, Ребра=20, Остальное=10"
+            infoLabel.Font = Enum.Font.Gotham
+            infoLabel.TextSize = 12
+            infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            infoLabel.BackgroundTransparency = 1
+            infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+            infoLabel.TextWrapped = true
+            currentY = currentY + 40 + padding
             
             -- Кнопки быстрого управления
             createButton("Enable All Items for Sale", function()
@@ -6450,12 +6456,18 @@ function showContent(tabName)
                     end
                 end)
                 
-                -- Настройка максимального количества предметов
-                createSlider("Max Items Count", 5, 20, 10, function(v) 
-                    if _G.AutosellModule and _G.AutosellModule.Config then
-                        _G.AutosellModule.Config.MaxItemCount = v
-                    end
-                end)
+                -- Информация о лимитах предметов
+                local infoLabel = Instance.new("TextLabel", functionsContainer)
+                infoLabel.Size = UDim2.new(1, -10, 0, 40)
+                infoLabel.Position = UDim2.new(0, 5, 0, currentY)
+                infoLabel.Text = "Лимиты: Стрелы/Рокака=25, Алмаз=30, Монеты=45, Ребра=20, Остальное=10"
+                infoLabel.Font = Enum.Font.Gotham
+                infoLabel.TextSize = 12
+                infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+                infoLabel.BackgroundTransparency = 1
+                infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+                infoLabel.TextWrapped = true
+                currentY = currentY + 40 + padding
                 
                 -- Кнопки быстрого управления
                 createButton("Enable All Items for Sale", function()

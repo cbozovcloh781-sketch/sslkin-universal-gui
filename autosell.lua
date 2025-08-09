@@ -4,11 +4,29 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
--- Конфигурация автоселла
+-- Конфигурация автоселла с правильными лимитами
 local AutosellConfig = {
     Enabled = false,
-    MaxItemCount = 10, -- максимальное количество предметов каждого типа
     ShiftploxPosition = Vector3.new(-709, -25, -332), -- позиция NPC Shiftplox
+    ItemLimits = {
+        ["Mysterious Arrow"] = 25,
+        ["Rokakaka"] = 25,
+        ["Pure Rokakaka"] = 25,
+        ["Diamond"] = 30,
+        ["Gold Coin"] = 45,
+        ["Steel Ball"] = 10,
+        ["Clackers"] = 10,
+        ["Caesar's Headband"] = 10,
+        ["Zeppeli's Hat"] = 10,
+        ["Zeppeli's Scarf"] = 10,
+        ["Quinton's Glove"] = 10,
+        ["Stone Mask"] = 10,
+        ["Ancient Scroll"] = 10,
+        ["DIO's Diary"] = 10,
+        ["Dio's Diary"] = 10,
+        ["Rib Cage of The Saint's Corpse"] = 20,
+        -- Lucky Arrow и Lucky Stone Mask исключены
+    },
     Items = {
         ["Mysterious Arrow"] = false,
         ["Rokakaka"] = false,
@@ -23,8 +41,6 @@ local AutosellConfig = {
         ["Ancient Scroll"] = false,
         ["Quinton's Glove"] = false,
         ["Stone Mask"] = false,
-        ["Lucky Arrow"] = false,
-        ["Lucky Stone Mask"] = false,
         ["Rib Cage of The Saint's Corpse"] = false,
         ["DIO's Diary"] = false,
         ["Dio's Diary"] = false,
@@ -57,9 +73,12 @@ local function checkInventoryForMaxItems()
     
     -- Проверяем какие предметы достигли максимума
     for itemName, isEnabled in pairs(AutosellConfig.Items) do
-        if isEnabled and itemCounts[itemName] and itemCounts[itemName] >= AutosellConfig.MaxItemCount then
-            table.insert(itemsAtMax, itemName)
-            print("🤖 AUTOSELL: Предмет", itemName, "достиг максимума:", itemCounts[itemName], "/", AutosellConfig.MaxItemCount)
+        if isEnabled and itemCounts[itemName] and AutosellConfig.ItemLimits[itemName] then
+            local maxCount = AutosellConfig.ItemLimits[itemName]
+            if itemCounts[itemName] >= maxCount then
+                table.insert(itemsAtMax, itemName)
+                print("🤖 AUTOSELL: Предмет", itemName, "достиг максимума:", itemCounts[itemName], "/", maxCount)
+            end
         end
     end
     
@@ -69,11 +88,22 @@ end
 -- Перемещение к NPC Shiftplox
 local function moveToShiftplox(callback)
     print("🤖 AUTOSELL: Летим к NPC Shiftplox...")
-    -- Используем глобальную функцию moveToPosition из основного скрипта
-    if _G.moveToPosition then
+    
+    -- Проверяем доступность функции moveToPosition
+    if _G.moveToPosition and type(_G.moveToPosition) == "function" then
         _G.moveToPosition(AutosellConfig.ShiftploxPosition, callback)
     else
-        print("🤖 AUTOSELL: Ошибка - функция moveToPosition не найдена!")
+        print("🤖 AUTOSELL: Ошибка - функция moveToPosition не найдена или недоступна!")
+        print("🤖 AUTOSELL: Пытаемся телепортироваться напрямую...")
+        
+        -- Fallback: прямая телепортация без moveToPosition
+        local player = Players.LocalPlayer
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            player.Character.HumanoidRootPart.CFrame = CFrame.new(AutosellConfig.ShiftploxPosition)
+            task.wait(1)
+            print("🤖 AUTOSELL: Телепортация завершена")
+        end
+        
         callback()
     end
 end
@@ -139,9 +169,11 @@ local function sellItemsToNPC(itemsToSell)
     print("🤖 AUTOSELL: Начинаем продажу предметов:", table.concat(itemsToSell, ", "))
     
     -- Останавливаем автофарм
-    if _G.isAutofarmEnabled and _G.stopAutofarm then
-        print("🤖 AUTOSELL: Останавливаем автофарм для продажи...")
-        _G.stopAutofarm()
+    if _G.isAutofarmEnabled and type(_G.isAutofarmEnabled) == "function" and _G.isAutofarmEnabled() then
+        if _G.stopAutofarm and type(_G.stopAutofarm) == "function" then
+            print("🤖 AUTOSELL: Останавливаем автофарм для продажи...")
+            _G.stopAutofarm()
+        end
     end
     
     -- Летим к NPC
@@ -181,8 +213,10 @@ local function sellItemsToNPC(itemsToSell)
             isSellingToNPC = false
             
             -- Возобновляем автофарм
-            if _G.AutofarmConfig and _G.AutofarmConfig.Enabled and _G.startAutofarm then
-                _G.startAutofarm()
+            if _G.AutofarmConfig and _G.AutofarmConfig.Enabled then
+                if _G.startAutofarm and type(_G.startAutofarm) == "function" then
+                    _G.startAutofarm()
+                end
             end
         end
     end)
@@ -291,11 +325,11 @@ end
 -- Экспортируем функции в глобальное пространство
 _G.AutosellModule = {
     Config = AutosellConfig,
-    createGUI = createAutosellGUI,
     start = startAutosell,
-    stop = stopAutosell
+    stop = stopAutosell,
+    isEnabled = function() return isAutosellEnabled end
 }
 
-print("🤖 AUTOSELL: Модуль загружен успешно!")
+print("🤖 AUTOSELL: Модуль загружен успешно! Лимиты предметов обновлены.")
 
 return _G.AutosellModule
