@@ -174,7 +174,37 @@ local AntiTimeStopConfig = {
     ServerSync = true,
 }
 
-
+-- Конфигурация автофарма
+local AutofarmConfig = {
+    Enabled = false,
+    ToggleKey = nil,
+    UseFlightMovement = true,
+    UseNoClipMovement = true,
+    FlightSpeed = 100, -- увеличена скорость для быстрого автофарма
+    PickupRadius = 6, -- радиус в котором начинается подбор предметов (YBA механика)
+    PickupDuration = 0.6, -- время зажатия клавиши E для подбора (YBA механика)
+    PickupKey = Enum.KeyCode.E,
+    ScanInterval = 1, -- интервал сканирования в секундах
+    Items = {
+        ["Mysterious Arrow"] = true,
+        ["Rokakaka"] = true,
+        ["Pure Rokakaka"] = true,
+        ["Diamond"] = true,
+        ["Gold Coin"] = true,
+        ["Steel Ball"] = false,
+        ["Clackers"] = false,
+        ["Caesar's Headband"] = false,
+        ["Zeppeli's Hat"] = false,
+        ["Zeppeli's Scarf"] = false,
+        ["Ancient Scroll"] = false,
+        ["Quinton's Glove"] = false,
+        ["Stone Mask"] = true,
+        ["Lucky Arrow"] = true,
+        ["Lucky Stone Mask"] = true,
+        ["Rib Cage of The Saint's Corpse"] = true,
+        ["DIO's Diary"] = true,
+    }
+}
 
 local isFlying = false
 local flyConnections = {}
@@ -261,6 +291,14 @@ local playerESPConnections = {}
 local playerESPElements = {}
 local userStandESPEnabled = false
 local userStyleESPEnabled = false
+
+-- Autofarm variables
+local isAutofarmEnabled = false
+local autofarmConnections = {}
+local autofarmCurrentTarget = nil
+local autofarmItemQueue = {}
+local autofarmOriginalPosition = nil
+local autofarmPickingUp = false
 
 
 
@@ -4132,6 +4170,565 @@ local function stopUserStyleESP()
     print("Player ESP: User Style ESP deactivated")
 end
 
+-- Autofarm Functions
+local function findAutofarmItems()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then 
+        print("AUTOFARM: Игрок не найден")
+        return items 
+    end
+
+    print("AUTOFARM: Начинаем поиск предметов...")
+    
+    -- Ищем по точному пути workspace > Item_Spawns > Items
+    local itemSpawnsFolder = workspace:FindFirstChild("Item_Spawns")
+    if not itemSpawnsFolder then
+        print("AUTOFARM: Папка Item_Spawns не найдена!")
+        return items
+    end
+    
+    local itemsFolder = itemSpawnsFolder:FindFirstChild("Items")
+    if not itemsFolder then
+        print("AUTOFARM: Папка Items не найдена!")
+        return items
+    end
+    
+    print("AUTOFARM: Папки найдены, сканируем модели...")
+    local foundCount = 0
+    
+    for _, model in ipairs(itemsFolder:GetChildren()) do
+        if model:IsA("Model") then
+            -- Получаем название предмета из ProximityPrompt
+            local proximityPrompt = model:FindFirstChild("ProximityPrompt")
+            local itemName = model.Name
+            
+            if proximityPrompt then
+                itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or model.Name
+            end
+            
+            -- Проверяем что предмет выбран для фарма
+            if AutofarmConfig.Items[itemName] then
+                -- Ищем WorldPivot позицию
+                local worldPivot = nil
+                if model.WorldPivot then
+                    worldPivot = model.WorldPivot.Position
+                elseif model.PrimaryPart then
+                    worldPivot = model.PrimaryPart.Position
+                elseif model:FindFirstChild("HumanoidRootPart") then
+                    worldPivot = model.HumanoidRootPart.Position
+                else
+                    -- Ищем любую Part
+                    for _, child in ipairs(model:GetDescendants()) do
+                        if child:IsA("BasePart") then
+                            worldPivot = child.Position
+                            break
+                        end
+                    end
+                end
+                
+                if worldPivot then
+                    local distance = (worldPivot - playerRoot.Position).Magnitude
+                    foundCount = foundCount + 1
+                    
+                    -- Проверяем выбран ли предмет в Items Farm списке
+                    if AutofarmConfig.Items[itemName] then
+                        print("AUTOFARM: Найден ВЫБРАННЫЙ предмет", itemName, "на расстоянии", math.floor(distance), "м")
+                        
+                        table.insert(items, {
+                            Name = itemName,
+                            Position = worldPivot,
+                            Distance = distance,
+                            Model = model,
+                            ProximityPrompt = proximityPrompt
+                        })
+                    else
+                        print("AUTOFARM: Предмет", itemName, "НЕ ВЫБРАН в списке Items Farm - пропускаем")
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Сортируем по расстоянию (ближайшие первыми)
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    
+    print("AUTOFARM: Найдено предметов для фарма:", foundCount)
+    return items
+end
+
+local function moveToPosition(targetPosition, callback)
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if not character then
+        print("AUTOFARM: Персонаж не найден")
+        return false
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        print("AUTOFARM: HumanoidRootPart не найден")
+        return false
+    end
+    
+    print("AUTOFARM: Начинаем полет к позиции", targetPosition)
+    
+    -- Включаем NoClip если нужно
+    if AutofarmConfig.UseNoClipMovement and not isNoClipping then
+        startNoClip()
+        print("AUTOFARM: NoClip включен")
+    end
+    
+    -- Настраиваем персонажа для полета (как в обычном флае)
+    local humanoid = character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.JumpPower = 0
+        humanoid.JumpHeight = 0
+        humanoid.HipHeight = 0
+    end
+    
+    -- Создаем BodyVelocity для движения (как в обычном флае)
+    local bodyVelocity = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
+    if not bodyVelocity then
+        bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Name = "AutofarmBodyVelocity"
+        bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9) -- как в обычном флае
+        bodyVelocity.Parent = humanoidRootPart
+    end
+    
+    -- Отключаем гравитацию если нужно
+    if AutofarmConfig.UseFlightMovement then
+        workspace.Gravity = 0
+        print("AUTOFARM: Гравитация отключена")
+    end
+    
+    -- Движение к цели ГЛУБОКО под землей для подбора предметов (как в YBA)
+    local adjustedTarget = targetPosition + Vector3.new(0, -20, 0) -- глубоко под землей для подбора
+    
+    local moveConnection
+    moveConnection = RunService.Heartbeat:Connect(function()
+        if not isAutofarmEnabled then
+            moveConnection:Disconnect()
+            return
+        end
+        
+        local currentPos = humanoidRootPart.Position
+        local distance = (adjustedTarget - currentPos).Magnitude
+        
+        if distance > 3 then
+            local direction = (adjustedTarget - currentPos).Unit
+            -- Используем систему как в обычном флае для плавного движения
+            local moveVector = direction * (AutofarmConfig.FlightSpeed * 10) -- как в обычном флае
+            bodyVelocity.Velocity = moveVector
+        else
+            -- Достигли цели
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            moveConnection:Disconnect()
+            
+            print("AUTOFARM: Достигли позиции предмета")
+            if callback then
+                callback()
+            end
+        end
+    end)
+    
+    table.insert(autofarmConnections, moveConnection)
+    return true
+end
+
+local function pickupItem(item)
+    print("AUTOFARM: Пытаемся подобрать предмет", item.Name)
+    autofarmPickingUp = true
+    
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if not character then
+        print("AUTOFARM: Персонаж не найден при подборе")
+        autofarmPickingUp = false
+        task.spawn(function()
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        print("AUTOFARM: HumanoidRootPart не найден при подборе")
+        autofarmPickingUp = false
+        task.spawn(function()
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
+    -- YBA механика: приближаемся к предмету в радиус 6 метров и зажимаем E на 0.6 секунды
+    local pickupConnection
+    local pickupStartTime = tick()
+    local hasStartedPickup = false
+    local isKeyPressed = false
+    
+    pickupConnection = RunService.Heartbeat:Connect(function()
+        if not isAutofarmEnabled then
+            -- При отключении автофарма ОБЯЗАТЕЛЬНО отпускаем клавишу
+            if isKeyPressed then
+                pcall(function()
+                    if game:GetService("VirtualInputManager") then
+                        game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                    end
+                    game:GetService("UserInputService").InputEnded:Fire(
+                        {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                        false
+                    )
+                end)
+                isKeyPressed = false
+                print("AUTOFARM: Клавиша E отпущена при отключении автофарма")
+            end
+            pickupConnection:Disconnect()
+            autofarmPickingUp = false
+            return
+        end
+        
+        -- Проверяем что предмет еще физически существует
+        local itemStillExists = false
+        pcall(function()
+            if item.Model and item.Model.Parent then
+                local worldPivot = item.Model:GetPivot()
+                if worldPivot and worldPivot.Position and worldPivot.Position.Magnitude > 0 then
+                    local hasPhysicalParts = false
+                    for _, child in pairs(item.Model:GetChildren()) do
+                        if child:IsA("BasePart") and child.Size.Magnitude > 0 then
+                            hasPhysicalParts = true
+                            break
+                        end
+                    end
+                    itemStillExists = hasPhysicalParts
+                end
+            end
+        end)
+        
+        if not itemStillExists then
+            print("AUTOFARM: Предмет", item.Name, "исчез (нет физических частей) - возможно подобран")
+            if isKeyPressed then
+                pcall(function()
+                    if game:GetService("VirtualInputManager") then
+                        game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                    end
+                    game:GetService("UserInputService").InputEnded:Fire(
+                        {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                        false
+                    )
+                end)
+                isKeyPressed = false
+            end
+            pickupConnection:Disconnect()
+            autofarmPickingUp = false
+            
+            -- Ждем немного и переходим к следующему предмету
+            task.spawn(function()
+                task.wait(0.5)
+                if isAutofarmEnabled then
+                    processNextItem()
+                end
+            end)
+            return
+        end
+        
+        -- Проверяем расстояние до предмета
+        local distance = (humanoidRootPart.Position - item.Position).Magnitude
+        
+        -- Если в радиусе подбора (увеличен для подземного положения) и еще не начали подбор
+        if distance <= (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
+            print("AUTOFARM: В радиусе подземного подбора (", math.floor(distance), "м), зажимаем E на", AutofarmConfig.PickupDuration, "сек")
+            hasStartedPickup = true
+            pickupStartTime = tick()
+            
+            -- Зажимаем клавишу E (эмулируем нажатие как в реальном времени)
+            pcall(function()
+                -- Пробуем несколько способов для максимальной совместимости
+                if game:GetService("VirtualInputManager") then
+                    game:GetService("VirtualInputManager"):SendKeyEvent(true, AutofarmConfig.PickupKey, false, game)
+                end
+                -- Дополнительно эмулируем через UserInputService для некоторых игр
+                game:GetService("UserInputService").InputBegan:Fire(
+                    {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                    false
+                )
+            end)
+            isKeyPressed = true
+            
+        elseif distance > (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
+            -- Если слишком далеко, подлетаем ближе (увеличенный радиус для подземного подбора)
+            print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем под землю")
+            -- Летим к позиции ГЛУБОКО под землей
+            local targetPos = item.Position + Vector3.new(0, -20, 0)
+            moveToPosition(targetPos, function()
+                -- После подлета продолжаем подбор
+            end)
+            return
+        end
+        
+        -- Если начали подбор, проверяем прошло ли нужное время
+        if hasStartedPickup and tick() - pickupStartTime >= AutofarmConfig.PickupDuration then
+            -- Отпускаем клавишу E
+            if isKeyPressed then
+                pcall(function()
+                    if game:GetService("VirtualInputManager") then
+                        game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                    end
+                    -- Дополнительно эмулируем отпускание через UserInputService
+                    game:GetService("UserInputService").InputEnded:Fire(
+                        {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                        false
+                    )
+                end)
+                isKeyPressed = false
+            end
+            print("AUTOFARM: Завершили попытку подбора", item.Name)
+            
+            pickupConnection:Disconnect()
+            autofarmPickingUp = false
+            
+            -- Ждем немного и переходим к следующему предмету
+            task.spawn(function()
+                task.wait(1) -- даем время на подбор предмета
+                if isAutofarmEnabled then
+                    processNextItem()
+                end
+            end)
+            return
+        end
+        
+        -- Таймаут общий - если слишком долго пытаемся подобрать
+        if tick() - pickupStartTime > 10 then
+            print("AUTOFARM: Общий таймаут для", item.Name)
+            if isKeyPressed then
+                pcall(function()
+                    if game:GetService("VirtualInputManager") then
+                        game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                    end
+                    game:GetService("UserInputService").InputEnded:Fire(
+                        {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                        false
+                    )
+                end)
+                isKeyPressed = false
+            end
+            pickupConnection:Disconnect()
+            autofarmPickingUp = false
+            task.spawn(function()
+                if isAutofarmEnabled then
+                    processNextItem()
+                end
+            end)
+        end
+    end)
+    
+    table.insert(autofarmConnections, pickupConnection)
+end
+
+function processNextItem()
+    if not isAutofarmEnabled then
+        return
+    end
+    
+    -- Если уже что-то подбираем, ждем
+    if autofarmPickingUp then
+        print("AUTOFARM: Ждем завершения подбора...")
+        return
+    end
+    
+    -- Сканируем новые предметы
+    local items = findAutofarmItems()
+    if #items == 0 then
+        print("AUTOFARM: Предметы не найдены, повторяем сканирование через", AutofarmConfig.ScanInterval, "сек")
+        -- Используем spawn чтобы избежать блокировки
+        task.spawn(function()
+            task.wait(AutofarmConfig.ScanInterval)
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
+    -- Берем ближайший предмет
+    local nextItem = items[1]
+    autofarmCurrentTarget = nextItem
+    
+    -- ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: предмет еще существует перед полетом
+    local itemExists = false
+    pcall(function()
+        if nextItem.Model and nextItem.Model.Parent then
+            -- Проверяем что у модели есть WorldPivot и позиция валидна
+            local worldPivot = nextItem.Model:GetPivot()
+            if worldPivot and worldPivot.Position and worldPivot.Position.Magnitude > 0 then
+                -- Дополнительно проверяем что модель имеет физические части
+                local hasPhysicalParts = false
+                for _, child in pairs(nextItem.Model:GetChildren()) do
+                    if child:IsA("BasePart") and child.Size.Magnitude > 0 then
+                        hasPhysicalParts = true
+                        break
+                    end
+                end
+                itemExists = hasPhysicalParts
+            end
+        end
+    end)
+    
+    if not itemExists then
+        print("AUTOFARM: Предмет", nextItem.Name, "исчез ДО начала полета (нет физических частей) - ищем следующий")
+        task.spawn(function()
+            task.wait(0.5)
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
+    print("AUTOFARM: Летим к предмету", nextItem.Name, "на расстоянии", math.floor(nextItem.Distance), "м")
+    
+    -- Летим к предмету
+    moveToPosition(nextItem.Position, function()
+        if isAutofarmEnabled then
+            -- ПОВТОРНАЯ ПРОВЕРКА: предмет еще существует после полета
+            local itemExistsAfterFlight = false
+            pcall(function()
+                if nextItem.Model and nextItem.Model.Parent then
+                    local worldPivot = nextItem.Model:GetPivot()
+                    if worldPivot and worldPivot.Position and worldPivot.Position.Magnitude > 0 then
+                        local hasPhysicalParts = false
+                        for _, child in pairs(nextItem.Model:GetChildren()) do
+                            if child:IsA("BasePart") and child.Size.Magnitude > 0 then
+                                hasPhysicalParts = true
+                                break
+                            end
+                        end
+                        itemExistsAfterFlight = hasPhysicalParts
+                    end
+                end
+            end)
+            
+            if itemExistsAfterFlight then
+                pickupItem(nextItem)
+            else
+                print("AUTOFARM: Предмет", nextItem.Name, "исчез ПОСЛЕ полета (нет физических частей) - ищем следующий")
+                task.spawn(function()
+                    task.wait(0.5)
+                    if isAutofarmEnabled then
+                        processNextItem()
+                    end
+                end)
+            end
+        end
+    end)
+end
+
+local function startAutofarm()
+    if isAutofarmEnabled then
+        print("AUTOFARM: Уже активен!")
+        return
+    end
+    
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if not character then
+        print("AUTOFARM: Персонаж не найден!")
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        print("AUTOFARM: HumanoidRootPart не найден!")
+        return
+    end
+    
+    print("🤖 AUTOFARM: ЗАПУЩЕН!")
+    isAutofarmEnabled = true
+    AutofarmConfig.Enabled = true
+    
+    -- Не сохраняем исходную позицию - остаемся где остановились (как телепорт)
+    
+    -- Запускаем процесс
+    processNextItem()
+end
+
+local function stopAutofarm()
+    if not isAutofarmEnabled then
+        return
+    end
+    
+    print("🤖 AUTOFARM: ОСТАНОВЛЕН!")
+    isAutofarmEnabled = false
+    AutofarmConfig.Enabled = false
+    autofarmPickingUp = false
+    autofarmCurrentTarget = nil
+    
+    -- ПРИНУДИТЕЛЬНО отпускаем клавишу E (фикс бага с зажатой кнопкой)
+    pcall(function()
+        if game:GetService("VirtualInputManager") then
+            game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+        end
+        game:GetService("UserInputService").InputEnded:Fire(
+            {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+            false
+        )
+        print("🤖 AUTOFARM: Клавиша E принудительно отпущена")
+    end)
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(autofarmConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    autofarmConnections = {}
+    
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if character then
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if humanoidRootPart then
+            -- Убираем BodyVelocity
+            local bv = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+            
+            -- Восстанавливаем настройки персонажа ТОЛЬКО если флай НЕ включен
+            if not isFlying then
+                local humanoid = character:FindFirstChild("Humanoid")
+                if humanoid then
+                    humanoid.JumpPower = 50 -- возвращаем обычную силу прыжка
+                    humanoid.JumpHeight = 7.2 -- возвращаем обычную высоту прыжка  
+                    humanoid.HipHeight = 0 -- возвращаем обычную высоту бедер
+                end
+                
+                -- Возвращаем гравитацию ТОЛЬКО если флай и NoClip НЕ включены
+                if AutofarmConfig.UseFlightMovement and not isNoClipping and not isFlying then
+                    workspace.Gravity = 196.2
+                end
+            else
+                print("AUTOFARM: Флай включен - НЕ восстанавливаем настройки персонажа")
+            end
+            
+            -- НЕ возвращаемся к исходной позиции - остаемся где остановились (как в телепорте)
+        end
+        
+        -- Отключаем NoClip если включали
+        if AutofarmConfig.UseNoClipMovement and isNoClipping then
+            stopNoClip()
+        end
+    end
+    
+    print("AUTOFARM: Полностью остановлен")
+end
 
 local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
@@ -5109,31 +5706,8 @@ function showContent(tabName)
     elseif tabName == "YBA Hacks" then
         contentTitle.Text = getText("YBAHacks")
         
-        -- 🎯 STAND RANGE HACK заголовок
-        local standRangeHeader = Instance.new("TextLabel", functionsContainer)
-        standRangeHeader.Size = UDim2.new(1, -10, 0, 25)
-        standRangeHeader.Position = UDim2.new(0, 5, 0, currentY)
-        standRangeHeader.Text = "🎯 STAND RANGE HACK"
-        standRangeHeader.Font = Enum.Font.GothamBold
-        standRangeHeader.TextSize = 14
-        standRangeHeader.TextColor3 = Color3.fromRGB(255, 0, 255)
-        standRangeHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        standRangeHeader.BorderSizePixel = 1
-        standRangeHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
-        standRangeHeader.TextXAlignment = Enum.TextXAlignment.Left
-        Instance.new("UICorner", standRangeHeader).CornerRadius = UDim.new(0,4)
-        currentY = currentY + 25 + padding
-        
-        local standRangeLabel = Instance.new("TextLabel", functionsContainer)
-        standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
-        standRangeLabel.Position = UDim2.new(0, 5, 0, currentY)
-        standRangeLabel.Text = getText("YBAStandRange")
-        standRangeLabel.Font = Enum.Font.Gotham
-        standRangeLabel.TextSize = 12
-        standRangeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        standRangeLabel.BackgroundTransparency = 1
-        standRangeLabel.TextXAlignment = Enum.TextXAlignment.Left
-        currentY = currentY + 20 + padding
+        -- 🎯 STAND RANGE заголовок как в Player ESP
+        createSectionHeader("🎯 STAND RANGE")
         
         local ybaToggleBtn = createToggleSlider(getText("YBAStandRange"), YBAConfig.Enabled, function(v)
             YBAConfig.Enabled = v
@@ -5188,31 +5762,8 @@ function showContent(tabName)
         
 
         
-        -- ⏰ ANTI TIME STOP заголовок
-        local antiTSHeader = Instance.new("TextLabel", functionsContainer)
-        antiTSHeader.Size = UDim2.new(1, -10, 0, 25)
-        antiTSHeader.Position = UDim2.new(0, 5, 0, currentY)
-        antiTSHeader.Text = "⏰ ANTI TIME STOP"
-        antiTSHeader.Font = Enum.Font.GothamBold
-        antiTSHeader.TextSize = 14
-        antiTSHeader.TextColor3 = Color3.fromRGB(255, 100, 100)
-        antiTSHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        antiTSHeader.BorderSizePixel = 1
-        antiTSHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
-        antiTSHeader.TextXAlignment = Enum.TextXAlignment.Left
-        Instance.new("UICorner", antiTSHeader).CornerRadius = UDim.new(0,4)
-        currentY = currentY + 25 + padding
-        
-        local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
-        antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
-        antiTimeStopLabel.Position = UDim2.new(0, 5, 0, currentY)
-        antiTimeStopLabel.Text = getText("AntiTimeStop")
-        antiTimeStopLabel.Font = Enum.Font.Gotham
-        antiTimeStopLabel.TextSize = 12
-        antiTimeStopLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        antiTimeStopLabel.BackgroundTransparency = 1
-        antiTimeStopLabel.TextXAlignment = Enum.TextXAlignment.Left
-        currentY = currentY + 20 + padding
+        -- ⏰ ANTI TS заголовок как в Player ESP
+        createSectionHeader("⏰ ANTI TS")
         
         local         antiTimeStopBtn = Instance.new("TextButton", functionsContainer)
         antiTimeStopBtn.Size = UDim2.new(1, -10, 0, 28)
@@ -5248,20 +5799,9 @@ function showContent(tabName)
         
 
         createDivider()
-    
-    local playerESPLabel = Instance.new("TextLabel", functionsContainer)
-        playerESPLabel.Size = UDim2.new(1, -10, 0, 25)
-        playerESPLabel.Position = UDim2.new(0, 5, 0, currentY)
-        playerESPLabel.Text = "👥 PLAYER ESP"
-        playerESPLabel.Font = Enum.Font.GothamBold
-        playerESPLabel.TextSize = 14
-        playerESPLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-        playerESPLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        playerESPLabel.BorderSizePixel = 1
-        playerESPLabel.BorderColor3 = Color3.fromRGB(100, 100, 120)
-        playerESPLabel.TextXAlignment = Enum.TextXAlignment.Left
-        Instance.new("UICorner", playerESPLabel).CornerRadius = UDim.new(0,4)
-        currentY = currentY + 25 + padding
+        
+        -- 👥 PLAYER ESP заголовок
+        createSectionHeader("👥 PLAYER ESP")
         
         local userStandToggleBtn = createToggleSlider("User Stand", false, function(v)
             if v then
@@ -5280,30 +5820,7 @@ function showContent(tabName)
         end)
         
         -- 📦 ITEM ESP заголовок
-        local itemESPHeader = Instance.new("TextLabel", functionsContainer)
-        itemESPHeader.Size = UDim2.new(1, -10, 0, 25)
-        itemESPHeader.Position = UDim2.new(0, 5, 0, currentY)
-        itemESPHeader.Text = "📦 ITEM ESP"
-        itemESPHeader.Font = Enum.Font.GothamBold
-        itemESPHeader.TextSize = 14
-        itemESPHeader.TextColor3 = Color3.fromRGB(255, 255, 0)
-        itemESPHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        itemESPHeader.BorderSizePixel = 1
-        itemESPHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
-        itemESPHeader.TextXAlignment = Enum.TextXAlignment.Left
-        Instance.new("UICorner", itemESPHeader).CornerRadius = UDim.new(0,4)
-        currentY = currentY + 25 + padding
-        
-        local itemESPLabel = Instance.new("TextLabel", functionsContainer)
-        itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
-        itemESPLabel.Position = UDim2.new(0, 5, 0, currentY)
-        itemESPLabel.Text = getText("ItemESP")
-        itemESPLabel.Font = Enum.Font.Gotham
-        itemESPLabel.TextSize = 12
-        itemESPLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        itemESPLabel.BackgroundTransparency = 1
-        itemESPLabel.TextXAlignment = Enum.TextXAlignment.Left
-        currentY = currentY + 20 + padding
+        createSectionHeader("📦 ITEM ESP")
         
         local itemESPToggleBtn = createToggleSlider(getText("ItemESP"), YBAConfig.ItemESP.Enabled, function(v)
             YBAConfig.ItemESP.Enabled = v
@@ -5365,94 +5882,47 @@ function showContent(tabName)
         createItemToggle(getText("LuckyArrow"), YBAConfig.ItemESP.Items["Lucky Arrow"])
         
         -- 🤖 AUTOFARM заголовок
-        local autofarmHeader = Instance.new("TextLabel", functionsContainer)
-        autofarmHeader.Size = UDim2.new(1, -10, 0, 25)
-        autofarmHeader.Position = UDim2.new(0, 5, 0, currentY)
-        autofarmHeader.Text = "🤖 AUTOFARM"
-        autofarmHeader.Font = Enum.Font.GothamBold
-        autofarmHeader.TextSize = 14
-        autofarmHeader.TextColor3 = Color3.fromRGB(0, 255, 0)
-        autofarmHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        autofarmHeader.BorderSizePixel = 1
-        autofarmHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
-        autofarmHeader.TextXAlignment = Enum.TextXAlignment.Left
-        Instance.new("UICorner", autofarmHeader).CornerRadius = UDim.new(0,4)
-        currentY = currentY + 25 + padding
+        createSectionHeader("🤖 AUTOFARM")
         
-        -- START AUTOFARM кнопка
-        local autofarmBtn = Instance.new("TextButton", functionsContainer)
-        autofarmBtn.Size = UDim2.new(1, -10, 0, 35)
-        autofarmBtn.Position = UDim2.new(0, 5, 0, currentY)
-        autofarmBtn.Text = "START AUTOFARM"
-        autofarmBtn.Font = Enum.Font.GothamBold
-        autofarmBtn.TextSize = 16
-        autofarmBtn.TextColor3 = Color3.new(1,1,1)
-        autofarmBtn.BackgroundColor3 = Color3.fromRGB(0,200,0)
-        autofarmBtn.AutoButtonColor = false
-        Instance.new("UICorner", autofarmBtn).CornerRadius = UDim.new(0,8)
-        currentY = currentY + 35 + padding
-        
-        -- Переменная для состояния автофарма
-        local isAutofarmActive = false
-        
-        autofarmBtn.MouseButton1Click:Connect(function()
-            if not isAutofarmActive then
-                isAutofarmActive = true
-                autofarmBtn.Text = "STOP AUTOFARM"
-                autofarmBtn.BackgroundColor3 = Color3.fromRGB(200,0,0)
-                print("🤖 AUTOFARM: ЗАПУЩЕН!")
-                -- TODO: запустить автофарм
+        -- Autofarm тумблер
+        createToggleSlider("Autofarm", isAutofarmEnabled, function(v)
+            if v then
+                startAutofarm()
             else
-                isAutofarmActive = false
-                autofarmBtn.Text = "START AUTOFARM"
-                autofarmBtn.BackgroundColor3 = Color3.fromRGB(0,200,0)
-                print("🤖 AUTOFARM: ОСТАНОВЛЕН!")
-                -- TODO: остановить автофарм
+                stopAutofarm()
             end
         end)
         
-        -- Заголовок для выбора предметов
-        local itemFarmHeader = Instance.new("TextLabel", functionsContainer)
-        itemFarmHeader.Size = UDim2.new(1, -10, 0, 25)
-        itemFarmHeader.Position = UDim2.new(0, 5, 0, currentY)
-        itemFarmHeader.Text = "📦 ITEMS FARM"
-        itemFarmHeader.Font = Enum.Font.GothamBold
-        itemFarmHeader.TextSize = 12
-        itemFarmHeader.TextColor3 = Color3.fromRGB(0, 255, 255)
-        itemFarmHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        itemFarmHeader.BorderSizePixel = 1
-        itemFarmHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
-        itemFarmHeader.TextXAlignment = Enum.TextXAlignment.Left
-        Instance.new("UICorner", itemFarmHeader).CornerRadius = UDim.new(0,4)
-        currentY = currentY + 25 + padding
+        -- Заголовок для выбора предметов автофарма
+        createSectionHeader("📦 ITEMS FARM")
         
         -- Функция для создания переключателей предметов автофарма
         local function createAutofarmItemToggle(itemName, defaultState)
             local btn = createToggleSlider(itemName, defaultState, function(v)
-                -- TODO: настроить что фармить
+                AutofarmConfig.Items[itemName] = v
                 print("🤖 AUTOFARM: Предмет", itemName, "установлен в", v and "ON" or "OFF")
             end)
             return btn
         end
         
-        -- Создаем переключатели для всех предметов (копируем из Item ESP)
-        createAutofarmItemToggle(getText("MysteriousArrow"), true)
-        createAutofarmItemToggle(getText("Rokakaka"), true)
-        createAutofarmItemToggle(getText("PureRokakaka"), true)
-        createAutofarmItemToggle(getText("Diamond"), true)
-        createAutofarmItemToggle(getText("GoldCoin"), true)
-        createAutofarmItemToggle(getText("SteelBall"), false)
-        createAutofarmItemToggle(getText("Clackers"), false)
-        createAutofarmItemToggle(getText("CaesarsHeadband"), false)
-        createAutofarmItemToggle(getText("ZeppeliHat"), false)
-        createAutofarmItemToggle(getText("ZeppeliScarf"), false)
-        createAutofarmItemToggle(getText("QuintonsGlove"), false)
-        createAutofarmItemToggle(getText("StoneMask"), true)
-        createAutofarmItemToggle(getText("RibCage"), true)
-        createAutofarmItemToggle(getText("AncientScroll"), false)
-        createAutofarmItemToggle(getText("DiosDiary"), true)
-        createAutofarmItemToggle(getText("LuckyStoneMask"), true)
-        createAutofarmItemToggle(getText("LuckyArrow"), true)
+        -- Создаем переключатели для всех предметов автофарма
+        createAutofarmItemToggle(getText("MysteriousArrow"), AutofarmConfig.Items["Mysterious Arrow"])
+        createAutofarmItemToggle(getText("Rokakaka"), AutofarmConfig.Items["Rokakaka"])
+        createAutofarmItemToggle(getText("PureRokakaka"), AutofarmConfig.Items["Pure Rokakaka"])
+        createAutofarmItemToggle(getText("Diamond"), AutofarmConfig.Items["Diamond"])
+        createAutofarmItemToggle(getText("GoldCoin"), AutofarmConfig.Items["Gold Coin"])
+        createAutofarmItemToggle(getText("SteelBall"), AutofarmConfig.Items["Steel Ball"])
+        createAutofarmItemToggle(getText("Clackers"), AutofarmConfig.Items["Clackers"])
+        createAutofarmItemToggle(getText("CaesarsHeadband"), AutofarmConfig.Items["Caesar's Headband"])
+        createAutofarmItemToggle(getText("ZeppeliHat"), AutofarmConfig.Items["Zeppeli's Hat"])
+        createAutofarmItemToggle(getText("ZeppeliScarf"), AutofarmConfig.Items["Zeppeli's Scarf"])
+        createAutofarmItemToggle(getText("QuintonsGlove"), AutofarmConfig.Items["Quinton's Glove"])
+        createAutofarmItemToggle(getText("StoneMask"), AutofarmConfig.Items["Stone Mask"])
+        createAutofarmItemToggle(getText("RibCage"), AutofarmConfig.Items["Rib Cage of The Saint's Corpse"])
+        createAutofarmItemToggle(getText("AncientScroll"), AutofarmConfig.Items["Ancient Scroll"])
+        createAutofarmItemToggle(getText("DiosDiary"), AutofarmConfig.Items["DIO's Diary"])
+        createAutofarmItemToggle(getText("LuckyStoneMask"), AutofarmConfig.Items["Lucky Stone Mask"])
+        createAutofarmItemToggle(getText("LuckyArrow"), AutofarmConfig.Items["Lucky Arrow"])
         
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
@@ -5565,3 +6035,5 @@ UserInputService.InputBegan:Connect(function(input, gp)
         end
     end
 end)
+
+
