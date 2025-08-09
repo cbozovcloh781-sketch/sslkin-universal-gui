@@ -4781,7 +4781,7 @@ local function forceLoadEntireMap()
     print("🤖 AUTOFARM: Прогрузка карты завершена! Загружено", #loadPoints, "точек. Начинаем поиск предметов...")
 end
 
-local function startAutofarm()
+function startAutofarm()
     if isAutofarmEnabled then
         print("AUTOFARM: Уже активен!")
         return
@@ -4829,7 +4829,7 @@ local function startAutofarm()
     end)
 end
 
-local function stopAutofarm()
+function stopAutofarm()
     if not isAutofarmEnabled then
         return
     end
