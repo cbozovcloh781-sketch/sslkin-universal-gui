@@ -1167,7 +1167,7 @@ local function startAntiTimeStop()
             moveVector = moveVector + Vector3.new(0, 1, 0)
         end
         
-        -- Если есть движение - принудительно двигаем через BodyVelocity
+                 -- Если есть движение - принудительно двигаем через BodyVelocity
         if moveVector.Magnitude > 0 and root then
             local bv = root:FindFirstChild("AntiTSBodyVelocity")
             if not bv then
@@ -1184,6 +1184,44 @@ local function startAntiTimeStop()
             local bv = root and root:FindFirstChild("AntiTSBodyVelocity")
             if bv then
                 bv:Destroy()
+            end
+        end
+        
+        -- ТОЖЕ САМОЕ ДЛЯ СТЕНДА!
+        -- Ищем стенд рядом с игроком
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj:IsA("Model") and (obj.Name:find("Stand") or obj.Name:find("stand") or
+               obj.Name:find("SP") or obj.Name:find("TW") or obj.Name:find("KC") or
+               obj.Name:find("CD") or obj.Name:find("GE") or obj.Name:find("SF")) then
+                local standRoot = obj:FindFirstChild("HumanoidRootPart")
+                if standRoot and root then
+                    local distance = (standRoot.Position - root.Position).Magnitude
+                    if distance <= 30 then
+                        -- Убираем Anchored со стенда (безопасно)
+                        standRoot.Anchored = false
+                        
+                        -- ПРИНУДИТЕЛЬНО двигаем стенд тоже!
+                        if moveVector.Magnitude > 0 then
+                            local standBV = standRoot:FindFirstChild("AntiTSStandBodyVelocity")
+                            if not standBV then
+                                standBV = Instance.new("BodyVelocity")
+                                standBV.Name = "AntiTSStandBodyVelocity"
+                                standBV.MaxForce = Vector3.new(4000, 4000, 4000)
+                                standBV.Parent = standRoot
+                            end
+                            
+                            standBV.Velocity = moveVector.Unit * 25 -- Чуть быстрее стенда
+                            print("Anti TS: Принудительно двигаю стенд", obj.Name)
+                        else
+                            -- Убираем BodyVelocity со стенда когда не двигаемся
+                            local standBV = standRoot:FindFirstChild("AntiTSStandBodyVelocity")
+                            if standBV then
+                                standBV:Destroy()
+                            end
+                        end
+                        break -- Берем только первый найденный стенд
+                    end
+                end
             end
         end
     end)
