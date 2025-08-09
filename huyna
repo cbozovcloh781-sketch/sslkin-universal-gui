@@ -6388,11 +6388,49 @@ function showContent(tabName)
             
             if success and result then
                 print("🤖 AUTOSELL: Модуль загружен, создаем GUI...")
-                -- Создаем GUI автоселла
-                result.createGUI(functionsContainer, currentY, createToggleSlider, createSlider, createDivider, createSectionHeader)
                 
-                -- Обновляем контент
-                showContent(selectedTab)
+                -- Создаем GUI автоселла прямо здесь
+                createDivider()
+                createSectionHeader("🤖 AUTO SELL CONTROLS")
+                
+                -- Главный тумблер автоселла
+                createToggleSlider("Auto Sell Enabled", false, function(v)
+                    if _G.AutosellModule then
+                        if v then
+                            _G.AutosellModule.start()
+                        else
+                            _G.AutosellModule.stop()
+                        end
+                    end
+                end)
+                
+                -- Настройка максимального количества предметов
+                createSlider("Max Items Count", 5, 20, 10, function(v) 
+                    if _G.AutosellModule and _G.AutosellModule.Config then
+                        _G.AutosellModule.Config.MaxItemCount = v
+                    end
+                end)
+                
+                -- Кнопки быстрого управления
+                createButton("Enable All Items for Sale", function()
+                    if _G.AutosellModule and _G.AutosellModule.Config then
+                        for itemName, _ in pairs(_G.AutosellModule.Config.Items) do
+                            _G.AutosellModule.Config.Items[itemName] = true
+                        end
+                        print("🤖 AUTOSELL: Все предметы включены для автопродажи")
+                    end
+                end)
+                
+                createButton("Disable All Items for Sale", function()
+                    if _G.AutosellModule and _G.AutosellModule.Config then
+                        for itemName, _ in pairs(_G.AutosellModule.Config.Items) do
+                            _G.AutosellModule.Config.Items[itemName] = false
+                        end
+                        print("🤖 AUTOSELL: Все предметы отключены от автопродажи")
+                    end
+                end)
+                
+                print("🤖 AUTOSELL: GUI создан! Управление доступно выше.")
             else
                 print("🤖 AUTOSELL: Ошибка загрузки модуля:", tostring(result))
                 print("🤖 AUTOSELL: Попробуйте:")
