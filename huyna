@@ -6162,6 +6162,40 @@ function showContent(tabName)
                         end
                     end
                     
+                    -- КРИТИЧНО: Если текущий целевой предмет был отключен, прерываем движение к нему
+                    if autofarmCurrentTarget and autofarmCurrentTarget.Name == itemName and not v then
+                        print("🤖 AUTOFARM: ПРЕРЫВАЕМ движение к предмету", itemName, "- он был отключен в настройках!")
+                        autofarmCurrentTarget = nil
+                        autofarmPickingUp = false
+                        
+                        -- ПРИНУДИТЕЛЬНО отпускаем клавишу E если она зажата
+                        pcall(function()
+                            if game:GetService("VirtualInputManager") then
+                                game:GetService("VirtualInputManager"):SendKeyEvent(false, AutofarmConfig.PickupKey, false, game)
+                            end
+                            game:GetService("UserInputService").InputEnded:Fire(
+                                {KeyCode = AutofarmConfig.PickupKey, UserInputType = Enum.UserInputType.Keyboard},
+                                false
+                            )
+                        end)
+                        
+                        -- Отключаем все соединения движения и подбора
+                        for _, connection in ipairs(autofarmConnections) do
+                            if connection then
+                                pcall(function() connection:Disconnect() end)
+                            end
+                        end
+                        autofarmConnections = {}
+                        
+                        -- Немедленно ищем следующий предмет
+                        task.spawn(function()
+                            task.wait(0.1)
+                            if isAutofarmEnabled then
+                                processNextItem()
+                            end
+                        end)
+                    end
+                    
                     print("🤖 AUTOFARM: Сброшены попытки для предмета", itemName, "- изменения применены немедленно")
                 end
             end)
