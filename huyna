@@ -4110,6 +4110,10 @@ local function findAutofarmItems()
     end
 
     print("AUTOFARM: Начинаем поиск предметов...")
+    print("AUTOFARM DEBUG: Текущая конфигурация предметов:")
+    for itemName, enabled in pairs(AutofarmConfig.Items) do
+        print("  -", itemName, ":", enabled and "ВКЛЮЧЕН" or "ОТКЛЮЧЕН")
+    end
     
     -- Ищем по точному пути workspace > Item_Spawns > Items
     local itemSpawnsFolder = workspace:FindFirstChild("Item_Spawns")
@@ -4143,6 +4147,7 @@ local function findAutofarmItems()
             end
             
             -- Проверяем выбран ли предмет в Items Farm списке СРАЗУ
+            print("AUTOFARM DEBUG: Проверяем предмет", itemName, "- статус в конфиге:", AutofarmConfig.Items[itemName])
             if AutofarmConfig.Items[itemName] then
                 -- Ищем WorldPivot позицию
                 local worldPivot = nil
