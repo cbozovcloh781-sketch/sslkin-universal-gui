@@ -245,6 +245,9 @@ local freeCameraTarget = nil
 local freeCameraLastMousePos = Vector2.new(0, 0)
 local lastCameraUpdate = nil
 
+-- Глобальная переменная для отслеживания ввода в чате/GUI
+local isInputBeingProcessedByGame = false
+
 local itemESPConnections = {}
 local itemESPElements = {}
 local itemESPEnabled = false
@@ -566,9 +569,11 @@ local YBAFreeCamera = {} do
         local moveZ = 0 
         local moveY = 0
         
-        -- Проверяем, что игрок не в чате/меню
+        -- Улучшенная проверка, что игрок не в чате/меню
         local gameGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
         local chatInFocus = false
+        
+        -- Проверяем основной чат
         if gameGui then
             local chatGui = gameGui:FindFirstChild("Chat")
             if chatGui and chatGui:FindFirstChild("Frame") and chatGui.Frame:FindFirstChild("ChatBarParentFrame") then
@@ -577,10 +582,27 @@ local YBAFreeCamera = {} do
                     chatInFocus = chatBar.BoxFrame.Frame.ChatBar:IsFocused()
                 end
             end
+            
+            -- Дополнительная проверка - любой TextBox в фокусе
+            if not chatInFocus then
+                local function checkTextBoxFocus(parent)
+                    for _, child in pairs(parent:GetChildren()) do
+                        if child:IsA("TextBox") and child:IsFocused() then
+                            return true
+                        elseif child:IsA("GuiObject") then
+                            if checkTextBoxFocus(child) then
+                                return true
+                            end
+                        end
+                    end
+                    return false
+                end
+                chatInFocus = checkTextBoxFocus(gameGui)
+            end
         end
         
-        -- Прямая проверка клавиш только если не в чате
-        if not chatInFocus then
+        -- Прямая проверка клавиш только если не в чате и ввод не обрабатывается игрой
+        if not chatInFocus and not isInputBeingProcessedByGame then
             if UserInputService:IsKeyDown(Enum.KeyCode.D) then
                 moveX = moveX + 1
             end
@@ -598,6 +620,14 @@ local YBAFreeCamera = {} do
             end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
                 moveY = moveY - 1
+            end
+        else
+            -- Отладка: показываем почему ввод заблокирован
+            if chatInFocus or isInputBeingProcessedByGame then
+                -- Выводим сообщение только при нажатии Space для избежания спама
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                    print("YBA: Ввод заблокирован - чат в фокусе:", chatInFocus, "gameProcessed:", isInputBeingProcessedByGame)
+                end
             end
         end
         
@@ -2757,6 +2787,23 @@ local function getAlivePlayers()
     return alivePlayers
 end
 
+-- Глобальный обработчик для отслеживания ввода в чате/GUI
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    -- Обновляем состояние: если gameProcessed = true, значит ввод обрабатывается игрой (чат, меню и т.д.)
+    if input.KeyCode == Enum.KeyCode.Space then
+        isInputBeingProcessedByGame = gameProcessed
+        if gameProcessed then
+            print("YBA: Пробел заблокирован - gameProcessed = true (чат/GUI активно)")
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    -- При отпускании клавиши сбрасываем состояние если это был пробел
+    if input.KeyCode == Enum.KeyCode.Space then
+        isInputBeingProcessedByGame = false
+    end
+end)
 
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp then
