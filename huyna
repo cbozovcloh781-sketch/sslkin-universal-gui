@@ -6166,7 +6166,16 @@ function showContent(tabName)
         local function createAutofarmItemToggle(itemName, defaultState)
             local btn = createToggleSlider(itemName, defaultState, function(v)
                 AutofarmConfig.Items[itemName] = v
+                
+                -- ФИКС: Синхронизируем разные варианты ключей для предметов
+                if itemName == "Mysterious Arrow" then
+                    AutofarmConfig.Items["MysteriousArrow"] = v -- без пробела
+                elseif itemName == "Gold Coin" then
+                    AutofarmConfig.Items["GoldCoin"] = v -- без пробела
+                end
+                
                 print("🤖 AUTOFARM: Предмет", itemName, "установлен в", v and "ON" or "OFF")
+                print("🤖 AUTOFARM DEBUG: Изменяем ключ:", itemName, "на значение:", v)
                 
                 -- Если автофарм активен, сбрасываем попытки для всех предметов этого типа
                 -- чтобы изменения применились немедленно
