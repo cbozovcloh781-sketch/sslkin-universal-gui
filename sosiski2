@@ -203,6 +203,7 @@ local AutofarmConfig = {
         ["Lucky Stone Mask"] = true,
         ["Rib Cage of The Saint's Corpse"] = true,
         ["DIO's Diary"] = true,
+        ["Dio's Diary"] = true, -- добавляем альтернативное написание
     }
 }
 
@@ -299,6 +300,8 @@ local autofarmCurrentTarget = nil
 local autofarmItemQueue = {}
 local autofarmOriginalPosition = nil
 local autofarmPickingUp = false
+local autofarmBlacklist = {} -- предметы которые не удалось подобрать за 3 попытки
+local autofarmRetryCount = {} -- счетчик попыток для каждого предмета
 
 
 
@@ -4170,6 +4173,79 @@ local function stopUserStyleESP()
     print("Player ESP: User Style ESP deactivated")
 end
 
+-- Функция проверки инвентаря
+local function checkInventoryAndUpdateItems()
+    local player = Players.LocalPlayer
+    if not player then return false end
+    
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then 
+        print("🎒 AUTOFARM: Backpack не найден")
+        return false
+    end
+    
+    print("🎒 AUTOFARM: Проверяем инвентарь...")
+    
+    -- Максимальные количества предметов в YBA
+    local maxItems = {
+        ["Mysterious Arrow"] = 5,
+        ["Rokakaka"] = 5,
+        ["Pure Rokakaka"] = 1,
+        ["Diamond"] = 5,
+        ["Gold Coin"] = 50, -- монеты могут быть в большом количестве
+        ["Steel Ball"] = 3,
+        ["Clackers"] = 1,
+        ["Caesar's Headband"] = 1,
+        ["Zeppeli's Hat"] = 1,
+        ["Zeppeli's Scarf"] = 1,
+        ["Ancient Scroll"] = 1,
+        ["Quinton's Glove"] = 1,
+        ["Stone Mask"] = 3,
+        ["Lucky Arrow"] = 1,
+        ["Lucky Stone Mask"] = 1,
+        ["Rib Cage of The Saint's Corpse"] = 1,
+        ["DIO's Diary"] = 1,
+        ["Dio's Diary"] = 1,
+    }
+    
+    local itemCounts = {}
+    local allItemsFull = true
+    
+    -- Считаем предметы в backpack
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:IsA("Tool") or item:IsA("Folder") then
+            local itemName = item.Name
+            itemCounts[itemName] = (itemCounts[itemName] or 0) + 1
+        end
+    end
+    
+    -- Проверяем каждый тип предмета
+    for itemName, isEnabled in pairs(AutofarmConfig.Items) do
+        if isEnabled then
+            local currentCount = itemCounts[itemName] or 0
+            local maxCount = maxItems[itemName] or 1
+            
+            print("🎒", itemName, ":", currentCount, "/", maxCount)
+            
+            if currentCount >= maxCount then
+                -- Отключаем этот предмет от фарма
+                AutofarmConfig.Items[itemName] = false
+                print("🎒 ✅ Предмет", itemName, "ПОЛОН (", currentCount, "/", maxCount, ") - отключаем от фарма")
+            else
+                allItemsFull = false
+                print("🎒 📦 Предмет", itemName, "еще нужен (", currentCount, "/", maxCount, ")")
+            end
+        end
+    end
+    
+    if allItemsFull then
+        print("🎒 🎉 ВСЕ ПРЕДМЕТЫ СОБРАНЫ! Инвентарь полон - АВТОФАРМ ЗАВЕРШЕН!")
+        return true -- сигнал что нужно остановить автофарм
+    end
+    
+    return false
+end
+
 -- Autofarm Functions
 local function findAutofarmItems()
     local items = {}
@@ -4209,6 +4285,11 @@ local function findAutofarmItems()
                 itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or model.Name
             end
             
+            -- Дополнительная проверка для дневника ДИО (разные варианты названий)
+            if itemName == "Dio's Diary" and AutofarmConfig.Items["DIO's Diary"] then
+                itemName = "DIO's Diary" -- стандартизируем название
+            end
+            
             -- Проверяем что предмет выбран для фарма
             if AutofarmConfig.Items[itemName] then
                 -- Ищем WorldPivot позицию
@@ -4235,15 +4316,24 @@ local function findAutofarmItems()
                     
                     -- Проверяем выбран ли предмет в Items Farm списке
                     if AutofarmConfig.Items[itemName] then
-                        print("AUTOFARM: Найден ВЫБРАННЫЙ предмет", itemName, "на расстоянии", math.floor(distance), "м")
+                        -- Создаем уникальный ID предмета для отслеживания
+                        local itemId = tostring(worldPivot) .. "_" .. itemName
                         
-                        table.insert(items, {
-                            Name = itemName,
-                            Position = worldPivot,
-                            Distance = distance,
-                            Model = model,
-                            ProximityPrompt = proximityPrompt
-                        })
+                        -- Проверяем не в черном списке ли этот предмет
+                        if not autofarmBlacklist[itemId] then
+                            print("AUTOFARM: Найден ВЫБРАННЫЙ предмет", itemName, "на расстоянии", math.floor(distance), "м")
+                            
+                            table.insert(items, {
+                                Name = itemName,
+                                Position = worldPivot,
+                                Distance = distance,
+                                Model = model,
+                                ProximityPrompt = proximityPrompt,
+                                ItemId = itemId -- добавляем уникальный ID
+                            })
+                        else
+                            print("AUTOFARM: ⚫ Предмет", itemName, "в ЧЕРНОМ СПИСКЕ - пропускаем")
+                        end
                     else
                         print("AUTOFARM: Предмет", itemName, "НЕ ВЫБРАН в списке Items Farm - пропускаем")
                     end
@@ -4304,12 +4394,17 @@ local function moveToPosition(targetPosition, callback)
         print("AUTOFARM: Гравитация отключена")
     end
     
-    -- Движение к цели ГЛУБОКО под землей для подбора предметов (как в YBA)
-    local adjustedTarget = targetPosition + Vector3.new(0, -20, 0) -- глубоко под землей для подбора
+    -- Движение к цели близко под предметом для подбора предметов (как в YBA)
+    local adjustedTarget = Vector3.new(targetPosition.X, targetPosition.Y - 2.5, targetPosition.Z) -- близко под предметом на 2.5 метра
     
     local moveConnection
     moveConnection = RunService.Heartbeat:Connect(function()
         if not isAutofarmEnabled then
+            -- При отключении автофарма очищаем BodyVelocity
+            if bodyVelocity and bodyVelocity.Parent then
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                bodyVelocity:Destroy()
+            end
             moveConnection:Disconnect()
             return
         end
@@ -4323,13 +4418,32 @@ local function moveToPosition(targetPosition, callback)
             local moveVector = direction * (AutofarmConfig.FlightSpeed * 10) -- как в обычном флае
             bodyVelocity.Velocity = moveVector
         else
-            -- Достигли цели
+            -- Достигли цели - дополнительная проверка правильности перемещения
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            moveConnection:Disconnect()
             
-            print("AUTOFARM: Достигли позиции предмета")
-            if callback then
-                callback()
+            -- ПРОВЕРКА: действительно ли мы на правильной позиции?
+            local finalDistance = (adjustedTarget - humanoidRootPart.Position).Magnitude
+            print("AUTOFARM: Проверка позиции - расстояние до цели:", math.floor(finalDistance), "м")
+            
+            if finalDistance <= 5 then
+                print("AUTOFARM: ✅ Успешно достигли позиции предмета")
+                moveConnection:Disconnect()
+                if callback then
+                    callback()
+                end
+            else
+                print("AUTOFARM: ⚠️ Неточное перемещение, корректируем позицию...")
+                -- Корректируем позицию принудительно
+                humanoidRootPart.CFrame = CFrame.new(adjustedTarget)
+                task.wait(0.2) -- небольшая задержка для стабилизации
+                
+                local correctedDistance = (adjustedTarget - humanoidRootPart.Position).Magnitude
+                print("AUTOFARM: После коррекции расстояние:", math.floor(correctedDistance), "м")
+                
+                moveConnection:Disconnect()
+                if callback then
+                    callback()
+                end
             end
         end
     end)
@@ -4339,8 +4453,14 @@ local function moveToPosition(targetPosition, callback)
 end
 
 local function pickupItem(item)
-    print("AUTOFARM: Пытаемся подобрать предмет", item.Name)
+    local itemId = item.ItemId
+    local currentRetries = autofarmRetryCount[itemId] or 0
+    
+    print("AUTOFARM: Пытаемся подобрать предмет", item.Name, "(попытка", currentRetries + 1, "из 3)")
     autofarmPickingUp = true
+    
+    -- Увеличиваем счетчик попыток
+    autofarmRetryCount[itemId] = currentRetries + 1
     
     local player = Players.LocalPlayer
     local character = player.Character
@@ -4413,7 +4533,13 @@ local function pickupItem(item)
         end)
         
         if not itemStillExists then
-            print("AUTOFARM: Предмет", item.Name, "исчез (нет физических частей) - возможно подобран")
+            print("AUTOFARM: ✅ Предмет", item.Name, "исчез (нет физических частей) - УСПЕШНО ПОДОБРАН!")
+            
+            -- Сбрасываем счетчик попыток для этого предмета (он подобран)
+            if item.ItemId then
+                autofarmRetryCount[item.ItemId] = nil
+            end
+            
             if isKeyPressed then
                 pcall(function()
                     if game:GetService("VirtualInputManager") then
@@ -4465,8 +4591,8 @@ local function pickupItem(item)
         elseif distance > (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
             -- Если слишком далеко, подлетаем ближе (увеличенный радиус для подземного подбора)
             print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем под землю")
-            -- Летим к позиции ГЛУБОКО под землей
-            local targetPos = item.Position + Vector3.new(0, -20, 0)
+            -- Летим к позиции близко под предметом
+            local targetPos = Vector3.new(item.Position.X, item.Position.Y - 2.5, item.Position.Z)
             moveToPosition(targetPos, function()
                 -- После подлета продолжаем подбор
             end)
@@ -4489,7 +4615,15 @@ local function pickupItem(item)
                 end)
                 isKeyPressed = false
             end
-            print("AUTOFARM: Завершили попытку подбора", item.Name)
+            -- Проверяем количество попыток для этого предмета
+            local currentRetries = autofarmRetryCount[item.ItemId] or 0
+            if currentRetries >= 3 then
+                print("AUTOFARM: ❌ Предмет", item.Name, "НЕ УДАЛОСЬ подобрать за 3 попытки - добавляем в ЧЕРНЫЙ СПИСОК")
+                autofarmBlacklist[item.ItemId] = true
+                autofarmRetryCount[item.ItemId] = nil -- очищаем счетчик
+            else
+                print("AUTOFARM: ⚠️ Попытка", currentRetries, "неудачна для", item.Name, "- попробуем еще")
+            end
             
             pickupConnection:Disconnect()
             autofarmPickingUp = false
@@ -4506,7 +4640,18 @@ local function pickupItem(item)
         
         -- Таймаут общий - если слишком долго пытаемся подобрать
         if tick() - pickupStartTime > 10 then
-            print("AUTOFARM: Общий таймаут для", item.Name)
+            print("AUTOFARM: ⏰ Общий таймаут для", item.Name)
+            
+            -- Проверяем количество попыток для этого предмета
+            local currentRetries = autofarmRetryCount[item.ItemId] or 0
+            if currentRetries >= 3 then
+                print("AUTOFARM: ❌ Предмет", item.Name, "НЕ УДАЛОСЬ подобрать за 3 попытки (таймаут) - добавляем в ЧЕРНЫЙ СПИСОК")
+                autofarmBlacklist[item.ItemId] = true
+                autofarmRetryCount[item.ItemId] = nil -- очищаем счетчик
+            else
+                print("AUTOFARM: ⚠️ Таймаут попытки", currentRetries, "для", item.Name, "- попробуем еще")
+            end
+            
             if isKeyPressed then
                 pcall(function()
                     if game:GetService("VirtualInputManager") then
@@ -4543,15 +4688,35 @@ function processNextItem()
         return
     end
     
+    -- ПРОВЕРЯЕМ ИНВЕНТАРЬ перед сканированием предметов
+    local inventoryFull = checkInventoryAndUpdateItems()
+    if inventoryFull then
+        print("🎒 AUTOFARM: Останавливаем автофарм - все предметы собраны!")
+        stopAutofarm()
+        return
+    end
+    
     -- Сканируем новые предметы
     local items = findAutofarmItems()
     if #items == 0 then
-        print("AUTOFARM: Предметы не найдены, повторяем сканирование через", AutofarmConfig.ScanInterval, "сек")
-        -- Используем spawn чтобы избежать блокировки
+        print("AUTOFARM: ❌ Предметы НЕ НАЙДЕНЫ! Запускаем повторную прогрузку карты...")
+        
+        -- Запускаем повторную прогрузку карты
         task.spawn(function()
-            task.wait(AutofarmConfig.ScanInterval)
+            forceLoadEntireMap()
+            
+            -- После прогрузки снова пытаемся найти предметы
             if isAutofarmEnabled then
-                processNextItem()
+                local itemsAfterReload = findAutofarmItems()
+                if #itemsAfterReload == 0 then
+                    print("AUTOFARM: ⚠️ После повторной прогрузки предметы все еще не найдены")
+                    print("AUTOFARM: Ждем", AutofarmConfig.ScanInterval, "сек перед следующей попыткой")
+                    task.wait(AutofarmConfig.ScanInterval)
+                end
+                
+                if isAutofarmEnabled then
+                    processNextItem()
+                end
             end
         end)
         return
@@ -4630,6 +4795,121 @@ function processNextItem()
     end)
 end
 
+-- Функция принудительной прогрузки всей карты
+local function forceLoadEntireMap()
+    print("🤖 AUTOFARM: Начинаем принудительную прогрузку карты...")
+    
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local originalPosition = humanoidRootPart.Position
+    local camera = workspace.CurrentCamera
+    local originalCameraCFrame = camera.CFrame
+    
+    -- Включаем NoClip для свободного движения
+    if not isNoClipping then
+        startNoClip()
+        task.wait(0.1)
+    end
+    
+    -- Точки для прогрузки (РАСШИРЕННАЯ СЕТКА ПОД 15 СЕКУНД)
+    local loadPoints = {
+        -- Центральные точки (разные высоты)
+        Vector3.new(0, 50, 0),
+        Vector3.new(0, 100, 0),
+        Vector3.new(0, 150, 0),
+        Vector3.new(0, 200, 0),
+        Vector3.new(0, 250, 0),
+        
+        -- Основные углы карты (2 высоты)
+        Vector3.new(800, 100, 800),   Vector3.new(800, 150, 800),   -- СВ
+        Vector3.new(-800, 100, 800),  Vector3.new(-800, 150, 800),  -- СЗ  
+        Vector3.new(800, 100, -800),  Vector3.new(800, 150, -800),  -- ЮВ
+        Vector3.new(-800, 100, -800), Vector3.new(-800, 150, -800), -- ЮЗ
+        
+        -- Средние точки сторон
+        Vector3.new(600, 100, 0),     Vector3.new(600, 150, 0),     -- Восток
+        Vector3.new(-600, 100, 0),    Vector3.new(-600, 150, 0),    -- Запад
+        Vector3.new(0, 100, 600),     Vector3.new(0, 150, 600),     -- Север
+        Vector3.new(0, 100, -600),    Vector3.new(0, 150, -600),    -- Юг
+        
+        -- Промежуточные точки 400м
+        Vector3.new(400, 100, 400),   Vector3.new(-400, 100, 400),
+        Vector3.new(400, 100, -400),  Vector3.new(-400, 100, -400),
+        Vector3.new(400, 100, 0),     Vector3.new(-400, 100, 0),
+        Vector3.new(0, 100, 400),     Vector3.new(0, 100, -400),
+        
+        -- Дополнительные точки 500м для лучшего покрытия
+        Vector3.new(500, 100, 500),   Vector3.new(-500, 100, 500),
+        Vector3.new(500, 100, -500),  Vector3.new(-500, 100, -500),
+        Vector3.new(500, 100, 0),     Vector3.new(-500, 100, 0),
+        Vector3.new(0, 100, 500),     Vector3.new(0, 100, -500),
+        
+        -- Близкие к центру точки 200м
+        Vector3.new(200, 100, 200),   Vector3.new(-200, 100, 200),
+        Vector3.new(200, 100, -200),  Vector3.new(-200, 100, -200),
+        Vector3.new(200, 100, 0),     Vector3.new(-200, 100, 0),
+        Vector3.new(0, 100, 200),     Vector3.new(0, 100, -200),
+        
+        -- Дальние точки для полного покрытия
+        Vector3.new(700, 100, 0),     Vector3.new(-700, 100, 0),
+        Vector3.new(0, 100, 700),     Vector3.new(0, 100, -700),
+        
+        -- Дополнительные точки 300м для плотного покрытия
+        Vector3.new(300, 100, 300),   Vector3.new(-300, 100, 300),
+        Vector3.new(300, 100, -300),  Vector3.new(-300, 100, -300),
+        Vector3.new(300, 100, 0),     Vector3.new(-300, 100, 0),
+        Vector3.new(0, 100, 300),     Vector3.new(0, 100, -300),
+        
+        -- Точки на 650м для промежуточного покрытия
+        Vector3.new(650, 100, 650),   Vector3.new(-650, 100, 650),
+        Vector3.new(650, 100, -650),  Vector3.new(-650, 100, -650),
+        
+        -- Дополнительные высотные точки для важных зон
+        Vector3.new(400, 150, 400),   Vector3.new(-400, 150, 400),
+        Vector3.new(400, 150, -400),  Vector3.new(-400, 150, -400),
+        Vector3.new(200, 150, 200),   Vector3.new(-200, 150, 200),
+        Vector3.new(200, 150, -200),  Vector3.new(-200, 150, -200),
+        
+        -- Точки на 100м от центра (очень близко)
+        Vector3.new(100, 100, 100),   Vector3.new(-100, 100, 100),
+        Vector3.new(100, 100, -100),  Vector3.new(-100, 100, -100),
+        Vector3.new(100, 100, 0),     Vector3.new(-100, 100, 0),
+        Vector3.new(0, 100, 100),     Vector3.new(0, 100, -100),
+    }
+    
+    print("🤖 AUTOFARM: Телепортируемся по", #loadPoints, "точкам для прогрузки...")
+    
+    for i, point in ipairs(loadPoints) do
+        if not isAutofarmEnabled then break end -- Прерываем если автофарм отключили
+        
+        -- Телепортируем персонажа
+        humanoidRootPart.CFrame = CFrame.new(point)
+        
+        -- Поворачиваем камеру для лучшей прогрузки
+        camera.CFrame = CFrame.new(point + Vector3.new(0, 50, 0), point)
+        
+        -- МАКСИМАЛЬНО БЫСТРАЯ прогрузка но с гарантией
+        task.wait(0.2)
+        
+        -- Показываем прогресс каждой точки
+        print("🤖 AUTOFARM: Прогрузка точки", i, "/", #loadPoints, "- позиция:", point)
+    end
+    
+    -- Возвращаемся в исходную позицию
+    humanoidRootPart.CFrame = CFrame.new(originalPosition)
+    camera.CFrame = originalCameraCFrame
+    
+    -- Быстрая финальная стабилизация
+    task.wait(1)
+    
+    print("🤖 AUTOFARM: Прогрузка карты завершена! Загружено", #loadPoints, "точек. Начинаем поиск предметов...")
+end
+
 local function startAutofarm()
     if isAutofarmEnabled then
         print("AUTOFARM: Уже активен!")
@@ -4655,8 +4935,15 @@ local function startAutofarm()
     
     -- Не сохраняем исходную позицию - остаемся где остановились (как телепорт)
     
-    -- Запускаем процесс
-    processNextItem()
+    -- НОВОЕ: Принудительная прогрузка карты перед началом фарма
+    task.spawn(function()
+        forceLoadEntireMap()
+        
+        -- После прогрузки начинаем основной процесс
+        if isAutofarmEnabled then
+            processNextItem()
+        end
+    end)
 end
 
 local function stopAutofarm()
@@ -4669,6 +4956,11 @@ local function stopAutofarm()
     AutofarmConfig.Enabled = false
     autofarmPickingUp = false
     autofarmCurrentTarget = nil
+    
+    -- Очищаем черный список и счетчики попыток
+    autofarmBlacklist = {}
+    autofarmRetryCount = {}
+    print("🤖 AUTOFARM: Очищен черный список предметов")
     
     -- ПРИНУДИТЕЛЬНО отпускаем клавишу E (фикс бага с зажатой кнопкой)
     pcall(function()
@@ -4707,7 +4999,7 @@ local function stopAutofarm()
                 if humanoid then
                     humanoid.JumpPower = 50 -- возвращаем обычную силу прыжка
                     humanoid.JumpHeight = 7.2 -- возвращаем обычную высоту прыжка  
-                    humanoid.HipHeight = 0 -- возвращаем обычную высоту бедер
+                    humanoid.HipHeight = 2 -- возвращаем ПРАВИЛЬНУЮ высоту бедер (как в stopFly)
                 end
                 
                 -- Возвращаем гравитацию ТОЛЬКО если флай и NoClip НЕ включены
@@ -4716,6 +5008,18 @@ local function stopAutofarm()
                 end
             else
                 print("AUTOFARM: Флай включен - НЕ восстанавливаем настройки персонажа")
+            end
+            
+            -- ДОПОЛНИТЕЛЬНАЯ ОЧИСТКА: убираем все BodyVelocity объекты с персонажа
+            for _, part in pairs(character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    for _, child in pairs(part:GetChildren()) do
+                        if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyGyro") then
+                            print("AUTOFARM: Удаляем", child.ClassName, "из", part.Name)
+                            child:Destroy()
+                        end
+                    end
+                end
             end
             
             -- НЕ возвращаемся к исходной позиции - остаемся где остановились (как в телепорте)
