@@ -297,6 +297,7 @@ _G.AutofarmConfig = AutofarmConfig
 _G.startNoClip = startNoClip
 _G.stopNoClip = stopNoClip
 _G.MovementConfig = MovementConfig
+_G.isNoClipping = function() return isNoClipping end
 
 -- Player ESP Functions
 
