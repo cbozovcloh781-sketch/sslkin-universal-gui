@@ -566,20 +566,64 @@ local YBAFreeCamera = {} do
         local moveZ = 0 
         local moveY = 0
         
-        -- Проверяем, что игрок не в чате/меню
-        local gameGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+        -- Улучшенная проверка фокуса чата
         local chatInFocus = false
-        if gameGui then
-            local chatGui = gameGui:FindFirstChild("Chat")
-            if chatGui and chatGui:FindFirstChild("Frame") and chatGui.Frame:FindFirstChild("ChatBarParentFrame") then
-                local chatBar = chatGui.Frame.ChatBarParentFrame:FindFirstChild("Frame")
-                if chatBar and chatBar:FindFirstChild("BoxFrame") and chatBar.BoxFrame:FindFirstChild("Frame") and chatBar.BoxFrame.Frame:FindFirstChild("ChatBar") then
-                    chatInFocus = chatBar.BoxFrame.Frame.ChatBar:IsFocused()
+        pcall(function()
+            -- Проверка 1: UserInputService.TextBoxFocused - самый надежный способ
+            if UserInputService:GetFocusedTextBox() then
+                chatInFocus = true
+                print("YBA Debug: Чат обнаружен через GetFocusedTextBox")
+                return
+            end
+            
+            -- Проверка 1.5: TextChatService (новый чат)
+            local success, textChatService = pcall(function() return game:GetService("TextChatService") end)
+            if success and textChatService then
+                local chatInputBarConfiguration = textChatService:FindFirstChild("ChatInputBarConfiguration")
+                if chatInputBarConfiguration and chatInputBarConfiguration.TargetTextChannel then
+                    chatInFocus = true
+                    print("YBA Debug: Чат обнаружен через TextChatService")
+                    return
                 end
             end
-        end
+            
+            -- Проверка 2: через PlayerGui
+            local gameGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+            if gameGui then
+                local chatGui = gameGui:FindFirstChild("Chat")
+                if chatGui then
+                    local chatFrame = chatGui:FindFirstChild("Frame")
+                    if chatFrame then
+                        local chatBarParentFrame = chatFrame:FindFirstChild("ChatBarParentFrame")
+                        if chatBarParentFrame then
+                            -- Проверяем видимость чат-бара
+                            if chatBarParentFrame.Visible then
+                                chatInFocus = true
+                                return
+                            end
+                            
+                            -- Проверяем фокус текстового поля
+                            local chatBar = chatBarParentFrame:FindFirstChild("Frame")
+                            if chatBar and chatBar:FindFirstChild("BoxFrame") and chatBar.BoxFrame:FindFirstChild("Frame") and chatBar.BoxFrame.Frame:FindFirstChild("ChatBar") then
+                                local textBox = chatBar.BoxFrame.Frame.ChatBar
+                                if textBox and textBox:IsA("TextBox") then
+                                    if textBox:IsFocused() or (textBox.Text and textBox.Text ~= "") then
+                                        chatInFocus = true
+                                        return
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
         
         -- Прямая проверка клавиш только если не в чате
+        if chatInFocus then
+            print("YBA Debug: Заблокированы клавиши - игрок печатает в чате")
+        end
+        
         if not chatInFocus then
             if UserInputService:IsKeyDown(Enum.KeyCode.D) then
                 moveX = moveX + 1
@@ -595,6 +639,7 @@ local YBAFreeCamera = {} do
             end
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
                 moveY = moveY + 1
+                print("YBA Debug: Пробел нажат, стенд поднимается (чат не активен)")
             end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
                 moveY = moveY - 1
