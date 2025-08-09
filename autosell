@@ -155,72 +155,24 @@ local function moveToShiftplox(callback)
         
         task.wait(0.1) -- Даем время для остановки
         
-        -- Используем автопилот fly (всегда fallback для автоматического полета)
-        print("🤖 AUTOSELL: Включаем автопилот fly...")
+        print("🤖 AUTOSELL: Лети к NPC Shiftplox самостоятельно с помощью своего fly!")
+        print("🤖 AUTOSELL: Позиция NPC:", AutosellConfig.ShiftploxPosition)
         
-        -- Создаем BodyVelocity для автопилота
-        local bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.Name = "AutosellBodyVelocity"
-        bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-        bodyVelocity.Parent = humanoidRootPart
-        
-        -- Сохраняем и отключаем гравитацию
-        local originalGravity = workspace.Gravity
-        workspace.Gravity = 0
-        print("🤖 AUTOSELL: Автопилот fly активирован")
-        
-        -- Движение к NPC
-        local moveConnection
-        local isMoving = true
-        
-        moveConnection = RunService.Heartbeat:Connect(function()
-            if not isMoving then
-                if moveConnection then
-                    moveConnection:Disconnect()
-                end
-                return
-            end
-            
+        -- Ждем пока игрок долетит к NPC (проверяем расстояние)
+        local checkConnection
+        checkConnection = RunService.Heartbeat:Connect(function()
             local currentPos = humanoidRootPart.Position
             local distance = (AutosellConfig.ShiftploxPosition - currentPos).Magnitude
             
-            if distance > 5 then
-                -- Автопилот: летим к цели
-                if bodyVelocity and bodyVelocity.Parent then
-                    local direction = (AutosellConfig.ShiftploxPosition - currentPos).Unit
-                    local moveVector = direction * 100 -- скорость полета
-                    bodyVelocity.Velocity = moveVector
-                end
-            else
-                -- ОСТАНОВКА: Достигли NPC - сначала останавливаем персонажа на 2 секунды
-                print("🤖 AUTOSELL: Достигли NPC, останавливаем персонажа на 2 секунды...")
-                isMoving = false
+            if distance <= 10 then
+                print("🤖 AUTOSELL: Достигли NPC Shiftplox!")
+                checkConnection:Disconnect()
                 
-                -- Останавливаем автопилот fly
-                if bodyVelocity and bodyVelocity.Parent then
-                    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-                    bodyVelocity:Destroy()
-                    print("🤖 AUTOSELL: Автопилот fly отключен")
-                end
-                
-                -- Восстанавливаем гравитацию
-                workspace.Gravity = originalGravity
-                
-                -- Восстанавливаем параметры персонажа
-                if humanoid then
-                    humanoid.WalkSpeed = 16
-                    humanoid.JumpPower = 50
-                    humanoid.JumpHeight = 7.2
-                end
-                
-                moveConnection:Disconnect()
-                
-                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость (В ОТДЕЛЬНОМ ПОТОКЕ!)
+                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость
                 task.spawn(function()
                     print("🤖 AUTOSELL: Ожидаем 2 секунды для полной остановки...")
                     task.wait(2)
-                    print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
+                    print("🤖 AUTOSELL: Готов к продаже!")
                     
                     if callback then
                         callback()
@@ -331,25 +283,33 @@ local function sellItemsToNPC(itemsToSell)
     
     -- Летим к NPC
     moveToShiftplox(function()
-        print("🤖 AUTOSELL: Прилетели к NPC, начинаем продажу...")
+        print("🤖 AUTOSELL: Начинаем продажу предметов...")
+        
+        local soldItems = {}
+        local failedItems = {}
         
         for _, itemName in ipairs(itemsToSell) do
-            print("🤖 AUTOSELL: Продаем предмет:", itemName)
-            
-            -- Берем предмет в руки
-            if equipItem(itemName) then
-                task.wait(0.5)
+            -- Проверяем есть ли еще этот предмет в рюкзаке
+            local player = Players.LocalPlayer
+            if player and player.Backpack:FindFirstChild(itemName) then
+                print("🤖 AUTOSELL: Продаем предмет:", itemName)
                 
-                -- Взаимодействуем с NPC
-                interactWithNPC()
-                
-                -- Обрабатываем диалог
-                handleNPCDialog()
+                if sellSingleItemToNPC(itemName) then
+                    table.insert(soldItems, itemName)
+                else
+                    table.insert(failedItems, itemName)
+                end
                 
                 task.wait(1) -- Пауза между продажами
             else
-                print("🤖 AUTOSELL: Не удалось взять предмет:", itemName)
+                print("🤖 AUTOSELL: Предмет", itemName, "больше не найден в рюкзаке")
             end
+        end
+        
+        print("🤖 AUTOSELL: Продажа завершена!")
+        print("🤖 AUTOSELL: Продано предметов:", #soldItems)
+        if #failedItems > 0 then
+            print("🤖 AUTOSELL: Не удалось продать:", table.concat(failedItems, ", "))
         end
         
         print("🤖 AUTOSELL: Продажа завершена, проверяем результат...")
@@ -388,6 +348,16 @@ local function startAutosell()
         _G.MovementConfig.NoClip.Enabled = true
         _G.startNoClip()
         print("🤖 AUTOSELL: NoClip включен успешно")
+        
+        -- Включаем твой fly после NoClip
+        if _G.startFly and type(_G.startFly) == "function" then
+            print("🤖 AUTOSELL: Включаем твой fly...")
+            _G.MovementConfig.Fly.Enabled = true
+            _G.startFly()
+            print("🤖 AUTOSELL: Fly включен успешно")
+        else
+            print("🤖 AUTOSELL: Предупреждение - функция startFly недоступна")
+        end
     else
         print("🤖 AUTOSELL: Предупреждение - функция startNoClip или MovementConfig недоступны")
     end
