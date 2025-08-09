@@ -181,7 +181,8 @@ local AutofarmConfig = {
     UseFlightMovement = true,
     UseNoClipMovement = true,
     FlightSpeed = 50,
-    PickupDistance = 6, -- отступ вниз для подбора предметов
+    PickupRadius = 6, -- радиус в котором начинается подбор предметов (YBA механика)
+    PickupDuration = 0.6, -- время зажатия клавиши E для подбора (YBA механика)
     PickupKey = Enum.KeyCode.E,
     ScanInterval = 1, -- интервал сканирования в секундах
     Items = {
@@ -4290,8 +4291,8 @@ local function moveToPosition(targetPosition, callback)
         print("AUTOFARM: Гравитация отключена")
     end
     
-    -- Движение к цели с отступом вниз
-    local adjustedTarget = targetPosition - Vector3.new(0, AutofarmConfig.PickupDistance, 0)
+    -- Движение к цели с небольшим отступом для подбора
+    local adjustedTarget = targetPosition + Vector3.new(0, -2, 0) -- позиция ниже предмета для подбора
     
     local moveConnection
     moveConnection = RunService.Heartbeat:Connect(function()
