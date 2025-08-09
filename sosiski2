@@ -1134,11 +1134,37 @@ local function startAntiTimeStop()
             return
         end
         
-        -- Освобождаем персонажа от фризы
+        -- Агрессивное освобождение персонажа от фризы ТС
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.Anchored = false
                 part.CanCollide = true
+                part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                
+                -- Убираем все возможные ограничения
+                for _, constraint in pairs(part:GetChildren()) do
+                    if constraint:IsA("WeldConstraint") or constraint:IsA("RigidConstraint") or 
+                       constraint:IsA("RopeConstraint") or constraint:IsA("RodConstraint") or
+                       constraint:IsA("PrismaticConstraint") or constraint:IsA("CylindricalConstraint") or
+                       constraint:IsA("BallSocketConstraint") or constraint:IsA("HingeConstraint") or
+                       constraint:IsA("UniversalConstraint") then
+                        if constraint.Name:find("TimeStop") or constraint.Name:find("Freeze") or constraint.Name:find("Stop") then
+                            constraint:Destroy()
+                            print("Anti TS: Удален ограничитель", constraint.Name)
+                        end
+                    end
+                end
+                
+                -- Убираем Body объекты которые могут фризить
+                for _, bodyObj in pairs(part:GetChildren()) do
+                    if bodyObj:IsA("BodyPosition") or bodyObj:IsA("BodyVelocity") or 
+                       bodyObj:IsA("BodyGyro") or bodyObj:IsA("BodyAngularVelocity") or
+                       bodyObj:IsA("AlignPosition") or bodyObj:IsA("AlignOrientation") then
+                        bodyObj:Destroy()
+                        print("Anti TS: Удален Body объект", bodyObj.Name)
+                    end
+                end
             end
         end
         
@@ -1174,17 +1200,29 @@ local function startAntiTimeStop()
                         local standRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("StandRoot") or obj:FindFirstChild("RootPart")
                         if standRoot then
                             local distance = (standRoot.Position - playerRoot.Position).Magnitude
-                            if distance <= 30 then -- Увеличенное расстояние для надежности
-                                -- Освобождаем стенд от фризы
-                                for _, part in pairs(obj:GetDescendants()) do
-                                    if part:IsA("BasePart") then
-                                        part.Anchored = false
-                                        part.CanCollide = true
-                                    end
-                                end
-                                print("Anti Time Stop: Освобожден стенд", obj.Name, "от фризы")
-                                break -- Берем только первый найденный стенд
-                            end
+                                                         if distance <= 30 then -- Увеличенное расстояние для надежности
+                                 -- Агрессивно освобождаем стенд от фризы ТС
+                                 for _, part in pairs(obj:GetDescendants()) do
+                                     if part:IsA("BasePart") then
+                                         part.Anchored = false
+                                         part.CanCollide = true
+                                         part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                         part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                         
+                                         -- Убираем все ограничения и Body объекты со стенда
+                                         for _, child in pairs(part:GetChildren()) do
+                                             if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or 
+                                                child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") or
+                                                child:IsA("AlignPosition") or child:IsA("AlignOrientation") or
+                                                child:IsA("WeldConstraint") then
+                                                 child:Destroy()
+                                             end
+                                         end
+                                     end
+                                 end
+                                 print("Anti TS: Агрессивно освобожден стенд", obj.Name, "от ТС")
+                                 break -- Берем только первый найденный стенд
+                             end
                         end
                     end
                 end
@@ -1196,6 +1234,34 @@ local function startAntiTimeStop()
             hum.JumpPower = AntiTimeStopConfig.JumpPower
             hum.AutoRotate = true
             hum.AutoJumpEnabled = true
+            hum.PlatformStand = false
+            hum.Sit = false
+            
+            -- Принудительно снимаем все состояния фризы
+            if hum:FindFirstChild("creator") then
+                hum.creator:Destroy()
+            end
+        end
+        
+        -- Принудительное освобождение от всех возможных ограничений
+        if root then
+            -- Убираем все BodyMovers из Root
+            for _, child in pairs(root:GetChildren()) do
+                if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or 
+                   child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") or
+                   child:IsA("BodyThrust") or child:IsA("BodyForce") or
+                   child:IsA("AlignPosition") or child:IsA("AlignOrientation") or
+                   child:IsA("VectorForce") or child:IsA("LineForce") then
+                    child:Destroy()
+                    print("Anti TS: Удален Root ограничитель", child.Name)
+                end
+            end
+            
+            -- Принудительно сбрасываем velocity
+            root.Velocity = Vector3.new(0, 0, 0)
+            root.AngularVelocity = Vector3.new(0, 0, 0)
+            root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
         end
         
         if AntiTimeStopConfig.AutoActivate then
@@ -5157,15 +5223,15 @@ function showContent(tabName)
                 antiTimeStopBtn.Text = "ANTI TIME STOP ACTIVE"
                 antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(0,255,0)
                 
-                -- Мгновенное отключение после освобождения от тайм стопа
+                -- Отключение после надежного освобождения от ТС
                 spawn(function()
-                    task.wait(0.05) -- Минимальная задержка для срабатывания
+                    task.wait(0.2) -- Даем время для полного освобождения
                     
                     AntiTimeStopConfig.Enabled = false
                     stopAntiTimeStop()
                     antiTimeStopBtn.Text = "ANTI TIME STOP"
                     antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-                    print("Anti Time Stop: Мгновенно отключен!")
+                    print("Anti TS: Освобождение завершено!")
                 end)
             end
         end)
