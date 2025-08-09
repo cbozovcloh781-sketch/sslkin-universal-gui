@@ -6178,13 +6178,17 @@ function showContent(tabName)
             local btn = createToggleSlider(itemName, defaultState, function(v)
                 AutofarmConfig.Items[itemName] = v
                 
-                -- ФИКС: Синхронизируем разные варианты ключей для предметов
+                -- ФИКС: Синхронизируем ОБА варианта ключей для предметов
                 print("🤖 AUTOFARM SYNC DEBUG: itemName =", '"' .. itemName .. '"', "value =", v)
-                if itemName == "Mysterious Arrow" then
-                    print("🤖 AUTOFARM SYNC: Синхронизируем MysteriousArrow (без пробела) =", v)
+                
+                -- Для стрелы синхронизируем оба варианта
+                if itemName == "Mysterious Arrow" or itemName == "Таинственная стрела" then
+                    print("🤖 AUTOFARM SYNC: Синхронизируем ОБА варианта стрелы =", v)
+                    AutofarmConfig.Items["Mysterious Arrow"] = v -- с пробелом
                     AutofarmConfig.Items["MysteriousArrow"] = v -- без пробела
-                elseif itemName == "Gold Coin" then
-                    print("🤖 AUTOFARM SYNC: Синхронизируем GoldCoin (без пробела) =", v)
+                elseif itemName == "Gold Coin" or itemName == "Золотая монета" then
+                    print("🤖 AUTOFARM SYNC: Синхронизируем ОБА варианта монеты =", v)
+                    AutofarmConfig.Items["Gold Coin"] = v -- с пробелом
                     AutofarmConfig.Items["GoldCoin"] = v -- без пробела
                 else
                     print("🤖 AUTOFARM SYNC: Нет синхронизации для", '"' .. itemName .. '"')
