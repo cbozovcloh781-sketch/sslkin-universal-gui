@@ -4304,12 +4304,17 @@ local function moveToPosition(targetPosition, callback)
         print("AUTOFARM: Гравитация отключена")
     end
     
-    -- Движение к цели ГЛУБОКО под землей для подбора предметов (как в YBA)
-    local adjustedTarget = targetPosition + Vector3.new(0, -20, 0) -- глубоко под землей для подбора
+    -- Движение к цели слегка под землей для подбора предметов (как в YBA)
+    local adjustedTarget = targetPosition + Vector3.new(0, -6, 0) -- немного под землей для подбора
     
     local moveConnection
     moveConnection = RunService.Heartbeat:Connect(function()
         if not isAutofarmEnabled then
+            -- При отключении автофарма очищаем BodyVelocity
+            if bodyVelocity and bodyVelocity.Parent then
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                bodyVelocity:Destroy()
+            end
             moveConnection:Disconnect()
             return
         end
@@ -4465,8 +4470,8 @@ local function pickupItem(item)
         elseif distance > (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
             -- Если слишком далеко, подлетаем ближе (увеличенный радиус для подземного подбора)
             print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем под землю")
-            -- Летим к позиции ГЛУБОКО под землей
-            local targetPos = item.Position + Vector3.new(0, -20, 0)
+            -- Летим к позиции слегка под землей
+            local targetPos = item.Position + Vector3.new(0, -6, 0)
             moveToPosition(targetPos, function()
                 -- После подлета продолжаем подбор
             end)
@@ -4707,7 +4712,7 @@ local function stopAutofarm()
                 if humanoid then
                     humanoid.JumpPower = 50 -- возвращаем обычную силу прыжка
                     humanoid.JumpHeight = 7.2 -- возвращаем обычную высоту прыжка  
-                    humanoid.HipHeight = 0 -- возвращаем обычную высоту бедер
+                    humanoid.HipHeight = 2 -- возвращаем ПРАВИЛЬНУЮ высоту бедер (как в stopFly)
                 end
                 
                 -- Возвращаем гравитацию ТОЛЬКО если флай и NoClip НЕ включены
@@ -4716,6 +4721,18 @@ local function stopAutofarm()
                 end
             else
                 print("AUTOFARM: Флай включен - НЕ восстанавливаем настройки персонажа")
+            end
+            
+            -- ДОПОЛНИТЕЛЬНАЯ ОЧИСТКА: убираем все BodyVelocity объекты с персонажа
+            for _, part in pairs(character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    for _, child in pairs(part:GetChildren()) do
+                        if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyGyro") then
+                            print("AUTOFARM: Удаляем", child.ClassName, "из", part.Name)
+                            child:Destroy()
+                        end
+                    end
+                end
             end
             
             -- НЕ возвращаемся к исходной позиции - остаемся где остановились (как в телепорте)
