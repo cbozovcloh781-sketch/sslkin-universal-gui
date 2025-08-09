@@ -54,6 +54,54 @@ local isSellingToNPC = false
 local autosellCheckTimer = nil
 local deathCheckConnection = nil
 
+-- Функция экстренной остановки всех движений
+local function emergencyStopMovement()
+    print("🤖 AUTOSELL: ЭКСТРЕННАЯ ОСТАНОВКА ДВИЖЕНИЯ!")
+    
+    local player = Players.LocalPlayer
+    if not player or not player.Character then return end
+    
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    
+    -- Удаляем все BodyMovers
+    if humanoidRootPart then
+        local allMovers = humanoidRootPart:GetChildren()
+        for _, child in pairs(allMovers) do
+            if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyAngularVelocity") or 
+               child:IsA("BodyThrust") or child:IsA("BodyForce") or child:IsA("BodyGyro") then
+                child:Destroy()
+            end
+        end
+    end
+    
+    -- Останавливаем гуманоида
+    if humanoid then
+        humanoid.PlatformStand = false
+        humanoid.WalkSpeed = 16
+        humanoid.JumpPower = 50
+        humanoid.JumpHeight = 7.2
+        humanoid.Sit = false
+    end
+    
+    -- Восстанавливаем гравитацию
+    workspace.Gravity = 196.2
+    
+    -- Отключаем fly и noclip
+    if _G.MovementConfig then
+        if _G.MovementConfig.Fly and _G.MovementConfig.Fly.Enabled then
+            _G.MovementConfig.Fly.Enabled = false
+            if _G.stopFly then _G.stopFly() end
+        end
+        if _G.MovementConfig.NoClip and _G.MovementConfig.NoClip.Enabled then
+            _G.MovementConfig.NoClip.Enabled = false
+            if _G.stopNoClip then _G.stopNoClip() end
+        end
+    end
+    
+    print("🤖 AUTOSELL: Экстренная остановка завершена!")
+end
+
 -- Autosell Functions
 
 -- Функция проверки смерти игрока
@@ -115,6 +163,15 @@ end
 local function moveToShiftplox(callback)
     print("🤖 AUTOSELL: Летим к NPC Shiftplox...")
     
+    -- Включаем NoClip для безопасного полета
+    if _G.MovementConfig and not _G.MovementConfig.NoClip.Enabled then
+        print("🤖 AUTOSELL: Включаем NoClip для безопасного полета...")
+        _G.MovementConfig.NoClip.Enabled = true
+        if _G.startNoClip and type(_G.startNoClip) == "function" then
+            _G.startNoClip()
+        end
+    end
+    
     -- ПРИНУДИТЕЛЬНО используем собственный автопилот (не _G.moveToPosition!)
     print("🤖 AUTOSELL: Используем собственный автопилот с NoClip...")
         
@@ -134,19 +191,17 @@ local function moveToShiftplox(callback)
             humanoid.JumpPower = 0
             humanoid.JumpHeight = 0
             humanoid.HipHeight = 0
+            humanoid.Sit = false -- Убираем сидение если есть
         end
         
-        -- Сначала останавливаем любые существующие BodyVelocity
-        local existingBodyVelocity = humanoidRootPart:FindFirstChild("BodyVelocity")
-        if existingBodyVelocity then
-            existingBodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            existingBodyVelocity:Destroy()
-        end
-        
-        -- Убираем любые предыдущие AutosellBodyVelocity
-        local oldAutosellBV = humanoidRootPart:FindFirstChild("AutosellBodyVelocity")
-        if oldAutosellBV then
-            oldAutosellBV:Destroy()
+        -- ПРИНУДИТЕЛЬНАЯ ОЧИСТКА всех BodyMovers
+        local allBodyMovers = humanoidRootPart:GetChildren()
+        for _, child in pairs(allBodyMovers) do
+            if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyAngularVelocity") or 
+               child:IsA("BodyThrust") or child:IsA("BodyForce") or child:IsA("BodyGyro") then
+                print("🤖 AUTOSELL: Удаляем", child.Name, "перед запуском автопилота")
+                child:Destroy()
+            end
         end
         
         task.wait(0.1) -- Даем время для остановки
@@ -189,34 +244,91 @@ local function moveToShiftplox(callback)
                     bodyVelocity.Velocity = moveVector
                 end
             else
-                -- ОСТАНОВКА: Достигли NPC - сначала останавливаем персонажа на 2 секунды
-                print("🤖 AUTOSELL: Достигли NPC, останавливаем персонажа на 2 секунды...")
+                -- ОСТАНОВКА: Достигли NPC - ПОЛНАЯ заморозка персонажа
+                print("🤖 AUTOSELL: Достигли NPC, ЗАМОРАЖИВАЕМ персонажа...")
                 isMoving = false
                 
-                -- Останавливаем автопилот fly
+                -- 1. Останавливаем автопилот fly
                 if bodyVelocity and bodyVelocity.Parent then
                     bodyVelocity.Velocity = Vector3.new(0, 0, 0)
                     bodyVelocity:Destroy()
                     print("🤖 AUTOSELL: Автопилот fly отключен")
                 end
                 
-                -- Восстанавливаем гравитацию
+                -- 2. ПРИНУДИТЕЛЬНАЯ ЗАМОРОЗКА - убираем все BodyVelocity
+                local allBodyVelocities = humanoidRootPart:GetChildren()
+                for _, child in pairs(allBodyVelocities) do
+                    if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyAngularVelocity") then
+                        child:Destroy()
+                        print("🤖 AUTOSELL: Удален", child.Name)
+                    end
+                end
+                
+                -- 3. Отключаем основной fly системы, если он включен
+                if _G.MovementConfig and _G.MovementConfig.Fly and _G.MovementConfig.Fly.Enabled then
+                    print("🤖 AUTOSELL: Отключаем основной fly...")
+                    _G.MovementConfig.Fly.Enabled = false
+                    if _G.stopFly and type(_G.stopFly) == "function" then
+                        _G.stopFly()
+                    end
+                end
+                
+                -- 4. Отключаем основной noclip, если он включен
+                if _G.MovementConfig and _G.MovementConfig.NoClip and _G.MovementConfig.NoClip.Enabled then
+                    print("🤖 AUTOSELL: Отключаем основной noclip...")
+                    _G.MovementConfig.NoClip.Enabled = false
+                    if _G.stopNoClip and type(_G.stopNoClip) == "function" then
+                        _G.stopNoClip()
+                    end
+                end
+                
+                -- 5. ПОЛНАЯ заморозка персонажа
+                if humanoid then
+                    humanoid.PlatformStand = true -- Отключаем управление персонажем
+                    humanoid.WalkSpeed = 0
+                    humanoid.JumpPower = 0
+                    humanoid.JumpHeight = 0
+                end
+                
+                -- 6. Восстанавливаем коллизию частей тела (отключаем noclip)
+                for _, part in pairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = true
+                    end
+                end
+                
+                -- 7. Восстанавливаем гравитацию
                 workspace.Gravity = originalGravity
                 
-                -- Восстанавливаем параметры персонажа
-                if humanoid then
-                    humanoid.WalkSpeed = 16
-                    humanoid.JumpPower = 50
-                    humanoid.JumpHeight = 7.2
-                end
+                -- 8. Фиксируем позицию с BodyPosition
+                local freezeBodyPosition = Instance.new("BodyPosition")
+                freezeBodyPosition.Name = "AutosellFreeze"
+                freezeBodyPosition.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                freezeBodyPosition.Position = humanoidRootPart.Position
+                freezeBodyPosition.D = 5000 -- Высокое демпфирование
+                freezeBodyPosition.P = 10000 -- Высокая сила
+                freezeBodyPosition.Parent = humanoidRootPart
                 
                 moveConnection:Disconnect()
                 
-                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость (В ОТДЕЛЬНОМ ПОТОКЕ!)
+                -- ЖДЕМ 3 СЕКУНДЫ для полной стабилизации
                 task.spawn(function()
-                    print("🤖 AUTOSELL: Ожидаем 2 секунды для полной остановки...")
-                    task.wait(2)
-                    print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
+                    print("🤖 AUTOSELL: Ожидаем 3 секунды для полной заморозки...")
+                    task.wait(3)
+                    
+                    -- Убираем заморозку перед началом продажи
+                    if freezeBodyPosition and freezeBodyPosition.Parent then
+                        freezeBodyPosition:Destroy()
+                    end
+                    
+                    if humanoid then
+                        humanoid.PlatformStand = false -- Возвращаем управление
+                        humanoid.WalkSpeed = 16
+                        humanoid.JumpPower = 50
+                        humanoid.JumpHeight = 7.2
+                    end
+                    
+                    print("🤖 AUTOSELL: Персонаж полностью остановлен, начинаем продажу!")
                     
                     if callback then
                         callback()
@@ -535,7 +647,8 @@ _G.AutosellModule = {
     Config = AutosellConfig,
     start = startAutosell,
     stop = stopAutosell,
-    isEnabled = function() return isAutosellEnabled end
+    isEnabled = function() return isAutosellEnabled end,
+    emergencyStop = emergencyStopMovement
 }
 
 print("🤖 AUTOSELL: Модуль загружен успешно! Лимиты предметов обновлены.")
