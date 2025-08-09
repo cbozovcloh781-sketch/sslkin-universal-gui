@@ -5940,9 +5940,18 @@ function showContent(tabName)
         currentY = currentY + 20 + padding
         
         local playerButtons = {}
+        local playerConnections = {}
         local playerListStartY = currentY
         
         local function createPlayerList()
+            -- Отключаем все старые connections перед очисткой кнопок
+            for _, connection in pairs(playerConnections) do
+                if connection and typeof(connection) == "RBXScriptConnection" then
+                    pcall(function() connection:Disconnect() end)
+                end
+            end
+            playerConnections = {}
+            
             for _, btn in pairs(playerButtons) do
                 if btn and btn.Parent then
                     btn:Destroy()
@@ -5980,7 +5989,8 @@ function showContent(tabName)
                 
                 table.insert(playerButtons, playerBtn)
                 
-                playerBtn.MouseButton1Click:Connect(function()
+                -- Сохраняем connection для последующего отключения
+                local connection = playerBtn.MouseButton1Click:Connect(function()
                     TeleportConfig.TargetPlayer = player
                     TeleportConfig.SelectedPlayerName = player.Name
                     selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. player.Name
@@ -5993,6 +6003,7 @@ function showContent(tabName)
                         end
                     end
                 end)
+                table.insert(playerConnections, connection)
             end
         end
         
@@ -6000,7 +6011,7 @@ function showContent(tabName)
         
         spawn(function()
             while true do
-                task.wait(2)
+                task.wait(10) -- Увеличили интервал с 2 до 10 секунд для снижения нагрузки
                 if selectedTab == "Main" then
                     createPlayerList()
                 end
