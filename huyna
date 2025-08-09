@@ -6176,7 +6176,11 @@ function showContent(tabName)
         -- Функция для создания переключателей предметов автофарма
         local function createAutofarmItemToggle(itemName, defaultState)
             local btn = createToggleSlider(itemName, defaultState, function(v)
+                print("🤖 AUTOFARM TOGGLE DEBUG: ДО изменения - itemName =", '"' .. itemName .. '"', "старое значение =", AutofarmConfig.Items[itemName])
+                
                 AutofarmConfig.Items[itemName] = v
+                
+                print("🤖 AUTOFARM TOGGLE DEBUG: ПОСЛЕ изменения - itemName =", '"' .. itemName .. '"', "новое значение =", AutofarmConfig.Items[itemName])
                 
                 -- ФИКС: Синхронизируем ОБА варианта ключей для предметов
                 print("🤖 AUTOFARM SYNC DEBUG: itemName =", '"' .. itemName .. '"', "value =", v)
