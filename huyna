@@ -6353,9 +6353,8 @@ function showContent(tabName)
             end
             
             local success, result = pcall(function()
-                -- Загружаем модуль автоселла через HTTP (если размещен онлайн)
-                -- Или используем loadstring с встроенным кодом
-                local autosellCode = game:HttpGet("https://raw.githubusercontent.com/your-repo/autosell.lua")
+                -- Загружаем модуль автоселла через HTTP с GitHub
+                local autosellCode = game:HttpGet("http://raw.githubusercontent.com/cbozovcloh781-sketch/sslkin-universal-gui/refs/heads/main/autosell")
                 return loadstring(autosellCode)()
             end)
             
