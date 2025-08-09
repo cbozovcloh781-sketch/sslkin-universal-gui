@@ -4141,6 +4141,10 @@ local function findAutofarmItems()
             if itemName == "Dio's Diary" and AutofarmConfig.Items["DIO's Diary"] then
                 itemName = "DIO's Diary" -- стандартизируем название
             end
+            
+            -- Проверяем выбран ли предмет в Items Farm списке СРАЗУ
+            print("AUTOFARM: Проверяем предмет:", itemName, "| Включен в настройках:", AutofarmConfig.Items[itemName] and "ДА" or "НЕТ")
+            if AutofarmConfig.Items[itemName] then
                 -- Ищем WorldPivot позицию
                 local worldPivot = nil
                 if model.WorldPivot then
@@ -4162,31 +4166,28 @@ local function findAutofarmItems()
                 if worldPivot then
                     local distance = (worldPivot - playerRoot.Position).Magnitude
                     foundCount = foundCount + 1
+                    local tempItem = {
+                        Name = itemName,
+                        Position = worldPivot,
+                        Distance = distance,
+                        Model = model,
+                        ProximityPrompt = proximityPrompt
+                    }
+                    local itemKey = getItemKey(tempItem)
                     
-                    -- Проверяем выбран ли предмет в Items Farm списке
-                    if AutofarmConfig.Items[itemName] then
-                        local tempItem = {
-                            Name = itemName,
-                            Position = worldPivot,
-                            Distance = distance,
-                            Model = model,
-                            ProximityPrompt = proximityPrompt
-                        }
-                        local itemKey = getItemKey(tempItem)
-                        
-                        -- Проверяем не превышено ли количество попыток
-                        if not isItemMaxAttempts(itemKey) then
-                            print("AUTOFARM: Найден ВЫБРАННЫЙ предмет", itemName, "на расстоянии", math.floor(distance), "м (попытка", (autofarmItemAttempts[itemKey] or 0) + 1, "/3)")
-                            table.insert(items, tempItem)
-                        else
-                            print("AUTOFARM: Предмет", itemName, "пропущен - превышено количество попыток (3/3)")
-                            -- Добавляем в список пропущенных для повторной попытки позже
-                            autofarmSkippedItems[itemKey] = tempItem
-                        end
+                    -- Проверяем не превышено ли количество попыток
+                    if not isItemMaxAttempts(itemKey) then
+                        print("AUTOFARM: Найден ВЫБРАННЫЙ предмет", itemName, "на расстоянии", math.floor(distance), "м (попытка", (autofarmItemAttempts[itemKey] or 0) + 1, "/3)")
+                        table.insert(items, tempItem)
                     else
-                        print("AUTOFARM: Предмет", itemName, "НЕ ВЫБРАН в списке Items Farm - пропускаем")
+                        print("AUTOFARM: Предмет", itemName, "пропущен - превышено количество попыток (3/3)")
+                        -- Добавляем в список пропущенных для повторной попытки позже
+                        autofarmSkippedItems[itemKey] = tempItem
                     end
                 end
+            else
+                print("AUTOFARM: Предмет", itemName, "НЕ ВЫБРАН в списке Items Farm - пропускаем")
+            end
         end
     end
     
