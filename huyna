@@ -156,7 +156,7 @@ local AutofarmConfig = {
     UseFlightMovement = true,
     UseNoClipMovement = true,
     FlightSpeed = 100, -- увеличена скорость для быстрого автофарма
-    PickupRadius = 6, -- радиус в котором начинается подбор предметов (YBA механика)
+    PickupRadius = 2, -- радиус в котором начинается подбор предметов (YBA механика)
     PickupDuration = 0.6, -- время зажатия клавиши E для подбора (YBA механика)
     PickupKey = Enum.KeyCode.E,
     ScanInterval = 1, -- интервал сканирования в секундах
@@ -4246,8 +4246,8 @@ local function moveToPosition(targetPosition, callback)
         print("AUTOFARM: Гравитация отключена")
     end
     
-    -- Движение к цели точно под предметом для подбора предметов (как в YBA)
-    local adjustedTarget = Vector3.new(targetPosition.X, targetPosition.Y - 4, targetPosition.Z) -- точно под предметом на 4 метра
+    -- Движение к цели точно к предмету для подбора предметов (как в YBA)
+    local adjustedTarget = Vector3.new(targetPosition.X, targetPosition.Y, targetPosition.Z) -- точно к предмету без отклонения
     
     local moveConnection
     moveConnection = RunService.Heartbeat:Connect(function()
@@ -4417,9 +4417,9 @@ local function pickupItem(item)
         -- Проверяем расстояние до предмета
         local distance = (humanoidRootPart.Position - item.Position).Magnitude
         
-        -- Если в радиусе подбора (увеличен для подземного положения) и еще не начали подбор
-        if distance <= (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
-            print("AUTOFARM: В радиусе подземного подбора (", math.floor(distance), "м), зажимаем E на", AutofarmConfig.PickupDuration, "сек")
+        -- Если в радиусе подбора и еще не начали подбор
+        if distance <= AutofarmConfig.PickupRadius and not hasStartedPickup then
+            print("AUTOFARM: В радиусе подбора (", math.floor(distance), "м), зажимаем E на", AutofarmConfig.PickupDuration, "сек")
             hasStartedPickup = true
             pickupStartTime = tick()
             
@@ -4437,11 +4437,11 @@ local function pickupItem(item)
             end)
             isKeyPressed = true
             
-        elseif distance > (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
-            -- Если слишком далеко, подлетаем ближе (увеличенный радиус для подземного подбора)
-            print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем под землю")
-            -- Летим к позиции под предметом (с отступом 2 единицы)
-            local targetPos = Vector3.new(item.Position.X, item.Position.Y - 2, item.Position.Z)
+        elseif distance > AutofarmConfig.PickupRadius and not hasStartedPickup then
+            -- Если слишком далеко, подлетаем ближе
+            print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем к предмету")
+            -- Летим к позиции предмета точно
+            local targetPos = Vector3.new(item.Position.X, item.Position.Y, item.Position.Z)
             moveToPosition(targetPos, function()
                 -- После подлета продолжаем подбор
             end)
