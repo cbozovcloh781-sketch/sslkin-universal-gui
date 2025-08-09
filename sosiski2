@@ -4169,6 +4169,399 @@ local function stopUserStyleESP()
     print("Player ESP: User Style ESP deactivated")
 end
 
+-- Autofarm Functions
+local function findAutofarmItems()
+    local items = {}
+    local player = Players.LocalPlayer
+    local playerChar = player.Character
+    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then 
+        print("AUTOFARM: Игрок не найден")
+        return items 
+    end
+
+    print("AUTOFARM: Начинаем поиск предметов...")
+    
+    -- Ищем по точному пути workspace > Item_Spawns > Items
+    local itemSpawnsFolder = workspace:FindFirstChild("Item_Spawns")
+    if not itemSpawnsFolder then
+        print("AUTOFARM: Папка Item_Spawns не найдена!")
+        return items
+    end
+    
+    local itemsFolder = itemSpawnsFolder:FindFirstChild("Items")
+    if not itemsFolder then
+        print("AUTOFARM: Папка Items не найдена!")
+        return items
+    end
+    
+    print("AUTOFARM: Папки найдены, сканируем модели...")
+    local foundCount = 0
+    
+    for _, model in ipairs(itemsFolder:GetChildren()) do
+        if model:IsA("Model") then
+            -- Получаем название предмета из ProximityPrompt
+            local proximityPrompt = model:FindFirstChild("ProximityPrompt")
+            local itemName = model.Name
+            
+            if proximityPrompt then
+                itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or model.Name
+            end
+            
+            -- Проверяем что предмет выбран для фарма
+            if AutofarmConfig.Items[itemName] then
+                -- Ищем WorldPivot позицию
+                local worldPivot = nil
+                if model.WorldPivot then
+                    worldPivot = model.WorldPivot.Position
+                elseif model.PrimaryPart then
+                    worldPivot = model.PrimaryPart.Position
+                elseif model:FindFirstChild("HumanoidRootPart") then
+                    worldPivot = model.HumanoidRootPart.Position
+                else
+                    -- Ищем любую Part
+                    for _, child in ipairs(model:GetDescendants()) do
+                        if child:IsA("BasePart") then
+                            worldPivot = child.Position
+                            break
+                        end
+                    end
+                end
+                
+                if worldPivot then
+                    local distance = (worldPivot - playerRoot.Position).Magnitude
+                    foundCount = foundCount + 1
+                    
+                    print("AUTOFARM: Найден предмет", itemName, "на расстоянии", math.floor(distance), "м")
+                    
+                    table.insert(items, {
+                        Name = itemName,
+                        Position = worldPivot,
+                        Distance = distance,
+                        Model = model,
+                        ProximityPrompt = proximityPrompt
+                    })
+                end
+            end
+        end
+    end
+    
+    -- Сортируем по расстоянию (ближайшие первыми)
+    table.sort(items, function(a, b) return a.Distance < b.Distance end)
+    
+    print("AUTOFARM: Найдено предметов для фарма:", foundCount)
+    return items
+end
+
+local function moveToPosition(targetPosition, callback)
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if not character then
+        print("AUTOFARM: Персонаж не найден")
+        return false
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        print("AUTOFARM: HumanoidRootPart не найден")
+        return false
+    end
+    
+    print("AUTOFARM: Начинаем полет к позиции", targetPosition)
+    
+    -- Включаем NoClip если нужно
+    if AutofarmConfig.UseNoClipMovement and not isNoClipping then
+        startNoClip()
+        print("AUTOFARM: NoClip включен")
+    end
+    
+    -- Создаем BodyVelocity для движения
+    local bodyVelocity = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
+    if not bodyVelocity then
+        bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Name = "AutofarmBodyVelocity"
+        bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+        bodyVelocity.Parent = humanoidRootPart
+    end
+    
+    -- Отключаем гравитацию если нужно
+    if AutofarmConfig.UseFlightMovement then
+        workspace.Gravity = 0
+        print("AUTOFARM: Гравитация отключена")
+    end
+    
+    -- Движение к цели с отступом вниз
+    local adjustedTarget = targetPosition - Vector3.new(0, AutofarmConfig.PickupDistance, 0)
+    
+    local moveConnection
+    moveConnection = RunService.Heartbeat:Connect(function()
+        if not isAutofarmEnabled then
+            moveConnection:Disconnect()
+            return
+        end
+        
+        local currentPos = humanoidRootPart.Position
+        local distance = (adjustedTarget - currentPos).Magnitude
+        
+        if distance > 2 then
+            local direction = (adjustedTarget - currentPos).Unit
+            bodyVelocity.Velocity = direction * AutofarmConfig.FlightSpeed
+        else
+            -- Достигли цели
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            moveConnection:Disconnect()
+            
+            print("AUTOFARM: Достигли позиции предмета")
+            if callback then
+                callback()
+            end
+        end
+    end)
+    
+    table.insert(autofarmConnections, moveConnection)
+    return true
+end
+
+local function pickupItem(item)
+    print("AUTOFARM: Пытаемся подобрать предмет", item.Name)
+    autofarmPickingUp = true
+    
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if not character then
+        print("AUTOFARM: Персонаж не найден при подборе")
+        autofarmPickingUp = false
+        task.spawn(function()
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        print("AUTOFARM: HumanoidRootPart не найден при подборе")
+        autofarmPickingUp = false
+        task.spawn(function()
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
+    -- Зажимаем клавишу E для подбора
+    local pickupConnection
+    local pickupStartTime = tick()
+    local lastPickupAttempt = 0
+    
+    pickupConnection = RunService.Heartbeat:Connect(function()
+        if not isAutofarmEnabled then
+            pickupConnection:Disconnect()
+            autofarmPickingUp = false
+            return
+        end
+        
+        -- Проверяем что предмет еще существует
+        if not item.Model or not item.Model.Parent then
+            print("AUTOFARM: Предмет", item.Name, "исчез - возможно подобран")
+            pickupConnection:Disconnect()
+            autofarmPickingUp = false
+            
+            -- Ждем немного и переходим к следующему предмету
+            task.spawn(function()
+                task.wait(0.5)
+                if isAutofarmEnabled then
+                    processNextItem()
+                end
+            end)
+            return
+        end
+        
+        -- Проверяем расстояние до предмета
+        local currentPos = humanoidRootPart.Position
+        local itemDistance = (item.Position - currentPos).Magnitude
+        
+        -- Если далеко от предмета, подлетаем ближе
+        if itemDistance > 10 then
+            print("AUTOFARM: Слишком далеко от предмета, подлетаем ближе")
+            local direction = (item.Position - currentPos).Unit
+            local bv = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
+            if bv then
+                bv.Velocity = direction * AutofarmConfig.FlightSpeed
+            end
+            return
+        else
+            -- Останавливаемся рядом с предметом
+            local bv = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+        
+        -- Имитируем подбор предмета
+        if tick() - pickupStartTime < 5 then -- максимум 5 секунд на подбор
+            -- Ограничиваем частоту попыток подбора
+            if tick() - lastPickupAttempt > 0.2 then
+                lastPickupAttempt = tick()
+                
+                pcall(function()
+                    -- Метод 1: Используем fireproximityprompt если доступно
+                    if item.ProximityPrompt and item.ProximityPrompt.Parent then
+                        if getgenv and getgenv().fireproximityprompt then
+                            getgenv().fireproximityprompt(item.ProximityPrompt)
+                            print("AUTOFARM: Попытка подбора через fireproximityprompt")
+                        elseif _G.fireproximityprompt then
+                            _G.fireproximityprompt(item.ProximityPrompt)
+                            print("AUTOFARM: Попытка подбора через _G.fireproximityprompt")
+                        else
+                            -- Метод 2: Имитируем нажатие E если функция недоступна
+                            local VirtualInputManager = game:GetService("VirtualInputManager")
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                            task.wait(0.05)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                            print("AUTOFARM: Попытка подбора через VirtualInputManager")
+                        end
+                    end
+                end)
+            end
+        else
+            -- Таймаут - переходим к следующему предмету
+            print("AUTOFARM: Таймаут подбора для", item.Name)
+            pickupConnection:Disconnect()
+            autofarmPickingUp = false
+            task.spawn(function()
+                if isAutofarmEnabled then
+                    processNextItem()
+                end
+            end)
+        end
+    end)
+    
+    table.insert(autofarmConnections, pickupConnection)
+end
+
+function processNextItem()
+    if not isAutofarmEnabled then
+        return
+    end
+    
+    -- Если уже что-то подбираем, ждем
+    if autofarmPickingUp then
+        print("AUTOFARM: Ждем завершения подбора...")
+        return
+    end
+    
+    -- Сканируем новые предметы
+    local items = findAutofarmItems()
+    if #items == 0 then
+        print("AUTOFARM: Предметы не найдены, повторяем сканирование через", AutofarmConfig.ScanInterval, "сек")
+        -- Используем spawn чтобы избежать блокировки
+        task.spawn(function()
+            task.wait(AutofarmConfig.ScanInterval)
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
+    -- Берем ближайший предмет
+    local nextItem = items[1]
+    autofarmCurrentTarget = nextItem
+    
+    print("AUTOFARM: Летим к предмету", nextItem.Name, "на расстоянии", math.floor(nextItem.Distance), "м")
+    
+    -- Летим к предмету
+    moveToPosition(nextItem.Position, function()
+        if isAutofarmEnabled then
+            pickupItem(nextItem)
+        end
+    end)
+end
+
+local function startAutofarm()
+    if isAutofarmEnabled then
+        print("AUTOFARM: Уже активен!")
+        return
+    end
+    
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if not character then
+        print("AUTOFARM: Персонаж не найден!")
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        print("AUTOFARM: HumanoidRootPart не найден!")
+        return
+    end
+    
+    print("🤖 AUTOFARM: ЗАПУЩЕН!")
+    isAutofarmEnabled = true
+    AutofarmConfig.Enabled = true
+    
+    -- Сохраняем исходную позицию
+    autofarmOriginalPosition = humanoidRootPart.Position
+    
+    -- Запускаем процесс
+    processNextItem()
+end
+
+local function stopAutofarm()
+    if not isAutofarmEnabled then
+        return
+    end
+    
+    print("🤖 AUTOFARM: ОСТАНОВЛЕН!")
+    isAutofarmEnabled = false
+    AutofarmConfig.Enabled = false
+    autofarmPickingUp = false
+    autofarmCurrentTarget = nil
+    
+    -- Отключаем все соединения
+    for _, connection in ipairs(autofarmConnections) do
+        if connection then
+            pcall(function() connection:Disconnect() end)
+        end
+    end
+    autofarmConnections = {}
+    
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if character then
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if humanoidRootPart then
+            -- Убираем BodyVelocity
+            local bv = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+            
+            -- Возвращаем гравитацию
+            if AutofarmConfig.UseFlightMovement then
+                workspace.Gravity = 196.2
+            end
+            
+            -- Возвращаемся к исходной позиции если она сохранена
+            if autofarmOriginalPosition then
+                print("AUTOFARM: Возвращаемся к исходной позиции...")
+                humanoidRootPart.CFrame = CFrame.new(autofarmOriginalPosition)
+                autofarmOriginalPosition = nil
+            end
+        end
+        
+        -- Отключаем NoClip если включали
+        if AutofarmConfig.UseNoClipMovement and isNoClipping then
+            stopNoClip()
+        end
+    end
+    
+    print("AUTOFARM: Полностью остановлен")
+end
 
 local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
@@ -5492,396 +5885,4 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- Autofarm Functions
-local function findAutofarmItems()
-    local items = {}
-    local player = Players.LocalPlayer
-    local playerChar = player.Character
-    local playerRoot = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then 
-        print("AUTOFARM: Игрок не найден")
-        return items 
-    end
 
-    print("AUTOFARM: Начинаем поиск предметов...")
-    
-    -- Ищем по точному пути workspace > Item_Spawns > Items
-    local itemSpawnsFolder = workspace:FindFirstChild("Item_Spawns")
-    if not itemSpawnsFolder then
-        print("AUTOFARM: Папка Item_Spawns не найдена!")
-        return items
-    end
-    
-    local itemsFolder = itemSpawnsFolder:FindFirstChild("Items")
-    if not itemsFolder then
-        print("AUTOFARM: Папка Items не найдена!")
-        return items
-    end
-    
-    print("AUTOFARM: Папки найдены, сканируем модели...")
-    local foundCount = 0
-    
-    for _, model in ipairs(itemsFolder:GetChildren()) do
-        if model:IsA("Model") then
-            -- Получаем название предмета из ProximityPrompt
-            local proximityPrompt = model:FindFirstChild("ProximityPrompt")
-            local itemName = model.Name
-            
-            if proximityPrompt then
-                itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or model.Name
-            end
-            
-            -- Проверяем что предмет выбран для фарма
-            if AutofarmConfig.Items[itemName] then
-                -- Ищем WorldPivot позицию
-                local worldPivot = nil
-                if model.WorldPivot then
-                    worldPivot = model.WorldPivot.Position
-                elseif model.PrimaryPart then
-                    worldPivot = model.PrimaryPart.Position
-                elseif model:FindFirstChild("HumanoidRootPart") then
-                    worldPivot = model.HumanoidRootPart.Position
-                else
-                    -- Ищем любую Part
-                    for _, child in ipairs(model:GetDescendants()) do
-                        if child:IsA("BasePart") then
-                            worldPivot = child.Position
-                            break
-                        end
-                    end
-                end
-                
-                if worldPivot then
-                    local distance = (worldPivot - playerRoot.Position).Magnitude
-                    foundCount = foundCount + 1
-                    
-                    print("AUTOFARM: Найден предмет", itemName, "на расстоянии", math.floor(distance), "м")
-                    
-                    table.insert(items, {
-                        Name = itemName,
-                        Position = worldPivot,
-                        Distance = distance,
-                        Model = model,
-                        ProximityPrompt = proximityPrompt
-                    })
-                end
-            end
-        end
-    end
-    
-    -- Сортируем по расстоянию (ближайшие первыми)
-    table.sort(items, function(a, b) return a.Distance < b.Distance end)
-    
-    print("AUTOFARM: Найдено предметов для фарма:", foundCount)
-    return items
-end
-
-local function moveToPosition(targetPosition, callback)
-    local player = Players.LocalPlayer
-    local character = player.Character
-    if not character then
-        print("AUTOFARM: Персонаж не найден")
-        return false
-    end
-    
-    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then
-        print("AUTOFARM: HumanoidRootPart не найден")
-        return false
-    end
-    
-    print("AUTOFARM: Начинаем полет к позиции", targetPosition)
-    
-    -- Включаем NoClip если нужно
-    if AutofarmConfig.UseNoClipMovement and not isNoClipping then
-        startNoClip()
-        print("AUTOFARM: NoClip включен")
-    end
-    
-    -- Создаем BodyVelocity для движения
-    local bodyVelocity = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
-    if not bodyVelocity then
-        bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.Name = "AutofarmBodyVelocity"
-        bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
-        bodyVelocity.Parent = humanoidRootPart
-    end
-    
-    -- Отключаем гравитацию если нужно
-    if AutofarmConfig.UseFlightMovement then
-        workspace.Gravity = 0
-        print("AUTOFARM: Гравитация отключена")
-    end
-    
-    -- Движение к цели с отступом вниз
-    local adjustedTarget = targetPosition - Vector3.new(0, AutofarmConfig.PickupDistance, 0)
-    
-    local moveConnection
-    moveConnection = RunService.Heartbeat:Connect(function()
-        if not isAutofarmEnabled then
-            moveConnection:Disconnect()
-            return
-        end
-        
-        local currentPos = humanoidRootPart.Position
-        local distance = (adjustedTarget - currentPos).Magnitude
-        
-        if distance > 2 then
-            local direction = (adjustedTarget - currentPos).Unit
-            bodyVelocity.Velocity = direction * AutofarmConfig.FlightSpeed
-        else
-            -- Достигли цели
-            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            moveConnection:Disconnect()
-            
-            print("AUTOFARM: Достигли позиции предмета")
-            if callback then
-                callback()
-            end
-        end
-    end)
-    
-    table.insert(autofarmConnections, moveConnection)
-    return true
-end
-
-local function pickupItem(item)
-    print("AUTOFARM: Пытаемся подобрать предмет", item.Name)
-    autofarmPickingUp = true
-    
-    local player = Players.LocalPlayer
-    local character = player.Character
-    if not character then
-        print("AUTOFARM: Персонаж не найден при подборе")
-        autofarmPickingUp = false
-        task.spawn(function()
-            if isAutofarmEnabled then
-                processNextItem()
-            end
-        end)
-        return
-    end
-    
-    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then
-        print("AUTOFARM: HumanoidRootPart не найден при подборе")
-        autofarmPickingUp = false
-        task.spawn(function()
-            if isAutofarmEnabled then
-                processNextItem()
-            end
-        end)
-        return
-    end
-    
-    -- Зажимаем клавишу E для подбора
-    local pickupConnection
-    local pickupStartTime = tick()
-    local lastPickupAttempt = 0
-    
-    pickupConnection = RunService.Heartbeat:Connect(function()
-        if not isAutofarmEnabled then
-            pickupConnection:Disconnect()
-            autofarmPickingUp = false
-            return
-        end
-        
-        -- Проверяем что предмет еще существует
-        if not item.Model or not item.Model.Parent then
-            print("AUTOFARM: Предмет", item.Name, "исчез - возможно подобран")
-            pickupConnection:Disconnect()
-            autofarmPickingUp = false
-            
-            -- Ждем немного и переходим к следующему предмету
-            task.spawn(function()
-                task.wait(0.5)
-                if isAutofarmEnabled then
-                    processNextItem()
-                end
-            end)
-            return
-        end
-        
-        -- Проверяем расстояние до предмета
-        local currentPos = humanoidRootPart.Position
-        local itemDistance = (item.Position - currentPos).Magnitude
-        
-        -- Если далеко от предмета, подлетаем ближе
-        if itemDistance > 10 then
-            print("AUTOFARM: Слишком далеко от предмета, подлетаем ближе")
-            local direction = (item.Position - currentPos).Unit
-            local bv = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
-            if bv then
-                bv.Velocity = direction * AutofarmConfig.FlightSpeed
-            end
-            return
-        else
-            -- Останавливаемся рядом с предметом
-            local bv = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
-            if bv then
-                bv.Velocity = Vector3.new(0, 0, 0)
-            end
-        end
-        
-        -- Имитируем подбор предмета
-        if tick() - pickupStartTime < 5 then -- максимум 5 секунд на подбор
-            -- Ограничиваем частоту попыток подбора
-            if tick() - lastPickupAttempt > 0.2 then
-                lastPickupAttempt = tick()
-                
-                pcall(function()
-                    -- Метод 1: Используем fireproximityprompt если доступно
-                    if item.ProximityPrompt and item.ProximityPrompt.Parent then
-                        if getgenv and getgenv().fireproximityprompt then
-                            getgenv().fireproximityprompt(item.ProximityPrompt)
-                            print("AUTOFARM: Попытка подбора через fireproximityprompt")
-                        elseif _G.fireproximityprompt then
-                            _G.fireproximityprompt(item.ProximityPrompt)
-                            print("AUTOFARM: Попытка подбора через _G.fireproximityprompt")
-                        else
-                            -- Метод 2: Имитируем нажатие E если функция недоступна
-                            local VirtualInputManager = game:GetService("VirtualInputManager")
-                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                            task.wait(0.05)
-                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                            print("AUTOFARM: Попытка подбора через VirtualInputManager")
-                        end
-                    end
-                end)
-            end
-        else
-            -- Таймаут - переходим к следующему предмету
-            print("AUTOFARM: Таймаут подбора для", item.Name)
-            pickupConnection:Disconnect()
-            autofarmPickingUp = false
-            task.spawn(function()
-                if isAutofarmEnabled then
-                    processNextItem()
-                end
-            end)
-        end
-    end)
-    
-    table.insert(autofarmConnections, pickupConnection)
-end
-
-function processNextItem()
-    if not isAutofarmEnabled then
-        return
-    end
-    
-    -- Если уже что-то подбираем, ждем
-    if autofarmPickingUp then
-        print("AUTOFARM: Ждем завершения подбора...")
-        return
-    end
-    
-    -- Сканируем новые предметы
-    local items = findAutofarmItems()
-    if #items == 0 then
-        print("AUTOFARM: Предметы не найдены, повторяем сканирование через", AutofarmConfig.ScanInterval, "сек")
-        -- Используем spawn чтобы избежать блокировки
-        task.spawn(function()
-            task.wait(AutofarmConfig.ScanInterval)
-            if isAutofarmEnabled then
-                processNextItem()
-            end
-        end)
-        return
-    end
-    
-    -- Берем ближайший предмет
-    local nextItem = items[1]
-    autofarmCurrentTarget = nextItem
-    
-    print("AUTOFARM: Летим к предмету", nextItem.Name, "на расстоянии", math.floor(nextItem.Distance), "м")
-    
-    -- Летим к предмету
-    moveToPosition(nextItem.Position, function()
-        if isAutofarmEnabled then
-            pickupItem(nextItem)
-        end
-    end)
-end
-
-local function startAutofarm()
-    if isAutofarmEnabled then
-        print("AUTOFARM: Уже активен!")
-        return
-    end
-    
-    local player = Players.LocalPlayer
-    local character = player.Character
-    if not character then
-        print("AUTOFARM: Персонаж не найден!")
-        return
-    end
-    
-    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then
-        print("AUTOFARM: HumanoidRootPart не найден!")
-        return
-    end
-    
-    print("🤖 AUTOFARM: ЗАПУЩЕН!")
-    isAutofarmEnabled = true
-    AutofarmConfig.Enabled = true
-    
-    -- Сохраняем исходную позицию
-    autofarmOriginalPosition = humanoidRootPart.Position
-    
-    -- Запускаем процесс
-    processNextItem()
-end
-
-local function stopAutofarm()
-    if not isAutofarmEnabled then
-        return
-    end
-    
-    print("🤖 AUTOFARM: ОСТАНОВЛЕН!")
-    isAutofarmEnabled = false
-    AutofarmConfig.Enabled = false
-    autofarmPickingUp = false
-    autofarmCurrentTarget = nil
-    
-    -- Отключаем все соединения
-    for _, connection in ipairs(autofarmConnections) do
-        if connection then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    autofarmConnections = {}
-    
-    local player = Players.LocalPlayer
-    local character = player.Character
-    if character then
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        if humanoidRootPart then
-            -- Убираем BodyVelocity
-            local bv = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
-            if bv then
-                bv:Destroy()
-            end
-            
-            -- Возвращаем гравитацию
-            if AutofarmConfig.UseFlightMovement then
-                workspace.Gravity = 196.2
-            end
-            
-            -- Возвращаемся к исходной позиции если она сохранена
-            if autofarmOriginalPosition then
-                print("AUTOFARM: Возвращаемся к исходной позиции...")
-                humanoidRootPart.CFrame = CFrame.new(autofarmOriginalPosition)
-                autofarmOriginalPosition = nil
-            end
-        end
-        
-        -- Отключаем NoClip если включали
-        if AutofarmConfig.UseNoClipMovement and isNoClipping then
-            stopNoClip()
-        end
-    end
-    
-    print("AUTOFARM: Полностью остановлен")
-end
