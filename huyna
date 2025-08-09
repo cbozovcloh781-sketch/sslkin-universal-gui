@@ -6547,7 +6547,7 @@ function showContent(tabName)
         createSectionHeader("🤖 AUTO SELL")
         
         -- Главный тумблер автоселла
-        createToggleSlider("Auto Sell Enabled", AutosellConfig.Enabled, function(v)
+        local autosellToggleBtn = createToggleSlider("Auto Sell Enabled", AutosellConfig.Enabled, function(v)
             AutosellConfig.Enabled = v
             if v then
                 startAutosell()
@@ -6561,20 +6561,46 @@ function showContent(tabName)
             AutosellConfig.MaxItemCount = v 
         end)
         
-        -- Простая кнопка для включения автопродажи всех предметов
-        createButton("Enable All Items for Sale", function()
-            for itemName, _ in pairs(AutosellConfig.Items) do
-                AutosellConfig.Items[itemName] = true
-            end
-            print("🤖 AUTOSELL: Все предметы включены для автопродажи")
-        end)
+        -- Заголовок для выбора предметов
+        createDivider()
+        local itemsLabel = Instance.new("TextLabel", functionsContainer)
+        itemsLabel.Text = "Select Items to Auto Sell:"
+        itemsLabel.TextColor3 = Color3.new(1,1,1)
+        itemsLabel.BackgroundTransparency = 1
+        itemsLabel.Size = UDim2.new(1, -10, 0, 20)
+        itemsLabel.Position = UDim2.new(0, 5, 0, currentY)
+        itemsLabel.Font = Enum.Font.GothamBold
+        itemsLabel.TextSize = 14
+        itemsLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 25
         
-        createButton("Disable All Items for Sale", function()
-            for itemName, _ in pairs(AutosellConfig.Items) do
-                AutosellConfig.Items[itemName] = false
-            end
-            print("🤖 AUTOSELL: Все предметы отключены от автопродажи")
-        end)
+        -- Функция создания тумблеров для автоселла
+        local function createAutosellItemToggle(itemName, defaultState)
+            local btn = createToggleSlider(itemName, defaultState, function(v)
+                AutosellConfig.Items[itemName] = v
+                print("🤖 AUTOSELL: Предмет", itemName, "для продажи установлен в", v and "ON" or "OFF")
+            end)
+            return btn
+        end
+        
+        -- Создаем переключатели для всех предметов автоселла
+        createAutosellItemToggle("Mysterious Arrow", AutosellConfig.Items["Mysterious Arrow"])
+        createAutosellItemToggle("Rokakaka", AutosellConfig.Items["Rokakaka"])
+        createAutosellItemToggle("Pure Rokakaka", AutosellConfig.Items["Pure Rokakaka"])
+        createAutosellItemToggle("Diamond", AutosellConfig.Items["Diamond"])
+        createAutosellItemToggle("Gold Coin", AutosellConfig.Items["Gold Coin"])
+        createAutosellItemToggle("Steel Ball", AutosellConfig.Items["Steel Ball"])
+        createAutosellItemToggle("Clackers", AutosellConfig.Items["Clackers"])
+        createAutosellItemToggle("Caesar's Headband", AutosellConfig.Items["Caesar's Headband"])
+        createAutosellItemToggle("Zeppeli's Hat", AutosellConfig.Items["Zeppeli's Hat"])
+        createAutosellItemToggle("Zeppeli's Scarf", AutosellConfig.Items["Zeppeli's Scarf"])
+        createAutosellItemToggle("Quinton's Glove", AutosellConfig.Items["Quinton's Glove"])
+        createAutosellItemToggle("Stone Mask", AutosellConfig.Items["Stone Mask"])
+        createAutosellItemToggle("Rib Cage of The Saint's Corpse", AutosellConfig.Items["Rib Cage of The Saint's Corpse"])
+        createAutosellItemToggle("Ancient Scroll", AutosellConfig.Items["Ancient Scroll"])
+        createAutosellItemToggle("DIO's Diary", AutosellConfig.Items["DIO's Diary"])
+        createAutosellItemToggle("Lucky Stone Mask", AutosellConfig.Items["Lucky Stone Mask"])
+        createAutosellItemToggle("Lucky Arrow", AutosellConfig.Items["Lucky Arrow"])
         
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
