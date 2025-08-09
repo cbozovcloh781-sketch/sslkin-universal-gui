@@ -6363,12 +6363,58 @@ function showContent(tabName)
         createDivider()
         createSectionHeader("🤖 AUTO SELL")
         
+        -- Проверяем загружен ли модуль автоселла
+        if _G.AutosellModule then
+            -- Модуль уже загружен, показываем управление
+            createSectionHeader("🤖 AUTO SELL CONTROLS")
+            
+            -- Главный тумблер автоселла
+            createToggleSlider("Auto Sell Enabled", false, function(v)
+                if _G.AutosellModule then
+                    if v then
+                        _G.AutosellModule.start()
+                    else
+                        _G.AutosellModule.stop()
+                    end
+                end
+            end)
+            
+            -- Настройка максимального количества предметов
+            createSlider("Max Items Count", 5, 20, 10, function(v) 
+                if _G.AutosellModule and _G.AutosellModule.Config then
+                    _G.AutosellModule.Config.MaxItemCount = v
+                end
+            end)
+            
+            -- Кнопки быстрого управления
+            createButton("Enable All Items for Sale", function()
+                if _G.AutosellModule and _G.AutosellModule.Config then
+                    for itemName, _ in pairs(_G.AutosellModule.Config.Items) do
+                        _G.AutosellModule.Config.Items[itemName] = true
+                    end
+                    print("🤖 AUTOSELL: Все предметы включены для автопродажи")
+                end
+            end)
+            
+            createButton("Disable All Items for Sale", function()
+                if _G.AutosellModule and _G.AutosellModule.Config then
+                    for itemName, _ in pairs(_G.AutosellModule.Config.Items) do
+                        _G.AutosellModule.Config.Items[itemName] = false
+                    end
+                    print("🤖 AUTOSELL: Все предметы отключены от автопродажи")
+                end
+            end)
+        else
+            -- Модуль не загружен, показываем кнопку загрузки
+        end
+        
         -- Кнопка загрузки модуля автоселла
         createButton("Load Autosell Module", function()
             print("🤖 AUTOSELL: Загружаем модуль автоселла...")
             
             if _G.AutosellModule then
-                print("🤖 AUTOSELL: Модуль уже загружен!")
+                print("🤖 AUTOSELL: Модуль уже загружен! Обновляем интерфейс...")
+                showContent("YBA Hacks")
                 return
             end
             
@@ -6431,6 +6477,18 @@ function showContent(tabName)
                 end)
                 
                 print("🤖 AUTOSELL: GUI создан! Управление доступно выше.")
+                
+                -- Обновляем размер контейнера чтобы новые элементы отобразились
+                functionsContainer.Size = UDim2.new(1, 0, 0, currentY)
+                
+                -- Принудительно обновляем прокрутку
+                if scrollFrame then
+                    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, currentY)
+                end
+                
+                -- Делаем задержку и полное обновление интерфейса
+                task.wait(0.5)
+                showContent("YBA Hacks")
             else
                 print("🤖 AUTOSELL: Ошибка загрузки модуля:", tostring(result))
                 print("🤖 AUTOSELL: Попробуйте:")
