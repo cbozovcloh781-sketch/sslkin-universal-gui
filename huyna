@@ -294,6 +294,9 @@ _G.isAutofarmEnabled = function() return isAutofarmEnabled end
 _G.stopAutofarm = stopAutofarm
 _G.startAutofarm = startAutofarm
 _G.AutofarmConfig = AutofarmConfig
+_G.startNoClip = startNoClip
+_G.stopNoClip = stopNoClip
+_G.MovementConfig = MovementConfig
 
 -- Player ESP Functions
 
