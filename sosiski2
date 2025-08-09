@@ -207,72 +207,65 @@ local AutofarmConfig = {
     }
 }
 
--- Оптимизация: объединяем состояния функций в одну таблицу
-local FunctionStates = {
-    isFlying = false,
-    flyConnections = {},
-    originalGravity = workspace.Gravity,
-    isNoClipping = false,
-    noClipConnections = {},
-    isSpeedHacking = false,
-    speedHackConnections = {},
-    originalWalkSpeed = 16,
-    originalJumpPower = 50,
-    isLongJumping = false,
-    longJumpConnections = {},
-    originalLongJumpPower = 50,
-    isUndergroundControlEnabled = false,
-    undergroundControlConnections = {},
-    controlledStandForUnderground = nil,
-    isShiftPressed = false
-}
+-- Простое решение: делаем переменные глобальными для экономии локальных регистров
+isFlying = false
+flyConnections = {}
+originalGravity = workspace.Gravity
+isNoClipping = false
+noClipConnections = {}
+isSpeedHacking = false
+speedHackConnections = {}
+originalWalkSpeed = 16
+originalJumpPower = 50
+isLongJumping = false
+longJumpConnections = {}
+originalLongJumpPower = 50
+isUndergroundControlEnabled = false
+undergroundControlConnections = {}
+controlledStandForUnderground = nil
+isShiftPressed = false
 
--- Оптимизация: объединяем остальные состояния в таблицу  
-local FunctionStates2 = {
-    isInfiniteJumping = false,
-    infiniteJumpConnections = {},
-    lastJumpTime = 0,
-    isTeleporting = false,
-    teleportConnections = {},
-    playerSelectionWindow = nil,
-    lastTeleportPosition = nil,
-    stabilizationStartTime = nil,
-    isStabilizing = false,
-    speedResetTimer = 0,
-    lastSpeedCheck = tick(),
-    lastBehindDistance = 0,
-    lastUpdateTime = tick(),
-    isYBAEnabled = false,
-    ybaConnections = {},
-    originalPlayerPosition = nil,
-    originalPlayerCFrame = nil,
-    originalCameraCFrame = nil,
-    controlledStand = nil
-}
--- Оптимизация: объединяем YBA и анти-таймстоп состояния
-local YBAStates = {
-    standControlConnections = {},
-    originalGravity = workspace.Gravity,
-    originalYBAWalkSpeed = 16,
-    originalYBAJumpPower = 50,
-    isAntiTimeStopEnabled = false,
-    antiTimeStopConnections = {},
-    originalAntiTimeStopWalkSpeed = 16,
-    originalAntiTimeStopJumpPower = 50,
-    timeStopDetected = false,
-    timeStopStartTime = 0,
-    timeStopDuration = 0,
-    antiTimeStopEffect = nil,
-    isStandControlActive = false,
-    currentControlledStand = nil,
-    standCameraConnections = {},
-    originalStandCameraCFrame = nil,
-    standControlActive = false,
-    freeCameraActive = false,
-    freeCameraConnections = {},
-    freeCameraRotation = Vector2.new(0, 0),
-    freeCameraDistance = 10
-}
+-- Делаем переменные глобальными для экономии локальных регистров
+isInfiniteJumping = false
+infiniteJumpConnections = {}
+lastJumpTime = 0
+isTeleporting = false
+teleportConnections = {}
+playerSelectionWindow = nil
+lastTeleportPosition = nil
+stabilizationStartTime = nil
+isStabilizing = false
+speedResetTimer = 0
+lastSpeedCheck = tick()
+lastBehindDistance = 0
+lastUpdateTime = tick()
+isYBAEnabled = false
+ybaConnections = {}
+originalPlayerPosition = nil
+originalPlayerCFrame = nil
+originalCameraCFrame = nil
+controlledStand = nil
+-- Делаем YBA переменные глобальными
+standControlConnections = {}
+originalYBAWalkSpeed = 16
+originalYBAJumpPower = 50
+isAntiTimeStopEnabled = false
+antiTimeStopConnections = {}
+originalAntiTimeStopWalkSpeed = 16
+originalAntiTimeStopJumpPower = 50
+timeStopDetected = false
+timeStopStartTime = 0
+timeStopDuration = 0
+antiTimeStopEffect = nil
+isStandControlActive = false
+currentControlledStand = nil
+standCameraConnections = {}
+originalStandCameraCFrame = nil
+standControlActive = false
+freeCameraActive = false
+freeCameraConnections = {}
+freeCameraRotation = Vector2.new(0, 0)
+freeCameraDistance = 10
 local freeCameraHeight = 5
 local freeCameraTarget = nil
 local freeCameraLastMousePos = Vector2.new(0, 0)
@@ -939,7 +932,7 @@ local function startFly()
     
     if not hum or not root then return end
     
-    FunctionStates.isFlying = true
+    isFlying = true
     
     local flyOriginalJumpPower = hum.JumpPower
     local flyOriginalJumpHeight = hum.JumpHeight
@@ -974,7 +967,7 @@ local function startFly()
     end)
     
     local renderConnection = RunService.RenderStepped:Connect(function()
-        if not FunctionStates.isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
+        if not isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
             if hum then
                 hum.JumpPower = flyOriginalJumpPower
                 hum.JumpHeight = flyOriginalJumpHeight
@@ -1025,7 +1018,7 @@ local function startFly()
 end
 
 local function stopFly()
-    FunctionStates.isFlying = false
+    isFlying = false
     
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -4997,7 +4990,7 @@ local function stopAutofarm()
             end
             
             -- Восстанавливаем настройки персонажа ТОЛЬКО если флай НЕ включен
-            if not FunctionStates.isFlying then
+            if not isFlying then
                 local humanoid = character:FindFirstChild("Humanoid")
                 if humanoid then
                     humanoid.JumpPower = 50 -- возвращаем обычную силу прыжка
