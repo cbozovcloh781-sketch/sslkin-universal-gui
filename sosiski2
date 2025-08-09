@@ -1129,72 +1129,31 @@ local function startAntiTimeStop()
     
     createAntiTimeStopEffect()
     
-        print("Anti TS: МАКСИМАЛЬНАЯ АКТИВАЦИЯ!")
+        print("Anti TS: Простая активация")
     
-    -- ЭКСТРЕМАЛЬНО агрессивный цикл
+    -- ПРОСТОЙ и БЕЗОПАСНЫЙ цикл
     local antiFreezeLoop = RunService.Heartbeat:Connect(function()
-        if not isAntiTimeStopEnabled then return end
+        if not isAntiTimeStopEnabled or not char or not char.Parent then
+            return
+        end
         
-        local char = Players.LocalPlayer.Character
-        if not char then return end
-        
-        -- ПРИНУДИТЕЛЬНО освобождаем АБСОЛЮТНО ВСЕ
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") then
-                -- Если это часть нашего персонажа или близко к нам
-                if obj.Parent == char or (obj.Position - char.HumanoidRootPart.Position).Magnitude <= 50 then
-                    obj.Anchored = false
-                    obj.CanCollide = true
-                    
-                    -- УБИРАЕМ ВСЕ НАХУЙ что может блокировать
-                    for _, child in pairs(obj:GetChildren()) do
-                        if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or 
-                           child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") or
-                           child:IsA("AlignPosition") or child:IsA("AlignOrientation") or
-                           child:IsA("WeldConstraint") or child:IsA("RigidConstraint") or
-                           child:IsA("Weld") or child:IsA("Motor6D") then
-                            if child.Name:find("Time") or child.Name:find("Stop") or 
-                               child.Name:find("Freeze") or child.Name:find("Lock") then
-                                child:Destroy()
-                                print("Anti TS: УНИЧТОЖЕН", child.Name)
-                            end
-                        end
-                    end
-                end
+        -- Только основные части персонажа
+        for _, part in pairs(char:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.Anchored = false
             end
         end
         
-        -- МАКСИМАЛЬНО агрессивно с humanoid
-        local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             hum.PlatformStand = false
             hum.Sit = false
-            hum.AutoRotate = true
-            hum.WalkSpeed = 50  -- Увеличенная скорость для преодоления фризы
-            hum.JumpPower = 100
-            
-            -- Убираем все состояния
-            if hum:GetState() == Enum.HumanoidStateType.Physics then
-                hum:ChangeState(Enum.HumanoidStateType.Running)
-            end
+            hum.WalkSpeed = 16
+            hum.JumpPower = 50
         end
         
-        -- ПРИНУДИТЕЛЬНО сбрасываем всю физику
-        local root = char:FindFirstChild("HumanoidRootPart")
         if root then
             root.Anchored = false
-            root.Velocity = Vector3.new(0, 0, 0)
-            
-            -- УДАЛЯЕМ ВСЕ БЛОКИРУЮЩИЕ ОБЪЕКТЫ
-            for _, child in pairs(root:GetChildren()) do
-                if not child:IsA("Attachment") and not child:IsA("SpecialMesh") then
-                    child:Destroy()
-                    print("Anti TS: Удален Root объект", child.ClassName)
-                end
-            end
         end
-        
-        print("Anti TS: АГРЕССИВНЫЙ ЦИКЛ АКТИВЕН!")
     end)
     
     local attackDetection = RunService.Heartbeat:Connect(function()
