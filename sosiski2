@@ -180,7 +180,7 @@ local AutofarmConfig = {
     ToggleKey = nil,
     UseFlightMovement = true,
     UseNoClipMovement = true,
-    FlightSpeed = 50,
+    FlightSpeed = 100, -- увеличена скорость для быстрого автофарма
     PickupRadius = 6, -- радиус в котором начинается подбор предметов (YBA механика)
     PickupDuration = 0.6, -- время зажатия клавиши E для подбора (YBA механика)
     PickupKey = Enum.KeyCode.E,
@@ -4233,15 +4233,20 @@ local function findAutofarmItems()
                     local distance = (worldPivot - playerRoot.Position).Magnitude
                     foundCount = foundCount + 1
                     
-                    print("AUTOFARM: Найден предмет", itemName, "на расстоянии", math.floor(distance), "м")
-                    
-                    table.insert(items, {
-                        Name = itemName,
-                        Position = worldPivot,
-                        Distance = distance,
-                        Model = model,
-                        ProximityPrompt = proximityPrompt
-                    })
+                    -- Проверяем выбран ли предмет в Items Farm списке
+                    if AutofarmConfig.Items[itemName] then
+                        print("AUTOFARM: Найден ВЫБРАННЫЙ предмет", itemName, "на расстоянии", math.floor(distance), "м")
+                        
+                        table.insert(items, {
+                            Name = itemName,
+                            Position = worldPivot,
+                            Distance = distance,
+                            Model = model,
+                            ProximityPrompt = proximityPrompt
+                        })
+                    else
+                        print("AUTOFARM: Предмет", itemName, "НЕ ВЫБРАН в списке Items Farm - пропускаем")
+                    end
                 end
             end
         end
@@ -4304,9 +4309,11 @@ local function moveToPosition(targetPosition, callback)
         local currentPos = humanoidRootPart.Position
         local distance = (adjustedTarget - currentPos).Magnitude
         
-        if distance > 2 then
+        if distance > 3 then
             local direction = (adjustedTarget - currentPos).Unit
+            -- Мгновенная скорость без плавности для быстрого автофарма
             bodyVelocity.Velocity = direction * AutofarmConfig.FlightSpeed
+            bodyVelocity.MaxForce = Vector3.new(8000, 8000, 8000) -- увеличена сила
         else
             -- Достигли цели
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
@@ -5718,28 +5725,12 @@ function showContent(tabName)
         -- 🤖 AUTOFARM заголовок
         createSectionHeader("🤖 AUTOFARM")
         
-        -- START AUTOFARM кнопка
-        local autofarmBtn = Instance.new("TextButton", functionsContainer)
-        autofarmBtn.Size = UDim2.new(1, -10, 0, 35)
-        autofarmBtn.Position = UDim2.new(0, 5, 0, currentY)
-        autofarmBtn.Text = isAutofarmEnabled and "STOP AUTOFARM" or "START AUTOFARM"
-        autofarmBtn.Font = Enum.Font.GothamBold
-        autofarmBtn.TextSize = 16
-        autofarmBtn.TextColor3 = Color3.new(1,1,1)
-        autofarmBtn.BackgroundColor3 = isAutofarmEnabled and Color3.fromRGB(200,0,0) or Color3.fromRGB(0,200,0)
-        autofarmBtn.AutoButtonColor = false
-        Instance.new("UICorner", autofarmBtn).CornerRadius = UDim.new(0,8)
-        currentY = currentY + 35 + padding
-        
-        autofarmBtn.MouseButton1Click:Connect(function()
-            if not isAutofarmEnabled then
+        -- Autofarm тумблер
+        createToggleSlider("Autofarm", isAutofarmEnabled, function(v)
+            if v then
                 startAutofarm()
-                autofarmBtn.Text = "STOP AUTOFARM"
-                autofarmBtn.BackgroundColor3 = Color3.fromRGB(200,0,0)
             else
                 stopAutofarm()
-                autofarmBtn.Text = "START AUTOFARM"
-                autofarmBtn.BackgroundColor3 = Color3.fromRGB(0,200,0)
             end
         end)
         
