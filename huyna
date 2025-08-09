@@ -4535,17 +4535,18 @@ function processNextItem()
     -- Проверяем неактивность (10 секунд без подбора)
     -- Таймер должен быть инициализирован (> 0) и прошло больше 10 секунд
     if autofarmLastPickupTime and autofarmLastPickupTime > 0 and tick() - autofarmLastPickupTime > 10 then
-        print("AUTOFARM: Неактивность 10 секунд - перезапускаем прогрузку карты")
-        autofarmLastPickupTime = tick() -- сбрасываем таймер
+        print("AUTOFARM: Неактивность 10 секунд - ПОЛНЫЙ ПЕРЕЗАПУСК автофарма")
+        
         task.spawn(function()
-            pcall(function()
-                forceLoadEntireMap()
-            end)
-            if isAutofarmEnabled then
-                pcall(function()
-                    processNextItem()
-                end)
-            end
+            -- Полностью останавливаем автофарм
+            stopAutofarm()
+            
+            -- Ждем немного для корректного завершения
+            task.wait(1)
+            
+            -- Запускаем автофарм заново (как будто пользователь нажал кнопку)
+            print("AUTOFARM: Автоматический перезапуск...")
+            startAutofarm()
         end)
         return
     end
