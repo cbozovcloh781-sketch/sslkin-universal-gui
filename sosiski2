@@ -174,6 +174,8 @@ local AntiTimeStopConfig = {
     ServerSync = true,
 }
 
+
+
 local isFlying = false
 local flyConnections = {}
 local originalGravity = workspace.Gravity
@@ -244,6 +246,11 @@ local freeCameraHeight = 5
 local freeCameraTarget = nil
 local freeCameraLastMousePos = Vector2.new(0, 0)
 local lastCameraUpdate = nil
+
+-- Глобальная переменная для отслеживания ввода в чате/GUI
+local isInputBeingProcessedByGame = false
+
+
 
 local itemESPConnections = {}
 local itemESPElements = {}
@@ -566,9 +573,11 @@ local YBAFreeCamera = {} do
         local moveZ = 0 
         local moveY = 0
         
-        -- Проверяем, что игрок не в чате/меню
+        -- Улучшенная проверка, что игрок не в чате/меню
         local gameGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
         local chatInFocus = false
+        
+        -- Проверяем основной чат
         if gameGui then
             local chatGui = gameGui:FindFirstChild("Chat")
             if chatGui and chatGui:FindFirstChild("Frame") and chatGui.Frame:FindFirstChild("ChatBarParentFrame") then
@@ -577,10 +586,27 @@ local YBAFreeCamera = {} do
                     chatInFocus = chatBar.BoxFrame.Frame.ChatBar:IsFocused()
                 end
             end
+            
+            -- Дополнительная проверка - любой TextBox в фокусе
+            if not chatInFocus then
+                local function checkTextBoxFocus(parent)
+                    for _, child in pairs(parent:GetChildren()) do
+                        if child:IsA("TextBox") and child:IsFocused() then
+                            return true
+                        elseif child:IsA("GuiObject") then
+                            if checkTextBoxFocus(child) then
+                                return true
+                            end
+                        end
+                    end
+                    return false
+                end
+                chatInFocus = checkTextBoxFocus(gameGui)
+            end
         end
         
-        -- Прямая проверка клавиш только если не в чате
-        if not chatInFocus then
+        -- Прямая проверка клавиш только если не в чате и ввод не обрабатывается игрой
+        if not chatInFocus and not isInputBeingProcessedByGame then
             if UserInputService:IsKeyDown(Enum.KeyCode.D) then
                 moveX = moveX + 1
             end
@@ -598,6 +624,14 @@ local YBAFreeCamera = {} do
             end
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
                 moveY = moveY - 1
+            end
+        else
+            -- Отладка: показываем почему ввод заблокирован
+            if chatInFocus or isInputBeingProcessedByGame then
+                -- Выводим сообщение только при нажатии Space для избежания спама
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                    print("YBA: Ввод заблокирован - чат в фокусе:", chatInFocus, "gameProcessed:", isInputBeingProcessedByGame)
+                end
             end
         end
         
@@ -1095,44 +1129,140 @@ local function startAntiTimeStop()
     
     createAntiTimeStopEffect()
     
+        print("Anti TS: Принудительное движение активировано")
+    
+    -- БЕЗОПАСНОЕ принудительное движение
     local antiFreezeLoop = RunService.Heartbeat:Connect(function()
         if not isAntiTimeStopEnabled or not char or not char.Parent then
             return
         end
         
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Anchored = false
-                part.CanCollide = true
-            end
+        -- Просто убираем Anchored с основных частей (безопасно)
+        if root then
+            root.Anchored = false
         end
         
         if hum then
-            hum.WalkSpeed = AntiTimeStopConfig.WalkSpeed * AntiTimeStopConfig.MovementSpeed
-            hum.JumpPower = AntiTimeStopConfig.JumpPower
-            hum.AutoRotate = true
-            hum.AutoJumpEnabled = true
+            hum.PlatformStand = false
         end
         
-        if AntiTimeStopConfig.AutoActivate then
-            local isFrozen = false
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.Anchored then
-                    isFrozen = true
-                    break
+        -- ПРИНУДИТЕЛЬНОЕ движение через BodyVelocity (НЕ удаляем ничего!)
+        local moveVector = Vector3.new(0, 0, 0)
+        local cam = workspace.CurrentCamera
+        
+        -- Проверяем нажатые клавиши и принудительно двигаем
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + cam.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - cam.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - cam.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + cam.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        
+                 -- Если есть движение - принудительно двигаем через BodyVelocity
+        if moveVector.Magnitude > 0 and root then
+            local bv = root:FindFirstChild("AntiTSBodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity")
+                bv.Name = "AntiTSBodyVelocity"
+                bv.MaxForce = Vector3.new(4000, 4000, 4000)
+                bv.Parent = root
+            end
+            
+            bv.Velocity = moveVector.Unit * 20 -- Нормальная скорость движения
+            print("Anti TS: Принудительно двигаю игрока")
+        else
+            -- Убираем BodyVelocity когда не двигаемся
+            local bv = root and root:FindFirstChild("AntiTSBodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+        end
+        
+        -- РАБОТАЕМ ТОЛЬКО С ТВОИМ СТЕНДОМ!
+        local myStand = nil
+        
+        print("Anti TS: Ищем твой стенд...")
+        print("Anti TS: Range Hack активен?", isYBAEnabled)
+        print("Anti TS: controlledStand есть?", controlledStand ~= nil)
+        
+        -- Сначала проверяем активен ли Stand Range Hack - используем его стенд
+        if isYBAEnabled and controlledStand and controlledStand.Root then
+            myStand = controlledStand
+            print("Anti TS: Используем стенд из Range Hack -", controlledStand.Name or "Unknown")
+        else
+            print("Anti TS: Range Hack неактивен, ищем стенд вручную...")
+            
+            -- УПРОЩЕННЫЙ поиск - просто ищем ВСЕ стенды рядом с игроком
+            for _, obj in pairs(workspace:GetChildren()) do
+                if obj:IsA("Model") then
+                    local standRoot = obj:FindFirstChild("HumanoidRootPart")
+                    if standRoot and root then
+                        local distance = (standRoot.Position - root.Position).Magnitude
+                        if distance <= 20 then
+                            -- Проверяем что это стенд (а не игрок)
+                            if obj.Name:find("Stand") or obj.Name:find("stand") or
+                               obj.Name:find("SP") or obj.Name:find("TW") or obj.Name:find("KC") or
+                               obj.Name:find("CD") or obj.Name:find("GE") or obj.Name:find("SF") or
+                               obj.Name:find("MR") or obj.Name:find("PH") or obj.Name:find("SC") then
+                                myStand = {Root = standRoot, Model = obj, Name = obj.Name}
+                                print("Anti TS: Найден стенд рядом -", obj.Name, "расстояние:", distance)
+                                break
+                            end
+                        end
+                    end
                 end
             end
             
-            if isFrozen and not timeStopDetected then
-                timeStopDetected = true
-                timeStopStartTime = tick()
-                print("Auto-detected freeze! Activating Anti Time Stop...")
-                
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Anchored = false
-                        part.CanCollide = true
+            if not myStand then
+                print("Anti TS: НЕ НАЙДЕН СТЕНД РЯДОМ!")
+                -- Выводим что вообще есть рядом
+                for _, obj in pairs(workspace:GetChildren()) do
+                    if obj:IsA("Model") and root then
+                        local objRoot = obj:FindFirstChild("HumanoidRootPart")
+                        if objRoot then
+                            local distance = (objRoot.Position - root.Position).Magnitude
+                            if distance <= 20 then
+                                print("Anti TS: Рядом модель:", obj.Name, "расстояние:", distance)
+                            end
+                        end
                     end
+                end
+            end
+        end
+        
+        -- Если нашли твой стенд - принудительно двигаем его
+        if myStand and myStand.Root then
+            local standRoot = myStand.Root
+            
+            -- Убираем Anchored со стенда (безопасно)
+            standRoot.Anchored = false
+            
+            -- ПРИНУДИТЕЛЬНО двигаем стенд тоже!
+            if moveVector.Magnitude > 0 then
+                local standBV = standRoot:FindFirstChild("AntiTSStandBodyVelocity")
+                if not standBV then
+                    standBV = Instance.new("BodyVelocity")
+                    standBV.Name = "AntiTSStandBodyVelocity"
+                    standBV.MaxForce = Vector3.new(4000, 4000, 4000)
+                    standBV.Parent = standRoot
+                end
+                
+                standBV.Velocity = moveVector.Unit * 25 -- Чуть быстрее стенда
+                print("Anti TS: Принудительно двигаю ТВОЙ стенд", myStand.Name or "Unknown")
+            else
+                -- Убираем BodyVelocity со стенда когда не двигаемся
+                local standBV = standRoot:FindFirstChild("AntiTSStandBodyVelocity")
+                if standBV then
+                    standBV:Destroy()
                 end
             end
         end
@@ -1348,6 +1478,7 @@ local function stopAntiTimeStop()
     
     print("Anti Time Stop disabled")
 end
+
 
 
 local function startNoClip()
@@ -2536,7 +2667,7 @@ local function startUndergroundControl()
     isUndergroundControlEnabled = true
     
     print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
-    print("Перемещаем персонажа под стенд на 30 метров вниз")
+    print("Перемещаем персонажа под стенд на 40 метров вниз")
     
     if not YBAConfig.UndergroundControl.OriginalPosition then
         YBAConfig.UndergroundControl.OriginalPosition = root.Position
@@ -2561,7 +2692,7 @@ local function startUndergroundControl()
     hum.HipHeight = 0
     
     local standPos = controlledStandForUnderground.Position
-    local undergroundPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
+    local undergroundPos = Vector3.new(standPos.X, standPos.Y - 40, standPos.Z)
     
     print("Стенд позиция:", standPos)
     print("Целевая подземная позиция:", undergroundPos)
@@ -2608,7 +2739,7 @@ local function startUndergroundControl()
         end
         
         local standPos = controlledStandForUnderground.Position
-        local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
+        local targetPos = Vector3.new(standPos.X, standPos.Y - 40, standPos.Z)
         
         local bv = root:FindFirstChild("BodyVelocity")
         if not bv then
@@ -2658,7 +2789,7 @@ local function startUndergroundControl()
     end
     
     print("Полет под землей за стендом активирован!")
-    print("Персонаж перенесен под стенд на расстоянии 30 метров под землей")
+    print("Персонаж перенесен под стенд на расстоянии 40 метров под землей")
 end
 
 local function stopUndergroundControl()
@@ -2757,6 +2888,23 @@ local function getAlivePlayers()
     return alivePlayers
 end
 
+-- Глобальный обработчик для отслеживания ввода в чате/GUI
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    -- Обновляем состояние: если gameProcessed = true, значит ввод обрабатывается игрой (чат, меню и т.д.)
+    if input.KeyCode == Enum.KeyCode.Space then
+        isInputBeingProcessedByGame = gameProcessed
+        if gameProcessed then
+            print("YBA: Пробел заблокирован - gameProcessed = true (чат/GUI активно)")
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    -- При отпускании клавиши сбрасываем состояние если это был пробел
+    if input.KeyCode == Enum.KeyCode.Space then
+        isInputBeingProcessedByGame = false
+    end
+end)
 
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp then
@@ -4961,6 +5109,21 @@ function showContent(tabName)
     elseif tabName == "YBA Hacks" then
         contentTitle.Text = getText("YBAHacks")
         
+        -- 🎯 STAND RANGE HACK заголовок
+        local standRangeHeader = Instance.new("TextLabel", functionsContainer)
+        standRangeHeader.Size = UDim2.new(1, -10, 0, 25)
+        standRangeHeader.Position = UDim2.new(0, 5, 0, currentY)
+        standRangeHeader.Text = "🎯 STAND RANGE HACK"
+        standRangeHeader.Font = Enum.Font.GothamBold
+        standRangeHeader.TextSize = 14
+        standRangeHeader.TextColor3 = Color3.fromRGB(255, 0, 255)
+        standRangeHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        standRangeHeader.BorderSizePixel = 1
+        standRangeHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        standRangeHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", standRangeHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
         local standRangeLabel = Instance.new("TextLabel", functionsContainer)
         standRangeLabel.Size = UDim2.new(1, -10, 0, 20)
         standRangeLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -5025,6 +5188,21 @@ function showContent(tabName)
         
 
         
+        -- ⏰ ANTI TIME STOP заголовок
+        local antiTSHeader = Instance.new("TextLabel", functionsContainer)
+        antiTSHeader.Size = UDim2.new(1, -10, 0, 25)
+        antiTSHeader.Position = UDim2.new(0, 5, 0, currentY)
+        antiTSHeader.Text = "⏰ ANTI TIME STOP"
+        antiTSHeader.Font = Enum.Font.GothamBold
+        antiTSHeader.TextSize = 14
+        antiTSHeader.TextColor3 = Color3.fromRGB(255, 100, 100)
+        antiTSHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        antiTSHeader.BorderSizePixel = 1
+        antiTSHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        antiTSHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", antiTSHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
         local antiTimeStopLabel = Instance.new("TextLabel", functionsContainer)
         antiTimeStopLabel.Size = UDim2.new(1, -10, 0, 20)
         antiTimeStopLabel.Position = UDim2.new(0, 5, 0, currentY)
@@ -5055,17 +5233,20 @@ function showContent(tabName)
                 antiTimeStopBtn.Text = "ANTI TIME STOP ACTIVE"
                 antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(0,255,0)
                 
+                -- Быстрое отключение после освобождения
                 spawn(function()
-                    task.wait(0.3)
+                    task.wait(0.1) -- Минимальное время для освобождения
                     
                     AntiTimeStopConfig.Enabled = false
                     stopAntiTimeStop()
                     antiTimeStopBtn.Text = "ANTI TIME STOP"
                     antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
+                    print("Anti TS: ГОТОВО!")
                 end)
             end
         end)
         
+
         createDivider()
     
     local playerESPLabel = Instance.new("TextLabel", functionsContainer)
@@ -5097,6 +5278,21 @@ function showContent(tabName)
                 stopUserStyleESP()
             end
         end)
+        
+        -- 📦 ITEM ESP заголовок
+        local itemESPHeader = Instance.new("TextLabel", functionsContainer)
+        itemESPHeader.Size = UDim2.new(1, -10, 0, 25)
+        itemESPHeader.Position = UDim2.new(0, 5, 0, currentY)
+        itemESPHeader.Text = "📦 ITEM ESP"
+        itemESPHeader.Font = Enum.Font.GothamBold
+        itemESPHeader.TextSize = 14
+        itemESPHeader.TextColor3 = Color3.fromRGB(255, 255, 0)
+        itemESPHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        itemESPHeader.BorderSizePixel = 1
+        itemESPHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        itemESPHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", itemESPHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
         
         local itemESPLabel = Instance.new("TextLabel", functionsContainer)
         itemESPLabel.Size = UDim2.new(1, -10, 0, 20)
@@ -5168,7 +5364,95 @@ function showContent(tabName)
         createItemToggle(getText("LuckyStoneMask"), YBAConfig.ItemESP.Items["Lucky Stone Mask"])
         createItemToggle(getText("LuckyArrow"), YBAConfig.ItemESP.Items["Lucky Arrow"])
         
-    
+        -- 🤖 AUTOFARM заголовок
+        local autofarmHeader = Instance.new("TextLabel", functionsContainer)
+        autofarmHeader.Size = UDim2.new(1, -10, 0, 25)
+        autofarmHeader.Position = UDim2.new(0, 5, 0, currentY)
+        autofarmHeader.Text = "🤖 AUTOFARM"
+        autofarmHeader.Font = Enum.Font.GothamBold
+        autofarmHeader.TextSize = 14
+        autofarmHeader.TextColor3 = Color3.fromRGB(0, 255, 0)
+        autofarmHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        autofarmHeader.BorderSizePixel = 1
+        autofarmHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        autofarmHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", autofarmHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
+        -- START AUTOFARM кнопка
+        local autofarmBtn = Instance.new("TextButton", functionsContainer)
+        autofarmBtn.Size = UDim2.new(1, -10, 0, 35)
+        autofarmBtn.Position = UDim2.new(0, 5, 0, currentY)
+        autofarmBtn.Text = "START AUTOFARM"
+        autofarmBtn.Font = Enum.Font.GothamBold
+        autofarmBtn.TextSize = 16
+        autofarmBtn.TextColor3 = Color3.new(1,1,1)
+        autofarmBtn.BackgroundColor3 = Color3.fromRGB(0,200,0)
+        autofarmBtn.AutoButtonColor = false
+        Instance.new("UICorner", autofarmBtn).CornerRadius = UDim.new(0,8)
+        currentY = currentY + 35 + padding
+        
+        -- Переменная для состояния автофарма
+        local isAutofarmActive = false
+        
+        autofarmBtn.MouseButton1Click:Connect(function()
+            if not isAutofarmActive then
+                isAutofarmActive = true
+                autofarmBtn.Text = "STOP AUTOFARM"
+                autofarmBtn.BackgroundColor3 = Color3.fromRGB(200,0,0)
+                print("🤖 AUTOFARM: ЗАПУЩЕН!")
+                -- TODO: запустить автофарм
+            else
+                isAutofarmActive = false
+                autofarmBtn.Text = "START AUTOFARM"
+                autofarmBtn.BackgroundColor3 = Color3.fromRGB(0,200,0)
+                print("🤖 AUTOFARM: ОСТАНОВЛЕН!")
+                -- TODO: остановить автофарм
+            end
+        end)
+        
+        -- Заголовок для выбора предметов
+        local itemFarmHeader = Instance.new("TextLabel", functionsContainer)
+        itemFarmHeader.Size = UDim2.new(1, -10, 0, 25)
+        itemFarmHeader.Position = UDim2.new(0, 5, 0, currentY)
+        itemFarmHeader.Text = "📦 ITEMS FARM"
+        itemFarmHeader.Font = Enum.Font.GothamBold
+        itemFarmHeader.TextSize = 12
+        itemFarmHeader.TextColor3 = Color3.fromRGB(0, 255, 255)
+        itemFarmHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        itemFarmHeader.BorderSizePixel = 1
+        itemFarmHeader.BorderColor3 = Color3.fromRGB(100, 100, 120)
+        itemFarmHeader.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", itemFarmHeader).CornerRadius = UDim.new(0,4)
+        currentY = currentY + 25 + padding
+        
+        -- Функция для создания переключателей предметов автофарма
+        local function createAutofarmItemToggle(itemName, defaultState)
+            local btn = createToggleSlider(itemName, defaultState, function(v)
+                -- TODO: настроить что фармить
+                print("🤖 AUTOFARM: Предмет", itemName, "установлен в", v and "ON" or "OFF")
+            end)
+            return btn
+        end
+        
+        -- Создаем переключатели для всех предметов (копируем из Item ESP)
+        createAutofarmItemToggle(getText("MysteriousArrow"), true)
+        createAutofarmItemToggle(getText("Rokakaka"), true)
+        createAutofarmItemToggle(getText("PureRokakaka"), true)
+        createAutofarmItemToggle(getText("Diamond"), true)
+        createAutofarmItemToggle(getText("GoldCoin"), true)
+        createAutofarmItemToggle(getText("SteelBall"), false)
+        createAutofarmItemToggle(getText("Clackers"), false)
+        createAutofarmItemToggle(getText("CaesarsHeadband"), false)
+        createAutofarmItemToggle(getText("ZeppeliHat"), false)
+        createAutofarmItemToggle(getText("ZeppeliScarf"), false)
+        createAutofarmItemToggle(getText("QuintonsGlove"), false)
+        createAutofarmItemToggle(getText("StoneMask"), true)
+        createAutofarmItemToggle(getText("RibCage"), true)
+        createAutofarmItemToggle(getText("AncientScroll"), false)
+        createAutofarmItemToggle(getText("DiosDiary"), true)
+        createAutofarmItemToggle(getText("LuckyStoneMask"), true)
+        createAutofarmItemToggle(getText("LuckyArrow"), true)
         
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
