@@ -207,72 +207,72 @@ local AutofarmConfig = {
     }
 }
 
--- Оптимизация: объединяем состояния функций в одну таблицу
-local FunctionStates = {
-    isFlying = false,
-    flyConnections = {},
-    originalGravity = workspace.Gravity,
-    isNoClipping = false,
-    noClipConnections = {},
-    isSpeedHacking = false,
-    speedHackConnections = {},
-    originalWalkSpeed = 16,
-    originalJumpPower = 50,
-    isLongJumping = false,
-    longJumpConnections = {},
-    originalLongJumpPower = 50,
-    isUndergroundControlEnabled = false,
-    undergroundControlConnections = {},
-    controlledStandForUnderground = nil,
-    isShiftPressed = false
-}
+local isFlying = false
+local flyConnections = {}
+local originalGravity = workspace.Gravity
 
--- Оптимизация: объединяем остальные состояния в таблицу  
-local FunctionStates2 = {
-    isInfiniteJumping = false,
-    infiniteJumpConnections = {},
-    lastJumpTime = 0,
-    isTeleporting = false,
-    teleportConnections = {},
-    playerSelectionWindow = nil,
-    lastTeleportPosition = nil,
-    stabilizationStartTime = nil,
-    isStabilizing = false,
-    speedResetTimer = 0,
-    lastSpeedCheck = tick(),
-    lastBehindDistance = 0,
-    lastUpdateTime = tick(),
-    isYBAEnabled = false,
-    ybaConnections = {},
-    originalPlayerPosition = nil,
-    originalPlayerCFrame = nil,
-    originalCameraCFrame = nil,
-    controlledStand = nil
-}
--- Оптимизация: объединяем YBA и анти-таймстоп состояния
-local YBAStates = {
-    standControlConnections = {},
-    originalGravity = workspace.Gravity,
-    originalYBAWalkSpeed = 16,
-    originalYBAJumpPower = 50,
-    isAntiTimeStopEnabled = false,
-    antiTimeStopConnections = {},
-    originalAntiTimeStopWalkSpeed = 16,
-    originalAntiTimeStopJumpPower = 50,
-    timeStopDetected = false,
-    timeStopStartTime = 0,
-    timeStopDuration = 0,
-    antiTimeStopEffect = nil,
-    isStandControlActive = false,
-    currentControlledStand = nil,
-    standCameraConnections = {},
-    originalStandCameraCFrame = nil,
-    standControlActive = false,
-    freeCameraActive = false,
-    freeCameraConnections = {},
-    freeCameraRotation = Vector2.new(0, 0),
-    freeCameraDistance = 10
-}
+local isNoClipping = false
+local noClipConnections = {}
+
+local isSpeedHacking = false
+local speedHackConnections = {}
+local originalWalkSpeed = 16
+local originalJumpPower = 50
+
+local isLongJumping = false
+local longJumpConnections = {}
+local originalLongJumpPower = 50
+
+local isUndergroundControlEnabled = false
+local undergroundControlConnections = {}
+local controlledStandForUnderground = nil
+local isShiftPressed = false
+
+local isInfiniteJumping = false
+local infiniteJumpConnections = {}
+local lastJumpTime = 0
+
+local isTeleporting = false
+local teleportConnections = {}
+local playerSelectionWindow = nil
+local lastTeleportPosition = nil
+local stabilizationStartTime = nil
+local isStabilizing = false
+local speedResetTimer = 0
+local lastSpeedCheck = tick()
+local lastBehindDistance = 0
+local lastUpdateTime = tick()
+
+local isYBAEnabled = false
+local ybaConnections = {}
+local originalPlayerPosition = nil
+local originalPlayerCFrame = nil
+local originalCameraCFrame = nil
+local controlledStand = nil
+local standControlConnections = {}
+local originalGravity = workspace.Gravity
+local originalYBAWalkSpeed = 16
+local originalYBAJumpPower = 50
+
+local isAntiTimeStopEnabled = false
+local antiTimeStopConnections = {}
+local originalAntiTimeStopWalkSpeed = 16
+local originalAntiTimeStopJumpPower = 50
+local timeStopDetected = false
+local timeStopStartTime = 0
+local timeStopDuration = 0
+local antiTimeStopEffect = nil
+
+local isStandControlActive = false
+local currentControlledStand = nil
+local standCameraConnections = {}
+local originalStandCameraCFrame = nil
+local standControlActive = false
+
+local freeCameraActive = false
+local freeCameraConnections = {}
+local freeCameraRotation = Vector2.new(0, 0)
+local freeCameraDistance = 10
 local freeCameraHeight = 5
 local freeCameraTarget = nil
 local freeCameraLastMousePos = Vector2.new(0, 0)
@@ -297,14 +297,9 @@ local userStyleESPEnabled = false
 local isAutofarmEnabled = false
 local autofarmConnections = {}
 local autofarmCurrentTarget = nil
--- Оптимизация: объединяем autofarm переменные в одну таблицу для экономии регистров
-local AutofarmData = {
-    itemQueue = {},
-    originalPosition = nil,
-    pickingUp = false,
-    blacklist = {}, -- предметы которые не удалось подобрать за 3 попытки
-    retryCount = {} -- счетчик попыток для каждого предмета
-}
+local autofarmItemQueue = {}
+local autofarmOriginalPosition = nil
+local autofarmPickingUp = false
 
 
 
@@ -939,7 +934,7 @@ local function startFly()
     
     if not hum or not root then return end
     
-    FunctionStates.isFlying = true
+    isFlying = true
     
     local flyOriginalJumpPower = hum.JumpPower
     local flyOriginalJumpHeight = hum.JumpHeight
@@ -974,7 +969,7 @@ local function startFly()
     end)
     
     local renderConnection = RunService.RenderStepped:Connect(function()
-        if not FunctionStates.isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
+        if not isFlying or not char or not char:FindFirstChild("Humanoid") or not root then
             if hum then
                 hum.JumpPower = flyOriginalJumpPower
                 hum.JumpHeight = flyOriginalJumpHeight
@@ -1025,7 +1020,7 @@ local function startFly()
 end
 
 local function stopFly()
-    FunctionStates.isFlying = false
+    isFlying = false
     
     local char = Players.LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -4176,79 +4171,6 @@ local function stopUserStyleESP()
     print("Player ESP: User Style ESP deactivated")
 end
 
--- Функция проверки инвентаря
-local function checkInventoryAndUpdateItems()
-    local player = Players.LocalPlayer
-    if not player then return false end
-    
-    local backpack = player:FindFirstChild("Backpack")
-    if not backpack then 
-        print("🎒 AUTOFARM: Backpack не найден")
-        return false
-    end
-    
-    print("🎒 AUTOFARM: Проверяем инвентарь...")
-    
-    -- Максимальные количества предметов в YBA
-    local maxItems = {
-        ["Mysterious Arrow"] = 5,
-        ["Rokakaka"] = 5,
-        ["Pure Rokakaka"] = 1,
-        ["Diamond"] = 5,
-        ["Gold Coin"] = 50, -- монеты могут быть в большом количестве
-        ["Steel Ball"] = 3,
-        ["Clackers"] = 1,
-        ["Caesar's Headband"] = 1,
-        ["Zeppeli's Hat"] = 1,
-        ["Zeppeli's Scarf"] = 1,
-        ["Ancient Scroll"] = 1,
-        ["Quinton's Glove"] = 1,
-        ["Stone Mask"] = 3,
-        ["Lucky Arrow"] = 1,
-        ["Lucky Stone Mask"] = 1,
-        ["Rib Cage of The Saint's Corpse"] = 1,
-        ["DIO's Diary"] = 1,
-        ["Dio's Diary"] = 1,
-    }
-    
-    local itemCounts = {}
-    local allItemsFull = true
-    
-    -- Считаем предметы в backpack
-    for _, item in pairs(backpack:GetChildren()) do
-        if item:IsA("Tool") or item:IsA("Folder") then
-            local itemName = item.Name
-            itemCounts[itemName] = (itemCounts[itemName] or 0) + 1
-        end
-    end
-    
-    -- Проверяем каждый тип предмета
-    for itemName, isEnabled in pairs(AutofarmConfig.Items) do
-        if isEnabled then
-            local currentCount = itemCounts[itemName] or 0
-            local maxCount = maxItems[itemName] or 1
-            
-            print("🎒", itemName, ":", currentCount, "/", maxCount)
-            
-            if currentCount >= maxCount then
-                -- Отключаем этот предмет от фарма
-                AutofarmConfig.Items[itemName] = false
-                print("🎒 ✅ Предмет", itemName, "ПОЛОН (", currentCount, "/", maxCount, ") - отключаем от фарма")
-            else
-                allItemsFull = false
-                print("🎒 📦 Предмет", itemName, "еще нужен (", currentCount, "/", maxCount, ")")
-            end
-        end
-    end
-    
-    if allItemsFull then
-        print("🎒 🎉 ВСЕ ПРЕДМЕТЫ СОБРАНЫ! Инвентарь полон - АВТОФАРМ ЗАВЕРШЕН!")
-        return true -- сигнал что нужно остановить автофарм
-    end
-    
-    return false
-end
-
 -- Autofarm Functions
 local function findAutofarmItems()
     local items = {}
@@ -4319,24 +4241,15 @@ local function findAutofarmItems()
                     
                     -- Проверяем выбран ли предмет в Items Farm списке
                     if AutofarmConfig.Items[itemName] then
-                        -- Создаем уникальный ID предмета для отслеживания
-                        local itemId = tostring(worldPivot) .. "_" .. itemName
+                        print("AUTOFARM: Найден ВЫБРАННЫЙ предмет", itemName, "на расстоянии", math.floor(distance), "м")
                         
-                        -- Проверяем не в черном списке ли этот предмет
-                        if not autofarmBlacklist[itemId] then
-                            print("AUTOFARM: Найден ВЫБРАННЫЙ предмет", itemName, "на расстоянии", math.floor(distance), "м")
-                            
-                            table.insert(items, {
-                                Name = itemName,
-                                Position = worldPivot,
-                                Distance = distance,
-                                Model = model,
-                                ProximityPrompt = proximityPrompt,
-                                ItemId = itemId -- добавляем уникальный ID
-                            })
-                        else
-                            print("AUTOFARM: ⚫ Предмет", itemName, "в ЧЕРНОМ СПИСКЕ - пропускаем")
-                        end
+                        table.insert(items, {
+                            Name = itemName,
+                            Position = worldPivot,
+                            Distance = distance,
+                            Model = model,
+                            ProximityPrompt = proximityPrompt
+                        })
                     else
                         print("AUTOFARM: Предмет", itemName, "НЕ ВЫБРАН в списке Items Farm - пропускаем")
                     end
@@ -4397,8 +4310,8 @@ local function moveToPosition(targetPosition, callback)
         print("AUTOFARM: Гравитация отключена")
     end
     
-    -- Движение к цели близко под предметом для подбора предметов (как в YBA)
-    local adjustedTarget = Vector3.new(targetPosition.X, targetPosition.Y - 2.5, targetPosition.Z) -- близко под предметом на 2.5 метра
+    -- Движение к цели точно под предметом для подбора предметов (как в YBA)
+    local adjustedTarget = Vector3.new(targetPosition.X, targetPosition.Y - 4, targetPosition.Z) -- точно под предметом на 4 метра
     
     local moveConnection
     moveConnection = RunService.Heartbeat:Connect(function()
@@ -4456,14 +4369,8 @@ local function moveToPosition(targetPosition, callback)
 end
 
 local function pickupItem(item)
-    local itemId = item.ItemId
-    local currentRetries = autofarmRetryCount[itemId] or 0
-    
-    print("AUTOFARM: Пытаемся подобрать предмет", item.Name, "(попытка", currentRetries + 1, "из 3)")
+    print("AUTOFARM: Пытаемся подобрать предмет", item.Name)
     autofarmPickingUp = true
-    
-    -- Увеличиваем счетчик попыток
-    autofarmRetryCount[itemId] = currentRetries + 1
     
     local player = Players.LocalPlayer
     local character = player.Character
@@ -4536,13 +4443,7 @@ local function pickupItem(item)
         end)
         
         if not itemStillExists then
-            print("AUTOFARM: ✅ Предмет", item.Name, "исчез (нет физических частей) - УСПЕШНО ПОДОБРАН!")
-            
-            -- Сбрасываем счетчик попыток для этого предмета (он подобран)
-            if item.ItemId then
-                autofarmRetryCount[item.ItemId] = nil
-            end
-            
+            print("AUTOFARM: Предмет", item.Name, "исчез (нет физических частей) - возможно подобран")
             if isKeyPressed then
                 pcall(function()
                     if game:GetService("VirtualInputManager") then
@@ -4594,8 +4495,8 @@ local function pickupItem(item)
         elseif distance > (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
             -- Если слишком далеко, подлетаем ближе (увеличенный радиус для подземного подбора)
             print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем под землю")
-            -- Летим к позиции близко под предметом
-            local targetPos = Vector3.new(item.Position.X, item.Position.Y - 2.5, item.Position.Z)
+            -- Летим к позиции точно под предметом
+            local targetPos = Vector3.new(item.Position.X, item.Position.Y - 4, item.Position.Z)
             moveToPosition(targetPos, function()
                 -- После подлета продолжаем подбор
             end)
@@ -4618,15 +4519,7 @@ local function pickupItem(item)
                 end)
                 isKeyPressed = false
             end
-            -- Проверяем количество попыток для этого предмета
-            local currentRetries = autofarmRetryCount[item.ItemId] or 0
-            if currentRetries >= 3 then
-                print("AUTOFARM: ❌ Предмет", item.Name, "НЕ УДАЛОСЬ подобрать за 3 попытки - добавляем в ЧЕРНЫЙ СПИСОК")
-                autofarmBlacklist[item.ItemId] = true
-                autofarmRetryCount[item.ItemId] = nil -- очищаем счетчик
-            else
-                print("AUTOFARM: ⚠️ Попытка", currentRetries, "неудачна для", item.Name, "- попробуем еще")
-            end
+            print("AUTOFARM: Завершили попытку подбора", item.Name)
             
             pickupConnection:Disconnect()
             autofarmPickingUp = false
@@ -4643,18 +4536,7 @@ local function pickupItem(item)
         
         -- Таймаут общий - если слишком долго пытаемся подобрать
         if tick() - pickupStartTime > 10 then
-            print("AUTOFARM: ⏰ Общий таймаут для", item.Name)
-            
-            -- Проверяем количество попыток для этого предмета
-            local currentRetries = autofarmRetryCount[item.ItemId] or 0
-            if currentRetries >= 3 then
-                print("AUTOFARM: ❌ Предмет", item.Name, "НЕ УДАЛОСЬ подобрать за 3 попытки (таймаут) - добавляем в ЧЕРНЫЙ СПИСОК")
-                autofarmBlacklist[item.ItemId] = true
-                autofarmRetryCount[item.ItemId] = nil -- очищаем счетчик
-            else
-                print("AUTOFARM: ⚠️ Таймаут попытки", currentRetries, "для", item.Name, "- попробуем еще")
-            end
-            
+            print("AUTOFARM: Общий таймаут для", item.Name)
             if isKeyPressed then
                 pcall(function()
                     if game:GetService("VirtualInputManager") then
@@ -4691,35 +4573,15 @@ function processNextItem()
         return
     end
     
-    -- ПРОВЕРЯЕМ ИНВЕНТАРЬ перед сканированием предметов
-    local inventoryFull = checkInventoryAndUpdateItems()
-    if inventoryFull then
-        print("🎒 AUTOFARM: Останавливаем автофарм - все предметы собраны!")
-        stopAutofarm()
-        return
-    end
-    
     -- Сканируем новые предметы
     local items = findAutofarmItems()
     if #items == 0 then
-        print("AUTOFARM: ❌ Предметы НЕ НАЙДЕНЫ! Запускаем повторную прогрузку карты...")
-        
-        -- Запускаем повторную прогрузку карты
+        print("AUTOFARM: Предметы не найдены, повторяем сканирование через", AutofarmConfig.ScanInterval, "сек")
+        -- Используем spawn чтобы избежать блокировки
         task.spawn(function()
-            forceLoadEntireMap()
-            
-            -- После прогрузки снова пытаемся найти предметы
+            task.wait(AutofarmConfig.ScanInterval)
             if isAutofarmEnabled then
-                local itemsAfterReload = findAutofarmItems()
-                if #itemsAfterReload == 0 then
-                    print("AUTOFARM: ⚠️ После повторной прогрузки предметы все еще не найдены")
-                    print("AUTOFARM: Ждем", AutofarmConfig.ScanInterval, "сек перед следующей попыткой")
-                    task.wait(AutofarmConfig.ScanInterval)
-                end
-                
-                if isAutofarmEnabled then
-                    processNextItem()
-                end
+                processNextItem()
             end
         end)
         return
@@ -4960,11 +4822,6 @@ local function stopAutofarm()
     autofarmPickingUp = false
     autofarmCurrentTarget = nil
     
-    -- Очищаем черный список и счетчики попыток
-    autofarmBlacklist = {}
-    autofarmRetryCount = {}
-    print("🤖 AUTOFARM: Очищен черный список предметов")
-    
     -- ПРИНУДИТЕЛЬНО отпускаем клавишу E (фикс бага с зажатой кнопкой)
     pcall(function()
         if game:GetService("VirtualInputManager") then
@@ -4997,7 +4854,7 @@ local function stopAutofarm()
             end
             
             -- Восстанавливаем настройки персонажа ТОЛЬКО если флай НЕ включен
-            if not FunctionStates.isFlying then
+            if not isFlying then
                 local humanoid = character:FindFirstChild("Humanoid")
                 if humanoid then
                     humanoid.JumpPower = 50 -- возвращаем обычную силу прыжка
@@ -5139,7 +4996,7 @@ for i, buttonData in ipairs(navButtons) do
         highlightCorner.CornerRadius = UDim.new(0, 2)
     end
     
-    local navConnection = navButton.MouseButton1Click:Connect(function()
+    navButton.MouseButton1Click:Connect(function()
         -- Обновляем выбранную вкладку
         for _, btn in pairs(leftPanel:GetChildren()) do
             if btn:IsA("TextButton") then
@@ -5166,7 +5023,6 @@ for i, buttonData in ipairs(navButtons) do
         
         showContent(buttonData.name)
     end)
-    table.insert(globalUIConnections, navConnection)
 end
 
 local rightPanel = Instance.new("Frame", mainFrame)
@@ -5352,9 +5208,6 @@ functionsContainer.AutomaticSize = Enum.AutomaticSize.Y
 
 local currentY = 0
 local padding = 8
-local globalPlayerConnections = {} -- Глобальное отслеживание connections для предотвращения утечек памяти
-local globalHotkeyConnections = {} -- Глобальное отслеживание connections хоткеев
-local globalUIConnections = {} -- ОБЩИЙ массив для ВСЕХ UI connections - КРИТИЧЕСКИ ВАЖНО!
 
 local function createSectionHeader(text)
     currentY = currentY + padding
@@ -5388,12 +5241,11 @@ local function createToggle(label, default, callback)
     btn.AutoButtonColor = false
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
 
-    local toggleBtnConnection = btn.MouseButton1Click:Connect(function()
+    btn.MouseButton1Click:Connect(function()
         default = not default
         btn.Text = label .. ": " .. (default and "ON" or "OFF")
         callback(default)
     end)
-    table.insert(globalUIConnections, toggleBtnConnection)
     
     currentY = currentY + 28 + padding
     return btn
@@ -5434,7 +5286,7 @@ local function createToggleSlider(label, default, callback)
 
     -- Анимация и клик
     local isEnabled = default
-    local toggleConnection = sliderBack.InputBegan:Connect(function(input)
+    sliderBack.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             isEnabled = not isEnabled
             
@@ -5451,7 +5303,6 @@ local function createToggleSlider(label, default, callback)
             callback(isEnabled)
         end
     end)
-    table.insert(globalUIConnections, toggleConnection)
     
     currentY = currentY + 40 + padding
     return container
@@ -5483,17 +5334,17 @@ local function createSlider(label, min, max, value, callback)
     Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1,0)
 
     local dragging = false
-    local sliderBeginConnection = sliderBack.InputBegan:Connect(function(input)
+    sliderBack.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
         end
     end)
-    local sliderEndConnection = UserInputService.InputEnded:Connect(function(input)
+    UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
         end
     end)
-    local sliderStepConnection = RunService.RenderStepped:Connect(function()
+    RunService.RenderStepped:Connect(function()
         if dragging then
             local pos = UserInputService:GetMouseLocation().X
             local abs = sliderBack.AbsolutePosition.X
@@ -5505,9 +5356,6 @@ local function createSlider(label, min, max, value, callback)
             callback(newVal)
         end
     end)
-    table.insert(globalUIConnections, sliderBeginConnection)
-    table.insert(globalUIConnections, sliderEndConnection)
-    table.insert(globalUIConnections, sliderStepConnection)
     
     currentY = currentY + 36 + padding
 end
@@ -5551,10 +5399,9 @@ local function createColorPicker(labelText, currentColor, callback)
         btn.BackgroundColor3 = clr
         btn.Text = ""
         btn.AutoButtonColor = false
-        local colorConnection = btn.MouseButton1Click:Connect(function()
+        btn.MouseButton1Click:Connect(function()
             callback(clr)
         end)
-        table.insert(globalUIConnections, colorConnection)
     end
     
     currentY = currentY + 28 + padding
@@ -5585,7 +5432,7 @@ local function createSpeedInput(label, currentSpeed, callback)
     inputBox.PlaceholderText = "Speed"
     Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0,4)
 
-    local speedInputConnection = inputBox.FocusLost:Connect(function()
+    inputBox.FocusLost:Connect(function()
         local newSpeed = tonumber(inputBox.Text)
         if newSpeed and newSpeed > 0 then
             callback(newSpeed)
@@ -5594,7 +5441,6 @@ local function createSpeedInput(label, currentSpeed, callback)
             inputBox.Text = tostring(currentSpeed)
         end
     end)
-    table.insert(globalUIConnections, speedInputConnection)
 
     currentY = currentY + 36 + padding
     return lbl, inputBox
@@ -5612,8 +5458,7 @@ local function createKeyBindButton(name, currentKey, callback)
     btn.AutoButtonColor = false
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
 
-    -- ВАЖНО: сохраняем connection для последующего отключения при очистке
-    local hotkeyConnection = btn.MouseButton1Click:Connect(function()
+    btn.MouseButton1Click:Connect(function()
         btn.Text = name .. " Hotkey: [Press any key]"
         local conn
         conn = UserInputService.InputBegan:Connect(function(input, gp)
@@ -5624,9 +5469,6 @@ local function createKeyBindButton(name, currentKey, callback)
             end
         end)
     end)
-    
-    -- Добавляем connection в глобальный массив для отслеживания
-    table.insert(globalHotkeyConnections, hotkeyConnection)
     
     currentY = currentY + 24 + padding
 end
@@ -5690,353 +5532,30 @@ local function createDropdown(label, options, currentValue, callback)
         optionBtn.BorderSizePixel = 0
         optionBtn.ZIndex = 21
 
-        local optionClickConnection = optionBtn.MouseButton1Click:Connect(function()
+        optionBtn.MouseButton1Click:Connect(function()
             dropdown.Text = option .. " ▼"
             optionsFrame.Visible = false
             isOpen = false
             callback(option)
         end)
 
-        local optionEnterConnection = optionBtn.MouseEnter:Connect(function()
+        optionBtn.MouseEnter:Connect(function()
             optionBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
         end)
 
-        local optionLeaveConnection = optionBtn.MouseLeave:Connect(function()
+        optionBtn.MouseLeave:Connect(function()
             optionBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
         end)
-        
-        table.insert(globalUIConnections, optionClickConnection)
-        table.insert(globalUIConnections, optionEnterConnection)
-        table.insert(globalUIConnections, optionLeaveConnection)
     end
 
-    local dropdownClickConnection = dropdown.MouseButton1Click:Connect(function()
+    dropdown.MouseButton1Click:Connect(function()
         isOpen = not isOpen
         optionsFrame.Visible = isOpen
         dropdown.Text = currentValue .. (isOpen and " ▲" or " ▼")
     end)
-    table.insert(globalUIConnections, dropdownClickConnection)
 
     currentY = currentY + 50 + padding + (isOpen and (#options * 25) or 0)
     return container
-end
-
--- Функция для показа Main таба
-local function showMainTab()
-    contentTitle.Text = getText("MainFunctions")
-    
-    -- Hotkeys
-    createKeyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
-        Config.ESP.ToggleKey = newKey
-    end)
-    
-    createKeyBindButton("Aimbot", Config.Aimbot.ToggleKey, function(newKey)
-        Config.Aimbot.ToggleKey = newKey
-    end)
-    
-    createKeyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
-        FlyConfig.ToggleKey = newKey
-    end)
-    
-    createKeyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
-        NoClipConfig.ToggleKey = newKey
-    end)
-    
-    createKeyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
-        SpeedHackConfig.ToggleKey = newKey
-    end)
-    
-    createKeyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
-        TeleportConfig.ToggleKey = newKey
-    end)
-    
-    createDivider()
-    
-    createSectionHeader("🔷ESP Settings")
-    createToggleSlider(getText("ESP"), Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
-    createToggleSlider(getText("TeamCheck"), Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
-    createToggleSlider(getText("ShowOutline"), Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
-    createToggleSlider(getText("ShowLines"), Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
-    createToggleSlider(getText("RainbowColors"), Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
-    
-    createColorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
-    createColorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
-    createColorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor = c end)
-    createSlider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
-    createSlider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
-    
-    createDivider()
-    
-    createSectionHeader("🔷Aimbot Settings")
-    createToggleSlider(getText("Aimbot"), Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
-    createToggleSlider(getText("TeamCheck"), Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
-    createToggleSlider(getText("VisibilityCheck"), Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
-    createSlider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
-    createToggleSlider(getText("FOVRainbow"), Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
-    createColorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
-    
-    createDivider()
-    
-    createSectionHeader("🟨 Fly Settings")
-    createToggleSlider("Fly", FlyConfig.Enabled, function(v)
-        FlyConfig.Enabled = v
-        if v then startFly() else stopFly() end
-    end)
-    
-    createSlider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
-        FlyConfig.Speed = v
-    end)
-    
-    createSpeedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
-        FlyConfig.Speed = v
-    end)
-    
-    createDivider()
-    
-    createSectionHeader("🟪 NoClip Settings")
-    local noClipStatusLabel = Instance.new("TextLabel", functionsContainer)
-    noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
-    noClipStatusLabel.Position = UDim2.new(0, 5, 0, currentY)
-    noClipStatusLabel.Text = "NoClip Status: OFF"
-    noClipStatusLabel.Font = Enum.Font.GothamBold
-    noClipStatusLabel.TextSize = 12
-    noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-    noClipStatusLabel.BackgroundTransparency = 1
-    noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-    currentY = currentY + 20 + padding
-    
-    local forceNoClipToggle = createToggleSlider("Force NoClip", isNoClipping, function(v)
-        if v then
-            startNoClip()
-            noClipStatusLabel.Text = "NoClip Status: ON"
-            noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
-        else
-            stopNoClip()
-            noClipStatusLabel.Text = "NoClip Status: OFF"
-            noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-        end
-    end)
-    
-    createDivider()
-    
-    createSectionHeader("🟦 SpeedHack Settings")
-    createToggleSlider("SpeedHack", SpeedHackConfig.Enabled, function(v)
-        SpeedHackConfig.Enabled = v
-        if v then startSpeedHack() else stopSpeedHack() end
-    end)
-    
-    createToggleSlider("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
-        SpeedHackConfig.UseJumpPower = v
-        if SpeedHackConfig.Enabled then
-            stopSpeedHack()
-            startSpeedHack()
-        end
-    end)
-    
-    createSlider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
-        SpeedHackConfig.Speed = v
-        if SpeedHackConfig.Enabled then
-            local char = Players.LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.WalkSpeed = v * 16
-                if SpeedHackConfig.UseJumpPower then
-                    hum.JumpPower = v * 50
-                end
-            end
-        end
-    end)
-    
-    createSpeedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
-        SpeedHackConfig.Speed = v
-        if SpeedHackConfig.Enabled then
-            local char = Players.LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.WalkSpeed = v * 16
-                if SpeedHackConfig.UseJumpPower then
-                    hum.JumpPower = v * 50
-                end
-            end
-        end
-    end)
-    
-    createDivider()
-    
-    -- Jump Settings
-    createSectionHeader("🦘 Jump Settings")
-    createToggleSlider(getText("LongJump"), LongJumpConfig.Enabled, function(v)
-        LongJumpConfig.Enabled = v
-        if v then startLongJump() else stopLongJump() end
-    end)
-    
-    createSlider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
-        LongJumpConfig.JumpPower = v
-        if LongJumpConfig.Enabled then
-            local char = Players.LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.JumpPower = v
-            end
-        end
-    end)
-    
-    createToggleSlider(getText("InfiniteJump"), InfiniteJumpConfig.Enabled, function(v)
-        InfiniteJumpConfig.Enabled = v
-        if v then startInfiniteJump() else stopInfiniteJump() end
-    end)
-    
-    createSlider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
-        InfiniteJumpConfig.JumpPower = v
-    end)
-    
-    createDivider()
-    
-    -- Teleport Settings
-    createSectionHeader("🟩 Teleport Settings")
-    
-    local selectedPlayerLabel = Instance.new("TextLabel", functionsContainer)
-    selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
-    selectedPlayerLabel.Position = UDim2.new(0, 5, 0, currentY)
-    selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. (TeleportConfig.SelectedPlayerName or "None")
-    selectedPlayerLabel.Font = Enum.Font.GothamBold
-    selectedPlayerLabel.TextSize = 14
-    selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
-    selectedPlayerLabel.BackgroundTransparency = 1
-    selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
-    currentY = currentY + 24 + padding
-    
-    teleportBtn = Instance.new("TextButton", functionsContainer)
-    teleportBtn.Size = UDim2.new(1, -10, 0, 28)
-    teleportBtn.Position = UDim2.new(0, 5, 0, currentY)
-    teleportBtn.Text = getText("StartTeleport")
-    teleportBtn.Font = Enum.Font.GothamBold
-    teleportBtn.TextSize = 14
-    teleportBtn.TextColor3 = Color3.new(1,1,1)
-    teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    teleportBtn.AutoButtonColor = false
-    Instance.new("UICorner", teleportBtn).CornerRadius = UDim.new(0,6)
-    currentY = currentY + 28 + padding
-    
-    local teleportConnection = teleportBtn.MouseButton1Click:Connect(function()
-        if not TeleportConfig.TargetPlayer then
-            teleportBtn.Text = "Select player first!"
-            task.wait(2)
-            teleportBtn.Text = "START TELEPORT"
-            return
-        end
-        
-        if TeleportConfig.Enabled then
-            stopTeleport()
-            TeleportConfig.Enabled = false
-            teleportBtn.Text = getText("StartTeleport")
-            teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-        else
-            startTeleport()
-            TeleportConfig.Enabled = true
-            teleportBtn.Text = getText("StopTeleport")
-            teleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-        end
-    end)
-    table.insert(globalUIConnections, teleportConnection)
-    
-    local playerListLabel = Instance.new("TextLabel", functionsContainer)
-    playerListLabel.Size = UDim2.new(1, -10, 0, 20)
-    playerListLabel.Position = UDim2.new(0, 5, 0, currentY)
-    playerListLabel.Text = getText("SelectPlayerForTeleport") .. ":"
-    playerListLabel.Font = Enum.Font.GothamBold
-    playerListLabel.TextSize = 12
-    playerListLabel.TextColor3 = Color3.new(1,1,1)
-    playerListLabel.BackgroundTransparency = 1
-    playerListLabel.TextXAlignment = Enum.TextXAlignment.Left
-    currentY = currentY + 20 + padding
-    
-    local playerButtons = {}
-    local playerListStartY = currentY
-    local lastPlayerCount = 0 -- Для оптимизации - обновляем только при изменении
-    
-    local function createPlayerList()
-        local allPlayers = Players:GetPlayers()
-        local currentPlayerCount = #allPlayers - 1 -- -1 потому что исключаем LocalPlayer
-        
-        -- Оптимизация: обновляем только если количество игроков изменилось
-        if currentPlayerCount == lastPlayerCount then
-            return
-        end
-        lastPlayerCount = currentPlayerCount
-        
-        -- Отключаем все старые connections перед очисткой кнопок
-        for _, connection in pairs(globalPlayerConnections) do
-            if connection and typeof(connection) == "RBXScriptConnection" then
-                pcall(function() connection:Disconnect() end)
-            end
-        end
-        globalPlayerConnections = {}
-        
-        for _, btn in pairs(playerButtons) do
-            if btn and btn.Parent then
-                btn:Destroy()
-            end
-        end
-        playerButtons = {}
-        
-        currentY = playerListStartY
-        
-        local playerList = {}
-        
-        for _, player in ipairs(allPlayers) do
-            if player ~= Players.LocalPlayer then
-                table.insert(playerList, player)
-            end
-        end
-        
-        table.sort(playerList, function(a, b)
-            return string.lower(a.Name) < string.lower(b.Name)
-        end)
-        
-        for _, player in ipairs(playerList) do
-            local playerBtn = Instance.new("TextButton", functionsContainer)
-            playerBtn.Size = UDim2.new(1, -10, 0, 24)
-            playerBtn.Position = UDim2.new(0, 5, 0, currentY)
-            playerBtn.Text = player.Name
-            playerBtn.Font = Enum.Font.Gotham
-            playerBtn.TextSize = 12
-            playerBtn.TextColor3 = Color3.new(1,1,1)
-            playerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-            playerBtn.AutoButtonColor = false
-            Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
-            currentY = currentY + 24 + padding
-            
-            table.insert(playerButtons, playerBtn)
-            
-            -- Сохраняем connection для последующего отключения
-            local connection = playerBtn.MouseButton1Click:Connect(function()
-                TeleportConfig.TargetPlayer = player
-                TeleportConfig.SelectedPlayerName = player.Name
-                selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. player.Name
-                
-                for _, child in pairs(functionsContainer:GetChildren()) do
-                    if child:IsA("TextButton") and child.Text == player.Name then
-                        child.BackgroundColor3 = Color3.fromRGB(0,255,0)
-                    elseif child:IsA("TextButton") and child.Text ~= "START TELEPORT" and child.Text ~= "STOP TELEPORT" and child.Text ~= player.Name then
-                        child.BackgroundColor3 = Color3.fromRGB(40,40,40)
-                    end
-                end
-            end)
-            table.insert(globalPlayerConnections, connection)
-        end
-    end
-    
-    createPlayerList()
-    
-    spawn(function()
-        while true do
-            task.wait(10) -- Увеличили интервал с 2 до 10 секунд для снижения нагрузки
-            if selectedTab == "Main" then
-                createPlayerList()
-            end
-        end
-    end)
 end
 
 -- Функция для показа контента
@@ -6046,30 +5565,6 @@ function showContent(tabName)
         tabScrollPositions[selectedTab] = scrollFrame.CanvasPosition.Y
     end
     
-    -- Очищаем все connections перед очисткой контейнера для предотвращения утечек памяти
-    for _, connection in pairs(globalPlayerConnections) do
-        if connection and typeof(connection) == "RBXScriptConnection" then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    globalPlayerConnections = {}
-    
-    -- Очищаем connections хоткеев 
-    for _, connection in pairs(globalHotkeyConnections) do
-        if connection and typeof(connection) == "RBXScriptConnection" then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    globalHotkeyConnections = {}
-    
-    -- КРИТИЧЕСКИ ВАЖНО: Очищаем ВСЕ UI connections 
-    for _, connection in pairs(globalUIConnections) do
-        if connection and typeof(connection) == "RBXScriptConnection" then
-            pcall(function() connection:Disconnect() end)
-        end
-    end
-    globalUIConnections = {}
-    
     -- Очищаем контейнер и сбрасываем позицию
     for _, child in pairs(functionsContainer:GetChildren()) do
         child:Destroy()
@@ -6077,7 +5572,300 @@ function showContent(tabName)
     currentY = 0
     
     if tabName == "Main" then
-        showMainTab()
+        contentTitle.Text = getText("MainFunctions")
+        
+        -- Hotkeys
+        createKeyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
+            Config.ESP.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("Aimbot", Config.Aimbot.ToggleKey, function(newKey)
+            Config.Aimbot.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
+            FlyConfig.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
+            NoClipConfig.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
+            SpeedHackConfig.ToggleKey = newKey
+        end)
+        
+        createKeyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
+            TeleportConfig.ToggleKey = newKey
+        end)
+        
+        createDivider()
+        
+        createSectionHeader("🔷ESP Settings")
+        createToggleSlider(getText("ESP"), Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
+        createToggleSlider(getText("TeamCheck"), Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
+        createToggleSlider(getText("ShowOutline"), Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
+        createToggleSlider(getText("ShowLines"), Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
+        createToggleSlider(getText("RainbowColors"), Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
+        
+        createColorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
+        createColorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
+        createColorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor = c end)
+        createSlider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
+        createSlider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
+        
+        createDivider()
+        
+        createSectionHeader("🔷Aimbot Settings")
+        createToggleSlider(getText("Aimbot"), Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
+        createToggleSlider(getText("TeamCheck"), Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
+        createToggleSlider(getText("VisibilityCheck"), Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
+        createSlider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
+        createToggleSlider(getText("FOVRainbow"), Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
+        createColorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
+        
+        createDivider()
+        
+        createSectionHeader("🟨 Fly Settings")
+        createToggleSlider("Fly", FlyConfig.Enabled, function(v)
+            FlyConfig.Enabled = v
+            if v then startFly() else stopFly() end
+        end)
+        
+        createSlider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
+            FlyConfig.Speed = v
+        end)
+        
+        createSpeedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
+            FlyConfig.Speed = v
+        end)
+        
+        createDivider()
+        
+        createSectionHeader("🟪 NoClip Settings")
+        local noClipStatusLabel = Instance.new("TextLabel", functionsContainer)
+        noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
+        noClipStatusLabel.Position = UDim2.new(0, 5, 0, currentY)
+        noClipStatusLabel.Text = "NoClip Status: OFF"
+        noClipStatusLabel.Font = Enum.Font.GothamBold
+        noClipStatusLabel.TextSize = 12
+        noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+        noClipStatusLabel.BackgroundTransparency = 1
+        noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
+        
+        local forceNoClipToggle = createToggleSlider("Force NoClip", isNoClipping, function(v)
+            if v then
+                startNoClip()
+                noClipStatusLabel.Text = "NoClip Status: ON"
+                noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
+            else
+                stopNoClip()
+                noClipStatusLabel.Text = "NoClip Status: OFF"
+                noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+            end
+        end)
+        
+        createDivider()
+        
+        createSectionHeader("🟦 SpeedHack Settings")
+        createToggleSlider("SpeedHack", SpeedHackConfig.Enabled, function(v)
+            SpeedHackConfig.Enabled = v
+            if v then startSpeedHack() else stopSpeedHack() end
+        end)
+        
+        createToggleSlider("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
+            SpeedHackConfig.UseJumpPower = v
+            if SpeedHackConfig.Enabled then
+                stopSpeedHack()
+                startSpeedHack()
+            end
+        end)
+        
+        createSlider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
+            SpeedHackConfig.Speed = v
+            if SpeedHackConfig.Enabled then
+                local char = Players.LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.WalkSpeed = v * 16
+                    if SpeedHackConfig.UseJumpPower then
+                        hum.JumpPower = v * 50
+                    end
+                end
+            end
+        end)
+        
+        createSpeedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
+            SpeedHackConfig.Speed = v
+            if SpeedHackConfig.Enabled then
+                local char = Players.LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.WalkSpeed = v * 16
+                    if SpeedHackConfig.UseJumpPower then
+                        hum.JumpPower = v * 50
+                    end
+                end
+            end
+        end)
+        
+        createDivider()
+        
+        -- Jump Settings
+        createSectionHeader("🦘 Jump Settings")
+        createToggleSlider(getText("LongJump"), LongJumpConfig.Enabled, function(v)
+            LongJumpConfig.Enabled = v
+            if v then startLongJump() else stopLongJump() end
+        end)
+        
+        createSlider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
+            LongJumpConfig.JumpPower = v
+            if LongJumpConfig.Enabled then
+                local char = Players.LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.JumpPower = v
+                end
+            end
+        end)
+        
+        createToggleSlider(getText("InfiniteJump"), InfiniteJumpConfig.Enabled, function(v)
+            InfiniteJumpConfig.Enabled = v
+            if v then startInfiniteJump() else stopInfiniteJump() end
+        end)
+        
+        createSlider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
+            InfiniteJumpConfig.JumpPower = v
+        end)
+        
+        createDivider()
+        
+        -- Teleport Settings
+        createSectionHeader("🟩 Teleport Settings")
+        
+        local selectedPlayerLabel = Instance.new("TextLabel", functionsContainer)
+        selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
+        selectedPlayerLabel.Position = UDim2.new(0, 5, 0, currentY)
+        selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. (TeleportConfig.SelectedPlayerName or "None")
+        selectedPlayerLabel.Font = Enum.Font.GothamBold
+        selectedPlayerLabel.TextSize = 14
+        selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
+        selectedPlayerLabel.BackgroundTransparency = 1
+        selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 24 + padding
+        
+        teleportBtn = Instance.new("TextButton", functionsContainer)
+        teleportBtn.Size = UDim2.new(1, -10, 0, 28)
+        teleportBtn.Position = UDim2.new(0, 5, 0, currentY)
+        teleportBtn.Text = getText("StartTeleport")
+        teleportBtn.Font = Enum.Font.GothamBold
+        teleportBtn.TextSize = 14
+        teleportBtn.TextColor3 = Color3.new(1,1,1)
+        teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+        teleportBtn.AutoButtonColor = false
+        Instance.new("UICorner", teleportBtn).CornerRadius = UDim.new(0,6)
+        currentY = currentY + 28 + padding
+        
+        teleportBtn.MouseButton1Click:Connect(function()
+            if not TeleportConfig.TargetPlayer then
+                teleportBtn.Text = "Select player first!"
+                task.wait(2)
+                teleportBtn.Text = "START TELEPORT"
+                return
+            end
+            
+            if TeleportConfig.Enabled then
+                stopTeleport()
+                TeleportConfig.Enabled = false
+                teleportBtn.Text = getText("StartTeleport")
+                teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+            else
+                startTeleport()
+                TeleportConfig.Enabled = true
+                teleportBtn.Text = getText("StopTeleport")
+                teleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+            end
+        end)
+        
+        local playerListLabel = Instance.new("TextLabel", functionsContainer)
+        playerListLabel.Size = UDim2.new(1, -10, 0, 20)
+        playerListLabel.Position = UDim2.new(0, 5, 0, currentY)
+        playerListLabel.Text = getText("SelectPlayerForTeleport") .. ":"
+        playerListLabel.Font = Enum.Font.GothamBold
+        playerListLabel.TextSize = 12
+        playerListLabel.TextColor3 = Color3.new(1,1,1)
+        playerListLabel.BackgroundTransparency = 1
+        playerListLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentY = currentY + 20 + padding
+        
+        local playerButtons = {}
+        local playerListStartY = currentY
+        
+        local function createPlayerList()
+            for _, btn in pairs(playerButtons) do
+                if btn and btn.Parent then
+                    btn:Destroy()
+                end
+            end
+            playerButtons = {}
+            
+            currentY = playerListStartY
+            
+            local allPlayers = Players:GetPlayers()
+            local playerList = {}
+            
+            for _, player in ipairs(allPlayers) do
+                if player ~= Players.LocalPlayer then
+                    table.insert(playerList, player)
+                end
+            end
+            
+            table.sort(playerList, function(a, b)
+                return string.lower(a.Name) < string.lower(b.Name)
+            end)
+            
+            for _, player in ipairs(playerList) do
+                local playerBtn = Instance.new("TextButton", functionsContainer)
+                playerBtn.Size = UDim2.new(1, -10, 0, 24)
+                playerBtn.Position = UDim2.new(0, 5, 0, currentY)
+                playerBtn.Text = player.Name
+                playerBtn.Font = Enum.Font.Gotham
+                playerBtn.TextSize = 12
+                playerBtn.TextColor3 = Color3.new(1,1,1)
+                playerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+                playerBtn.AutoButtonColor = false
+                Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
+                currentY = currentY + 24 + padding
+                
+                table.insert(playerButtons, playerBtn)
+                
+                playerBtn.MouseButton1Click:Connect(function()
+                    TeleportConfig.TargetPlayer = player
+                    TeleportConfig.SelectedPlayerName = player.Name
+                    selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. player.Name
+                    
+                    for _, child in pairs(functionsContainer:GetChildren()) do
+                        if child:IsA("TextButton") and child.Text == player.Name then
+                            child.BackgroundColor3 = Color3.fromRGB(0,255,0)
+                        elseif child:IsA("TextButton") and child.Text ~= "START TELEPORT" and child.Text ~= "STOP TELEPORT" and child.Text ~= player.Name then
+                            child.BackgroundColor3 = Color3.fromRGB(40,40,40)
+                        end
+                    end
+                end)
+            end
+        end
+        
+        createPlayerList()
+        
+        spawn(function()
+            while true do
+                task.wait(2)
+                if selectedTab == "Main" then
+                    createPlayerList()
+                end
+            end
+        end)
         
     elseif tabName == "YBA Hacks" then
         contentTitle.Text = getText("YBAHacks")
@@ -6153,7 +5941,7 @@ function showContent(tabName)
         Instance.new("UICorner", antiTimeStopBtn).CornerRadius = UDim.new(0,6)
         currentY = currentY + 28 + padding
         
-        local antiTimeStopConnection = antiTimeStopBtn.MouseButton1Click:Connect(function()
+        antiTimeStopBtn.MouseButton1Click:Connect(function()
             if not isAntiTimeStopEnabled then
                 AntiTimeStopConfig.Enabled = true
                 startAntiTimeStop()
@@ -6172,7 +5960,6 @@ function showContent(tabName)
                 end)
             end
         end)
-        table.insert(globalUIConnections, antiTimeStopConnection)
         
 
         createDivider()
@@ -6357,7 +6144,7 @@ function showContent(tabName)
                 highlight.Thickness = 2
             end
             
-            local colorSettingConnection = colorBtn.MouseButton1Click:Connect(function()
+            colorBtn.MouseButton1Click:Connect(function()
                 MenuSettings.AccentColor = color
                 updateAccentColor()
                 
@@ -6376,7 +6163,6 @@ function showContent(tabName)
                 
                 showContent(selectedTab)
             end)
-            table.insert(globalUIConnections, colorSettingConnection)
         end
         
         currentY = currentY + 35 + padding
