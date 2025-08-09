@@ -6347,24 +6347,38 @@ function showContent(tabName)
         createButton("Load Autosell Module", function()
             print("🤖 AUTOSELL: Загружаем модуль автоселла...")
             
-            -- Для демонстрации используем встроенный код
-            -- В реальности можно загрузить с внешнего URL
-            local success, autosellModule = pcall(function()
-                -- Здесь будет содержимое autosell.lua
-                local autosellCode = readfile("autosell.lua") -- или другой способ чтения файла
+            if _G.AutosellModule then
+                print("🤖 AUTOSELL: Модуль уже загружен!")
+                return
+            end
+            
+            local success, result = pcall(function()
+                -- Загружаем модуль автоселла через HTTP (если размещен онлайн)
+                -- Или используем loadstring с встроенным кодом
+                local autosellCode = game:HttpGet("https://raw.githubusercontent.com/your-repo/autosell.lua")
                 return loadstring(autosellCode)()
             end)
             
-            if success and autosellModule then
+            if not success then
+                -- Fallback: загружаем локальный файл
+                success, result = pcall(function()
+                    local autosellCode = readfile("autosell.lua")
+                    return loadstring(autosellCode)()
+                end)
+            end
+            
+            if success and result then
                 print("🤖 AUTOSELL: Модуль загружен, создаем GUI...")
                 -- Создаем GUI автоселла
-                autosellModule.createGUI(functionsContainer, currentY, createToggleSlider, createSlider, createDivider, createSectionHeader)
+                result.createGUI(functionsContainer, currentY, createToggleSlider, createSlider, createDivider, createSectionHeader)
                 
                 -- Обновляем контент
                 showContent(selectedTab)
             else
-                print("🤖 AUTOSELL: Ошибка загрузки модуля:", tostring(autosellModule))
-                print("🤖 AUTOSELL: Возможно файл autosell.lua не найден в папке workspace")
+                print("🤖 AUTOSELL: Ошибка загрузки модуля:", tostring(result))
+                print("🤖 AUTOSELL: Попробуйте:")
+                print("1. Разместить autosell.lua онлайн и обновить URL")
+                print("2. Или поместить autosell.lua в папку workspace")
             end
         end)
         
