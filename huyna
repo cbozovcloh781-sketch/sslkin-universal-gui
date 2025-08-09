@@ -182,6 +182,8 @@ local AutofarmConfig = {
     }
 }
 
+
+
 local isFlying = false
 local flyConnections = {}
 local originalGravity = workspace.Gravity
@@ -281,6 +283,17 @@ local autofarmRestartTimer = nil -- Таймер для автоматическ
 local autofarmAutoRestarting = false -- Флаг автоматического перезапуска
 
 
+
+
+
+
+
+-- Экспорт функций для модуля автоселла
+_G.moveToPosition = moveToPosition
+_G.isAutofarmEnabled = function() return isAutofarmEnabled end
+_G.stopAutofarm = stopAutofarm
+_G.startAutofarm = startAutofarm
+_G.AutofarmConfig = AutofarmConfig
 
 -- Player ESP Functions
 
@@ -4470,7 +4483,7 @@ local function pickupItem(item)
             -- Если слишком далеко, подлетаем ближе
             -- Убираем спам про подлет
             -- Летим к позиции предмета с небольшим отклонением
-            local targetPos = Vector3.new(item.Position.X, item.Position.Y - 1, item.Position.Z)
+            local targetPos = Vector3.new(item.Position.X, item.Position.Y + 2, item.Position.Z)
             moveToPosition(targetPos, function()
                 -- После подлета продолжаем подбор
             end)
@@ -4739,8 +4752,8 @@ function processNextItem()
     
     print("AUTOFARM: ✈️ Летим к предмету", nextItem.Name, "на расстоянии", math.floor(nextItem.Distance), "м")
     
-    -- Летим к предмету (с отступом 2 единицы вниз)
-    local targetPosition = Vector3.new(nextItem.Position.X, nextItem.Position.Y - 2, nextItem.Position.Z)
+    -- Летим к предмету (с отступом 2 единицы вверх)
+    local targetPosition = Vector3.new(nextItem.Position.X, nextItem.Position.Y + 2, nextItem.Position.Z)
     pcall(function()
         moveToPosition(targetPosition, function()
         if isAutofarmEnabled then
@@ -4801,118 +4814,30 @@ local function forceLoadEntireMap()
         task.wait(0.1)
     end
     
-    -- Точки для прогрузки (РАСШИРЕННАЯ СЕТКА ПОД 15 СЕКУНД) - ПОНИЖЕНА ПО ОСИ Y
+    -- Минимальные точки для прогрузки карты (15 точек вокруг центра)
     local loadPoints = {
-        -- Центральные точки (разные высоты) - понижены на 30 единиц
-        Vector3.new(0, 20, 0),
+        -- Центр карты
         Vector3.new(0, 70, 0),
-        Vector3.new(0, 120, 0),
-        Vector3.new(0, 170, 0),
-        Vector3.new(0, 220, 0),
         
-        -- Основные углы карты (2 высоты) - понижены на 30 единиц
-        Vector3.new(800, 70, 800),   Vector3.new(800, 120, 800),   -- СВ
-        Vector3.new(-800, 70, 800),  Vector3.new(-800, 120, 800),  -- СЗ  
-        Vector3.new(800, 70, -800),  Vector3.new(800, 120, -800),  -- ЮВ
-        Vector3.new(-800, 70, -800), Vector3.new(-800, 120, -800), -- ЮЗ
+        -- 4 основных направления (средний радиус)
+        Vector3.new(500, 70, 0),     -- Восток
+        Vector3.new(-500, 70, 0),    -- Запад
+        Vector3.new(0, 70, 500),     -- Север
+        Vector3.new(0, 70, -500),    -- Юг
         
-        -- Средние точки сторон - понижены на 30 единиц
-        Vector3.new(600, 70, 0),     Vector3.new(600, 120, 0),     -- Восток
-        Vector3.new(-600, 70, 0),    Vector3.new(-600, 120, 0),    -- Запад
-        Vector3.new(0, 70, 600),     Vector3.new(0, 120, 600),     -- Север
-        Vector3.new(0, 70, -600),    Vector3.new(0, 120, -600),    -- Юг
+        -- 4 диагональных направления (средний радиус)
+        Vector3.new(400, 70, 400),   -- СВ
+        Vector3.new(-400, 70, 400),  -- СЗ
+        Vector3.new(400, 70, -400),  -- ЮВ
+        Vector3.new(-400, 70, -400), -- ЮЗ
         
-        -- Промежуточные точки 400м - понижены на 30 единиц
-        Vector3.new(400, 70, 400),   Vector3.new(-400, 70, 400),
-        Vector3.new(400, 70, -400),  Vector3.new(-400, 70, -400),
-        Vector3.new(400, 70, 0),     Vector3.new(-400, 70, 0),
-        Vector3.new(0, 70, 400),     Vector3.new(0, 70, -400),
+        -- Ближний круг (4 точки)
+        Vector3.new(250, 70, 0),     Vector3.new(-250, 70, 0),
+        Vector3.new(0, 70, 250),     Vector3.new(0, 70, -250),
         
-        -- Дополнительные точки 500м для лучшего покрытия - понижены на 30 единиц
-        Vector3.new(500, 70, 500),   Vector3.new(-500, 70, 500),
-        Vector3.new(500, 70, -500),  Vector3.new(-500, 70, -500),
-        Vector3.new(500, 70, 0),     Vector3.new(-500, 70, 0),
-        Vector3.new(0, 70, 500),     Vector3.new(0, 70, -500),
-        
-        -- Близкие к центру точки 200м - понижены на 30 единиц
-        Vector3.new(200, 70, 200),   Vector3.new(-200, 70, 200),
-        Vector3.new(200, 70, -200),  Vector3.new(-200, 70, -200),
-        Vector3.new(200, 70, 0),     Vector3.new(-200, 70, 0),
-        Vector3.new(0, 70, 200),     Vector3.new(0, 70, -200),
-        
-        -- Дальние точки для полного покрытия - понижены на 30 единиц
-        Vector3.new(700, 70, 0),     Vector3.new(-700, 70, 0),
-        Vector3.new(0, 70, 700),     Vector3.new(0, 70, -700),
-        
-        -- Дополнительные точки 300м для плотного покрытия - понижены на 30 единиц
-        Vector3.new(300, 70, 300),   Vector3.new(-300, 70, 300),
-        Vector3.new(300, 70, -300),  Vector3.new(-300, 70, -300),
-        Vector3.new(300, 70, 0),     Vector3.new(-300, 70, 0),
-        Vector3.new(0, 70, 300),     Vector3.new(0, 70, -300),
-        
-        -- Точки на 650м для промежуточного покрытия - понижены на 30 единиц
-        Vector3.new(650, 70, 650),   Vector3.new(-650, 70, 650),
-        Vector3.new(650, 70, -650),  Vector3.new(-650, 70, -650),
-        
-        -- Дополнительные высотные точки для важных зон - понижены на 30 единиц
-        Vector3.new(400, 120, 400),   Vector3.new(-400, 120, 400),
-        Vector3.new(400, 120, -400),  Vector3.new(-400, 120, -400),
-        Vector3.new(200, 120, 200),   Vector3.new(-200, 120, 200),
-        Vector3.new(200, 120, -200),  Vector3.new(-200, 120, -200),
-        
-        -- Точки на 100м от центра (очень близко) - понижены на 30 единиц
-        Vector3.new(100, 70, 100),   Vector3.new(-100, 70, 100),
-        Vector3.new(100, 70, -100),  Vector3.new(-100, 70, -100),
-        Vector3.new(100, 70, 0),     Vector3.new(-100, 70, 0),
-        Vector3.new(0, 70, 100),     Vector3.new(0, 70, -100),
-        
-        -- НОВЫЕ точки для еще более плотного покрытия - понижены на 30 единиц
-        -- Точки на 150м от центра
-        Vector3.new(150, 70, 150),   Vector3.new(-150, 70, 150),
-        Vector3.new(150, 70, -150),  Vector3.new(-150, 70, -150),
-        Vector3.new(150, 70, 0),     Vector3.new(-150, 70, 0),
-        Vector3.new(0, 70, 150),     Vector3.new(0, 70, -150),
-        
-        -- Точки на 350м для промежуточного покрытия
-        Vector3.new(350, 70, 350),   Vector3.new(-350, 70, 350),
-        Vector3.new(350, 70, -350),  Vector3.new(-350, 70, -350),
-        Vector3.new(350, 70, 0),     Vector3.new(-350, 70, 0),
-        Vector3.new(0, 70, 350),     Vector3.new(0, 70, -350),
-        
-        -- Точки на 550м для дополнительного покрытия
-        Vector3.new(550, 70, 550),   Vector3.new(-550, 70, 550),
-        Vector3.new(550, 70, -550),  Vector3.new(-550, 70, -550),
-        Vector3.new(550, 70, 0),     Vector3.new(-550, 70, 0),
-        Vector3.new(0, 70, 550),     Vector3.new(0, 70, -550),
-        
-        -- Точки на 750м для максимального покрытия
-        Vector3.new(750, 70, 750),   Vector3.new(-750, 70, 750),
-        Vector3.new(750, 70, -750),  Vector3.new(-750, 70, -750),
-        Vector3.new(750, 70, 0),     Vector3.new(-750, 70, 0),
-        Vector3.new(0, 70, 750),     Vector3.new(0, 70, -750),
-        
-        -- Дополнительные высотные точки на разных уровнях
-        Vector3.new(300, 170, 300),  Vector3.new(-300, 170, 300),
-        Vector3.new(300, 170, -300), Vector3.new(-300, 170, -300),
-        Vector3.new(500, 170, 500),  Vector3.new(-500, 170, 500),
-        Vector3.new(500, 170, -500), Vector3.new(-500, 170, -500),
-        
-        -- Точки на промежуточных диагоналях
-        Vector3.new(450, 70, 450),   Vector3.new(-450, 70, 450),
-        Vector3.new(450, 70, -450),  Vector3.new(-450, 70, -450),
-        Vector3.new(250, 70, 250),   Vector3.new(-250, 70, 250),
-        Vector3.new(250, 70, -250),  Vector3.new(-250, 70, -250),
-        
-        -- ПОДЗЕМНЫЕ точки для прогрузки (под картой)
-        Vector3.new(0, -50, 0),      Vector3.new(0, -100, 0),     -- Центр под картой
-        Vector3.new(400, -50, 400),  Vector3.new(-400, -50, 400), -- Подземные углы
-        Vector3.new(400, -50, -400), Vector3.new(-400, -50, -400),
-        Vector3.new(600, -50, 0),    Vector3.new(-600, -50, 0),   -- Подземные стороны
-        Vector3.new(0, -50, 600),    Vector3.new(0, -50, -600),
-        Vector3.new(300, -100, 300), Vector3.new(-300, -100, 300), -- Глубокие подземные точки
-        Vector3.new(300, -100, -300),Vector3.new(-300, -100, -300),
-        Vector3.new(500, -75, 500),  Vector3.new(-500, -75, 500),  -- Средние подземные точки
-        Vector3.new(500, -75, -500), Vector3.new(-500, -75, -500),
+        -- Высотные точки для вертикального покрытия
+        Vector3.new(0, 120, 0),      -- Центр выше
+        Vector3.new(0, -50, 0),      -- Центр ниже
     }
     
     print("🤖 AUTOFARM: Летим по", #loadPoints, "точкам для прогрузки карты...")
@@ -5744,6 +5669,26 @@ local function createDivider()
     currentY = currentY + 2 + padding
 end
 
+local function createButton(label, callback)
+    local btn = Instance.new("TextButton", functionsContainer)
+    btn.Size = UDim2.new(1, -10, 0, 28)
+    btn.Position = UDim2.new(0, 5, 0, currentY)
+    btn.Text = label
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    btn.AutoButtonColor = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+    
+    btn.MouseButton1Click:Connect(function()
+        callback()
+    end)
+    
+    currentY = currentY + 28 + padding
+    return btn
+end
+
 local function createDropdown(label, options, currentValue, callback)
     local container = Instance.new("Frame", functionsContainer)
     container.Size = UDim2.new(1, -10, 0, 50)
@@ -6396,23 +6341,173 @@ function showContent(tabName)
         end
         
         -- Создаем переключатели для всех предметов автофарма
-        createAutofarmItemToggle(getText("MysteriousArrow"), AutofarmConfig.Items["Mysterious Arrow"])
-        createAutofarmItemToggle(getText("Rokakaka"), AutofarmConfig.Items["Rokakaka"])
-        createAutofarmItemToggle(getText("PureRokakaka"), AutofarmConfig.Items["Pure Rokakaka"])
-        createAutofarmItemToggle(getText("Diamond"), AutofarmConfig.Items["Diamond"])
-        createAutofarmItemToggle(getText("GoldCoin"), AutofarmConfig.Items["Gold Coin"])
-        createAutofarmItemToggle(getText("SteelBall"), AutofarmConfig.Items["Steel Ball"])
-        createAutofarmItemToggle(getText("Clackers"), AutofarmConfig.Items["Clackers"])
-        createAutofarmItemToggle(getText("CaesarsHeadband"), AutofarmConfig.Items["Caesar's Headband"])
-        createAutofarmItemToggle(getText("ZeppeliHat"), AutofarmConfig.Items["Zeppeli's Hat"])
-        createAutofarmItemToggle(getText("ZeppeliScarf"), AutofarmConfig.Items["Zeppeli's Scarf"])
-        createAutofarmItemToggle(getText("QuintonsGlove"), AutofarmConfig.Items["Quinton's Glove"])
-        createAutofarmItemToggle(getText("StoneMask"), AutofarmConfig.Items["Stone Mask"])
-        createAutofarmItemToggle(getText("RibCage"), AutofarmConfig.Items["Rib Cage of The Saint's Corpse"])
-        createAutofarmItemToggle(getText("AncientScroll"), AutofarmConfig.Items["Ancient Scroll"])
-        createAutofarmItemToggle(getText("DiosDiary"), AutofarmConfig.Items["DIO's Diary"])
-        createAutofarmItemToggle(getText("LuckyStoneMask"), AutofarmConfig.Items["Lucky Stone Mask"])
-        createAutofarmItemToggle(getText("LuckyArrow"), AutofarmConfig.Items["Lucky Arrow"])
+        createAutofarmItemToggle("Mysterious Arrow", AutofarmConfig.Items["Mysterious Arrow"])
+        createAutofarmItemToggle("Rokakaka", AutofarmConfig.Items["Rokakaka"])
+        createAutofarmItemToggle("Pure Rokakaka", AutofarmConfig.Items["Pure Rokakaka"])
+        createAutofarmItemToggle("Diamond", AutofarmConfig.Items["Diamond"])
+        createAutofarmItemToggle("Gold Coin", AutofarmConfig.Items["Gold Coin"])
+        createAutofarmItemToggle("Steel Ball", AutofarmConfig.Items["Steel Ball"])
+        createAutofarmItemToggle("Clackers", AutofarmConfig.Items["Clackers"])
+        createAutofarmItemToggle("Caesar's Headband", AutofarmConfig.Items["Caesar's Headband"])
+        createAutofarmItemToggle("Zeppeli's Hat", AutofarmConfig.Items["Zeppeli's Hat"])
+        createAutofarmItemToggle("Zeppeli's Scarf", AutofarmConfig.Items["Zeppeli's Scarf"])
+        createAutofarmItemToggle("Quinton's Glove", AutofarmConfig.Items["Quinton's Glove"])
+        createAutofarmItemToggle("Stone Mask", AutofarmConfig.Items["Stone Mask"])
+        createAutofarmItemToggle("Rib Cage of The Saint's Corpse", AutofarmConfig.Items["Rib Cage of The Saint's Corpse"])
+        createAutofarmItemToggle("Ancient Scroll", AutofarmConfig.Items["Ancient Scroll"])
+        createAutofarmItemToggle("DIO's Diary", AutofarmConfig.Items["DIO's Diary"])
+        createAutofarmItemToggle("Lucky Stone Mask", AutofarmConfig.Items["Lucky Stone Mask"])
+        createAutofarmItemToggle("Lucky Arrow", AutofarmConfig.Items["Lucky Arrow"])
+        
+        -- AUTOSELL секция (загрузка модуля)
+        createDivider()
+        createSectionHeader("🤖 AUTO SELL")
+        
+        -- Проверяем загружен ли модуль автоселла
+        if _G.AutosellModule then
+            -- Модуль уже загружен, показываем управление
+            createSectionHeader("🤖 AUTO SELL CONTROLS")
+            
+            -- Главный тумблер автоселла
+            createToggleSlider("Auto Sell Enabled", false, function(v)
+                if _G.AutosellModule then
+                    if v then
+                        _G.AutosellModule.start()
+                    else
+                        _G.AutosellModule.stop()
+                    end
+                end
+            end)
+            
+            -- Информация о лимитах предметов
+            local infoLabel = Instance.new("TextLabel", functionsContainer)
+            infoLabel.Size = UDim2.new(1, -10, 0, 40)
+            infoLabel.Position = UDim2.new(0, 5, 0, currentY)
+            infoLabel.Text = "Лимиты: Стрелы/Рокака=25, Алмаз=30, Монеты=45, Ребра=20, Остальное=10"
+            infoLabel.Font = Enum.Font.Gotham
+            infoLabel.TextSize = 12
+            infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            infoLabel.BackgroundTransparency = 1
+            infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+            infoLabel.TextWrapped = true
+            currentY = currentY + 40 + padding
+            
+            -- Кнопки быстрого управления
+            createButton("Enable All Items for Sale", function()
+                if _G.AutosellModule and _G.AutosellModule.Config then
+                    for itemName, _ in pairs(_G.AutosellModule.Config.Items) do
+                        _G.AutosellModule.Config.Items[itemName] = true
+                    end
+                    print("🤖 AUTOSELL: Все предметы включены для автопродажи")
+                end
+            end)
+            
+            createButton("Disable All Items for Sale", function()
+                if _G.AutosellModule and _G.AutosellModule.Config then
+                    for itemName, _ in pairs(_G.AutosellModule.Config.Items) do
+                        _G.AutosellModule.Config.Items[itemName] = false
+                    end
+                    print("🤖 AUTOSELL: Все предметы отключены от автопродажи")
+                end
+            end)
+        else
+            -- Модуль не загружен, показываем кнопку загрузки
+        end
+        
+        -- Кнопка загрузки модуля автоселла
+        createButton("Load Autosell Module", function()
+            print("🤖 AUTOSELL: Загружаем модуль автоселла...")
+            
+            if _G.AutosellModule then
+                print("🤖 AUTOSELL: Модуль уже загружен! Обновляем интерфейс...")
+                showContent("YBA Hacks")
+                return
+            end
+            
+            local success, result = pcall(function()
+                -- Загружаем модуль автоселла через HTTP с GitHub
+                local autosellCode = game:HttpGet("http://raw.githubusercontent.com/cbozovcloh781-sketch/sslkin-universal-gui/refs/heads/main/autosell")
+                return loadstring(autosellCode)()
+            end)
+            
+            if not success then
+                -- Fallback: загружаем локальный файл
+                success, result = pcall(function()
+                    local autosellCode = readfile("autosell.lua")
+                    return loadstring(autosellCode)()
+                end)
+            end
+            
+            if success and result then
+                print("🤖 AUTOSELL: Модуль загружен, создаем GUI...")
+                
+                -- Создаем GUI автоселла прямо здесь
+                createDivider()
+                createSectionHeader("🤖 AUTO SELL CONTROLS")
+                
+                -- Главный тумблер автоселла
+                createToggleSlider("Auto Sell Enabled", false, function(v)
+                    if _G.AutosellModule then
+                        if v then
+                            _G.AutosellModule.start()
+                        else
+                            _G.AutosellModule.stop()
+                        end
+                    end
+                end)
+                
+                -- Информация о лимитах предметов
+                local infoLabel = Instance.new("TextLabel", functionsContainer)
+                infoLabel.Size = UDim2.new(1, -10, 0, 40)
+                infoLabel.Position = UDim2.new(0, 5, 0, currentY)
+                infoLabel.Text = "Лимиты: Стрелы/Рокака=25, Алмаз=30, Монеты=45, Ребра=20, Остальное=10"
+                infoLabel.Font = Enum.Font.Gotham
+                infoLabel.TextSize = 12
+                infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+                infoLabel.BackgroundTransparency = 1
+                infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+                infoLabel.TextWrapped = true
+                currentY = currentY + 40 + padding
+                
+                -- Кнопки быстрого управления
+                createButton("Enable All Items for Sale", function()
+                    if _G.AutosellModule and _G.AutosellModule.Config then
+                        for itemName, _ in pairs(_G.AutosellModule.Config.Items) do
+                            _G.AutosellModule.Config.Items[itemName] = true
+                        end
+                        print("🤖 AUTOSELL: Все предметы включены для автопродажи")
+                    end
+                end)
+                
+                createButton("Disable All Items for Sale", function()
+                    if _G.AutosellModule and _G.AutosellModule.Config then
+                        for itemName, _ in pairs(_G.AutosellModule.Config.Items) do
+                            _G.AutosellModule.Config.Items[itemName] = false
+                        end
+                        print("🤖 AUTOSELL: Все предметы отключены от автопродажи")
+                    end
+                end)
+                
+                print("🤖 AUTOSELL: GUI создан! Управление доступно выше.")
+                
+                -- Обновляем размер контейнера чтобы новые элементы отобразились
+                functionsContainer.Size = UDim2.new(1, 0, 0, currentY)
+                
+                -- Принудительно обновляем прокрутку
+                if scrollFrame then
+                    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, currentY)
+                end
+                
+                -- Делаем задержку и полное обновление интерфейса
+                task.wait(0.5)
+                showContent("YBA Hacks")
+            else
+                print("🤖 AUTOSELL: Ошибка загрузки модуля:", tostring(result))
+                print("🤖 AUTOSELL: Попробуйте:")
+                print("1. Разместить autosell.lua онлайн и обновить URL")
+                print("2. Или поместить autosell.lua в папку workspace")
+            end
+        end)
         
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
