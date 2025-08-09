@@ -4187,7 +4187,7 @@ local function findAutofarmItems()
                         autofarmSkippedItems[itemKey] = tempItem
                     end
                 end
-            -- Убираем спам про невыбранные предметы
+            end -- Закрываем if AutofarmConfig.Items[itemName] then
         end
     end
     
