@@ -289,16 +289,7 @@ local autofarmDeathCheckConnection = nil -- Отслеживание смерт�
 
 
 
--- Экспорт функций для модуля автоселла
-_G.moveToPosition = moveToPosition
-_G.isAutofarmEnabled = function() return isAutofarmEnabled end
-_G.stopAutofarm = stopAutofarm
-_G.startAutofarm = startAutofarm
-_G.AutofarmConfig = AutofarmConfig
-_G.startNoClip = startNoClip
-_G.stopNoClip = stopNoClip
-_G.MovementConfig = MovementConfig
-_G.isNoClipping = function() return isNoClipping end
+
 
 -- Player ESP Functions
 
@@ -1787,6 +1778,14 @@ local function stopInfiniteJump()
     end
 end
 
+-- Экспорт функций для модуля автоселла (ПОСЛЕ объявления всех функций)
+_G.startNoClip = startNoClip
+_G.stopNoClip = stopNoClip
+_G.startFly = startFly
+_G.stopFly = stopFly
+_G.MovementConfig = MovementConfig
+_G.isNoClipping = function() return isNoClipping end
+_G.isFlying = function() return isFlying end
 
 local function createStealthTeleport()
     if not TeleportConfig.TargetPlayer then 
@@ -5119,6 +5118,13 @@ function stopAutofarm()
     
     print("AUTOFARM: Полностью остановлен")
 end
+
+-- Экспорт функций автофарма для модуля автоселла  
+_G.moveToPosition = moveToPosition
+_G.isAutofarmEnabled = function() return isAutofarmEnabled end
+_G.stopAutofarm = stopAutofarm
+_G.startAutofarm = startAutofarm
+_G.AutofarmConfig = AutofarmConfig
 
 local screenGui = Instance.new("ScreenGui", CoreGui)
 screenGui.Name = "SslkinGui"
