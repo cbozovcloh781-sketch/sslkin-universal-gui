@@ -4152,20 +4152,21 @@ local function findAutofarmItems()
             end
             
             -- Дополнительная проверка для стрел (разные варианты названий)
+            local shouldSkipItem = false
             if string.find(string.lower(itemName), "arrow") and not AutofarmConfig.Items["Mysterious Arrow"] then
                 print("AUTOFARM DEBUG: Найдена стрела с названием '", itemName, "' но Mysterious Arrow отключена - пропускаем")
-                goto continue
+                shouldSkipItem = true
             end
             
             -- Стандартизируем название стрел
-            if string.find(string.lower(itemName), "arrow") and itemName ~= "Mysterious Arrow" then
+            if not shouldSkipItem and string.find(string.lower(itemName), "arrow") and itemName ~= "Mysterious Arrow" then
                 print("AUTOFARM DEBUG: Стандартизируем название стрелы с '", itemName, "' на 'Mysterious Arrow'")
                 itemName = "Mysterious Arrow"
             end
             
             -- Проверяем выбран ли предмет в Items Farm списке СРАЗУ
             print("AUTOFARM DEBUG: Проверяем предмет", itemName, "- статус в конфиге:", AutofarmConfig.Items[itemName])
-            if AutofarmConfig.Items[itemName] then
+            if not shouldSkipItem and AutofarmConfig.Items[itemName] then
                 -- Ищем WorldPivot позицию
                 local worldPivot = nil
                 if model.WorldPivot then
@@ -4211,7 +4212,6 @@ local function findAutofarmItems()
                 end
             end -- Закрываем if AutofarmConfig.Items[itemName] then
         end
-        ::continue:: -- Метка для пропуска предметов
     end
     
     -- Сортируем по расстоянию (ближайшие первыми)
