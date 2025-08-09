@@ -155,18 +155,33 @@ local function moveToShiftplox(callback)
         
         task.wait(0.1) -- Даем время для остановки
         
-        print("🤖 AUTOSELL: Лети к NPC Shiftplox самостоятельно с помощью своего fly!")
+        print("🤖 AUTOSELL: Автопилот к NPC Shiftplox активирован!")
         print("🤖 AUTOSELL: Позиция NPC:", AutosellConfig.ShiftploxPosition)
         
-        -- Ждем пока игрок долетит к NPC (проверяем расстояние)
-        local checkConnection
-        checkConnection = RunService.Heartbeat:Connect(function()
+        -- Создаем BodyVelocity для автопилота к NPC
+        local autopilotBV = Instance.new("BodyVelocity")
+        autopilotBV.Name = "AutosellAutopilot"
+        autopilotBV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        autopilotBV.Velocity = Vector3.new(0, 0, 0)
+        autopilotBV.Parent = humanoidRootPart
+        
+        -- Автопилот к NPC
+        local autopilotConnection
+        autopilotConnection = RunService.Heartbeat:Connect(function()
             local currentPos = humanoidRootPart.Position
             local distance = (AutosellConfig.ShiftploxPosition - currentPos).Magnitude
             
-            if distance <= 10 then
+            if distance > 10 then
+                -- Летим к NPC
+                local direction = (AutosellConfig.ShiftploxPosition - currentPos).Unit
+                local moveVector = direction * 100 -- скорость автопилота
+                autopilotBV.Velocity = moveVector
+            else
+                -- Достигли NPC - останавливаем автопилот
                 print("🤖 AUTOSELL: Достигли NPC Shiftplox!")
-                checkConnection:Disconnect()
+                autopilotBV.Velocity = Vector3.new(0, 0, 0)
+                autopilotBV:Destroy()
+                autopilotConnection:Disconnect()
                 
                 -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость
                 task.spawn(function()
@@ -352,9 +367,10 @@ local function startAutosell()
         -- Включаем твой fly после NoClip
         if _G.startFly and type(_G.startFly) == "function" then
             print("🤖 AUTOSELL: Включаем твой fly...")
+            _G.MovementConfig.Fly.Speed = 10  -- Устанавливаем скорость 10
             _G.MovementConfig.Fly.Enabled = true
             _G.startFly()
-            print("🤖 AUTOSELL: Fly включен успешно")
+            print("🤖 AUTOSELL: Fly включен успешно со скоростью 10")
         else
             print("🤖 AUTOSELL: Предупреждение - функция startFly недоступна")
         end
