@@ -5649,9 +5649,35 @@ local function pickupItem(item)
     print("AUTOFARM: Пытаемся подобрать предмет", item.Name)
     autofarmPickingUp = true
     
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if not character then
+        print("AUTOFARM: Персонаж не найден при подборе")
+        autofarmPickingUp = false
+        task.spawn(function()
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        print("AUTOFARM: HumanoidRootPart не найден при подборе")
+        autofarmPickingUp = false
+        task.spawn(function()
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
+        return
+    end
+    
     -- Зажимаем клавишу E для подбора
     local pickupConnection
     local pickupStartTime = tick()
+    local lastPickupAttempt = 0
     
     pickupConnection = RunService.Heartbeat:Connect(function()
         if not isAutofarmEnabled then
@@ -5667,18 +5693,60 @@ local function pickupItem(item)
             autofarmPickingUp = false
             
             -- Ждем немного и переходим к следующему предмету
-            task.wait(0.5)
-            processNextItem()
+            task.spawn(function()
+                task.wait(0.5)
+                if isAutofarmEnabled then
+                    processNextItem()
+                end
+            end)
             return
         end
         
-        -- Имитируем зажатую клавишу E
-        if tick() - pickupStartTime < 3 then -- максимум 3 секунды на подбор
-            -- Используем более простой способ - проверяем ProximityPrompt
-            if item.ProximityPrompt and item.ProximityPrompt.Parent then
-                -- Пытаемся активировать ProximityPrompt напрямую
+        -- Проверяем расстояние до предмета
+        local currentPos = humanoidRootPart.Position
+        local itemDistance = (item.Position - currentPos).Magnitude
+        
+        -- Если далеко от предмета, подлетаем ближе
+        if itemDistance > 10 then
+            print("AUTOFARM: Слишком далеко от предмета, подлетаем ближе")
+            local direction = (item.Position - currentPos).Unit
+            local bv = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
+            if bv then
+                bv.Velocity = direction * AutofarmConfig.FlightSpeed
+            end
+            return
+        else
+            -- Останавливаемся рядом с предметом
+            local bv = humanoidRootPart:FindFirstChild("AutofarmBodyVelocity")
+            if bv then
+                bv.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+        
+        -- Имитируем подбор предмета
+        if tick() - pickupStartTime < 5 then -- максимум 5 секунд на подбор
+            -- Ограничиваем частоту попыток подбора
+            if tick() - lastPickupAttempt > 0.2 then
+                lastPickupAttempt = tick()
+                
                 pcall(function()
-                    fireproximityprompt(item.ProximityPrompt)
+                    -- Метод 1: Используем fireproximityprompt если доступно
+                    if item.ProximityPrompt and item.ProximityPrompt.Parent then
+                        if getgenv and getgenv().fireproximityprompt then
+                            getgenv().fireproximityprompt(item.ProximityPrompt)
+                            print("AUTOFARM: Попытка подбора через fireproximityprompt")
+                        elseif _G.fireproximityprompt then
+                            _G.fireproximityprompt(item.ProximityPrompt)
+                            print("AUTOFARM: Попытка подбора через _G.fireproximityprompt")
+                        else
+                            -- Метод 2: Имитируем нажатие E если функция недоступна
+                            local VirtualInputManager = game:GetService("VirtualInputManager")
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                            task.wait(0.05)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                            print("AUTOFARM: Попытка подбора через VirtualInputManager")
+                        end
+                    end
                 end)
             end
         else
@@ -5686,7 +5754,11 @@ local function pickupItem(item)
             print("AUTOFARM: Таймаут подбора для", item.Name)
             pickupConnection:Disconnect()
             autofarmPickingUp = false
-            processNextItem()
+            task.spawn(function()
+                if isAutofarmEnabled then
+                    processNextItem()
+                end
+            end)
         end
     end)
     
@@ -5708,8 +5780,13 @@ function processNextItem()
     local items = findAutofarmItems()
     if #items == 0 then
         print("AUTOFARM: Предметы не найдены, повторяем сканирование через", AutofarmConfig.ScanInterval, "сек")
-        task.wait(AutofarmConfig.ScanInterval)
-        processNextItem()
+        -- Используем spawn чтобы избежать блокировки
+        task.spawn(function()
+            task.wait(AutofarmConfig.ScanInterval)
+            if isAutofarmEnabled then
+                processNextItem()
+            end
+        end)
         return
     end
     
