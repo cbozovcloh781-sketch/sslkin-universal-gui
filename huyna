@@ -275,6 +275,7 @@ local autofarmOriginalPosition = nil
 local autofarmPickingUp = false
 local autofarmSkippedItems = {} -- Пропущенные предметы для повторной попытки
 local autofarmItemAttempts = {} -- Счетчик попыток для каждого предмета
+local autofarmSkippedReturns = {} -- Счетчик возвратов к пропущенным предметам
 local autofarmLastPickupTime = 0 -- Время последнего подбора для проверки неактивности
 
 
@@ -4607,20 +4608,42 @@ function processNextItem()
     if #items == 0 then
         -- Если нет доступных предметов, проверяем пропущенные
         if next(autofarmSkippedItems) then
-            print("AUTOFARM: Обычные предметы закончились, возвращаемся к пропущенным предметам")
-            -- Сбрасываем попытки для всех пропущенных предметов
+            print("AUTOFARM: Обычные предметы закончились, проверяем пропущенные предметы")
+            
+            -- Фильтруем пропущенные предметы - удаляем те, что возвращались более 5 раз
+            local validSkippedItems = {}
             for itemKey, skippedItem in pairs(autofarmSkippedItems) do
-                resetItemAttempts(itemKey)
-            end
-            autofarmSkippedItems = {}
-            -- Перезапускаем поиск
-            task.spawn(function()
-                task.wait(0.5)
-                if isAutofarmEnabled then
-                    processNextItem()
+                local returnCount = (autofarmSkippedReturns[itemKey] or 0) + 1
+                autofarmSkippedReturns[itemKey] = returnCount
+                
+                if returnCount <= 5 then
+                    validSkippedItems[itemKey] = skippedItem
+                    print("AUTOFARM: Возврат к предмету", skippedItem.Name, "- попытка", returnCount, "/5")
+                else
+                    print("AUTOFARM: Предмет", skippedItem.Name, "забыт навсегда - превышено количество возвратов (5/5)")
+                    autofarmSkippedReturns[itemKey] = nil -- Очищаем счетчик
                 end
-            end)
-            return
+            end
+            
+            if next(validSkippedItems) then
+                print("AUTOFARM: Возвращаемся к", table.getn and table.getn(validSkippedItems) or "нескольким", "пропущенным предметам")
+                -- Сбрасываем попытки только для валидных пропущенных предметов
+                for itemKey, skippedItem in pairs(validSkippedItems) do
+                    resetItemAttempts(itemKey)
+                end
+                autofarmSkippedItems = {}
+                -- Перезапускаем поиск
+                task.spawn(function()
+                    task.wait(0.5)
+                    if isAutofarmEnabled then
+                        processNextItem()
+                    end
+                end)
+                return
+            else
+                print("AUTOFARM: Все пропущенные предметы забыты - нет доступных предметов")
+                autofarmSkippedItems = {}
+            end
         else
             -- Убираем спам про отсутствие предметов
             -- Используем spawn чтобы избежать блокировки
@@ -4902,6 +4925,7 @@ function startAutofarm()
     -- Очищаем предыдущие данные о попытках и пропущенных предметах
     autofarmItemAttempts = {}
     autofarmSkippedItems = {}
+    autofarmSkippedReturns = {}
     
     -- Не сохраняем исходную позицию - остаемся где остановились (как телепорт)
     
