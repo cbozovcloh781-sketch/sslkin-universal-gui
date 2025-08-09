@@ -4470,7 +4470,7 @@ local function pickupItem(item)
             -- Если слишком далеко, подлетаем ближе
             -- Убираем спам про подлет
             -- Летим к позиции предмета с небольшим отклонением
-            local targetPos = Vector3.new(item.Position.X, item.Position.Y - 1, item.Position.Z)
+            local targetPos = Vector3.new(item.Position.X, item.Position.Y + 2, item.Position.Z)
             moveToPosition(targetPos, function()
                 -- После подлета продолжаем подбор
             end)
@@ -4739,8 +4739,8 @@ function processNextItem()
     
     print("AUTOFARM: ✈️ Летим к предмету", nextItem.Name, "на расстоянии", math.floor(nextItem.Distance), "м")
     
-    -- Летим к предмету (с отступом 2 единицы вниз)
-    local targetPosition = Vector3.new(nextItem.Position.X, nextItem.Position.Y - 2, nextItem.Position.Z)
+    -- Летим к предмету (с отступом 2 единицы вверх)
+    local targetPosition = Vector3.new(nextItem.Position.X, nextItem.Position.Y + 2, nextItem.Position.Z)
     pcall(function()
         moveToPosition(targetPosition, function()
         if isAutofarmEnabled then
@@ -6308,23 +6308,23 @@ function showContent(tabName)
         end
         
         -- Создаем переключатели для всех предметов автофарма
-        createAutofarmItemToggle(getText("MysteriousArrow"), AutofarmConfig.Items["Mysterious Arrow"])
-        createAutofarmItemToggle(getText("Rokakaka"), AutofarmConfig.Items["Rokakaka"])
-        createAutofarmItemToggle(getText("PureRokakaka"), AutofarmConfig.Items["Pure Rokakaka"])
-        createAutofarmItemToggle(getText("Diamond"), AutofarmConfig.Items["Diamond"])
-        createAutofarmItemToggle(getText("GoldCoin"), AutofarmConfig.Items["Gold Coin"])
-        createAutofarmItemToggle(getText("SteelBall"), AutofarmConfig.Items["Steel Ball"])
-        createAutofarmItemToggle(getText("Clackers"), AutofarmConfig.Items["Clackers"])
-        createAutofarmItemToggle(getText("CaesarsHeadband"), AutofarmConfig.Items["Caesar's Headband"])
-        createAutofarmItemToggle(getText("ZeppeliHat"), AutofarmConfig.Items["Zeppeli's Hat"])
-        createAutofarmItemToggle(getText("ZeppeliScarf"), AutofarmConfig.Items["Zeppeli's Scarf"])
-        createAutofarmItemToggle(getText("QuintonsGlove"), AutofarmConfig.Items["Quinton's Glove"])
-        createAutofarmItemToggle(getText("StoneMask"), AutofarmConfig.Items["Stone Mask"])
-        createAutofarmItemToggle(getText("RibCage"), AutofarmConfig.Items["Rib Cage of The Saint's Corpse"])
-        createAutofarmItemToggle(getText("AncientScroll"), AutofarmConfig.Items["Ancient Scroll"])
-        createAutofarmItemToggle(getText("DiosDiary"), AutofarmConfig.Items["DIO's Diary"])
-        createAutofarmItemToggle(getText("LuckyStoneMask"), AutofarmConfig.Items["Lucky Stone Mask"])
-        createAutofarmItemToggle(getText("LuckyArrow"), AutofarmConfig.Items["Lucky Arrow"])
+        createAutofarmItemToggle("Mysterious Arrow", AutofarmConfig.Items["Mysterious Arrow"])
+        createAutofarmItemToggle("Rokakaka", AutofarmConfig.Items["Rokakaka"])
+        createAutofarmItemToggle("Pure Rokakaka", AutofarmConfig.Items["Pure Rokakaka"])
+        createAutofarmItemToggle("Diamond", AutofarmConfig.Items["Diamond"])
+        createAutofarmItemToggle("Gold Coin", AutofarmConfig.Items["Gold Coin"])
+        createAutofarmItemToggle("Steel Ball", AutofarmConfig.Items["Steel Ball"])
+        createAutofarmItemToggle("Clackers", AutofarmConfig.Items["Clackers"])
+        createAutofarmItemToggle("Caesar's Headband", AutofarmConfig.Items["Caesar's Headband"])
+        createAutofarmItemToggle("Zeppeli's Hat", AutofarmConfig.Items["Zeppeli's Hat"])
+        createAutofarmItemToggle("Zeppeli's Scarf", AutofarmConfig.Items["Zeppeli's Scarf"])
+        createAutofarmItemToggle("Quinton's Glove", AutofarmConfig.Items["Quinton's Glove"])
+        createAutofarmItemToggle("Stone Mask", AutofarmConfig.Items["Stone Mask"])
+        createAutofarmItemToggle("Rib Cage of The Saint's Corpse", AutofarmConfig.Items["Rib Cage of The Saint's Corpse"])
+        createAutofarmItemToggle("Ancient Scroll", AutofarmConfig.Items["Ancient Scroll"])
+        createAutofarmItemToggle("DIO's Diary", AutofarmConfig.Items["DIO's Diary"])
+        createAutofarmItemToggle("Lucky Stone Mask", AutofarmConfig.Items["Lucky Stone Mask"])
+        createAutofarmItemToggle("Lucky Arrow", AutofarmConfig.Items["Lucky Arrow"])
         
     elseif tabName == "Settings" then
         contentTitle.Text = getText("MenuSettings")
