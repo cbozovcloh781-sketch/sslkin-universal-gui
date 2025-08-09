@@ -4573,8 +4573,11 @@ function processNextItem()
     
     -- Проверяем неактивность (15 секунд без подбора)
     -- Таймер должен быть инициализирован (> 0) и прошло больше 15 секунд
-    if autofarmLastPickupTime and autofarmLastPickupTime > 0 and tick() - autofarmLastPickupTime > 15 then
-        print("AUTOFARM: Неактивность 15 секунд - ПОЛНЫЙ ПЕРЕЗАПУСК автофарма")
+    local currentTime = tick()
+    local timeSinceLastPickup = autofarmLastPickupTime and autofarmLastPickupTime > 0 and (currentTime - autofarmLastPickupTime) or -1
+    
+    if timeSinceLastPickup > 15 then
+        print("AUTOFARM: Неактивность", math.floor(timeSinceLastPickup), "секунд - ПОЛНЫЙ ПЕРЕЗАПУСК автофарма")
         
         task.spawn(function()
             -- Полностью останавливаем автофарм
@@ -4588,6 +4591,15 @@ function processNextItem()
             startAutofarm()
         end)
         return
+    end
+    
+    -- ОТЛАДКА: Показываем состояние таймера каждый раз
+    local currentTime = tick()
+    local timeSinceLastPickup = autofarmLastPickupTime and autofarmLastPickupTime > 0 and (currentTime - autofarmLastPickupTime) or -1
+    if timeSinceLastPickup > 0 then
+        print("AUTOFARM DEBUG: Прошло", math.floor(timeSinceLastPickup), "секунд с последнего успешного подбора")
+    else
+        print("AUTOFARM DEBUG: Таймер не инициализирован")
     end
     
     -- Сканируем новые предметы
