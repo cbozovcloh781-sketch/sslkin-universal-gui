@@ -4143,7 +4143,6 @@ local function findAutofarmItems()
             end
             
             -- Проверяем выбран ли предмет в Items Farm списке СРАЗУ
-            print("AUTOFARM: Проверяем предмет:", itemName, "| Включен в настройках:", AutofarmConfig.Items[itemName] and "ДА" or "НЕТ")
             if AutofarmConfig.Items[itemName] then
                 -- Ищем WorldPivot позицию
                 local worldPivot = nil
@@ -4177,7 +4176,10 @@ local function findAutofarmItems()
                     
                     -- Проверяем не превышено ли количество попыток
                     if not isItemMaxAttempts(itemKey) then
-                        print("AUTOFARM: Найден ВЫБРАННЫЙ предмет", itemName, "на расстоянии", math.floor(distance), "м (попытка", (autofarmItemAttempts[itemKey] or 0) + 1, "/3)")
+                        -- Логируем только первую попытку для предмета, чтобы не спамить
+                        if (autofarmItemAttempts[itemKey] or 0) == 0 then
+                            print("AUTOFARM: 🎯 Найден предмет", itemName, "на расстоянии", math.floor(distance), "м")
+                        end
                         table.insert(items, tempItem)
                     else
                         print("AUTOFARM: Предмет", itemName, "пропущен - превышено количество попыток (3/3)")
@@ -4185,16 +4187,14 @@ local function findAutofarmItems()
                         autofarmSkippedItems[itemKey] = tempItem
                     end
                 end
-            else
-                print("AUTOFARM: Предмет", itemName, "НЕ ВЫБРАН в списке Items Farm - пропускаем")
-            end
+            end -- Закрываем if AutofarmConfig.Items[itemName] then
         end
     end
     
     -- Сортируем по расстоянию (ближайшие первыми)
     table.sort(items, function(a, b) return a.Distance < b.Distance end)
     
-    print("AUTOFARM: Найдено предметов для фарма:", foundCount)
+    -- Убираем спам про количество найденных предметов
     return items
 end
 
@@ -4390,13 +4390,20 @@ local function pickupItem(item)
                 isKeyPressed = false
             end
             
-            -- Предмет исчез - считаем что успешно подобран, сбрасываем попытки
+            -- Предмет исчез - проверяем был ли это реальный подбор
             local itemKey = getItemKey(item)
-            resetItemAttempts(itemKey)
-            print("AUTOFARM: Предмет", item.Name, "исчез - успешно подобран, сбрасываем попытки")
+            local actualPickupTime = tick() - pickupStartTime
             
-            -- Обновляем время последнего подбора
-            autofarmLastPickupTime = tick()
+            if hasStartedPickup and actualPickupTime >= (AutofarmConfig.PickupDuration * 0.5) then
+                -- Предмет исчез ПОСЛЕ того как мы достаточно долго жали E - это успешный подбор
+                resetItemAttempts(itemKey)
+                autofarmLastPickupTime = tick() -- Обновляем таймер только при успешном подборе
+                print("AUTOFARM: ✅ Предмет", item.Name, "УСПЕШНО подобран (исчез после", math.floor(actualPickupTime * 100) / 100, "сек)")
+            else
+                -- Предмет исчез слишком быстро - возможно баг, не считаем успешным подбором
+                incrementItemAttempts(itemKey)
+                print("AUTOFARM: ⚠️ Предмет", item.Name, "исчез подозрительно быстро (", math.floor(actualPickupTime * 100) / 100, "сек) - возможно баг")
+            end
             
             pickupConnection:Disconnect()
             autofarmPickingUp = false
@@ -4416,7 +4423,7 @@ local function pickupItem(item)
         
         -- Если в радиусе подбора и еще не начали подбор
         if distance <= AutofarmConfig.PickupRadius and not hasStartedPickup then
-            print("AUTOFARM: В радиусе подбора (", math.floor(distance), "м), зажимаем E на", AutofarmConfig.PickupDuration, "сек")
+            print("AUTOFARM: 🔧 Начинаем подбор", item.Name, "(", math.floor(distance), "м)")
             hasStartedPickup = true
             pickupStartTime = tick()
             
@@ -4436,7 +4443,7 @@ local function pickupItem(item)
             
         elseif distance > AutofarmConfig.PickupRadius and not hasStartedPickup then
             -- Если слишком далеко, подлетаем ближе
-            print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем к предмету")
+            -- Убираем спам про подлет
             -- Летим к позиции предмета с небольшим отклонением
             local targetPos = Vector3.new(item.Position.X, item.Position.Y - 1, item.Position.Z)
             moveToPosition(targetPos, function()
@@ -4468,8 +4475,7 @@ local function pickupItem(item)
             local attempts = incrementItemAttempts(itemKey)
             print("AUTOFARM: Попытка", attempts, "/3 для предмета", item.Name)
             
-            -- Обновляем время последнего подбора
-            autofarmLastPickupTime = tick()
+            -- НЕ обновляем время последнего подбора - это была неудачная попытка
             
             pickupConnection:Disconnect()
             autofarmPickingUp = false
@@ -4505,8 +4511,7 @@ local function pickupItem(item)
             local attempts = incrementItemAttempts(itemKey)
             print("AUTOFARM: Таймаут - попытка", attempts, "/3 для предмета", item.Name)
             
-            -- Обновляем время последнего подбора
-            autofarmLastPickupTime = tick()
+            -- НЕ обновляем время последнего подбора - это был таймаут (неудача)
             
             pickupConnection:Disconnect()
             autofarmPickingUp = false
@@ -4528,7 +4533,7 @@ function processNextItem()
     
     -- Если уже что-то подбираем, ждем
     if autofarmPickingUp then
-        print("AUTOFARM: Ждем завершения подбора...")
+        -- Убираем спам про ожидание подбора
         return
     end
     
@@ -4571,7 +4576,7 @@ function processNextItem()
             end)
             return
         else
-            print("AUTOFARM: Предметы не найдены, повторяем сканирование через", AutofarmConfig.ScanInterval, "сек")
+            -- Убираем спам про отсутствие предметов
             -- Используем spawn чтобы избежать блокировки
             task.spawn(function()
                 task.wait(AutofarmConfig.ScanInterval)
@@ -4618,7 +4623,7 @@ function processNextItem()
         return
     end
     
-    print("AUTOFARM: Летим к предмету", nextItem.Name, "на расстоянии", math.floor(nextItem.Distance), "м")
+    print("AUTOFARM: ✈️ Летим к предмету", nextItem.Name, "на расстоянии", math.floor(nextItem.Distance), "м")
     
     -- Летим к предмету (с отступом 2 единицы вниз)
     local targetPosition = Vector3.new(nextItem.Position.X, nextItem.Position.Y - 2, nextItem.Position.Z)
@@ -4776,7 +4781,7 @@ local function forceLoadEntireMap()
     print("🤖 AUTOFARM: Прогрузка карты завершена! Загружено", #loadPoints, "точек. Начинаем поиск предметов...")
 end
 
-local function startAutofarm()
+function startAutofarm()
     if isAutofarmEnabled then
         print("AUTOFARM: Уже активен!")
         return
@@ -4824,7 +4829,7 @@ local function startAutofarm()
     end)
 end
 
-local function stopAutofarm()
+function stopAutofarm()
     if not isAutofarmEnabled then
         return
     end
@@ -6232,5 +6237,4 @@ UserInputService.InputBegan:Connect(function(input, gp)
         end
     end
 end)
-
 
