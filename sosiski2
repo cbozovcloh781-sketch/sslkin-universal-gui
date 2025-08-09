@@ -5718,6 +5718,324 @@ local function createDropdown(label, options, currentValue, callback)
     return container
 end
 
+-- Функция для показа Main таба
+local function showMainTab()
+    contentTitle.Text = getText("MainFunctions")
+    
+    -- Hotkeys
+    createKeyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
+        Config.ESP.ToggleKey = newKey
+    end)
+    
+    createKeyBindButton("Aimbot", Config.Aimbot.ToggleKey, function(newKey)
+        Config.Aimbot.ToggleKey = newKey
+    end)
+    
+    createKeyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
+        FlyConfig.ToggleKey = newKey
+    end)
+    
+    createKeyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
+        NoClipConfig.ToggleKey = newKey
+    end)
+    
+    createKeyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
+        SpeedHackConfig.ToggleKey = newKey
+    end)
+    
+    createKeyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
+        TeleportConfig.ToggleKey = newKey
+    end)
+    
+    createDivider()
+    
+    createSectionHeader("🔷ESP Settings")
+    createToggleSlider(getText("ESP"), Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
+    createToggleSlider(getText("TeamCheck"), Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
+    createToggleSlider(getText("ShowOutline"), Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
+    createToggleSlider(getText("ShowLines"), Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
+    createToggleSlider(getText("RainbowColors"), Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
+    
+    createColorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
+    createColorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
+    createColorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor = c end)
+    createSlider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
+    createSlider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
+    
+    createDivider()
+    
+    createSectionHeader("🔷Aimbot Settings")
+    createToggleSlider(getText("Aimbot"), Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
+    createToggleSlider(getText("TeamCheck"), Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
+    createToggleSlider(getText("VisibilityCheck"), Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
+    createSlider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
+    createToggleSlider(getText("FOVRainbow"), Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
+    createColorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
+    
+    createDivider()
+    
+    createSectionHeader("🟨 Fly Settings")
+    createToggleSlider("Fly", FlyConfig.Enabled, function(v)
+        FlyConfig.Enabled = v
+        if v then startFly() else stopFly() end
+    end)
+    
+    createSlider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
+        FlyConfig.Speed = v
+    end)
+    
+    createSpeedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
+        FlyConfig.Speed = v
+    end)
+    
+    createDivider()
+    
+    createSectionHeader("🟪 NoClip Settings")
+    local noClipStatusLabel = Instance.new("TextLabel", functionsContainer)
+    noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
+    noClipStatusLabel.Position = UDim2.new(0, 5, 0, currentY)
+    noClipStatusLabel.Text = "NoClip Status: OFF"
+    noClipStatusLabel.Font = Enum.Font.GothamBold
+    noClipStatusLabel.TextSize = 12
+    noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+    noClipStatusLabel.BackgroundTransparency = 1
+    noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    currentY = currentY + 20 + padding
+    
+    local forceNoClipToggle = createToggleSlider("Force NoClip", isNoClipping, function(v)
+        if v then
+            startNoClip()
+            noClipStatusLabel.Text = "NoClip Status: ON"
+            noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
+        else
+            stopNoClip()
+            noClipStatusLabel.Text = "NoClip Status: OFF"
+            noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+        end
+    end)
+    
+    createDivider()
+    
+    createSectionHeader("🟦 SpeedHack Settings")
+    createToggleSlider("SpeedHack", SpeedHackConfig.Enabled, function(v)
+        SpeedHackConfig.Enabled = v
+        if v then startSpeedHack() else stopSpeedHack() end
+    end)
+    
+    createToggleSlider("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
+        SpeedHackConfig.UseJumpPower = v
+        if SpeedHackConfig.Enabled then
+            stopSpeedHack()
+            startSpeedHack()
+        end
+    end)
+    
+    createSlider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
+        SpeedHackConfig.Speed = v
+        if SpeedHackConfig.Enabled then
+            local char = Players.LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.WalkSpeed = v * 16
+                if SpeedHackConfig.UseJumpPower then
+                    hum.JumpPower = v * 50
+                end
+            end
+        end
+    end)
+    
+    createSpeedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
+        SpeedHackConfig.Speed = v
+        if SpeedHackConfig.Enabled then
+            local char = Players.LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.WalkSpeed = v * 16
+                if SpeedHackConfig.UseJumpPower then
+                    hum.JumpPower = v * 50
+                end
+            end
+        end
+    end)
+    
+    createDivider()
+    
+    -- Jump Settings
+    createSectionHeader("🦘 Jump Settings")
+    createToggleSlider(getText("LongJump"), LongJumpConfig.Enabled, function(v)
+        LongJumpConfig.Enabled = v
+        if v then startLongJump() else stopLongJump() end
+    end)
+    
+    createSlider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
+        LongJumpConfig.JumpPower = v
+        if LongJumpConfig.Enabled then
+            local char = Players.LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.JumpPower = v
+            end
+        end
+    end)
+    
+    createToggleSlider(getText("InfiniteJump"), InfiniteJumpConfig.Enabled, function(v)
+        InfiniteJumpConfig.Enabled = v
+        if v then startInfiniteJump() else stopInfiniteJump() end
+    end)
+    
+    createSlider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
+        InfiniteJumpConfig.JumpPower = v
+    end)
+    
+    createDivider()
+    
+    -- Teleport Settings
+    createSectionHeader("🟩 Teleport Settings")
+    
+    local selectedPlayerLabel = Instance.new("TextLabel", functionsContainer)
+    selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
+    selectedPlayerLabel.Position = UDim2.new(0, 5, 0, currentY)
+    selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. (TeleportConfig.SelectedPlayerName or "None")
+    selectedPlayerLabel.Font = Enum.Font.GothamBold
+    selectedPlayerLabel.TextSize = 14
+    selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
+    selectedPlayerLabel.BackgroundTransparency = 1
+    selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
+    currentY = currentY + 24 + padding
+    
+    teleportBtn = Instance.new("TextButton", functionsContainer)
+    teleportBtn.Size = UDim2.new(1, -10, 0, 28)
+    teleportBtn.Position = UDim2.new(0, 5, 0, currentY)
+    teleportBtn.Text = getText("StartTeleport")
+    teleportBtn.Font = Enum.Font.GothamBold
+    teleportBtn.TextSize = 14
+    teleportBtn.TextColor3 = Color3.new(1,1,1)
+    teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+    teleportBtn.AutoButtonColor = false
+    Instance.new("UICorner", teleportBtn).CornerRadius = UDim.new(0,6)
+    currentY = currentY + 28 + padding
+    
+    local teleportConnection = teleportBtn.MouseButton1Click:Connect(function()
+        if not TeleportConfig.TargetPlayer then
+            teleportBtn.Text = "Select player first!"
+            task.wait(2)
+            teleportBtn.Text = "START TELEPORT"
+            return
+        end
+        
+        if TeleportConfig.Enabled then
+            stopTeleport()
+            TeleportConfig.Enabled = false
+            teleportBtn.Text = getText("StartTeleport")
+            teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+        else
+            startTeleport()
+            TeleportConfig.Enabled = true
+            teleportBtn.Text = getText("StopTeleport")
+            teleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+        end
+    end)
+    table.insert(globalUIConnections, teleportConnection)
+    
+    local playerListLabel = Instance.new("TextLabel", functionsContainer)
+    playerListLabel.Size = UDim2.new(1, -10, 0, 20)
+    playerListLabel.Position = UDim2.new(0, 5, 0, currentY)
+    playerListLabel.Text = getText("SelectPlayerForTeleport") .. ":"
+    playerListLabel.Font = Enum.Font.GothamBold
+    playerListLabel.TextSize = 12
+    playerListLabel.TextColor3 = Color3.new(1,1,1)
+    playerListLabel.BackgroundTransparency = 1
+    playerListLabel.TextXAlignment = Enum.TextXAlignment.Left
+    currentY = currentY + 20 + padding
+    
+    local playerButtons = {}
+    local playerListStartY = currentY
+    local lastPlayerCount = 0 -- Для оптимизации - обновляем только при изменении
+    
+    local function createPlayerList()
+        local allPlayers = Players:GetPlayers()
+        local currentPlayerCount = #allPlayers - 1 -- -1 потому что исключаем LocalPlayer
+        
+        -- Оптимизация: обновляем только если количество игроков изменилось
+        if currentPlayerCount == lastPlayerCount then
+            return
+        end
+        lastPlayerCount = currentPlayerCount
+        
+        -- Отключаем все старые connections перед очисткой кнопок
+        for _, connection in pairs(globalPlayerConnections) do
+            if connection and typeof(connection) == "RBXScriptConnection" then
+                pcall(function() connection:Disconnect() end)
+            end
+        end
+        globalPlayerConnections = {}
+        
+        for _, btn in pairs(playerButtons) do
+            if btn and btn.Parent then
+                btn:Destroy()
+            end
+        end
+        playerButtons = {}
+        
+        currentY = playerListStartY
+        
+        local playerList = {}
+        
+        for _, player in ipairs(allPlayers) do
+            if player ~= Players.LocalPlayer then
+                table.insert(playerList, player)
+            end
+        end
+        
+        table.sort(playerList, function(a, b)
+            return string.lower(a.Name) < string.lower(b.Name)
+        end)
+        
+        for _, player in ipairs(playerList) do
+            local playerBtn = Instance.new("TextButton", functionsContainer)
+            playerBtn.Size = UDim2.new(1, -10, 0, 24)
+            playerBtn.Position = UDim2.new(0, 5, 0, currentY)
+            playerBtn.Text = player.Name
+            playerBtn.Font = Enum.Font.Gotham
+            playerBtn.TextSize = 12
+            playerBtn.TextColor3 = Color3.new(1,1,1)
+            playerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+            playerBtn.AutoButtonColor = false
+            Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
+            currentY = currentY + 24 + padding
+            
+            table.insert(playerButtons, playerBtn)
+            
+            -- Сохраняем connection для последующего отключения
+            local connection = playerBtn.MouseButton1Click:Connect(function()
+                TeleportConfig.TargetPlayer = player
+                TeleportConfig.SelectedPlayerName = player.Name
+                selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. player.Name
+                
+                for _, child in pairs(functionsContainer:GetChildren()) do
+                    if child:IsA("TextButton") and child.Text == player.Name then
+                        child.BackgroundColor3 = Color3.fromRGB(0,255,0)
+                    elseif child:IsA("TextButton") and child.Text ~= "START TELEPORT" and child.Text ~= "STOP TELEPORT" and child.Text ~= player.Name then
+                        child.BackgroundColor3 = Color3.fromRGB(40,40,40)
+                    end
+                end
+            end)
+            table.insert(globalPlayerConnections, connection)
+        end
+    end
+    
+    createPlayerList()
+    
+    spawn(function()
+        while true do
+            task.wait(10) -- Увеличили интервал с 2 до 10 секунд для снижения нагрузки
+            if selectedTab == "Main" then
+                createPlayerList()
+            end
+        end
+    end)
+end
+
 -- Функция для показа контента
 function showContent(tabName)
     -- Сохраняем текущую позицию прокрутки
@@ -5756,320 +6074,7 @@ function showContent(tabName)
     currentY = 0
     
     if tabName == "Main" then
-        contentTitle.Text = getText("MainFunctions")
-        
-        -- Hotkeys
-        createKeyBindButton("ESP", Config.ESP.ToggleKey, function(newKey)
-            Config.ESP.ToggleKey = newKey
-        end)
-        
-        createKeyBindButton("Aimbot", Config.Aimbot.ToggleKey, function(newKey)
-            Config.Aimbot.ToggleKey = newKey
-        end)
-        
-        createKeyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
-            FlyConfig.ToggleKey = newKey
-        end)
-        
-        createKeyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
-            NoClipConfig.ToggleKey = newKey
-        end)
-        
-        createKeyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
-            SpeedHackConfig.ToggleKey = newKey
-        end)
-        
-        createKeyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
-            TeleportConfig.ToggleKey = newKey
-        end)
-        
-        createDivider()
-        
-        createSectionHeader("🔷ESP Settings")
-        createToggleSlider(getText("ESP"), Config.ESP.Enabled, function(v) Config.ESP.Enabled = v end)
-        createToggleSlider(getText("TeamCheck"), Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
-        createToggleSlider(getText("ShowOutline"), Config.ESP.ShowOutline, function(v) Config.ESP.ShowOutline = v end)
-        createToggleSlider(getText("ShowLines"), Config.ESP.ShowLines, function(v) Config.ESP.ShowLines = v end)
-        createToggleSlider(getText("RainbowColors"), Config.ESP.Rainbow, function(v) Config.ESP.Rainbow = v end)
-        
-        createColorPicker("Fill Color", Config.ESP.FillColor, function(c) Config.ESP.FillColor = c end)
-        createColorPicker("Outline Color", Config.ESP.OutlineColor, function(c) Config.ESP.OutlineColor = c end)
-        createColorPicker("Text Color", Config.ESP.TextColor, function(c) Config.ESP.TextColor = c end)
-        createSlider("Fill Transparency", 0, 1, Config.ESP.FillTransparency, function(v) Config.ESP.FillTransparency = v end)
-        createSlider("Outline Transparency", 0, 1, Config.ESP.OutlineTransparency, function(v) Config.ESP.OutlineTransparency = v end)
-        
-        createDivider()
-        
-        createSectionHeader("🔷Aimbot Settings")
-        createToggleSlider(getText("Aimbot"), Config.Aimbot.Enabled, function(v) Config.Aimbot.Enabled = v end)
-        createToggleSlider(getText("TeamCheck"), Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
-        createToggleSlider(getText("VisibilityCheck"), Config.Aimbot.VisibilityCheck, function(v) Config.Aimbot.VisibilityCheck = v end)
-        createSlider("FOV Radius", 10, 500, Config.Aimbot.FOV, function(v) Config.Aimbot.FOV = v end)
-        createToggleSlider(getText("FOVRainbow"), Config.Aimbot.FOVRainbow, function(v) Config.Aimbot.FOVRainbow = v end)
-        createColorPicker("Aimbot FOV Color", Config.Aimbot.FOVColor, function(c) Config.Aimbot.FOVColor = c end)
-        
-        createDivider()
-        
-        createSectionHeader("🟨 Fly Settings")
-        createToggleSlider("Fly", FlyConfig.Enabled, function(v)
-            FlyConfig.Enabled = v
-            if v then startFly() else stopFly() end
-        end)
-        
-        createSlider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
-            FlyConfig.Speed = v
-        end)
-        
-        createSpeedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
-            FlyConfig.Speed = v
-        end)
-        
-        createDivider()
-        
-        createSectionHeader("🟪 NoClip Settings")
-        local noClipStatusLabel = Instance.new("TextLabel", functionsContainer)
-        noClipStatusLabel.Size = UDim2.new(1, -10, 0, 20)
-        noClipStatusLabel.Position = UDim2.new(0, 5, 0, currentY)
-        noClipStatusLabel.Text = "NoClip Status: OFF"
-        noClipStatusLabel.Font = Enum.Font.GothamBold
-        noClipStatusLabel.TextSize = 12
-        noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-        noClipStatusLabel.BackgroundTransparency = 1
-        noClipStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-        currentY = currentY + 20 + padding
-        
-        local forceNoClipToggle = createToggleSlider("Force NoClip", isNoClipping, function(v)
-            if v then
-                startNoClip()
-                noClipStatusLabel.Text = "NoClip Status: ON"
-                noClipStatusLabel.TextColor3 = Color3.fromRGB(100,255,100)
-            else
-                stopNoClip()
-                noClipStatusLabel.Text = "NoClip Status: OFF"
-                noClipStatusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-            end
-        end)
-        
-        createDivider()
-        
-        createSectionHeader("🟦 SpeedHack Settings")
-        createToggleSlider("SpeedHack", SpeedHackConfig.Enabled, function(v)
-            SpeedHackConfig.Enabled = v
-            if v then startSpeedHack() else stopSpeedHack() end
-        end)
-        
-        createToggleSlider("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
-            SpeedHackConfig.UseJumpPower = v
-            if SpeedHackConfig.Enabled then
-                stopSpeedHack()
-                startSpeedHack()
-            end
-        end)
-        
-        createSlider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
-            SpeedHackConfig.Speed = v
-            if SpeedHackConfig.Enabled then
-                local char = Players.LocalPlayer.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum.WalkSpeed = v * 16
-                    if SpeedHackConfig.UseJumpPower then
-                        hum.JumpPower = v * 50
-                    end
-                end
-            end
-        end)
-        
-        createSpeedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
-            SpeedHackConfig.Speed = v
-            if SpeedHackConfig.Enabled then
-                local char = Players.LocalPlayer.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum.WalkSpeed = v * 16
-                    if SpeedHackConfig.UseJumpPower then
-                        hum.JumpPower = v * 50
-                    end
-                end
-            end
-        end)
-        
-        createDivider()
-        
-        -- Jump Settings
-        createSectionHeader("🦘 Jump Settings")
-        createToggleSlider(getText("LongJump"), LongJumpConfig.Enabled, function(v)
-            LongJumpConfig.Enabled = v
-            if v then startLongJump() else stopLongJump() end
-        end)
-        
-        createSlider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
-            LongJumpConfig.JumpPower = v
-            if LongJumpConfig.Enabled then
-                local char = Players.LocalPlayer.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum.JumpPower = v
-                end
-            end
-        end)
-        
-        createToggleSlider(getText("InfiniteJump"), InfiniteJumpConfig.Enabled, function(v)
-            InfiniteJumpConfig.Enabled = v
-            if v then startInfiniteJump() else stopInfiniteJump() end
-        end)
-        
-        createSlider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
-            InfiniteJumpConfig.JumpPower = v
-        end)
-        
-        createDivider()
-        
-        -- Teleport Settings
-        createSectionHeader("🟩 Teleport Settings")
-        
-        local selectedPlayerLabel = Instance.new("TextLabel", functionsContainer)
-        selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 24)
-        selectedPlayerLabel.Position = UDim2.new(0, 5, 0, currentY)
-        selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. (TeleportConfig.SelectedPlayerName or "None")
-        selectedPlayerLabel.Font = Enum.Font.GothamBold
-        selectedPlayerLabel.TextSize = 14
-        selectedPlayerLabel.TextColor3 = Color3.new(1,1,1)
-        selectedPlayerLabel.BackgroundTransparency = 1
-        selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
-        currentY = currentY + 24 + padding
-        
-        teleportBtn = Instance.new("TextButton", functionsContainer)
-        teleportBtn.Size = UDim2.new(1, -10, 0, 28)
-        teleportBtn.Position = UDim2.new(0, 5, 0, currentY)
-        teleportBtn.Text = getText("StartTeleport")
-        teleportBtn.Font = Enum.Font.GothamBold
-        teleportBtn.TextSize = 14
-        teleportBtn.TextColor3 = Color3.new(1,1,1)
-        teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-        teleportBtn.AutoButtonColor = false
-        Instance.new("UICorner", teleportBtn).CornerRadius = UDim.new(0,6)
-        currentY = currentY + 28 + padding
-        
-        local teleportConnection = teleportBtn.MouseButton1Click:Connect(function()
-            if not TeleportConfig.TargetPlayer then
-                teleportBtn.Text = "Select player first!"
-                task.wait(2)
-                teleportBtn.Text = "START TELEPORT"
-                return
-            end
-            
-            if TeleportConfig.Enabled then
-                stopTeleport()
-                TeleportConfig.Enabled = false
-                teleportBtn.Text = getText("StartTeleport")
-                teleportBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-            else
-                startTeleport()
-                TeleportConfig.Enabled = true
-                teleportBtn.Text = getText("StopTeleport")
-                teleportBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-            end
-        end)
-        table.insert(globalUIConnections, teleportConnection)
-        
-        local playerListLabel = Instance.new("TextLabel", functionsContainer)
-        playerListLabel.Size = UDim2.new(1, -10, 0, 20)
-        playerListLabel.Position = UDim2.new(0, 5, 0, currentY)
-        playerListLabel.Text = getText("SelectPlayerForTeleport") .. ":"
-        playerListLabel.Font = Enum.Font.GothamBold
-        playerListLabel.TextSize = 12
-        playerListLabel.TextColor3 = Color3.new(1,1,1)
-        playerListLabel.BackgroundTransparency = 1
-        playerListLabel.TextXAlignment = Enum.TextXAlignment.Left
-        currentY = currentY + 20 + padding
-        
-        local playerButtons = {}
-        local playerListStartY = currentY
-        local lastPlayerCount = 0 -- Для оптимизации - обновляем только при изменении
-        
-        local function createPlayerList()
-            local allPlayers = Players:GetPlayers()
-            local currentPlayerCount = #allPlayers - 1 -- -1 потому что исключаем LocalPlayer
-            
-            -- Оптимизация: обновляем только если количество игроков изменилось
-            if currentPlayerCount == lastPlayerCount then
-                return
-            end
-            lastPlayerCount = currentPlayerCount
-            
-            -- Отключаем все старые connections перед очисткой кнопок
-            for _, connection in pairs(globalPlayerConnections) do
-                if connection and typeof(connection) == "RBXScriptConnection" then
-                    pcall(function() connection:Disconnect() end)
-                end
-            end
-            globalPlayerConnections = {}
-            
-            for _, btn in pairs(playerButtons) do
-                if btn and btn.Parent then
-                    btn:Destroy()
-                end
-            end
-            playerButtons = {}
-            
-            currentY = playerListStartY
-            
-            local playerList = {}
-            
-            for _, player in ipairs(allPlayers) do
-                if player ~= Players.LocalPlayer then
-                    table.insert(playerList, player)
-                end
-            end
-            
-            table.sort(playerList, function(a, b)
-                return string.lower(a.Name) < string.lower(b.Name)
-            end)
-            
-            for _, player in ipairs(playerList) do
-                local playerBtn = Instance.new("TextButton", functionsContainer)
-                playerBtn.Size = UDim2.new(1, -10, 0, 24)
-                playerBtn.Position = UDim2.new(0, 5, 0, currentY)
-                playerBtn.Text = player.Name
-                playerBtn.Font = Enum.Font.Gotham
-                playerBtn.TextSize = 12
-                playerBtn.TextColor3 = Color3.new(1,1,1)
-                playerBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-                playerBtn.AutoButtonColor = false
-                Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0,4)
-                currentY = currentY + 24 + padding
-                
-                table.insert(playerButtons, playerBtn)
-                
-                -- Сохраняем connection для последующего отключения
-                local connection = playerBtn.MouseButton1Click:Connect(function()
-                    TeleportConfig.TargetPlayer = player
-                    TeleportConfig.SelectedPlayerName = player.Name
-                    selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. player.Name
-                    
-                    for _, child in pairs(functionsContainer:GetChildren()) do
-                        if child:IsA("TextButton") and child.Text == player.Name then
-                            child.BackgroundColor3 = Color3.fromRGB(0,255,0)
-                        elseif child:IsA("TextButton") and child.Text ~= "START TELEPORT" and child.Text ~= "STOP TELEPORT" and child.Text ~= player.Name then
-                            child.BackgroundColor3 = Color3.fromRGB(40,40,40)
-                        end
-                    end
-                end)
-                table.insert(globalPlayerConnections, connection)
-            end
-        end
-        
-        createPlayerList()
-        
-        spawn(function()
-            while true do
-                task.wait(10) -- Увеличили интервал с 2 до 10 секунд для снижения нагрузки
-                if selectedTab == "Main" then
-                    createPlayerList()
-                end
-            end
-        end)
+        showMainTab()
         
     elseif tabName == "YBA Hacks" then
         contentTitle.Text = getText("YBAHacks")
