@@ -6179,10 +6179,15 @@ function showContent(tabName)
                 AutofarmConfig.Items[itemName] = v
                 
                 -- ФИКС: Синхронизируем разные варианты ключей для предметов
+                print("🤖 AUTOFARM SYNC DEBUG: itemName =", '"' .. itemName .. '"', "value =", v)
                 if itemName == "Mysterious Arrow" then
+                    print("🤖 AUTOFARM SYNC: Синхронизируем MysteriousArrow (без пробела) =", v)
                     AutofarmConfig.Items["MysteriousArrow"] = v -- без пробела
                 elseif itemName == "Gold Coin" then
+                    print("🤖 AUTOFARM SYNC: Синхронизируем GoldCoin (без пробела) =", v)
                     AutofarmConfig.Items["GoldCoin"] = v -- без пробела
+                else
+                    print("🤖 AUTOFARM SYNC: Нет синхронизации для", '"' .. itemName .. '"')
                 end
                 
                 print("🤖 AUTOFARM: Предмет", itemName, "установлен в", v and "ON" or "OFF")
