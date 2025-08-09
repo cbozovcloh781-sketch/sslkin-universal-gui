@@ -5163,6 +5163,7 @@ for i, buttonData in ipairs(navButtons) do
         
         showContent(buttonData.name)
     end)
+    table.insert(globalUIConnections, navConnection)
 end
 
 local rightPanel = Instance.new("Frame", mainFrame)
@@ -5348,6 +5349,9 @@ functionsContainer.AutomaticSize = Enum.AutomaticSize.Y
 
 local currentY = 0
 local padding = 8
+local globalPlayerConnections = {} -- Глобальное отслеживание connections для предотвращения утечек памяти
+local globalHotkeyConnections = {} -- Глобальное отслеживание connections хоткеев
+local globalUIConnections = {} -- ОБЩИЙ массив для ВСЕХ UI connections - КРИТИЧЕСКИ ВАЖНО!
 
 local function createSectionHeader(text)
     currentY = currentY + padding
@@ -5956,16 +5960,18 @@ function showContent(tabName)
             local playerList = {}
             
             for _, player in ipairs(allPlayers) do
-                if player ~= Players.LocalPlayer then
+                if player ~= Players.LocalPlayer and player.Name then
                     table.insert(playerList, player)
                 end
             end
             
             table.sort(playerList, function(a, b)
+                if not a.Name or not b.Name then return false end
                 return string.lower(a.Name) < string.lower(b.Name)
             end)
             
             for _, player in ipairs(playerList) do
+                if not player.Name then continue end
                 local playerBtn = Instance.new("TextButton", functionsContainer)
                 playerBtn.Size = UDim2.new(1, -10, 0, 24)
                 playerBtn.Position = UDim2.new(0, 5, 0, currentY)
@@ -5981,6 +5987,7 @@ function showContent(tabName)
                 table.insert(playerButtons, playerBtn)
                 
                 playerBtn.MouseButton1Click:Connect(function()
+                    if not player.Name then return end
                     TeleportConfig.TargetPlayer = player
                     TeleportConfig.SelectedPlayerName = player.Name
                     selectedPlayerLabel.Text = getText("SelectedPlayer") .. ": " .. player.Name
