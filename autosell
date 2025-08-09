@@ -155,24 +155,40 @@ local function moveToShiftplox(callback)
         
         task.wait(0.1) -- Даем время для остановки
         
-        -- Создаем BodyVelocity для движения
-        local bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.Name = "AutosellBodyVelocity"
-        bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-        bodyVelocity.Parent = humanoidRootPart
+        -- Включаем системный fly если доступен
+        local useSystemFly = false
+        if _G.startFly and type(_G.startFly) == "function" and _G.MovementConfig then
+            print("🤖 AUTOSELL: Включаем системный fly...")
+            _G.MovementConfig.Fly.Enabled = true
+            _G.startFly()
+            useSystemFly = true
+            print("🤖 AUTOSELL: Системный fly активирован")
+        else
+            print("🤖 AUTOSELL: Системный fly недоступен, используем fallback")
+        end
         
-        -- Сохраняем исходную гравитацию и отключаем ее
-        local originalGravity = workspace.Gravity
-        workspace.Gravity = 0
-        print("🤖 AUTOSELL: Fly режим активирован")
+        -- Fallback: создаем BodyVelocity если системный fly недоступен
+        local bodyVelocity = nil
+        local originalGravity = workspace.Gravity -- Сохраняем всегда
+        
+        if not useSystemFly then
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.Name = "AutosellBodyVelocity"
+            bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            bodyVelocity.Parent = humanoidRootPart
+            
+            -- Отключаем гравитацию для fallback режима
+            workspace.Gravity = 0
+            print("🤖 AUTOSELL: Fallback fly режим активирован")
+        end
         
         -- Движение к NPC
         local moveConnection
         local isMoving = true
         
         moveConnection = RunService.Heartbeat:Connect(function()
-            if not isMoving or not bodyVelocity or not bodyVelocity.Parent then
+            if not isMoving then
                 if moveConnection then
                     moveConnection:Disconnect()
                 end
@@ -184,24 +200,42 @@ local function moveToShiftplox(callback)
             
             if distance > 5 then
                 -- Летим к цели
-                local direction = (AutosellConfig.ShiftploxPosition - currentPos).Unit
-                local moveVector = direction * 100 -- скорость полета
-                bodyVelocity.Velocity = moveVector
+                if useSystemFly then
+                    -- Системный fly управляется игроком, просто ждем
+                    -- Можно добавить автопилот позже
+                else
+                    -- Fallback режим
+                    if bodyVelocity and bodyVelocity.Parent then
+                        local direction = (AutosellConfig.ShiftploxPosition - currentPos).Unit
+                        local moveVector = direction * 100 -- скорость полета
+                        bodyVelocity.Velocity = moveVector
+                    end
+                end
             else
                 -- ОСТАНОВКА: Достигли NPC - сначала останавливаем персонажа на 2 секунды
                 print("🤖 AUTOSELL: Достигли NPC, останавливаем персонажа на 2 секунды...")
                 isMoving = false
                 
-                -- Полностью останавливаем движение
-                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-                
-                -- Убираем BodyVelocity
-                if bodyVelocity and bodyVelocity.Parent then
-                    bodyVelocity:Destroy()
+                -- Отключаем fly системы
+                if useSystemFly then
+                    -- Отключаем системный fly
+                    if _G.stopFly and type(_G.stopFly) == "function" and _G.MovementConfig then
+                        print("🤖 AUTOSELL: Отключаем системный fly...")
+                        _G.MovementConfig.Fly.Enabled = false
+                        _G.stopFly()
+                    end
+                else
+                    -- Fallback режим - останавливаем и убираем BodyVelocity
+                    if bodyVelocity and bodyVelocity.Parent then
+                        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                        bodyVelocity:Destroy()
+                    end
+                    
+                    -- Восстанавливаем гравитацию
+                    if originalGravity then
+                        workspace.Gravity = originalGravity
+                    end
                 end
-                
-                -- Восстанавливаем гравитацию
-                workspace.Gravity = originalGravity
                 
                 -- Восстанавливаем параметры персонажа
                 if humanoid then
@@ -212,15 +246,16 @@ local function moveToShiftplox(callback)
                 
                 moveConnection:Disconnect()
                 
-                print("🤖 AUTOSELL: Ожидаем 2 секунды для полной остановки...")
-                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость
-                task.wait(2)
-                
-                print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
-                
-                if callback then
-                    callback()
-                end
+                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость (В ОТДЕЛЬНОМ ПОТОКЕ!)
+                task.spawn(function()
+                    print("🤖 AUTOSELL: Ожидаем 2 секунды для полной остановки...")
+                    task.wait(2)
+                    print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
+                    
+                    if callback then
+                        callback()
+                    end
+                end)
             end
         end)
     end
@@ -348,11 +383,13 @@ local function startAutosell()
     print("🤖 AUTOSELL: Запуск автоселла...")
     
     -- Включаем NoClip при запуске автосела
-    if _G.startNoClip and type(_G.startNoClip) == "function" then
+    if _G.MovementConfig and _G.startNoClip and type(_G.startNoClip) == "function" then
         print("🤖 AUTOSELL: Включаем NoClip...")
+        _G.MovementConfig.NoClip.Enabled = true
         _G.startNoClip()
+        print("🤖 AUTOSELL: NoClip включен успешно")
     else
-        print("🤖 AUTOSELL: Предупреждение - функция startNoClip недоступна")
+        print("🤖 AUTOSELL: Предупреждение - функция startNoClip или MovementConfig недоступны")
     end
     
     -- Настраиваем отслеживание смерти игрока
