@@ -263,6 +263,7 @@ local isHealingCombatEnabled = false
 local healingCombatConnections = {}
 local isInHealingPose = false
 local healingPoseStartTime = 0
+local lastPKeyState = false
 
 local itemESPConnections = {}
 local itemESPElements = {}
@@ -1422,22 +1423,27 @@ local function startHealingCombat()
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         if not humanoid then return end
         
-        -- Определяем позу лечения по нажатию Ctrl
-        local isCurrentlyHealing = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+        -- Определяем нажатие кнопки P (toggle для позы лечения)
+        local currentPKeyState = UserInputService:IsKeyDown(Enum.KeyCode.P)
         
-        -- Обновляем состояние позы лечения
-        if isCurrentlyHealing and not isInHealingPose then
-            isInHealingPose = true
-            healingPoseStartTime = tick()
-            if HealingCombatConfig.DebugMode then
-                print("Healing Combat: Поза лечения НАЧАЛАСЬ")
-            end
-        elseif not isCurrentlyHealing and isInHealingPose then
-            isInHealingPose = false
-            if HealingCombatConfig.DebugMode then
-                print("Healing Combat: Поза лечения ЗАКОНЧИЛАСЬ")
+        -- Обнаруживаем момент нажатия P (переход с false на true)
+        if currentPKeyState and not lastPKeyState then
+            -- Кнопка P была нажата - переключаем состояние позы лечения
+            isInHealingPose = not isInHealingPose
+            if isInHealingPose then
+                healingPoseStartTime = tick()
+                if HealingCombatConfig.DebugMode then
+                    print("Healing Combat: Поза лечения ВКЛЮЧЕНА (нажата P)")
+                end
+            else
+                if HealingCombatConfig.DebugMode then
+                    print("Healing Combat: Поза лечения ВЫКЛЮЧЕНА (нажата P)")
+                end
             end
         end
+        
+        -- Сохраняем текущее состояние кнопки P для следующего кадра
+        lastPKeyState = currentPKeyState
         
         -- Если в позе лечения и включен обход - разрешаем атаки
         if isInHealingPose and HealingCombatConfig.AllowAttacksDuringHeal then
@@ -1497,6 +1503,7 @@ local function stopHealingCombat()
     
     isHealingCombatEnabled = false
     isInHealingPose = false
+    lastPKeyState = false
     
     -- Отключаем все соединения
     for _, connection in ipairs(healingCombatConnections) do
