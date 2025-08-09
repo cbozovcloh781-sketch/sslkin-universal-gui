@@ -437,6 +437,25 @@ local function pressKey(keyCode, holdTime)
     game:GetService("VirtualInputManager"):SendKeyEvent(false, keyCode, false, game)
 end
 
+-- Безопасная функция для ввода бэкслеша
+local function pressBackslash()
+    local VIM = game:GetService("VirtualInputManager")
+    local keyCodeWorked = false
+    
+    pcall(function()
+        if Enum.KeyCode.BackSlash then
+            VIM:SendKeyEvent(true, Enum.KeyCode.BackSlash, false, game)
+            task.wait(0.1)
+            VIM:SendKeyEvent(false, Enum.KeyCode.BackSlash, false, game)
+            keyCodeWorked = true
+        end
+    end)
+    
+    if not keyCodeWorked then
+        VIM:SendTextInputCharacterEvent("\\")
+    end
+end
+
 -- Взять предмет в руки
 local function equipItem(itemName)
     local player = Players.LocalPlayer
@@ -461,58 +480,63 @@ local function sellSingleItemToNPC(itemName)
         return false
     end
     
-    -- Цикл продажи: E > ждем 2 сек > \ > ждем 0.5 сек > стрелка вправо > ждем 0.5 сек > enter > ждем 2 сек > стрелка влево > ждем 0.5 сек > enter > ждем 2 сек > стрелка вправо > ждем 0.5 сек > enter > ждем 2 сек
+    task.wait(1)
     
-    print("🤖 AUTOSELL: 1. Нажимаем E...")
+    -- Проверяем расстояние до Shiftplox перед нажатием E
+    local player = Players.LocalPlayer
+    if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        print("🤖 AUTOSELL: Ошибка - персонаж не найден!")
+        return false
+    end
+    
+    local currentPos = player.Character.HumanoidRootPart.Position
+    local distanceToNPC = (AutosellConfig.ShiftploxPosition - currentPos).Magnitude
+    
+    if distanceToNPC > 10 then
+        print("🤖 AUTOSELL: Слишком далеко от NPC! Расстояние:", math.floor(distanceToNPC), "единиц")
+        print("🤖 AUTOSELL: Нужно быть ближе 10 единиц для взаимодействия")
+        return false
+    end
+    
+    -- Цикл продажи: E > ждем 2 сек > \ > ждем 0.5 сек > стрелка вправо > ждем 0.5 сек > enter > ждем 2 сек > стрелка влево > ждем 0.5 сек > enter > ждем 2 сек > стрелка вправо > ждем 0.5 сек > enter > ждем 2 сек > \ для сброса
+    
+    print("🤖 AUTOSELL: Последовательность продажи предмета:", itemName)
+    
+    print("🤖 AUTOSELL: Шаг 1/9 - Нажимаем E для взаимодействия (расстояние:", math.floor(distanceToNPC), "единиц)")
     pressKey(Enum.KeyCode.E)
     task.wait(2)
     
-    print("🤖 AUTOSELL: 2. Нажимаем \\...")
-    -- Безопасный ввод обратного слеша
-    local VIM = game:GetService("VirtualInputManager")
-    
-    -- Пробуем KeyCode (если он существует)
-    local keyCodeWorked = false
-    pcall(function()
-        if Enum.KeyCode.BackSlash then
-            VIM:SendKeyEvent(true, Enum.KeyCode.BackSlash, false, game)
-            task.wait(0.1)
-            VIM:SendKeyEvent(false, Enum.KeyCode.BackSlash, false, game)
-            keyCodeWorked = true
-            print("🤖 AUTOSELL: Использован KeyCode.BackSlash")
-        end
-    end)
-    
-    -- Если KeyCode не сработал, используем текстовый ввод
-    if not keyCodeWorked then
-        print("🤖 AUTOSELL: KeyCode не сработал, используем текстовый ввод...")
-        VIM:SendTextInputCharacterEvent("\\")
-    end
+    print("🤖 AUTOSELL: Шаг 2/9 - Нажимаем \\ для открытия меню...")
+    pressBackslash()
     task.wait(0.5)
     
-    print("🤖 AUTOSELL: 3. Нажимаем стрелку вправо...")
+    print("🤖 AUTOSELL: Шаг 3/9 - Стрелка вправо для навигации...")
     pressKey(Enum.KeyCode.Right)
     task.wait(0.5)
     
-    print("🤖 AUTOSELL: 4. Нажимаем Enter...")
+    print("🤖 AUTOSELL: Шаг 4/9 - Enter для подтверждения...")
     pressKey(Enum.KeyCode.Return)
     task.wait(2)
     
-    print("🤖 AUTOSELL: 5. Нажимаем стрелку влево...")
+    print("🤖 AUTOSELL: Шаг 5/9 - Стрелка влево для навигации...")
     pressKey(Enum.KeyCode.Left)
     task.wait(0.5)
     
-    print("🤖 AUTOSELL: 6. Нажимаем Enter...")
+    print("🤖 AUTOSELL: Шаг 6/9 - Enter для подтверждения...")
     pressKey(Enum.KeyCode.Return)
     task.wait(2)
     
-    print("🤖 AUTOSELL: 7. Нажимаем стрелку вправо...")
+    print("🤖 AUTOSELL: Шаг 7/9 - Стрелка вправо для навигации...")
     pressKey(Enum.KeyCode.Right)
     task.wait(0.5)
     
-    print("🤖 AUTOSELL: 8. Нажимаем Enter...")
+    print("🤖 AUTOSELL: Шаг 8/9 - Enter для финального подтверждения...")
     pressKey(Enum.KeyCode.Return)
     task.wait(2)
+    
+    print("🤖 AUTOSELL: Шаг 9/9 - Бэкслеш для сброса UI navigation...")
+    pressBackslash()
+    task.wait(0.5)
     
     -- Проверяем продался ли предмет
     local player = Players.LocalPlayer
