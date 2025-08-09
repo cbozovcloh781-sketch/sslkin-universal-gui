@@ -203,6 +203,7 @@ local AutofarmConfig = {
         ["Lucky Stone Mask"] = true,
         ["Rib Cage of The Saint's Corpse"] = true,
         ["DIO's Diary"] = true,
+        ["Dio's Diary"] = true, -- добавляем альтернативное написание
     }
 }
 
@@ -4209,6 +4210,11 @@ local function findAutofarmItems()
                 itemName = proximityPrompt.ObjectText or proximityPrompt.ActionText or model.Name
             end
             
+            -- Дополнительная проверка для дневника ДИО (разные варианты названий)
+            if itemName == "Dio's Diary" and AutofarmConfig.Items["DIO's Diary"] then
+                itemName = "DIO's Diary" -- стандартизируем название
+            end
+            
             -- Проверяем что предмет выбран для фарма
             if AutofarmConfig.Items[itemName] then
                 -- Ищем WorldPivot позицию
@@ -4328,13 +4334,32 @@ local function moveToPosition(targetPosition, callback)
             local moveVector = direction * (AutofarmConfig.FlightSpeed * 10) -- как в обычном флае
             bodyVelocity.Velocity = moveVector
         else
-            -- Достигли цели
+            -- Достигли цели - дополнительная проверка правильности перемещения
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            moveConnection:Disconnect()
             
-            print("AUTOFARM: Достигли позиции предмета")
-            if callback then
-                callback()
+            -- ПРОВЕРКА: действительно ли мы на правильной позиции?
+            local finalDistance = (adjustedTarget - humanoidRootPart.Position).Magnitude
+            print("AUTOFARM: Проверка позиции - расстояние до цели:", math.floor(finalDistance), "м")
+            
+            if finalDistance <= 5 then
+                print("AUTOFARM: ✅ Успешно достигли позиции предмета")
+                moveConnection:Disconnect()
+                if callback then
+                    callback()
+                end
+            else
+                print("AUTOFARM: ⚠️ Неточное перемещение, корректируем позицию...")
+                -- Корректируем позицию принудительно
+                humanoidRootPart.CFrame = CFrame.new(adjustedTarget)
+                task.wait(0.2) -- небольшая задержка для стабилизации
+                
+                local correctedDistance = (adjustedTarget - humanoidRootPart.Position).Magnitude
+                print("AUTOFARM: После коррекции расстояние:", math.floor(correctedDistance), "м")
+                
+                moveConnection:Disconnect()
+                if callback then
+                    callback()
+                end
             end
         end
     end)
@@ -4656,35 +4681,37 @@ local function forceLoadEntireMap()
         task.wait(0.1)
     end
     
-    -- Точки для прогрузки (покрываем всю карту YBA)
-    local loadPoints = {
-        -- Центральные точки
-        Vector3.new(0, 100, 0),
-        Vector3.new(0, 200, 0),
-        
-        -- Углы карты (большой радиус для YBA)
-        Vector3.new(1000, 100, 1000),   -- Северо-восток
-        Vector3.new(-1000, 100, 1000),  -- Северо-запад  
-        Vector3.new(1000, 100, -1000),  -- Юго-восток
-        Vector3.new(-1000, 100, -1000), -- Юго-запад
-        
-        -- Промежуточные точки
-        Vector3.new(500, 100, 0),       -- Восток
-        Vector3.new(-500, 100, 0),      -- Запад
-        Vector3.new(0, 100, 500),       -- Север
-        Vector3.new(0, 100, -500),      -- Юг
-        
-        -- Дополнительные точки для полного покрытия
-        Vector3.new(750, 100, 750),
-        Vector3.new(-750, 100, 750),
-        Vector3.new(750, 100, -750),
-        Vector3.new(-750, 100, -750),
-        
-        -- Высотные точки для лучшей прогрузки
-        Vector3.new(0, 300, 0),
-        Vector3.new(500, 300, 500),
-        Vector3.new(-500, 300, -500),
-    }
+    -- Точки для прогрузки (ПЛОТНАЯ СЕТКА покрывает всю карту YBA)
+    local loadPoints = {}
+    
+    -- Генерируем ПЛОТНУЮ СЕТКУ точек для максимального покрытия
+    local gridSize = 400 -- расстояние между точками сетки (чем меньше - тем плотнее)
+    local mapRadius = 1200 -- радиус карты YBA
+    local heights = {50, 100, 150, 200, 300} -- разные высоты для лучшей прогрузки
+    
+    print("🤖 AUTOFARM: Генерируем плотную сетку прогрузки...")
+    
+    -- Создаем сетку точек
+    for x = -mapRadius, mapRadius, gridSize do
+        for z = -mapRadius, mapRadius, gridSize do
+            for _, height in ipairs(heights) do
+                table.insert(loadPoints, Vector3.new(x, height, z))
+            end
+        end
+    end
+    
+    -- Добавляем дополнительные важные точки (центр карты с разными высотами)
+    for _, height in ipairs({25, 75, 125, 175, 250, 350, 400}) do
+        table.insert(loadPoints, Vector3.new(0, height, 0))
+    end
+    
+    -- Добавляем промежуточные точки между основными узлами сетки
+    local halfGrid = gridSize / 2
+    for x = -mapRadius + halfGrid, mapRadius - halfGrid, gridSize do
+        for z = -mapRadius + halfGrid, mapRadius - halfGrid, gridSize do
+            table.insert(loadPoints, Vector3.new(x, 100, z))
+        end
+    end
     
     print("🤖 AUTOFARM: Телепортируемся по", #loadPoints, "точкам для прогрузки...")
     
@@ -4697,14 +4724,12 @@ local function forceLoadEntireMap()
         -- Поворачиваем камеру для лучшей прогрузки
         camera.CFrame = CFrame.new(point + Vector3.new(0, 50, 0), point)
         
-        -- Ждем прогрузки области
-        task.wait(0.3)
+        -- УВЕЛИЧЕННАЯ задержка для лучшей прогрузки области
+        task.wait(1.5)
         
-        print("🤖 AUTOFARM: Прогрузка точки", i, "/", #loadPoints, "- позиция:", point)
-        
-        -- Дополнительная задержка для важных точек
-        if i <= 4 then -- первые 4 точки важнее
-            task.wait(0.2)
+        -- Показываем прогресс только каждые 10 точек (чтобы не спамить)
+        if i % 10 == 0 or i <= 10 then
+            print("🤖 AUTOFARM: Прогрузка точки", i, "/", #loadPoints, "- позиция:", point)
         end
     end
     
@@ -4712,10 +4737,10 @@ local function forceLoadEntireMap()
     humanoidRootPart.CFrame = CFrame.new(originalPosition)
     camera.CFrame = originalCameraCFrame
     
-    -- Финальная задержка для стабилизации
-    task.wait(1)
+    -- УВЕЛИЧЕННАЯ финальная задержка для полной стабилизации
+    task.wait(3)
     
-    print("🤖 AUTOFARM: Прогрузка карты завершена! Начинаем поиск предметов...")
+    print("🤖 AUTOFARM: Прогрузка карты завершена! Загружено", #loadPoints, "точек. Начинаем поиск предметов...")
 end
 
 local function startAutofarm()
