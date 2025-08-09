@@ -155,102 +155,24 @@ local function moveToShiftplox(callback)
         
         task.wait(0.1) -- Даем время для остановки
         
-        -- Включаем системный fly если доступен
-        local useSystemFly = false
-        if _G.startFly and type(_G.startFly) == "function" and _G.MovementConfig then
-            print("🤖 AUTOSELL: Включаем системный fly...")
-            _G.MovementConfig.Fly.Enabled = true
-            _G.startFly()
-            useSystemFly = true
-            print("🤖 AUTOSELL: Системный fly активирован")
-        else
-            print("🤖 AUTOSELL: Системный fly недоступен, используем fallback")
-        end
+        print("🤖 AUTOSELL: Лети к NPC Shiftplox самостоятельно с помощью своего fly!")
+        print("🤖 AUTOSELL: Позиция NPC:", AutosellConfig.ShiftploxPosition)
         
-        -- Fallback: создаем BodyVelocity если системный fly недоступен
-        local bodyVelocity = nil
-        local originalGravity = workspace.Gravity -- Сохраняем всегда
-        
-        if not useSystemFly then
-            bodyVelocity = Instance.new("BodyVelocity")
-            bodyVelocity.Name = "AutosellBodyVelocity"
-            bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            bodyVelocity.Parent = humanoidRootPart
-            
-            -- Отключаем гравитацию для fallback режима
-            workspace.Gravity = 0
-            print("🤖 AUTOSELL: Fallback fly режим активирован")
-        end
-        
-        -- Движение к NPC
-        local moveConnection
-        local isMoving = true
-        
-        moveConnection = RunService.Heartbeat:Connect(function()
-            if not isMoving then
-                if moveConnection then
-                    moveConnection:Disconnect()
-                end
-                return
-            end
-            
+        -- Ждем пока игрок долетит к NPC (проверяем расстояние)
+        local checkConnection
+        checkConnection = RunService.Heartbeat:Connect(function()
             local currentPos = humanoidRootPart.Position
             local distance = (AutosellConfig.ShiftploxPosition - currentPos).Magnitude
             
-            if distance > 5 then
-                -- Летим к цели
-                if useSystemFly then
-                    -- Системный fly управляется игроком, просто ждем
-                    -- Можно добавить автопилот позже
-                else
-                    -- Fallback режим
-                    if bodyVelocity and bodyVelocity.Parent then
-                        local direction = (AutosellConfig.ShiftploxPosition - currentPos).Unit
-                        local moveVector = direction * 100 -- скорость полета
-                        bodyVelocity.Velocity = moveVector
-                    end
-                end
-            else
-                -- ОСТАНОВКА: Достигли NPC - сначала останавливаем персонажа на 2 секунды
-                print("🤖 AUTOSELL: Достигли NPC, останавливаем персонажа на 2 секунды...")
-                isMoving = false
+            if distance <= 10 then
+                print("🤖 AUTOSELL: Достигли NPC Shiftplox!")
+                checkConnection:Disconnect()
                 
-                -- Отключаем fly системы
-                if useSystemFly then
-                    -- Отключаем системный fly
-                    if _G.stopFly and type(_G.stopFly) == "function" and _G.MovementConfig then
-                        print("🤖 AUTOSELL: Отключаем системный fly...")
-                        _G.MovementConfig.Fly.Enabled = false
-                        _G.stopFly()
-                    end
-                else
-                    -- Fallback режим - останавливаем и убираем BodyVelocity
-                    if bodyVelocity and bodyVelocity.Parent then
-                        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-                        bodyVelocity:Destroy()
-                    end
-                    
-                    -- Восстанавливаем гравитацию
-                    if originalGravity then
-                        workspace.Gravity = originalGravity
-                    end
-                end
-                
-                -- Восстанавливаем параметры персонажа
-                if humanoid then
-                    humanoid.WalkSpeed = 16
-                    humanoid.JumpPower = 50
-                    humanoid.JumpHeight = 7.2
-                end
-                
-                moveConnection:Disconnect()
-                
-                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость (В ОТДЕЛЬНОМ ПОТОКЕ!)
+                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость
                 task.spawn(function()
                     print("🤖 AUTOSELL: Ожидаем 2 секунды для полной остановки...")
                     task.wait(2)
-                    print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
+                    print("🤖 AUTOSELL: Готов к продаже!")
                     
                     if callback then
                         callback()
@@ -259,6 +181,14 @@ local function moveToShiftplox(callback)
             end
         end)
     end
+end
+
+-- Функции для эмуляции нажатий клавиш
+local function pressKey(keyCode, holdTime)
+    holdTime = holdTime or 0.1
+    game:GetService("VirtualInputManager"):SendKeyEvent(true, keyCode, false, game)
+    task.wait(holdTime)
+    game:GetService("VirtualInputManager"):SendKeyEvent(false, keyCode, false, game)
 end
 
 -- Взять предмет в руки
@@ -275,43 +205,65 @@ local function equipItem(itemName)
     return false
 end
 
--- Нажать клавишу E для диалога с NPC
-local function interactWithNPC()
-    print("🤖 AUTOSELL: Нажимаем E для диалога с NPC...")
-    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.E, false, game)
-    task.wait(0.1)
-    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.E, false, game)
-end
-
--- Симуляция нажатий кнопок в диалоге (левая кнопка два раза, затем левая один раз)
-local function handleNPCDialog()
-    print("🤖 AUTOSELL: Обрабатываем диалог с NPC...")
+-- Новый цикл продажи предмета
+local function sellSingleItemToNPC(itemName)
+    print("🤖 AUTOSELL: Начинаем продажу предмета:", itemName)
     
-    task.wait(1) -- Ждем появления диалога
+    -- Берем предмет в руки
+    if not equipItem(itemName) then
+        print("🤖 AUTOSELL: Не удалось взять предмет:", itemName)
+        return false
+    end
     
-    -- Первая левая кнопка
-    print("🤖 AUTOSELL: Нажимаем первую левую кнопку...")
-    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.One, false, game)
-    task.wait(0.1)
-    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.One, false, game)
+    -- Цикл продажи: E > ждем 2 сек > \ > ждем 0.5 сек > стрелка вправо > ждем 0.5 сек > enter > ждем 2 сек > стрелка влево > ждем 0.5 сек > enter > ждем 2 сек > стрелка вправо > ждем 0.5 сек > enter > ждем 2 сек
     
+    print("🤖 AUTOSELL: 1. Нажимаем E...")
+    pressKey(Enum.KeyCode.E)
+    task.wait(2)
+    
+    print("🤖 AUTOSELL: 2. Нажимаем \\...")
+    pressKey(Enum.KeyCode.Backslash)
     task.wait(0.5)
     
-    -- Вторая левая кнопка
-    print("🤖 AUTOSELL: Нажимаем вторую левую кнопку...")
-    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.One, false, game)
-    task.wait(0.1)
-    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.One, false, game)
-    
+    print("🤖 AUTOSELL: 3. Нажимаем стрелку вправо...")
+    pressKey(Enum.KeyCode.Right)
     task.wait(0.5)
     
-    -- Третья левая кнопка
-    print("🤖 AUTOSELL: Нажимаем третью левую кнопку...")
-    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.One, false, game)
-    task.wait(0.1)
-    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.One, false, game)
+    print("🤖 AUTOSELL: 4. Нажимаем Enter...")
+    pressKey(Enum.KeyCode.Return)
+    task.wait(2)
     
-    task.wait(1) -- Ждем завершения продажи
+    print("🤖 AUTOSELL: 5. Нажимаем стрелку влево...")
+    pressKey(Enum.KeyCode.Left)
+    task.wait(0.5)
+    
+    print("🤖 AUTOSELL: 6. Нажимаем Enter...")
+    pressKey(Enum.KeyCode.Return)
+    task.wait(2)
+    
+    print("🤖 AUTOSELL: 7. Нажимаем стрелку вправо...")
+    pressKey(Enum.KeyCode.Right)
+    task.wait(0.5)
+    
+    print("🤖 AUTOSELL: 8. Нажимаем Enter...")
+    pressKey(Enum.KeyCode.Return)
+    task.wait(2)
+    
+    -- Проверяем продался ли предмет
+    local player = Players.LocalPlayer
+    if player and player.Character then
+        local tool = player.Character:FindFirstChild(itemName)
+        if not tool then
+            -- Предмет исчез из рук - значит продался
+            print("🤖 AUTOSELL: ✅ Предмет", itemName, "успешно продан")
+            return true
+        else
+            print("🤖 AUTOSELL: ❌ Предмет", itemName, "не продался, пропускаем")
+            return false
+        end
+    end
+    
+    return false
 end
 
 -- Основная функция продажи предметов
@@ -331,25 +283,33 @@ local function sellItemsToNPC(itemsToSell)
     
     -- Летим к NPC
     moveToShiftplox(function()
-        print("🤖 AUTOSELL: Прилетели к NPC, начинаем продажу...")
+        print("🤖 AUTOSELL: Начинаем продажу предметов...")
+        
+        local soldItems = {}
+        local failedItems = {}
         
         for _, itemName in ipairs(itemsToSell) do
-            print("🤖 AUTOSELL: Продаем предмет:", itemName)
-            
-            -- Берем предмет в руки
-            if equipItem(itemName) then
-                task.wait(0.5)
+            -- Проверяем есть ли еще этот предмет в рюкзаке
+            local player = Players.LocalPlayer
+            if player and player.Backpack:FindFirstChild(itemName) then
+                print("🤖 AUTOSELL: Продаем предмет:", itemName)
                 
-                -- Взаимодействуем с NPC
-                interactWithNPC()
-                
-                -- Обрабатываем диалог
-                handleNPCDialog()
+                if sellSingleItemToNPC(itemName) then
+                    table.insert(soldItems, itemName)
+                else
+                    table.insert(failedItems, itemName)
+                end
                 
                 task.wait(1) -- Пауза между продажами
             else
-                print("🤖 AUTOSELL: Не удалось взять предмет:", itemName)
+                print("🤖 AUTOSELL: Предмет", itemName, "больше не найден в рюкзаке")
             end
+        end
+        
+        print("🤖 AUTOSELL: Продажа завершена!")
+        print("🤖 AUTOSELL: Продано предметов:", #soldItems)
+        if #failedItems > 0 then
+            print("🤖 AUTOSELL: Не удалось продать:", table.concat(failedItems, ", "))
         end
         
         print("🤖 AUTOSELL: Продажа завершена, проверяем результат...")
@@ -388,6 +348,16 @@ local function startAutosell()
         _G.MovementConfig.NoClip.Enabled = true
         _G.startNoClip()
         print("🤖 AUTOSELL: NoClip включен успешно")
+        
+        -- Включаем твой fly после NoClip
+        if _G.startFly and type(_G.startFly) == "function" then
+            print("🤖 AUTOSELL: Включаем твой fly...")
+            _G.MovementConfig.Fly.Enabled = true
+            _G.startFly()
+            print("🤖 AUTOSELL: Fly включен успешно")
+        else
+            print("🤖 AUTOSELL: Предупреждение - функция startFly недоступна")
+        end
     else
         print("🤖 AUTOSELL: Предупреждение - функция startNoClip или MovementConfig недоступны")
     end
