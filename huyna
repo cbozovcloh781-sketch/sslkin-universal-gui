@@ -4417,9 +4417,10 @@ local function pickupItem(item)
             
             if hasStartedPickup and actualPickupTime >= (AutofarmConfig.PickupDuration * 0.2) then
                 -- Предмет исчез ПОСЛЕ того как мы начали жать E - это успешный подбор
+                local attempts = (autofarmItemAttempts[itemKey] or 0) + 1
                 resetItemAttempts(itemKey)
-                autofarmLastPickupTime = tick() -- Обновляем таймер при успешном подборе
-                print("AUTOFARM: ✅ Предмет", item.Name, "УСПЕШНО подобран (исчез после", math.floor(actualPickupTime * 100) / 100, "сек)")
+                autofarmLastPickupTime = tick() -- Всегда обновляем таймер при исчезновении предмета
+                print("AUTOFARM: ✅ Предмет", item.Name, "УСПЕШНО подобран за", attempts, "попытки (исчез после", math.floor(actualPickupTime * 100) / 100, "сек)")
             else
                 -- Предмет исчез слишком быстро - возможно баг, не считаем успешным подбором
                 incrementItemAttempts(itemKey)
@@ -4496,8 +4497,13 @@ local function pickupItem(item)
             local attempts = incrementItemAttempts(itemKey)
             print("AUTOFARM: Попытка", attempts, "/3 для предмета", item.Name)
             
-            -- ФИКС: Обновляем время последнего подбора при ЛЮБОЙ попытке (активность)
-            autofarmLastPickupTime = tick()
+            -- ФИКС: Обновляем таймер только если подбор был успешным за 1-2 попытки
+            if attempts <= 2 then
+                autofarmLastPickupTime = tick()
+                print("AUTOFARM: ✅ Успешный подбор за", attempts, "попытки - таймер обновлен")
+            else
+                print("AUTOFARM: ⚠️ Подбор неуспешен -", attempts, "попытки, таймер НЕ обновлен")
+            end
             
             pickupConnection:Disconnect()
             autofarmPickingUp = false
@@ -4533,8 +4539,13 @@ local function pickupItem(item)
             local attempts = incrementItemAttempts(itemKey)
             print("AUTOFARM: Таймаут - попытка", attempts, "/3 для предмета", item.Name)
             
-            -- ФИКС: Обновляем время последнего подбора при ЛЮБОЙ попытке (активность)
-            autofarmLastPickupTime = tick()
+            -- ФИКС: Обновляем таймер только если это была 1-2 попытка
+            if attempts <= 2 then
+                autofarmLastPickupTime = tick()
+                print("AUTOFARM: ✅ Таймаут на", attempts, "попытке - таймер обновлен")
+            else
+                print("AUTOFARM: ⚠️ Таймаут на", attempts, "попытке, таймер НЕ обновлен")
+            end
             
             pickupConnection:Disconnect()
             autofarmPickingUp = false
