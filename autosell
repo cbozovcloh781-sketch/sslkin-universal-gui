@@ -153,45 +153,74 @@ local function moveToShiftplox(callback)
             oldAutosellBV:Destroy()
         end
         
-        task.wait(1) -- Даем время fly включиться
+        task.wait(0.1) -- Даем время для остановки
         
-        print("🤖 AUTOSELL: Автопилот к NPC Shiftplox активирован!")
+        print("🤖 AUTOSELL: Автопилот к NPC Shiftplox активирован (с NoClip)!")
         print("🤖 AUTOSELL: Позиция NPC:", AutosellConfig.ShiftploxPosition)
         
-        -- Автопилот к NPC используя существующий BodyVelocity от fly
-        local autopilotConnection
-        autopilotConnection = RunService.Heartbeat:Connect(function()
+        -- Создаем BodyVelocity для автопилота (как раньше, но с NoClip)
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Name = "AutosellBodyVelocity"
+        bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.Parent = humanoidRootPart
+        
+        -- Сохраняем и отключаем гравитацию
+        local originalGravity = workspace.Gravity
+        workspace.Gravity = 0
+        print("🤖 AUTOSELL: Автопилот fly активирован")
+        
+        -- Движение к NPC
+        local moveConnection
+        local isMoving = true
+        
+        moveConnection = RunService.Heartbeat:Connect(function()
+            if not isMoving then
+                if moveConnection then
+                    moveConnection:Disconnect()
+                end
+                return
+            end
+            
             local currentPos = humanoidRootPart.Position
             local distance = (AutosellConfig.ShiftploxPosition - currentPos).Magnitude
             
-            if distance > 10 then
-                -- Ищем BodyVelocity от fly
-                local flyBV = humanoidRootPart:FindFirstChild("BodyVelocity")
-                if flyBV then
-                    -- Управляем полетом к NPC
+            if distance > 5 then
+                -- Автопилот: летим к цели
+                if bodyVelocity and bodyVelocity.Parent then
                     local direction = (AutosellConfig.ShiftploxPosition - currentPos).Unit
-                    local moveVector = direction * (_G.MovementConfig.Fly.Speed * 10) -- используем скорость из конфига
-                    flyBV.Velocity = moveVector
-                else
-                    print("🤖 AUTOSELL: BodyVelocity от fly не найден!")
+                    local moveVector = direction * 100 -- скорость полета
+                    bodyVelocity.Velocity = moveVector
                 end
             else
-                -- Достигли NPC - останавливаем автопилот
-                print("🤖 AUTOSELL: Достигли NPC Shiftplox!")
+                -- ОСТАНОВКА: Достигли NPC - сначала останавливаем персонажа на 2 секунды
+                print("🤖 AUTOSELL: Достигли NPC, останавливаем персонажа на 2 секунды...")
+                isMoving = false
                 
-                -- Останавливаем движение
-                local flyBV = humanoidRootPart:FindFirstChild("BodyVelocity")
-                if flyBV then
-                    flyBV.Velocity = Vector3.new(0, 0, 0)
+                -- Останавливаем автопилот fly
+                if bodyVelocity and bodyVelocity.Parent then
+                    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                    bodyVelocity:Destroy()
+                    print("🤖 AUTOSELL: Автопилот fly отключен")
                 end
                 
-                autopilotConnection:Disconnect()
+                -- Восстанавливаем гравитацию
+                workspace.Gravity = originalGravity
                 
-                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость
+                -- Восстанавливаем параметры персонажа
+                if humanoid then
+                    humanoid.WalkSpeed = 16
+                    humanoid.JumpPower = 50
+                    humanoid.JumpHeight = 7.2
+                end
+                
+                moveConnection:Disconnect()
+                
+                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость (В ОТДЕЛЬНОМ ПОТОКЕ!)
                 task.spawn(function()
                     print("🤖 AUTOSELL: Ожидаем 2 секунды для полной остановки...")
                     task.wait(2)
-                    print("🤖 AUTOSELL: Готов к продаже!")
+                    print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
                     
                     if callback then
                         callback()
@@ -368,18 +397,7 @@ local function startAutosell()
         _G.startNoClip()
         print("🤖 AUTOSELL: NoClip включен успешно")
         
-        -- Настраиваем и включаем твой fly после NoClip
-        if _G.MovementConfig and _G.startFly and type(_G.startFly) == "function" then
-            print("🤖 AUTOSELL: Настраиваем fly со скоростью 10...")
-            _G.MovementConfig.Fly.Speed = 10  -- СНАЧАЛА устанавливаем скорость
-            _G.MovementConfig.Fly.Enabled = true
-            
-            print("🤖 AUTOSELL: Включаем твой fly...")
-            _G.startFly()
-            print("🤖 AUTOSELL: Fly включен успешно со скоростью 10")
-        else
-            print("🤖 AUTOSELL: Предупреждение - функция startFly или MovementConfig недоступны")
-        end
+
     else
         print("🤖 AUTOSELL: Предупреждение - функция startNoClip или MovementConfig недоступны")
     end
