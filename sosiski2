@@ -4304,8 +4304,8 @@ local function moveToPosition(targetPosition, callback)
         print("AUTOFARM: Гравитация отключена")
     end
     
-    -- Движение к цели с небольшим отступом для подбора
-    local adjustedTarget = targetPosition + Vector3.new(0, -2, 0) -- позиция ниже предмета для подбора
+    -- Движение к цели ГЛУБОКО под землей для подбора предметов (как в YBA)
+    local adjustedTarget = targetPosition + Vector3.new(0, -20, 0) -- глубоко под землей для подбора
     
     local moveConnection
     moveConnection = RunService.Heartbeat:Connect(function()
@@ -4394,9 +4394,26 @@ local function pickupItem(item)
             return
         end
         
-        -- Проверяем что предмет еще существует
-        if not item.Model or not item.Model.Parent then
-            print("AUTOFARM: Предмет", item.Name, "исчез - возможно подобран")
+        -- Проверяем что предмет еще физически существует
+        local itemStillExists = false
+        pcall(function()
+            if item.Model and item.Model.Parent then
+                local worldPivot = item.Model:GetPivot()
+                if worldPivot and worldPivot.Position and worldPivot.Position.Magnitude > 0 then
+                    local hasPhysicalParts = false
+                    for _, child in pairs(item.Model:GetChildren()) do
+                        if child:IsA("BasePart") and child.Size.Magnitude > 0 then
+                            hasPhysicalParts = true
+                            break
+                        end
+                    end
+                    itemStillExists = hasPhysicalParts
+                end
+            end
+        end)
+        
+        if not itemStillExists then
+            print("AUTOFARM: Предмет", item.Name, "исчез (нет физических частей) - возможно подобран")
             if isKeyPressed then
                 pcall(function()
                     if game:GetService("VirtualInputManager") then
@@ -4425,9 +4442,9 @@ local function pickupItem(item)
         -- Проверяем расстояние до предмета
         local distance = (humanoidRootPart.Position - item.Position).Magnitude
         
-        -- Если в радиусе AutofarmConfig.PickupRadius метров и еще не начали подбор
-        if distance <= AutofarmConfig.PickupRadius and not hasStartedPickup then
-            print("AUTOFARM: В радиусе подбора (", math.floor(distance), "м), зажимаем E на", AutofarmConfig.PickupDuration, "сек")
+        -- Если в радиусе подбора (увеличен для подземного положения) и еще не начали подбор
+        if distance <= (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
+            print("AUTOFARM: В радиусе подземного подбора (", math.floor(distance), "м), зажимаем E на", AutofarmConfig.PickupDuration, "сек")
             hasStartedPickup = true
             pickupStartTime = tick()
             
@@ -4445,11 +4462,11 @@ local function pickupItem(item)
             end)
             isKeyPressed = true
             
-        elseif distance > AutofarmConfig.PickupRadius and not hasStartedPickup then
-            -- Если слишком далеко, подлетаем ближе
-            print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем в радиус", AutofarmConfig.PickupRadius, "м")
-            -- Летим к позиции с небольшим отступом
-            local targetPos = item.Position + Vector3.new(0, -2, 0)
+        elseif distance > (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
+            -- Если слишком далеко, подлетаем ближе (увеличенный радиус для подземного подбора)
+            print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем под землю")
+            -- Летим к позиции ГЛУБОКО под землей
+            local targetPos = item.Position + Vector3.new(0, -20, 0)
             moveToPosition(targetPos, function()
                 -- После подлета продолжаем подбор
             end)
@@ -4545,8 +4562,27 @@ function processNextItem()
     autofarmCurrentTarget = nextItem
     
     -- ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: предмет еще существует перед полетом
-    if not nextItem.Model or not nextItem.Model.Parent then
-        print("AUTOFARM: Предмет", nextItem.Name, "исчез ДО начала полета - ищем следующий")
+    local itemExists = false
+    pcall(function()
+        if nextItem.Model and nextItem.Model.Parent then
+            -- Проверяем что у модели есть WorldPivot и позиция валидна
+            local worldPivot = nextItem.Model:GetPivot()
+            if worldPivot and worldPivot.Position and worldPivot.Position.Magnitude > 0 then
+                -- Дополнительно проверяем что модель имеет физические части
+                local hasPhysicalParts = false
+                for _, child in pairs(nextItem.Model:GetChildren()) do
+                    if child:IsA("BasePart") and child.Size.Magnitude > 0 then
+                        hasPhysicalParts = true
+                        break
+                    end
+                end
+                itemExists = hasPhysicalParts
+            end
+        end
+    end)
+    
+    if not itemExists then
+        print("AUTOFARM: Предмет", nextItem.Name, "исчез ДО начала полета (нет физических частей) - ищем следующий")
         task.spawn(function()
             task.wait(0.5)
             if isAutofarmEnabled then
@@ -4562,10 +4598,27 @@ function processNextItem()
     moveToPosition(nextItem.Position, function()
         if isAutofarmEnabled then
             -- ПОВТОРНАЯ ПРОВЕРКА: предмет еще существует после полета
-            if nextItem.Model and nextItem.Model.Parent then
+            local itemExistsAfterFlight = false
+            pcall(function()
+                if nextItem.Model and nextItem.Model.Parent then
+                    local worldPivot = nextItem.Model:GetPivot()
+                    if worldPivot and worldPivot.Position and worldPivot.Position.Magnitude > 0 then
+                        local hasPhysicalParts = false
+                        for _, child in pairs(nextItem.Model:GetChildren()) do
+                            if child:IsA("BasePart") and child.Size.Magnitude > 0 then
+                                hasPhysicalParts = true
+                                break
+                            end
+                        end
+                        itemExistsAfterFlight = hasPhysicalParts
+                    end
+                end
+            end)
+            
+            if itemExistsAfterFlight then
                 pickupItem(nextItem)
             else
-                print("AUTOFARM: Предмет", nextItem.Name, "исчез ПОСЛЕ полета - ищем следующий")
+                print("AUTOFARM: Предмет", nextItem.Name, "исчез ПОСЛЕ полета (нет физических частей) - ищем следующий")
                 task.spawn(function()
                     task.wait(0.5)
                     if isAutofarmEnabled then
@@ -4648,17 +4701,21 @@ local function stopAutofarm()
                 bv:Destroy()
             end
             
-            -- Восстанавливаем настройки персонажа (как в обычном флае)
-            local humanoid = character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.JumpPower = 50 -- возвращаем обычную силу прыжка
-                humanoid.JumpHeight = 7.2 -- возвращаем обычную высоту прыжка  
-                humanoid.HipHeight = 0 -- возвращаем обычную высоту бедер
-            end
-            
-            -- Возвращаем гравитацию только если не используется NoClip
-            if AutofarmConfig.UseFlightMovement and not isNoClipping then
-                workspace.Gravity = 196.2
+            -- Восстанавливаем настройки персонажа ТОЛЬКО если флай НЕ включен
+            if not isFlying then
+                local humanoid = character:FindFirstChild("Humanoid")
+                if humanoid then
+                    humanoid.JumpPower = 50 -- возвращаем обычную силу прыжка
+                    humanoid.JumpHeight = 7.2 -- возвращаем обычную высоту прыжка  
+                    humanoid.HipHeight = 0 -- возвращаем обычную высоту бедер
+                end
+                
+                -- Возвращаем гравитацию ТОЛЬКО если флай и NoClip НЕ включены
+                if AutofarmConfig.UseFlightMovement and not isNoClipping and not isFlying then
+                    workspace.Gravity = 196.2
+                end
+            else
+                print("AUTOFARM: Флай включен - НЕ восстанавливаем настройки персонажа")
             end
             
             -- НЕ возвращаемся к исходной позиции - остаемся где остановились (как в телепорте)
