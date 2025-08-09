@@ -261,9 +261,6 @@ local isInputBeingProcessedByGame = false
 -- Переменные для системы Healing Combat
 local isHealingCombatEnabled = false
 local healingCombatConnections = {}
-local isInHealingPose = false
-local healingPoseStartTime = 0
-local healingPoseConnection = nil
 
 local itemESPConnections = {}
 local itemESPElements = {}
@@ -1414,67 +1411,39 @@ local function startHealingCombat()
         return 
     end
     
-    -- Основной цикл для отслеживания позы лечения и разрешения атак
-    local healingDetection = RunService.Heartbeat:Connect(function()
-        if not isHealingCombatEnabled or not char or not char.Parent then
+    -- Простой цикл который постоянно разрешает атаки
+    local healingBypass = RunService.Heartbeat:Connect(function()
+        if not isHealingCombatEnabled then
             return
         end
         
+        local char = Players.LocalPlayer.Character
+        if not char then return end
+        
         local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if not humanoid then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not humanoid or not root then return end
         
-        -- Определяем нажатие кнопки P (toggle для позы лечения)
-        local currentPKeyState = UserInputService:IsKeyDown(Enum.KeyCode.P)
+        -- Постоянно освобождаем персонажа от ограничений позы лечения
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate = true
         
-        -- Обнаруживаем момент нажатия P (переход с false на true)
-        if currentPKeyState and not lastPKeyState then
-            -- Кнопка P была нажата - переключаем состояние позы лечения
-            isInHealingPose = not isInHealingPose
-            if isInHealingPose then
-                healingPoseStartTime = tick()
-                if HealingCombatConfig.DebugMode then
-                    print("Healing Combat: Поза лечения ВКЛЮЧЕНА (нажата P)")
-                end
-            else
-                if HealingCombatConfig.DebugMode then
-                    print("Healing Combat: Поза лечения ВЫКЛЮЧЕНА (нажата P)")
+        -- Убираем любые Body объекты, которые могут блокировать движение/атаки
+        for _, child in pairs(root:GetChildren()) do
+            if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
+                if child.Name:find("Heal") or child.Name:find("Pose") or child.Name:find("Meditation") then
+                    child:Destroy()
                 end
             end
         end
         
-        -- Сохраняем текущее состояние кнопки P для следующего кадра
-        lastPKeyState = currentPKeyState
-        
-        -- Если в позе лечения и включен обход - разрешаем атаки
-        if isInHealingPose and HealingCombatConfig.AllowAttacksDuringHeal then
-            -- Проверяем нажатие атакующих клавиш
-            local isAttacking = UserInputService:IsKeyDown(Enum.KeyCode.F) or 
-                               UserInputService:IsKeyDown(Enum.KeyCode.E) or
-                               UserInputService:IsKeyDown(Enum.KeyCode.R) or
-                               UserInputService:IsKeyDown(Enum.KeyCode.T) or
-                               UserInputService:IsKeyDown(Enum.KeyCode.Y) or
-                               UserInputService:IsKeyDown(Enum.KeyCode.Q)
-            
-            if isAttacking then
-                if HealingCombatConfig.DebugMode then
-                    print("Healing Combat: Атака во время лечения разрешена!")
-                end
-                
-                -- Временно отключаем позу лечения для выполнения атаки
-                if HealingCombatConfig.OverrideHealingPose then
-                    -- Освобождаем персонажа от ограничений позы лечения
-                    humanoid.PlatformStand = false
-                    humanoid.AutoRotate = true
-                    
-                    -- Убираем любые BodyPosition/BodyVelocity объекты, которые могут блокировать движение
-                    local root = char:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        for _, child in pairs(root:GetChildren()) do
-                            if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
-                                if child.Name:find("Heal") or child.Name:find("Pose") then
-                                    child:Destroy()
-                                end
-                            end
+        -- Также проверяем все части персонажа на блокирующие объекты
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                for _, child in pairs(part:GetChildren()) do
+                    if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
+                        if child.Name:find("Heal") or child.Name:find("Pose") or child.Name:find("Meditation") then
+                            child:Destroy()
                         end
                     end
                 end
@@ -1482,7 +1451,7 @@ local function startHealingCombat()
         end
     end)
     
-    table.insert(healingCombatConnections, healingDetection)
+    table.insert(healingCombatConnections, healingBypass)
     
     -- Обработчик смерти игрока
     local humanoid = char and char:FindFirstChildOfClass("Humanoid")
@@ -1495,15 +1464,13 @@ local function startHealingCombat()
     end
     
     print("Healing Combat Bypass активирован!")
-    print("Теперь вы можете атаковать во время позы лечения!")
+    print("Теперь вы можете атаковать во время любых поз!")
 end
 
 local function stopHealingCombat()
     if not isHealingCombatEnabled then return end
     
     isHealingCombatEnabled = false
-    isInHealingPose = false
-    lastPKeyState = false
     
     -- Отключаем все соединения
     for _, connection in ipairs(healingCombatConnections) do
@@ -1512,16 +1479,6 @@ local function stopHealingCombat()
         end
     end
     healingCombatConnections = {}
-    
-    -- Восстанавливаем нормальное поведение персонажа
-    local char = Players.LocalPlayer.Character
-    if char then
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.PlatformStand = false
-            humanoid.AutoRotate = true
-        end
-    end
     
     print("Healing Combat Bypass отключен!")
 end
