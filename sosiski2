@@ -2566,7 +2566,7 @@ local function startUndergroundControl()
     isUndergroundControlEnabled = true
     
     print("Найден стенд:", stands[1].Name, "на расстоянии:", stands[1].Distance)
-    print("Перемещаем персонажа под стенд на 30 метров вниз")
+    print("Перемещаем персонажа под стенд на 40 метров вниз")
     
     if not YBAConfig.UndergroundControl.OriginalPosition then
         YBAConfig.UndergroundControl.OriginalPosition = root.Position
@@ -2591,7 +2591,7 @@ local function startUndergroundControl()
     hum.HipHeight = 0
     
     local standPos = controlledStandForUnderground.Position
-    local undergroundPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
+    local undergroundPos = Vector3.new(standPos.X, standPos.Y - 40, standPos.Z)
     
     print("Стенд позиция:", standPos)
     print("Целевая подземная позиция:", undergroundPos)
@@ -2638,7 +2638,7 @@ local function startUndergroundControl()
         end
         
         local standPos = controlledStandForUnderground.Position
-        local targetPos = Vector3.new(standPos.X, standPos.Y - 30, standPos.Z)
+        local targetPos = Vector3.new(standPos.X, standPos.Y - 40, standPos.Z)
         
         local bv = root:FindFirstChild("BodyVelocity")
         if not bv then
@@ -2688,7 +2688,7 @@ local function startUndergroundControl()
     end
     
     print("Полет под землей за стендом активирован!")
-    print("Персонаж перенесен под стенд на расстоянии 30 метров под землей")
+    print("Персонаж перенесен под стенд на расстоянии 40 метров под землей")
 end
 
 local function stopUndergroundControl()
