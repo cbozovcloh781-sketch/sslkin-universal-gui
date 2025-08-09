@@ -4304,8 +4304,8 @@ local function moveToPosition(targetPosition, callback)
         print("AUTOFARM: Гравитация отключена")
     end
     
-    -- Движение к цели слегка под землей для подбора предметов (как в YBA)
-    local adjustedTarget = targetPosition + Vector3.new(0, -6, 0) -- немного под землей для подбора
+    -- Движение к цели точно под предметом для подбора предметов (как в YBA)
+    local adjustedTarget = Vector3.new(targetPosition.X, targetPosition.Y - 4, targetPosition.Z) -- точно под предметом на 4 метра
     
     local moveConnection
     moveConnection = RunService.Heartbeat:Connect(function()
@@ -4470,8 +4470,8 @@ local function pickupItem(item)
         elseif distance > (AutofarmConfig.PickupRadius + 15) and not hasStartedPickup then
             -- Если слишком далеко, подлетаем ближе (увеличенный радиус для подземного подбора)
             print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем под землю")
-            -- Летим к позиции слегка под землей
-            local targetPos = item.Position + Vector3.new(0, -6, 0)
+            -- Летим к позиции точно под предметом
+            local targetPos = Vector3.new(item.Position.X, item.Position.Y - 4, item.Position.Z)
             moveToPosition(targetPos, function()
                 -- После подлета продолжаем подбор
             end)
@@ -4635,6 +4635,89 @@ function processNextItem()
     end)
 end
 
+-- Функция принудительной прогрузки всей карты
+local function forceLoadEntireMap()
+    print("🤖 AUTOFARM: Начинаем принудительную прогрузку карты...")
+    
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local originalPosition = humanoidRootPart.Position
+    local camera = workspace.CurrentCamera
+    local originalCameraCFrame = camera.CFrame
+    
+    -- Включаем NoClip для свободного движения
+    if not isNoClipping then
+        startNoClip()
+        task.wait(0.1)
+    end
+    
+    -- Точки для прогрузки (покрываем всю карту YBA)
+    local loadPoints = {
+        -- Центральные точки
+        Vector3.new(0, 100, 0),
+        Vector3.new(0, 200, 0),
+        
+        -- Углы карты (большой радиус для YBA)
+        Vector3.new(1000, 100, 1000),   -- Северо-восток
+        Vector3.new(-1000, 100, 1000),  -- Северо-запад  
+        Vector3.new(1000, 100, -1000),  -- Юго-восток
+        Vector3.new(-1000, 100, -1000), -- Юго-запад
+        
+        -- Промежуточные точки
+        Vector3.new(500, 100, 0),       -- Восток
+        Vector3.new(-500, 100, 0),      -- Запад
+        Vector3.new(0, 100, 500),       -- Север
+        Vector3.new(0, 100, -500),      -- Юг
+        
+        -- Дополнительные точки для полного покрытия
+        Vector3.new(750, 100, 750),
+        Vector3.new(-750, 100, 750),
+        Vector3.new(750, 100, -750),
+        Vector3.new(-750, 100, -750),
+        
+        -- Высотные точки для лучшей прогрузки
+        Vector3.new(0, 300, 0),
+        Vector3.new(500, 300, 500),
+        Vector3.new(-500, 300, -500),
+    }
+    
+    print("🤖 AUTOFARM: Телепортируемся по", #loadPoints, "точкам для прогрузки...")
+    
+    for i, point in ipairs(loadPoints) do
+        if not isAutofarmEnabled then break end -- Прерываем если автофарм отключили
+        
+        -- Телепортируем персонажа
+        humanoidRootPart.CFrame = CFrame.new(point)
+        
+        -- Поворачиваем камеру для лучшей прогрузки
+        camera.CFrame = CFrame.new(point + Vector3.new(0, 50, 0), point)
+        
+        -- Ждем прогрузки области
+        task.wait(0.3)
+        
+        print("🤖 AUTOFARM: Прогрузка точки", i, "/", #loadPoints, "- позиция:", point)
+        
+        -- Дополнительная задержка для важных точек
+        if i <= 4 then -- первые 4 точки важнее
+            task.wait(0.2)
+        end
+    end
+    
+    -- Возвращаемся в исходную позицию
+    humanoidRootPart.CFrame = CFrame.new(originalPosition)
+    camera.CFrame = originalCameraCFrame
+    
+    -- Финальная задержка для стабилизации
+    task.wait(1)
+    
+    print("🤖 AUTOFARM: Прогрузка карты завершена! Начинаем поиск предметов...")
+end
+
 local function startAutofarm()
     if isAutofarmEnabled then
         print("AUTOFARM: Уже активен!")
@@ -4660,8 +4743,15 @@ local function startAutofarm()
     
     -- Не сохраняем исходную позицию - остаемся где остановились (как телепорт)
     
-    -- Запускаем процесс
-    processNextItem()
+    -- НОВОЕ: Принудительная прогрузка карты перед началом фарма
+    task.spawn(function()
+        forceLoadEntireMap()
+        
+        -- После прогрузки начинаем основной процесс
+        if isAutofarmEnabled then
+            processNextItem()
+        end
+    end)
 end
 
 local function stopAutofarm()
