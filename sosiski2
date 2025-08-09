@@ -1405,45 +1405,54 @@ local function startHealingCombat()
     isHealingCombatEnabled = true
     print("=== ЗАПУСК HEALING COMBAT BYPASS ===")
     
-    local char = Players.LocalPlayer.Character
-    if not char then 
-        print("Healing Combat: Персонаж не найден!")
-        return 
-    end
-    
-    -- Простой цикл который постоянно разрешает атаки
-    local healingBypass = RunService.Heartbeat:Connect(function()
-        if not isHealingCombatEnabled then
-            return
-        end
+    -- Простая система: когда нажимается атакующая клавиша - принудительно разрешаем атаку
+    local attackKeysHandler = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not isHealingCombatEnabled then return end
         
-        local char = Players.LocalPlayer.Character
-        if not char then return end
+        -- Проверяем атакующие клавиши
+        local attackKeys = {
+            Enum.KeyCode.F, Enum.KeyCode.E, Enum.KeyCode.R,
+            Enum.KeyCode.T, Enum.KeyCode.Y, Enum.KeyCode.Q
+        }
         
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not humanoid or not root then return end
-        
-        -- Постоянно освобождаем персонажа от ограничений позы лечения
-        humanoid.PlatformStand = false
-        humanoid.AutoRotate = true
-        
-        -- Убираем любые Body объекты, которые могут блокировать движение/атаки
-        for _, child in pairs(root:GetChildren()) do
-            if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
-                if child.Name:find("Heal") or child.Name:find("Pose") or child.Name:find("Meditation") then
-                    child:Destroy()
-                end
+        local isAttackKey = false
+        for _, key in pairs(attackKeys) do
+            if input.KeyCode == key then
+                isAttackKey = true
+                break
             end
         end
         
-        -- Также проверяем все части персонажа на блокирующие объекты
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                for _, child in pairs(part:GetChildren()) do
-                    if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
-                        if child.Name:find("Heal") or child.Name:find("Pose") or child.Name:find("Meditation") then
+        if isAttackKey then
+            print("Healing Combat: Разрешаем атаку клавишей", input.KeyCode.Name)
+            
+            local char = Players.LocalPlayer.Character
+            if char then
+                local humanoid = char:FindFirstChildOfClass("Humanoid")
+                local root = char:FindFirstChild("HumanoidRootPart")
+                
+                if humanoid and root then
+                    -- Временно снимаем все ограничения для атаки
+                    humanoid.PlatformStand = false
+                    humanoid.AutoRotate = true
+                    humanoid.Sit = false
+                    
+                    -- Убираем блокирующие Body объекты
+                    for _, child in pairs(root:GetChildren()) do
+                        if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or 
+                           child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") then
                             child:Destroy()
+                        end
+                    end
+                    
+                    -- Также проверяем торс
+                    local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+                    if torso then
+                        for _, child in pairs(torso:GetChildren()) do
+                            if child:IsA("BodyPosition") or child:IsA("BodyVelocity") or 
+                               child:IsA("BodyGyro") or child:IsA("BodyAngularVelocity") then
+                                child:Destroy()
+                            end
                         end
                     end
                 end
@@ -1451,20 +1460,10 @@ local function startHealingCombat()
         end
     end)
     
-    table.insert(healingCombatConnections, healingBypass)
-    
-    -- Обработчик смерти игрока
-    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        local deathConnection = humanoid.Died:Connect(function()
-            print("Игрок умер, отключаем Healing Combat Bypass...")
-            stopHealingCombat()
-        end)
-        table.insert(healingCombatConnections, deathConnection)
-    end
+    table.insert(healingCombatConnections, attackKeysHandler)
     
     print("Healing Combat Bypass активирован!")
-    print("Теперь вы можете атаковать во время любых поз!")
+    print("Теперь атаки не будут блокироваться позами!")
 end
 
 local function stopHealingCombat()
@@ -5204,15 +5203,11 @@ function showContent(tabName)
                 startAntiTimeStop()
                 antiTimeStopBtn.Text = "ANTI TIME STOP ACTIVE"
                 antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(0,255,0)
-                
-                spawn(function()
-                    task.wait(0.3)
-                    
-                    AntiTimeStopConfig.Enabled = false
-                    stopAntiTimeStop()
-                    antiTimeStopBtn.Text = "ANTI TIME STOP"
-                    antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
-                end)
+            else
+                AntiTimeStopConfig.Enabled = false
+                stopAntiTimeStop()
+                antiTimeStopBtn.Text = "ANTI TIME STOP"
+                antiTimeStopBtn.BackgroundColor3 = Color3.fromRGB(255,100,100)
             end
         end)
         
