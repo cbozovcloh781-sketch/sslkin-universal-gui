@@ -94,7 +94,7 @@ local function moveToShiftplox(callback)
         _G.moveToPosition(AutosellConfig.ShiftploxPosition, callback)
     else
         print("🤖 AUTOSELL: Ошибка - функция moveToPosition не найдена или недоступна!")
-        print("🤖 AUTOSELL: Включаем fly и noclip для перемещения...")
+        print("🤖 AUTOSELL: Включаем fly для перемещения...")
         
         local player = Players.LocalPlayer
         if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
@@ -129,23 +129,6 @@ local function moveToShiftplox(callback)
         
         task.wait(0.1) -- Даем время для остановки
         
-        -- Включаем NoClip для беспрепятственного полета
-        local wasNoClipAlreadyEnabled = false
-        if _G.isNoClipping and type(_G.isNoClipping) == "function" then
-            wasNoClipAlreadyEnabled = _G.isNoClipping()
-        end
-        
-        if not wasNoClipAlreadyEnabled then
-            print("🤖 AUTOSELL: Включаем NoClip...")
-            if _G.startNoClip and type(_G.startNoClip) == "function" then
-                _G.startNoClip()
-            else
-                print("🤖 AUTOSELL: Предупреждение - функция startNoClip недоступна")
-            end
-        else
-            print("🤖 AUTOSELL: NoClip уже включен")
-        end
-        
         -- Создаем BodyVelocity для движения
         local bodyVelocity = Instance.new("BodyVelocity")
         bodyVelocity.Name = "AutosellBodyVelocity"
@@ -179,13 +162,12 @@ local function moveToShiftplox(callback)
                 local moveVector = direction * 100 -- скорость полета
                 bodyVelocity.Velocity = moveVector
             else
-                -- ОСТАНОВКА: Достигли NPC - сначала останавливаем персонажа
-                print("🤖 AUTOSELL: Достигли NPC, останавливаем персонажа...")
+                -- ОСТАНОВКА: Достигли NPC - сначала останавливаем персонажа на 2 секунды
+                print("🤖 AUTOSELL: Достигли NPC, останавливаем персонажа на 2 секунды...")
                 isMoving = false
                 
-                -- Сначала полностью останавливаем движение
+                -- Полностью останавливаем движение
                 bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-                task.wait(0.3) -- Даем время для полной остановки
                 
                 -- Убираем BodyVelocity
                 if bodyVelocity and bodyVelocity.Parent then
@@ -202,21 +184,13 @@ local function moveToShiftplox(callback)
                     humanoid.JumpHeight = 7.2
                 end
                 
-                -- Отключаем NoClip после остановки (только если мы его включили)
-                if not wasNoClipAlreadyEnabled then
-                    if _G.stopNoClip and type(_G.stopNoClip) == "function" then
-                        print("🤖 AUTOSELL: Отключаем NoClip...")
-                        _G.stopNoClip()
-                    end
-                else
-                    print("🤖 AUTOSELL: NoClip оставляем включенным (был включен до autosell)")
-                end
-                
-                print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
                 moveConnection:Disconnect()
                 
-                -- Даем дополнительное время для стабилизации перед callback
-                task.wait(0.5)
+                print("🤖 AUTOSELL: Ожидаем 2 секунды для полной остановки...")
+                -- ЖДЕМ 2 СЕКУНДЫ чтобы персонаж потерял скорость
+                task.wait(2)
+                
+                print("🤖 AUTOSELL: Прилетели к NPC Shiftplox и остановились")
                 
                 if callback then
                     callback()
@@ -346,6 +320,14 @@ local function startAutosell()
     isAutosellEnabled = true
     
     print("🤖 AUTOSELL: Запуск автоселла...")
+    
+    -- Включаем NoClip при запуске автосела
+    if _G.startNoClip and type(_G.startNoClip) == "function" then
+        print("🤖 AUTOSELL: Включаем NoClip...")
+        _G.startNoClip()
+    else
+        print("🤖 AUTOSELL: Предупреждение - функция startNoClip недоступна")
+    end
     
     -- Создаем таймер проверки каждые 5 секунд
     autosellCheckTimer = task.spawn(function()
