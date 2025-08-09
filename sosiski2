@@ -112,7 +112,7 @@ local YBAConfig = {
     MouseLookSensitivity = 0.003,
     StandRotationSpeed = 0.05,
     UndergroundControl = {
-        FlightSpeed = 20, -- Уменьшили скорость для лучшего контроля
+        FlightSpeed = 40, -- Дефолтная скорость полета
         AutoNoClip = true,
         OriginalPosition = nil,
     },
@@ -512,13 +512,16 @@ local YBAFreeCamera = {} do
         table.insert(inputConnections, UserInputService.InputChanged:Connect(function(inputObj, gameProcessed)
             -- НЕ игнорируем gameProcessed для мыши
             if inputObj.UserInputType == Enum.UserInputType.MouseMovement then
-                -- Правильная настройка осей: Y для наклона (вверх/вниз), X для поворота (лево/право)
+                -- ИСПРАВЛЕНО: инвертируем ось X для горизонтального поворота
                 local sensitivity = 0.003
-                input.MouseDelta = Vector2.new(-inputObj.Delta.y * sensitivity, inputObj.Delta.x * sensitivity)
+                input.MouseDelta = Vector2.new(inputObj.Delta.y * sensitivity, -inputObj.Delta.x * sensitivity)
                 -- print("YBA Input: Движение мыши", input.MouseDelta) -- Слишком много сообщений
             elseif inputObj.UserInputType == Enum.UserInputType.MouseWheel then
-                input.MouseWheel = -inputObj.Position.Z
-                print("YBA Input: Колесо мыши", input.MouseWheel)
+                -- ИСПРАВЛЕНО: проверяем что GUI не активно и не обработано игрой
+                if not gameProcessed then
+                    input.MouseWheel = -inputObj.Position.Z
+                    print("YBA Input: Колесо мыши", input.MouseWheel)
+                end
             end
         end))
     end
@@ -590,10 +593,11 @@ local YBAFreeCamera = {} do
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then
                 moveZ = moveZ - 1
             end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            -- ИСПРАВЛЕНО: используем input таблицу вместо прямых IsKeyDown
+            if input.Space then
                 moveY = moveY + 1
             end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            if input.LeftControl then
                 moveY = moveY - 1
             end
         end
@@ -631,13 +635,7 @@ local YBAFreeCamera = {} do
             local worldMove = cameraCFrame:VectorToWorldSpace(move)
             bv.Velocity = worldMove * standSpeed
             
-            -- Поворачиваем стенд в направлении движения (только по Y оси)
-            local moveDirection = Vector3.new(worldMove.X, 0, worldMove.Z)
-            if moveDirection.Magnitude > 0 then
-                local targetAngle = math.atan2(-moveDirection.X, -moveDirection.Z)
-                local currentPos = standRoot.Position
-                standRoot.CFrame = CFrame.new(currentPos) * CFrame.Angles(0, targetAngle, 0)
-            end
+            -- УБРАНО: автоматический поворот стенда при движении
         else
             bv.Velocity = Vector3.new(0, 0, 0)
         end
@@ -649,16 +647,28 @@ local YBAFreeCamera = {} do
                 math.clamp(cameraRot.X, -math.rad(80), math.rad(80)), 
                 cameraRot.Y % (2 * math.pi)
             )
+            
+            -- ИСПРАВЛЕНО: Синхронизируем поворот игрока с камерой стенда
+            local player = Players.LocalPlayer
+            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local playerRoot = player.Character.HumanoidRootPart
+                local targetPlayerCFrame = CFrame.new(playerRoot.Position) * CFrame.Angles(0, cameraRot.Y, 0)
+                playerRoot.CFrame = targetPlayerCFrame
+            end
+            
             input.MouseDelta = Vector2.new()
         end
         
-        -- Поворот стенда КАЖДЫЙ КАДР если зажат Shift (шифтлок режим)
+        -- ИСПРАВЛЕНО: Стенд всегда копирует направление камеры (не только при Shift)
+        local currentPos = standRoot.Position
+        local currentCFrame = standRoot.CFrame
+        local targetCFrame = CFrame.new(currentPos) * CFrame.Angles(0, cameraRot.Y, 0)
+        -- Плавный поворот для естественности
+        standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.2)
+        
+        -- Дополнительно: если зажат Shift - ускоряем поворот стенда
         if input.LeftShift then
-            local currentPos = standRoot.Position
-            local currentCFrame = standRoot.CFrame
-            local targetCFrame = CFrame.new(currentPos) * CFrame.Angles(0, cameraRot.Y, 0)
-            -- Более быстрый поворот для отзывчивости
-            standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.3)
+            standRoot.CFrame = currentCFrame:Lerp(targetCFrame, 0.5)
         end
 
         -- Обработка колеса мыши для зума
@@ -667,18 +677,20 @@ local YBAFreeCamera = {} do
             input.MouseWheel = 0
         end
 
-        -- Исправленное позиционирование камеры
-        local horizontalDistance = math.cos(cameraRot.X) * cameraDistance
-        local verticalOffset = math.sin(cameraRot.X) * cameraDistance
-        
+        -- ИСПРАВЛЕНО: зум без изменения угла - используем фиксированную высоту
         local cameraOffset = Vector3.new(
-            math.sin(cameraRot.Y) * horizontalDistance,
-            verticalOffset + cameraHeight,
-            math.cos(cameraRot.Y) * horizontalDistance
+            math.sin(cameraRot.Y) * cameraDistance,
+            cameraHeight,
+            math.cos(cameraRot.Y) * cameraDistance
         )
         
+        -- Создаем CFrame камеры с учетом поворотов, но без влияния зума на высоту
         local cameraPosition = standPosition + cameraOffset
+        local lookDirection = (standPosition - cameraPosition).Unit
         local newCameraCFrame = CFrame.lookAt(cameraPosition, standPosition)
+        
+        -- Применяем наклон вокруг оси X (вверх/вниз)
+        newCameraCFrame = newCameraCFrame * CFrame.Angles(cameraRot.X, 0, 0)
         
         -- Осторожно устанавливаем только CFrame камеры (не тип)
         Camera.CFrame = newCameraCFrame
@@ -717,10 +729,21 @@ local YBAFreeCamera = {} do
             end
         end
         
-        -- Сброс параметров камеры
+        -- Сброс параметров камеры и синхронизация с направлением игрока
         cameraDistance = YBAConfig.CameraDistance or 12
         cameraHeight = YBAConfig.CameraHeight or 8
-        cameraRot = Vector2.new(0, 0)
+        
+        -- ИСПРАВЛЕНО: Инициализируем камеру в направлении взгляда игрока
+        local player = Players.LocalPlayer
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local playerCFrame = player.Character.HumanoidRootPart.CFrame
+            local playerLookDirection = playerCFrame.LookVector
+            local playerYRotation = math.atan2(playerLookDirection.X, playerLookDirection.Z)
+            cameraRot = Vector2.new(0, playerYRotation)
+            print("YBA: Синхронизация с направлением игрока, угол:", math.deg(playerYRotation))
+        else
+            cameraRot = Vector2.new(0, 0)
+        end
         
         -- НЕ переключаем тип камеры чтобы обойти античит YBA
         print("YBA: Сохраняем оригинальный тип камеры для обхода античита")
@@ -729,8 +752,23 @@ local YBAFreeCamera = {} do
         -- Устанавливаем начальную позицию камеры за стендом с задержкой
         task.wait(0.1) -- Небольшая задержка чтобы не триггерить античит
         local standPosition = stand.Root.Position
-        local initialOffset = Vector3.new(0, cameraHeight, cameraDistance)
-        local initialCameraPosition = standPosition + initialOffset
+        
+        -- ИСПРАВЛЕНО: Позиционируем стенд в направлении взгляда игрока
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local playerCFrame = player.Character.HumanoidRootPart.CFrame
+            stand.Root.CFrame = CFrame.new(standPosition, standPosition + playerCFrame.LookVector)
+            print("YBA: Стенд повернут в направлении игрока")
+        end
+        
+        -- Позиционируем камеру с учетом поворота стенда
+        local horizontalDistance = math.cos(cameraRot.X) * cameraDistance
+        local verticalOffset = math.sin(cameraRot.X) * cameraDistance
+        local cameraOffset = Vector3.new(
+            math.sin(cameraRot.Y) * horizontalDistance,
+            verticalOffset + cameraHeight,
+            math.cos(cameraRot.Y) * horizontalDistance
+        )
+        local initialCameraPosition = standPosition + cameraOffset
         Camera.CFrame = CFrame.lookAt(initialCameraPosition, standPosition)
         print("YBA: Установлена начальная позиция камеры:", initialCameraPosition)
         
@@ -2843,13 +2881,17 @@ end)
 
 -- Обработчики клавиш для ускорения Ctrl в Stand Range Hack
 UserInputService.InputBegan:Connect(function(input, gp)
-    if not gp and input.KeyCode == Enum.KeyCode.LeftControl then
+    -- ИСПРАВЛЕНО: убираем двойное отрицание для ясности
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.LeftControl then
         isShiftPressed = true
         print("Ctrl нажат - ускорение активировано")
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gp)
+    -- ИСПРАВЛЕНО: проверяем что игра не обрабатывает ввод
+    if gp then return end
     if input.KeyCode == Enum.KeyCode.LeftControl then
         isShiftPressed = false
         print("Ctrl отпущен - ускорение деактивировано")
