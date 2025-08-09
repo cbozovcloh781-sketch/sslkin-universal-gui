@@ -80,6 +80,7 @@ local function emergencyStopMovement()
         humanoid.WalkSpeed = 16
         humanoid.JumpPower = 50
         humanoid.JumpHeight = 7.2
+        humanoid.HipHeight = 2 -- Важно для нормальной ходьбы!
         humanoid.Sit = false
         -- НИКАКИХ попыток остановить или заморозить персонажа!
     end
@@ -333,13 +334,25 @@ local function moveToShiftplox(callback)
                             _G.stopNoClip()
                         end
                     end
+                    
+                    -- ПРИНУДИТЕЛЬНО восстанавливаем параметры ходьбы после отключения fly
+                    task.wait(0.2) -- Даем время системе отключиться
+                    if humanoid then
+                        humanoid.WalkSpeed = 16
+                        humanoid.JumpPower = 50
+                        humanoid.JumpHeight = 7.2
+                        humanoid.HipHeight = 2
+                        print("🤖 AUTOSELL: Параметры ходьбы принудительно восстановлены")
+                    end
                 end)
                 
-                -- 4. Восстанавливаем нормальную ходьбу
+                -- 4. Восстанавливаем нормальную ходьбу СРАЗУ
                 if humanoid then
                     humanoid.WalkSpeed = 16
                     humanoid.JumpPower = 50
                     humanoid.JumpHeight = 7.2
+                    humanoid.HipHeight = 2 -- Важно! Восстанавливаем HipHeight
+                    humanoid.Sit = false
                 end
                 
                 -- 5. Восстанавливаем коллизию
@@ -360,6 +373,16 @@ local function moveToShiftplox(callback)
                     task.wait(1.5) -- Ждем полного приземления и стабилизации
                     
                     print("🤖 AUTOSELL: Подходим к NPC пешком...")
+                    
+                    -- Убеждаемся что параметры ходьбы восстановлены
+                    if humanoid then
+                        humanoid.WalkSpeed = 16
+                        humanoid.JumpPower = 50
+                        humanoid.JumpHeight = 7.2
+                        humanoid.HipHeight = 2
+                        humanoid.Sit = false
+                        print("🤖 AUTOSELL: Финальная проверка параметров ходьбы")
+                    end
                     
                     -- Простой подход пешком к NPC (с проверками)
                     local walkToNPC
@@ -445,7 +468,26 @@ local function sellSingleItemToNPC(itemName)
     task.wait(2)
     
     print("🤖 AUTOSELL: 2. Нажимаем \\...")
-    pressKey(Enum.KeyCode.Backslash)
+    -- Безопасный ввод обратного слеша
+    local VIM = game:GetService("VirtualInputManager")
+    
+    -- Пробуем KeyCode (если он существует)
+    local keyCodeWorked = false
+    pcall(function()
+        if Enum.KeyCode.BackSlash then
+            VIM:SendKeyEvent(true, Enum.KeyCode.BackSlash, false, game)
+            task.wait(0.1)
+            VIM:SendKeyEvent(false, Enum.KeyCode.BackSlash, false, game)
+            keyCodeWorked = true
+            print("🤖 AUTOSELL: Использован KeyCode.BackSlash")
+        end
+    end)
+    
+    -- Если KeyCode не сработал, используем текстовый ввод
+    if not keyCodeWorked then
+        print("🤖 AUTOSELL: KeyCode не сработал, используем текстовый ввод...")
+        VIM:SendTextInputCharacterEvent("\\")
+    end
     task.wait(0.5)
     
     print("🤖 AUTOSELL: 3. Нажимаем стрелку вправо...")
