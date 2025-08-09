@@ -156,7 +156,7 @@ local AutofarmConfig = {
     UseFlightMovement = true,
     UseNoClipMovement = true,
     FlightSpeed = 100, -- увеличена скорость для быстрого автофарма
-    PickupRadius = 2, -- радиус в котором начинается подбор предметов (YBA механика)
+    PickupRadius = 4, -- радиус в котором начинается подбор предметов (YBA механика)
     PickupDuration = 0.6, -- время зажатия клавиши E для подбора (YBA механика)
     PickupKey = Enum.KeyCode.E,
     ScanInterval = 1, -- интервал сканирования в секундах
@@ -4246,8 +4246,8 @@ local function moveToPosition(targetPosition, callback)
         print("AUTOFARM: Гравитация отключена")
     end
     
-    -- Движение к цели точно к предмету для подбора предметов (как в YBA)
-    local adjustedTarget = Vector3.new(targetPosition.X, targetPosition.Y, targetPosition.Z) -- точно к предмету без отклонения
+    -- Движение к цели близко к предмету для подбора предметов (как в YBA)
+    local adjustedTarget = Vector3.new(targetPosition.X, targetPosition.Y - 1, targetPosition.Z) -- немного под предметом для лучшего подбора
     
     local moveConnection
     moveConnection = RunService.Heartbeat:Connect(function()
@@ -4440,8 +4440,8 @@ local function pickupItem(item)
         elseif distance > AutofarmConfig.PickupRadius and not hasStartedPickup then
             -- Если слишком далеко, подлетаем ближе
             print("AUTOFARM: Слишком далеко от предмета (", math.floor(distance), "м), подлетаем к предмету")
-            -- Летим к позиции предмета точно
-            local targetPos = Vector3.new(item.Position.X, item.Position.Y, item.Position.Z)
+            -- Летим к позиции предмета с небольшим отклонением
+            local targetPos = Vector3.new(item.Position.X, item.Position.Y - 1, item.Position.Z)
             moveToPosition(targetPos, function()
                 -- После подлета продолжаем подбор
             end)
