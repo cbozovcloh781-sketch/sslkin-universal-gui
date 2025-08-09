@@ -277,6 +277,8 @@ local autofarmSkippedItems = {} -- Пропущенные предметы дл�
 local autofarmItemAttempts = {} -- Счетчик попыток для каждого предмета
 local autofarmSkippedReturns = {} -- Счетчик возвратов к пропущенным предметам
 local autofarmLastPickupTime = 0 -- Время последнего подбора для проверки неактивности
+local autofarmRestartTimer = nil -- Таймер для автоматического перезапуска через 60 секунд
+local autofarmAutoRestarting = false -- Флаг автоматического перезапуска
 
 
 
@@ -4640,10 +4642,41 @@ function processNextItem()
                     end
                 end)
                 return
-            else
-                print("AUTOFARM: Все пропущенные предметы забыты - нет доступных предметов")
-                autofarmSkippedItems = {}
-            end
+                         else
+                 print("AUTOFARM: Все пропущенные предметы забыты - сканируем карту еще раз")
+                 autofarmSkippedItems = {}
+                 
+                 -- Делаем еще одно сканирование карты
+                 task.spawn(function()
+                     task.wait(1) -- Небольшая пауза
+                     if not isAutofarmEnabled then return end
+                     
+                     local finalScanItems = findAutofarmItems()
+                     if #finalScanItems > 0 then
+                         print("AUTOFARM: При повторном сканировании найдено", #finalScanItems, "новых предметов!")
+                         processNextItem()
+                     else
+                         print("AUTOFARM: При повторном сканировании новых предметов не найдено - выключаемся на 60 секунд")
+                         
+                         -- Останавливаем автофарм
+                         stopAutofarm()
+                         autofarmAutoRestarting = true
+                         
+                         -- Запускаем таймер на 60 секунд
+                         autofarmRestartTimer = task.spawn(function()
+                             task.wait(60)
+                             if autofarmAutoRestarting then
+                                 print("🤖 AUTOFARM: Автоматический перезапуск через 60 секунд")
+                                 autofarmAutoRestarting = false
+                                 startAutofarm()
+                             end
+                         end)
+                         
+                         print("🤖 AUTOFARM: Выключен на 60 секунд - ждем появления новых предметов")
+                     end
+                 end)
+                 return
+             end
         else
             -- Убираем спам про отсутствие предметов
             -- Используем spawn чтобы избежать блокировки
@@ -4869,6 +4902,17 @@ local function forceLoadEntireMap()
         Vector3.new(450, 70, -450),  Vector3.new(-450, 70, -450),
         Vector3.new(250, 70, 250),   Vector3.new(-250, 70, 250),
         Vector3.new(250, 70, -250),  Vector3.new(-250, 70, -250),
+        
+        -- ПОДЗЕМНЫЕ точки для прогрузки (под картой)
+        Vector3.new(0, -50, 0),      Vector3.new(0, -100, 0),     -- Центр под картой
+        Vector3.new(400, -50, 400),  Vector3.new(-400, -50, 400), -- Подземные углы
+        Vector3.new(400, -50, -400), Vector3.new(-400, -50, -400),
+        Vector3.new(600, -50, 0),    Vector3.new(-600, -50, 0),   -- Подземные стороны
+        Vector3.new(0, -50, 600),    Vector3.new(0, -50, -600),
+        Vector3.new(300, -100, 300), Vector3.new(-300, -100, 300), -- Глубокие подземные точки
+        Vector3.new(300, -100, -300),Vector3.new(-300, -100, -300),
+        Vector3.new(500, -75, 500),  Vector3.new(-500, -75, 500),  -- Средние подземные точки
+        Vector3.new(500, -75, -500), Vector3.new(-500, -75, -500),
     }
     
     print("🤖 AUTOFARM: Телепортируемся по", #loadPoints, "точкам для прогрузки...")
@@ -4903,6 +4947,16 @@ function startAutofarm()
     if isAutofarmEnabled then
         print("AUTOFARM: Уже активен!")
         return
+    end
+    
+    -- Отменяем автоматический перезапуск если он был запланирован
+    if autofarmAutoRestarting then
+        autofarmAutoRestarting = false
+        if autofarmRestartTimer then
+            task.cancel(autofarmRestartTimer)
+            autofarmRestartTimer = nil
+        end
+        print("🤖 AUTOFARM: Отменен автоматический перезапуск - запуск вручную")
     end
     
     local player = Players.LocalPlayer
@@ -4958,6 +5012,16 @@ function stopAutofarm()
     AutofarmConfig.Enabled = false
     autofarmPickingUp = false
     autofarmCurrentTarget = nil
+    
+    -- Отменяем автоматический перезапуск если он был запланирован
+    if autofarmAutoRestarting then
+        autofarmAutoRestarting = false
+        if autofarmRestartTimer then
+            task.cancel(autofarmRestartTimer)
+            autofarmRestartTimer = nil
+        end
+        print("🤖 AUTOFARM: Отменен автоматический перезапуск - остановка вручную")
+    end
     
     -- ПРИНУДИТЕЛЬНО отпускаем клавишу E (фикс бага с зажатой кнопкой)
     pcall(function()
