@@ -1129,30 +1129,62 @@ local function startAntiTimeStop()
     
     createAntiTimeStopEffect()
     
-        print("Anti TS: Простая активация")
+        print("Anti TS: Принудительное движение активировано")
     
-    -- ПРОСТОЙ и БЕЗОПАСНЫЙ цикл
+    -- БЕЗОПАСНОЕ принудительное движение
     local antiFreezeLoop = RunService.Heartbeat:Connect(function()
         if not isAntiTimeStopEnabled or not char or not char.Parent then
             return
         end
         
-        -- Только основные части персонажа
-        for _, part in pairs(char:GetChildren()) do
-            if part:IsA("BasePart") then
-                part.Anchored = false
-            end
+        -- Просто убираем Anchored с основных частей (безопасно)
+        if root then
+            root.Anchored = false
         end
         
         if hum then
             hum.PlatformStand = false
-            hum.Sit = false
-            hum.WalkSpeed = 16
-            hum.JumpPower = 50
         end
         
-        if root then
-            root.Anchored = false
+        -- ПРИНУДИТЕЛЬНОЕ движение через BodyVelocity (НЕ удаляем ничего!)
+        local moveVector = Vector3.new(0, 0, 0)
+        local cam = workspace.CurrentCamera
+        
+        -- Проверяем нажатые клавиши и принудительно двигаем
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + cam.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - cam.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - cam.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + cam.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        
+        -- Если есть движение - принудительно двигаем через BodyVelocity
+        if moveVector.Magnitude > 0 and root then
+            local bv = root:FindFirstChild("AntiTSBodyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity")
+                bv.Name = "AntiTSBodyVelocity"
+                bv.MaxForce = Vector3.new(4000, 4000, 4000)
+                bv.Parent = root
+            end
+            
+            bv.Velocity = moveVector.Unit * 20 -- Нормальная скорость движения
+            print("Anti TS: Принудительно двигаю игрока")
+        else
+            -- Убираем BodyVelocity когда не двигаемся
+            local bv = root and root:FindFirstChild("AntiTSBodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
         end
     end)
     
