@@ -39,37 +39,12 @@ local Config = {
 }
 
 
-local FlyConfig = {
-    Enabled = false,
-    Speed = 1,
-    ToggleKey = nil,
-}
-
-
-local NoClipConfig = {
-    Enabled = false,
-    ToggleKey = nil,
-    ForceToggleKey = nil,
-}
-
-
-local SpeedHackConfig = {
-    Enabled = false,
-    Speed = 1,
-    ToggleKey = nil,
-    UseJumpPower = false,
-}
-
-local LongJumpConfig = {
-    Enabled = false,
-    JumpPower = 150,
-    ToggleKey = nil,
-}
-
-local InfiniteJumpConfig = {
-    Enabled = false,
-    JumpPower = 50,
-    ToggleKey = nil,
+local MovementConfig = {
+    Fly = {Enabled = false, Speed = 1, ToggleKey = nil},
+    NoClip = {Enabled = false, ToggleKey = nil, ForceToggleKey = nil},
+    Speed = {Enabled = false, Speed = 1, ToggleKey = nil, UseJumpPower = false},
+    LongJump = {Enabled = false, JumpPower = 150, ToggleKey = nil},
+    InfiniteJump = {Enabled = false, JumpPower = 50, ToggleKey = nil},
 }
 
 
@@ -290,8 +265,6 @@ local itemESPEnabled = false
 -- Player ESP variables
 local playerESPConnections = {}
 local playerESPElements = {}
-local userStandESPEnabled = false
-local userStyleESPEnabled = false
 
 -- Autofarm variables
 local isAutofarmEnabled = false
@@ -307,31 +280,7 @@ local autofarmLastPickupTime = 0 -- Время последнего подбор
 
 
 -- Player ESP Functions
-local function getPlayerStand(player)
-    if not player or not player.Character then return nil end
-    local playersFolder = game:FindFirstChild("players") or game:FindFirstChild("Players")
-    if not playersFolder then return nil end
-    local playerFolder = playersFolder:FindFirstChild(player.Name)
-    if not playerFolder then return nil end
-    local playerStatsFolder = playerFolder:FindFirstChild("playerstats") or playerFolder:FindFirstChild("PlayerStats")
-    if not playerStatsFolder then return nil end
-    local standFile = playerStatsFolder:FindFirstChild("stand") or playerStatsFolder:FindFirstChild("Stand")
-    if not standFile then return nil end
-    return standFile.Value
-end
 
-local function getPlayerStyle(player)
-    if not player or not player.Character then return nil end
-    local playersFolder = game:FindFirstChild("players") or game:FindFirstChild("Players")
-    if not playersFolder then return nil end
-    local playerFolder = playersFolder:FindFirstChild(player.Name)
-    if not playerFolder then return nil end
-    local playerStatsFolder = playerFolder:FindFirstChild("playerstats") or playerFolder:FindFirstChild("PlayerStats")
-    if not playerStatsFolder then return nil end
-    local specFile = playerStatsFolder:FindFirstChild("spec") or playerStatsFolder:FindFirstChild("Spec")
-    if not specFile then return nil end
-    return specFile.Value
-end
 
 -- GUI элементы
 local teleportBtn = nil
@@ -342,7 +291,10 @@ local MenuSettings = {
     Language = "English", -- "English" или "Russian"
 }
 
-local Languages = {
+--[[Удален большой блок Languages для экономии памяти]]
+local function getText(key) return key end
+
+--[[local Languages = {
     English = {
         MainFunctions = "MAIN FUNCTIONS",
         YBAHacks = "YBA HACKS",
@@ -445,12 +397,7 @@ local Languages = {
         LuckyStoneMask = "Счастливая каменная маска",
         LuckyArrow = "Счастливая стрела",
     }
-}
-
--- Функция получения текста на текущем языке
-local function getText(key)
-    return Languages[MenuSettings.Language][key] or Languages.English[key] or key
-end
+}]]
 
 local function updateBlurEffect()
     if glassEffect then
@@ -1002,7 +949,7 @@ local function startFly()
         moveVector = moveVector + (up * (ctrl.u + ctrl.d))
         
         if moveVector.Magnitude > 0 then
-            moveVector = moveVector.Unit * (FlyConfig.Speed * 10)
+            moveVector = moveVector.Unit * (MovementConfig.Fly.Speed * 10)
             local bv = root:FindFirstChild("BodyVelocity")
             if not bv then
                 bv = Instance.new("BodyVelocity", root)
@@ -1611,18 +1558,18 @@ local function startSpeedHack()
     originalWalkSpeed = hum.WalkSpeed
     originalJumpPower = hum.JumpPower
     
-    hum.WalkSpeed = SpeedHackConfig.Speed * 16
+    hum.WalkSpeed = MovementConfig.Speed.Speed * 16
     
-    if SpeedHackConfig.UseJumpPower then
-        hum.JumpPower = SpeedHackConfig.Speed * 50
+    if MovementConfig.Speed.UseJumpPower then
+        hum.JumpPower = MovementConfig.Speed.Speed * 50
     end
     
     local function onCharacterAdded(newChar)
         local newHum = newChar:WaitForChild("Humanoid")
         if isSpeedHacking then
-            newHum.WalkSpeed = SpeedHackConfig.Speed * 16
-            if SpeedHackConfig.UseJumpPower then
-                newHum.JumpPower = SpeedHackConfig.Speed * 50
+            newHum.WalkSpeed = MovementConfig.Speed.Speed * 16
+            if MovementConfig.Speed.UseJumpPower then
+                newHum.JumpPower = MovementConfig.Speed.Speed * 50
             end
         end
     end
@@ -1637,12 +1584,12 @@ local function startSpeedHack()
         local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
         
         if currentHum then
-            if currentHum.WalkSpeed ~= SpeedHackConfig.Speed * 16 then
-                currentHum.WalkSpeed = SpeedHackConfig.Speed * 16
+            if currentHum.WalkSpeed ~= MovementConfig.Speed.Speed * 16 then
+                currentHum.WalkSpeed = MovementConfig.Speed.Speed * 16
             end
             
-            if SpeedHackConfig.UseJumpPower and currentHum.JumpPower ~= SpeedHackConfig.Speed * 50 then
-                currentHum.JumpPower = SpeedHackConfig.Speed * 50
+            if MovementConfig.Speed.UseJumpPower and currentHum.JumpPower ~= MovementConfig.Speed.Speed * 50 then
+                currentHum.JumpPower = MovementConfig.Speed.Speed * 50
             end
         end
     end)
@@ -1681,13 +1628,13 @@ local function startLongJump()
     isLongJumping = true
     originalLongJumpPower = hum.JumpPower
     
-    hum.JumpPower = LongJumpConfig.JumpPower
+    hum.JumpPower = MovementConfig.LongJump.JumpPower
     
     
     local function onCharacterAdded(newChar)
         local newHum = newChar:WaitForChild("Humanoid")
         if isLongJumping then
-            newHum.JumpPower = LongJumpConfig.JumpPower
+            newHum.JumpPower = MovementConfig.LongJump.JumpPower
         end
     end
     
@@ -1701,8 +1648,8 @@ local function startLongJump()
         local currentChar = Players.LocalPlayer.Character
         local currentHum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
         
-        if currentHum and currentHum.JumpPower ~= LongJumpConfig.JumpPower then
-            currentHum.JumpPower = LongJumpConfig.JumpPower
+        if currentHum and currentHum.JumpPower ~= MovementConfig.LongJump.JumpPower then
+            currentHum.JumpPower = MovementConfig.LongJump.JumpPower
         end
     end)
     
@@ -1753,7 +1700,7 @@ local function startInfiniteJump()
         
         local bv = Instance.new("BodyVelocity", root)
         bv.MaxForce = Vector3.new(0, math.huge, 0)
-        bv.Velocity = Vector3.new(0, InfiniteJumpConfig.JumpPower, 0)
+        bv.Velocity = Vector3.new(0, MovementConfig.InfiniteJump.JumpPower, 0)
         
         
         task.spawn(function()
@@ -2950,38 +2897,38 @@ end)
 
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp then
-        if FlyConfig.ToggleKey and input.KeyCode == FlyConfig.ToggleKey then
-            FlyConfig.Enabled = not FlyConfig.Enabled
-            if FlyConfig.Enabled then 
+        if MovementConfig.Fly.ToggleKey and input.KeyCode == MovementConfig.Fly.ToggleKey then
+            MovementConfig.Fly.Enabled = not MovementConfig.Fly.Enabled
+            if MovementConfig.Fly.Enabled then 
                 startFly() 
             else 
                 stopFly() 
             end
             
             if guiCallbacks.fly then
-                guiCallbacks.fly.Text = "Fly: " .. (FlyConfig.Enabled and "ON" or "OFF")
+                guiCallbacks.fly.Text = "Fly: " .. (MovementConfig.Fly.Enabled and "ON" or "OFF")
             end
-        elseif NoClipConfig.ToggleKey and input.KeyCode == NoClipConfig.ToggleKey then
-            NoClipConfig.Enabled = not NoClipConfig.Enabled
-            if NoClipConfig.Enabled then 
+        elseif MovementConfig.NoClip.ToggleKey and input.KeyCode == MovementConfig.NoClip.ToggleKey then
+            MovementConfig.NoClip.Enabled = not MovementConfig.NoClip.Enabled
+            if MovementConfig.NoClip.Enabled then 
                 startNoClip() 
             else 
                 stopNoClip() 
             end
             
             if guiCallbacks.noClip then
-                guiCallbacks.noClip.Text = "NoClip: " .. (NoClipConfig.Enabled and "ON" or "OFF")
+                guiCallbacks.noClip.Text = "NoClip: " .. (MovementConfig.NoClip.Enabled and "ON" or "OFF")
             end
-        elseif SpeedHackConfig.ToggleKey and input.KeyCode == SpeedHackConfig.ToggleKey then
-            SpeedHackConfig.Enabled = not SpeedHackConfig.Enabled
-            if SpeedHackConfig.Enabled then 
+        elseif MovementConfig.Speed.ToggleKey and input.KeyCode == MovementConfig.Speed.ToggleKey then
+            MovementConfig.Speed.Enabled = not MovementConfig.Speed.Enabled
+            if MovementConfig.Speed.Enabled then 
                 startSpeedHack() 
             else 
                 stopSpeedHack() 
             end
             
             if guiCallbacks.speedHack then
-                guiCallbacks.speedHack.Text = "SpeedHack: " .. (SpeedHackConfig.Enabled and "ON" or "OFF")
+                guiCallbacks.speedHack.Text = "SpeedHack: " .. (MovementConfig.Speed.Enabled and "ON" or "OFF")
             end
         elseif TeleportConfig.ToggleKey and input.KeyCode == TeleportConfig.ToggleKey then
             if TeleportConfig.Enabled then
@@ -2999,29 +2946,29 @@ UserInputService.InputBegan:Connect(function(input, gp)
             if guiCallbacks.teleport then
                 guiCallbacks.teleport.Text = "Выбранный игрок: " .. (TeleportConfig.SelectedPlayerName or "Не выбран")
             end
-        elseif LongJumpConfig.ToggleKey and input.KeyCode == LongJumpConfig.ToggleKey then
-            LongJumpConfig.Enabled = not LongJumpConfig.Enabled
-            if LongJumpConfig.Enabled then 
+        elseif MovementConfig.LongJump.ToggleKey and input.KeyCode == MovementConfig.LongJump.ToggleKey then
+            MovementConfig.LongJump.Enabled = not MovementConfig.LongJump.Enabled
+            if MovementConfig.LongJump.Enabled then 
                 startLongJump() 
             else 
                 stopLongJump() 
             end
             
             if guiCallbacks.longJump then
-                guiCallbacks.longJump.Text = "Long Jump: " .. (LongJumpConfig.Enabled and "ON" or "OFF")
+                guiCallbacks.longJump.Text = "Long Jump: " .. (MovementConfig.LongJump.Enabled and "ON" or "OFF")
             end
-        elseif InfiniteJumpConfig.ToggleKey and input.KeyCode == InfiniteJumpConfig.ToggleKey then
-            InfiniteJumpConfig.Enabled = not InfiniteJumpConfig.Enabled
-            if InfiniteJumpConfig.Enabled then 
+        elseif MovementConfig.InfiniteJump.ToggleKey and input.KeyCode == MovementConfig.InfiniteJump.ToggleKey then
+            MovementConfig.InfiniteJump.Enabled = not MovementConfig.InfiniteJump.Enabled
+            if MovementConfig.InfiniteJump.Enabled then 
                 startInfiniteJump() 
             else 
                 stopInfiniteJump() 
             end
             
             if guiCallbacks.infiniteJump then
-                guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (InfiniteJumpConfig.Enabled and "ON" or "OFF")
+                guiCallbacks.infiniteJump.Text = "Infinite Jump: " .. (MovementConfig.InfiniteJump.Enabled and "ON" or "OFF")
             end
-        elseif NoClipConfig.ForceToggleKey and input.KeyCode == NoClipConfig.ForceToggleKey then
+        elseif MovementConfig.NoClip.ForceToggleKey and input.KeyCode == MovementConfig.NoClip.ForceToggleKey then
             if isNoClipping then
                 stopNoClip()
             else
@@ -3140,28 +3087,7 @@ local function createOrUpdateESP(p)
     
     local baseText = string.format("%s | HP:%d | %dm",getName(p),getHealth(p),math.floor((Players.LocalPlayer.Character.HumanoidRootPart.Position-p.Character.HumanoidRootPart.Position).Magnitude))
     
-    local standInfo = ""
-    local styleInfo = ""
-    
-    if userStandESPEnabled then
-        local stand = getPlayerStand(p)
-        if stand then
-            standInfo = " | Stand: " .. stand
-        else
-            standInfo = " | Stand: None"
-        end
-    end
-    
-    if userStyleESPEnabled then
-        local style = getPlayerStyle(p)
-        if style then
-            styleInfo = " | Style: " .. style
-        else
-            styleInfo = " | Style: None"
-        end
-    end
-    
-    d.tl.Text = baseText .. standInfo .. styleInfo
+    d.tl.Text = baseText
 end
 
 local function removeESP(p)
@@ -4149,30 +4075,7 @@ end
 
 
 
-local function startUserStandESP()
-    if userStandESPEnabled then return end
-    userStandESPEnabled = true
-    print("Player ESP: User Stand ESP activated")
-end
 
-local function stopUserStandESP()
-    if not userStandESPEnabled then return end
-    userStandESPEnabled = false
-    print("Player ESP: User Stand ESP deactivated")
-end
-
-local function startUserStyleESP()
-    if userStyleESPEnabled then return end
-    userStyleESPEnabled = true
-    print("Player ESP: User Style ESP activated")
-end
-
-local function stopUserStyleESP()
-    if not userStyleESPEnabled then return end
-    userStyleESPEnabled = false
-    
-    print("Player ESP: User Style ESP deactivated")
-end
 
 -- Autofarm Functions
 -- Функция создания уникального ключа предмета
@@ -5681,16 +5584,16 @@ function showContent(tabName)
             Config.Aimbot.ToggleKey = newKey
         end)
         
-        createKeyBindButton("Fly", FlyConfig.ToggleKey, function(newKey)
-            FlyConfig.ToggleKey = newKey
+        createKeyBindButton("Fly", MovementConfig.Fly.ToggleKey, function(newKey)
+            MovementConfig.Fly.ToggleKey = newKey
         end)
         
-        createKeyBindButton("NoClip", NoClipConfig.ToggleKey, function(newKey)
-            NoClipConfig.ToggleKey = newKey
+        createKeyBindButton("NoClip", MovementConfig.NoClip.ToggleKey, function(newKey)
+            MovementConfig.NoClip.ToggleKey = newKey
         end)
         
-        createKeyBindButton("SpeedHack", SpeedHackConfig.ToggleKey, function(newKey)
-            SpeedHackConfig.ToggleKey = newKey
+        createKeyBindButton("SpeedHack", MovementConfig.Speed.ToggleKey, function(newKey)
+            MovementConfig.Speed.ToggleKey = newKey
         end)
         
         createKeyBindButton("Teleport", TeleportConfig.ToggleKey, function(newKey)
@@ -5725,17 +5628,17 @@ function showContent(tabName)
         createDivider()
         
         createSectionHeader("🟨 Fly Settings")
-        createToggleSlider("Fly", FlyConfig.Enabled, function(v)
-            FlyConfig.Enabled = v
+        createToggleSlider("Fly", MovementConfig.Fly.Enabled, function(v)
+            MovementConfig.Fly.Enabled = v
             if v then startFly() else stopFly() end
         end)
         
-        createSlider("Fly Speed", 0.1, 10, FlyConfig.Speed, function(v)
-            FlyConfig.Speed = v
+        createSlider("Fly Speed", 0.1, 10, MovementConfig.Fly.Speed, function(v)
+            MovementConfig.Fly.Speed = v
         end)
         
-        createSpeedInput("Custom Fly Speed", FlyConfig.Speed, function(v)
-            FlyConfig.Speed = v
+        createSpeedInput("Custom Fly Speed", MovementConfig.Fly.Speed, function(v)
+            MovementConfig.Fly.Speed = v
         end)
         
         createDivider()
@@ -5767,41 +5670,41 @@ function showContent(tabName)
         createDivider()
         
         createSectionHeader("🟦 SpeedHack Settings")
-        createToggleSlider("SpeedHack", SpeedHackConfig.Enabled, function(v)
-            SpeedHackConfig.Enabled = v
+        createToggleSlider("SpeedHack", MovementConfig.Speed.Enabled, function(v)
+            MovementConfig.Speed.Enabled = v
             if v then startSpeedHack() else stopSpeedHack() end
         end)
         
-        createToggleSlider("Use JumpPower Method", SpeedHackConfig.UseJumpPower, function(v)
-            SpeedHackConfig.UseJumpPower = v
-            if SpeedHackConfig.Enabled then
+        createToggleSlider("Use JumpPower Method", MovementConfig.Speed.UseJumpPower, function(v)
+            MovementConfig.Speed.UseJumpPower = v
+            if MovementConfig.Speed.Enabled then
                 stopSpeedHack()
                 startSpeedHack()
             end
         end)
         
-        createSlider("SpeedHack Speed", 0.1, 10, SpeedHackConfig.Speed, function(v)
-            SpeedHackConfig.Speed = v
-            if SpeedHackConfig.Enabled then
+        createSlider("SpeedHack Speed", 0.1, 10, MovementConfig.Speed.Speed, function(v)
+            MovementConfig.Speed.Speed = v
+            if MovementConfig.Speed.Enabled then
                 local char = Players.LocalPlayer.Character
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
                 if hum then
                     hum.WalkSpeed = v * 16
-                    if SpeedHackConfig.UseJumpPower then
+                    if MovementConfig.Speed.UseJumpPower then
                         hum.JumpPower = v * 50
                     end
                 end
             end
         end)
         
-        createSpeedInput("Custom SpeedHack Speed", SpeedHackConfig.Speed, function(v)
-            SpeedHackConfig.Speed = v
-            if SpeedHackConfig.Enabled then
+        createSpeedInput("Custom SpeedHack Speed", MovementConfig.Speed.Speed, function(v)
+            MovementConfig.Speed.Speed = v
+            if MovementConfig.Speed.Enabled then
                 local char = Players.LocalPlayer.Character
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
                 if hum then
                     hum.WalkSpeed = v * 16
-                    if SpeedHackConfig.UseJumpPower then
+                    if MovementConfig.Speed.UseJumpPower then
                         hum.JumpPower = v * 50
                     end
                 end
@@ -5812,14 +5715,14 @@ function showContent(tabName)
         
         -- Jump Settings
         createSectionHeader("🦘 Jump Settings")
-        createToggleSlider(getText("LongJump"), LongJumpConfig.Enabled, function(v)
-            LongJumpConfig.Enabled = v
+        createToggleSlider(getText("LongJump"), MovementConfig.LongJump.Enabled, function(v)
+            MovementConfig.LongJump.Enabled = v
             if v then startLongJump() else stopLongJump() end
         end)
         
-        createSlider("Long Jump Power", 50, 500, LongJumpConfig.JumpPower, function(v)
-            LongJumpConfig.JumpPower = v
-            if LongJumpConfig.Enabled then
+        createSlider("Long Jump Power", 50, 500, MovementConfig.LongJump.JumpPower, function(v)
+            MovementConfig.LongJump.JumpPower = v
+            if MovementConfig.LongJump.Enabled then
                 local char = Players.LocalPlayer.Character
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
                 if hum then
@@ -5828,13 +5731,13 @@ function showContent(tabName)
             end
         end)
         
-        createToggleSlider(getText("InfiniteJump"), InfiniteJumpConfig.Enabled, function(v)
-            InfiniteJumpConfig.Enabled = v
+        createToggleSlider(getText("InfiniteJump"), MovementConfig.InfiniteJump.Enabled, function(v)
+            MovementConfig.InfiniteJump.Enabled = v
             if v then startInfiniteJump() else stopInfiniteJump() end
         end)
         
-        createSlider("Infinite Jump Power", 20, 150, InfiniteJumpConfig.JumpPower, function(v)
-            InfiniteJumpConfig.JumpPower = v
+        createSlider("Infinite Jump Power", 20, 150, MovementConfig.InfiniteJump.JumpPower, function(v)
+            MovementConfig.InfiniteJump.JumpPower = v
         end)
         
         createDivider()
